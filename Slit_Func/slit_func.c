@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include <mkl.h>
+#include <cpl.h>
 
 typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -33,7 +33,7 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
                    double omega[ny][nrows][ncols],/* Work array telling what fruction of subpixel iy falls */
                                                   /* into pixel {x,y}.                                     */
                    double sP_old[ncols],          /* Work array to control the convergence                 */
-                   double Aij[],                  /* Various LAPACK arrays (ny*ny)                         */
+                   double Aij[],                  /*                          */
                    double Aij_work[],             /* ny*ny                                                 */
                    double bj[],                   /* ny                                                    */
                    int    ipivot[],               /* ny                                                    */
@@ -123,7 +123,7 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
 	    lambda=lambda_sL*diag_tot/ny;
 
-/* Add regularization parts for the slut function */
+/* Add regularization parts for the slit function */
 
         for(iy=1; iy<ny-1; iy++)
         {
@@ -139,11 +139,13 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
 /* Solve the system of equations */
 
+/* // LAPACK version to solve
         equed[0]='N'; equed[1]='\0';
         info=LAPACKE_dgesvx(LAPACK_COL_MAJOR, 'E', 'N', ny, 1, Aij, ny,
                             Aij_work, ny, ipivot, equed, r, c, bj, ny, sL, ny,
                             &rcond, &ferr, &berr, &rpivot);
         printf("info(sL)=%d\n", info);
+*/
 
 /* Normalize the slit function */
 
@@ -191,10 +193,11 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
         		Cdiag[x]=-lambda;
         	}
         	Bdiag[ncols-1]+=lambda;
-        	info=LAPACKE_dpttrf(ncols, Bdiag, Cdiag);
+/*        	info=LAPACKE_dpttrf(ncols, Bdiag, Cdiag);
             printf("info(sP1)=%d\n", info);
         	info=LAPACKE_dpttrs(LAPACK_COL_MAJOR, ncols, 1, Bdiag, Cdiag, E, ncols);
             printf("info(sP2)=%d\n", info);
+    */
         	for(x=0; x<ncols; x++) sP[x]=E[x];
         }	
         else
@@ -321,6 +324,7 @@ int main(int nArgs, void *Args[])
     fwrite(im, sizeof(double), ncols*nrows, datafile);
     fwrite(model, sizeof(double), ncols*nrows, datafile);
     fclose(datafile);
+    cpl_init(CPL_INIT_DEFAULT);
   }
   return 0;
 }
