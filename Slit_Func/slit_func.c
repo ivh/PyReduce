@@ -147,6 +147,16 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
         printf("info(sL)=%d\n", info);
 */
 
+        cpl_matrix *Aij_cpl, *bj_cpl, *sL_cpl;
+        Aij_cpl = cpl_matrix_wrap(ny, ny, Aij);
+        bj_cpl = cpl_matrix_wrap(ny, 1, bj);
+        sL_cpl = cpl_matrix_wrap(ny, 1, sL);
+
+        sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
+        cpl_matrix_unwrap(Aij_cpl);
+        cpl_matrix_unwrap(bj_cpl);
+        cpl_matrix_unwrap(sL_cpl);
+
 /* Normalize the slit function */
 
         norm=0.e0;
@@ -273,6 +283,8 @@ int main(int nArgs, void *Args[])
   FILE *datafile;
   double norm;
 
+  cpl_init(CPL_INIT_DEFAULT);
+
   datafile=fopen("slit_func1.dat", "rb");
   fread(&osample, sizeof(int), 1, datafile);
   fread(&ncols, sizeof(int), 1, datafile);
@@ -324,7 +336,6 @@ int main(int nArgs, void *Args[])
     fwrite(im, sizeof(double), ncols*nrows, datafile);
     fwrite(model, sizeof(double), ncols*nrows, datafile);
     fclose(datafile);
-    cpl_init(CPL_INIT_DEFAULT);
   }
   return 0;
 }
