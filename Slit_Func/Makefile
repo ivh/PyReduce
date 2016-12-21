@@ -7,4 +7,6 @@ $(binaries): %.bin: %.c
 	$(CC) $(CFLAGS) $< -o $@
 
 all: $(binaries)
-    
+
+slit_func_lapack.bin: %.bin: %.c
+	icc $< -o $@ -lm -mkl    
