@@ -1,10 +1,10 @@
 CC = gcc
-CFLAGS = -lm -lcplcore
+CFLAGS = -Ofast -Wall -lm -lcplcore
 
 binaries = slit_func.bin
 
 $(binaries): %.bin: %.c
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $< -o $@ $(CFLAGS)
 
 all: $(binaries)
 
