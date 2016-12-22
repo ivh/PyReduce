@@ -147,12 +147,23 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
         printf("info(sL)=%d\n", info);
 */
 
+
+        int i;
+        for (i=0;i < sizeof (sL);i++) {
+            printf("%lf ",sL[i]);
+            }
+        printf("\n");
+
         cpl_matrix *Aij_cpl, *bj_cpl, *sL_cpl;
         Aij_cpl = cpl_matrix_wrap(ny, ny, Aij);
         bj_cpl = cpl_matrix_wrap(ny, 1, bj);
         sL_cpl = cpl_matrix_wrap(ny, 1, sL);
 
-        sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
+        sL_cpl = cpl_matrix_solve_normal(Aij_cpl, bj_cpl);
+        sL = cpl_matrix_get_data(sL_cpl);
+        for (i=0;i < sizeof (sL);i++) {
+            printf("%lf",sL[i]);
+            }
         cpl_matrix_unwrap(Aij_cpl);
         cpl_matrix_unwrap(bj_cpl);
         cpl_matrix_unwrap(sL_cpl);
@@ -310,7 +321,7 @@ int main(int nArgs, void *Args[])
     fread(ycen, sizeof(double), ncols, datafile);
     fclose(datafile);
 
-    printf("nrows=%d, ncols=%d\n", nrows, ncols);
+    printf("nrows=%d, ncols=%d, double=%d\n", nrows, ncols, sizeof(double));
 
     for(i=0; i<ncols; i++)
     {
