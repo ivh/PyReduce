@@ -53,6 +53,17 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
     step=1.e0/osample;
 
+
+
+    cpl_matrix *Aij_cpl, *bj_cpl, *sL_cpl;
+    Aij_cpl = cpl_matrix_wrap(ny, ny, Aij);
+    bj_cpl = cpl_matrix_wrap(ny, 1, bj);
+    //sL_cpl = cpl_matrix_wrap(ny, 1, sL);
+
+    //cpl_matrix_unwrap(sL_cpl);
+    //cpl_matrix_unwrap(Aij_cpl);
+    //cpl_matrix_unwrap(bj_cpl);
+
 /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
    The tensor is mostly empty and can be easily compressed to ny*nx, but this will
@@ -149,24 +160,20 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
 
         int i;
+        printf("\nbefore:");
         for (i=0;i < sizeof (sL);i++) {
             printf("%lf ",sL[i]);
             }
-        printf("\n");
 
-        cpl_matrix *Aij_cpl, *bj_cpl, *sL_cpl;
-        Aij_cpl = cpl_matrix_wrap(ny, ny, Aij);
-        bj_cpl = cpl_matrix_wrap(ny, 1, bj);
-        sL_cpl = cpl_matrix_wrap(ny, 1, sL);
 
-        sL_cpl = cpl_matrix_solve_normal(Aij_cpl, bj_cpl);
+        sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
         sL = cpl_matrix_get_data(sL_cpl);
-        for (i=0;i < sizeof (sL);i++) {
-            printf("%lf",sL[i]);
+        cpl_matrix_delete(sL_cpl);
+
+        printf("\nafter:");
+        for (i=0;i < sizeof(sL);i++) {
+            printf("%lf ",sL[i]);
             }
-        cpl_matrix_unwrap(Aij_cpl);
-        cpl_matrix_unwrap(bj_cpl);
-        cpl_matrix_unwrap(sL_cpl);
 
 /* Normalize the slit function */
 
