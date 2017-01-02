@@ -8,61 +8,54 @@ typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
-/*
-int slit_func(int ncols, int nrows, int Osample, double image[nrows][ncols], byte mask[nrows][ncols],
-              double sL[(nrows+1)*Osample+1],  double sP[ncols], float im_model[nrows][ncols],
-              double omega[][], double oo[][], double Ajxjy[][], float Biy[],
-              double Dd[ncols])
-{
 
-}
-*/
-
-int slit_func_vert(int ncols,                     /* Swath width in pixels                                 */ 
+// returns model
+cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels                                 */ 
                    int nrows,                     /* Extraction slit height in pixels                      */
-                   int ny,                        /* Size of the slit function array: ny=osample(nrows+1)+1*/
-                   double im[nrows][ncols],       /* Image to be decomposed                                */
-                   byte mask[nrows][ncols],       /* Initial and final mask for the swath                  */
-                   double ycen[ncols],            /* Order centre line offset from pixel row boundary      */
                    int osample,                   /* Subpixel ovsersampling factor                         */ 
+                   cpl_image * im_cpl,            /* Image to be decomposed                                */
+                   cpl_vector * ycen_cpl,         /* Order centre line offset from pixel row boundary      */
+                   cpl_vector * sL_cpl,           /* Slit function resulting from decomposition, start     */
+                                                  /* guess is input, gets overwriteten with result         */
+                   cpl_vector * sP_cpl,           /* Spectrum resulting from decomposition                 */
                    double lambda_sP,              /* Smoothing parameter for the spectrum, coiuld be zero  */
                    double lambda_sL,              /* Smoothing parameter for the slit function, usually >0 */
-                   double sP[ncols],              /* Spectrum resulting from decomposition                 */
-                   double sL[ny],                 /* Slit function resulting from decomposition            */
-                   double model[nrows][ncols],    /* Model constructed from sp and sf                      */
-                   double omega[ny][nrows][ncols],/* Work array telling what fruction of subpixel iy falls */
-                                                  /* into pixel {x,y}.                                     */
-                   double sP_old[ncols],          /* Work array to control the convergence                 */
-                   double Aij[],                  /*                          */
-                   double Aij_work[],             /* ny*ny                                                 */
-                   double bj[],                   /* ny                                                    */
-                   int    ipivot[],               /* ny                                                    */
-                   double r[],                    /* ny                                                    */
-                   double c[],                    /* ny                                                    */
-                   double Adiag[],                /* Arrays for solving the tridiagonal SLE for sP (ncols) */
-                   double Bdiag[],                /* main diagonal (ncols)                                 */
-                   double Cdiag[],                /* lower diagonal (ncols)                                */
-                   double E[])                    /* RHS (ncols)                                           */
-{
-	int x, y, iy, jy, iy1, iy2;
+                   double sP_stop,                /* Fraction of spectyrum change, stop condition          */
+                   int maxiter                   /* Max number of iterations                              */
+    ) {
+	int x, y, iy, jy, iy1, iy2, ny;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum;
 	double rcond, ferr, berr, rpivot;
 	char equed[3];
+    cpl_matrix *Aij_cpl, *bj_cpl;
+    cpl_image *model_cpl;
+    double *Aij, *bj, *sP, *sL, *ycen, *im, *model, *mask; // raw data of cpl vec and matrices
 
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
+    if ( ny != (int)cpl_vector_get_size(sP) ) {
+        cpl_msg_error(__func__, "Size for sP does not match!");
+    }
     step=1.e0/osample;
+    double omega[ny][nrows][ncols];
 
 
+    Aij_cpl = cpl_matrix_new(ny, ny);
+    Aij = cpl_matrix_get_data(Aij_cpl);
+    bj_cpl = cpl_matrix_new(ny, 1);
+    bj = cpl_matrix_get_data(bj_cpl);
+    im = cpl_image_get_data(im_cpl);
+    model_cpl = cpl_image_new(ncols,nrows,CPL_TYPE_DOUBLE);
+    model = cpl_image_get_data(model_cpl);
+    im = cpl_image_get_data(im_cpl);
+    sL = cpl_vector_get_data(sL_cpl);
+    sP = cpl_vector_get_data(sP_cpl);
+    ycen = cpl_vector_get_data(ycen_cpl);
 
-    cpl_matrix *Aij_cpl, *bj_cpl, *sL_cpl;
-    Aij_cpl = cpl_matrix_wrap(ny, ny, Aij);
-    bj_cpl = cpl_matrix_wrap(ny, 1, bj);
-    //sL_cpl = cpl_matrix_wrap(ny, 1, sL);
-
-    //cpl_matrix_unwrap(sL_cpl);
-    //cpl_matrix_unwrap(Aij_cpl);
-    //cpl_matrix_unwrap(bj_cpl);
+/*
+reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the image
+*/
+    mask = cpl_mask_get_data(cpl_image_get_bpm(im));
 
 /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
@@ -281,7 +274,10 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
 /* Check the convergence */
 
-    } while(iter++<20 && sP_change>1.e-5*sP_max);
+    } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
+
+
+    cpl_matrix_unwrap(Aij_cpl);
 
 	return 0;
 }
@@ -321,53 +317,31 @@ int main(int nArgs, void *Args[])
     ycen = cpl_vector_wrap(ncols, ycen_data);
     sL = cpl_vector_new(ny);
     mask = cpl_mask_new(ncols, nrows);
-    printf("\nmask:");
-    for (i=0;i < nrows;i++) {
+    for (i=0;i < nrows;i++) { // convert to CPL mask, _1 means masked, inverse to mask_data!
         for (j=0;j < ncols;j++) {
             if (mask_data[i][j] == 1) {
                 cpl_mask_set(mask, i, j, CPL_BINARY_0);
                 } else {
                 cpl_mask_set(mask, i, j, CPL_BINARY_1);
                 }
-//        printf("%d ",mask_data[i][j]);
         }
     }
 
-    cpl_image_set_bpm(im, mask);
-    tmp = cpl_image_collapse_create(im , 1);
-    cpl_vector_new_from_image_column(tmp,1);
+    
+    if (cpl_image_set_bpm(im, mask) != NULL) { return 1; }
+    tmp = cpl_image_collapse_median_create(im , 0, 0, 0);
+    sP = cpl_vector_new_from_image_row(tmp,1);
     cpl_image_delete(tmp);
 
-    /* for(i=0; i<ncols; i++)
-    {
-        sP[i]=0.e0;
-        norm=0.e0;
-        for(j=0; j<nrows; j++)
-        {
-            norm+=mask_data[j][i];
-            sP[i]+=im[j][i]*mask[j][i];
-        }
-        norm/=nrows;
-        if(norm>0) sP[i]/=norm; else sP[i]=-1000.; 
-    } */
-
-    /* iret=slit_func_vert(ncols, nrows, ny, im, mask, ycen, osample, 0.e-6, 1.e0,
-                        sP, sL, model, omega, sP_old, Aij, Aij_work, bj, ipivot, r, c,
-                        Adiag, Bdiag, Cdiag, E);
-    */
-
-    //iret = slit_func_vert(ncols, nrows, osample, im, mask, ycen, , 0.e-6, 1.e0,
-    //                    sP, sL, model);
-
-
- 
-    /* int i;
-    printf("\nafter:");
     for (i=0;i < ny;i++) {
-        printf("%lf ",sL[i]);
+        printf("%lf, ",cpl_vector_get(sP,i));
         }
-    */
+   
 
+    model = slit_func_vert(ncols, nrows, osample, im, ycen, 
+                        sL, sP, 
+                        0.e-6, 1.e0, 1.e-5, 20);
+ 
     return 0;
 
     datafile=fopen("dump.bin", "wb");
