@@ -29,8 +29,7 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 	double rcond, ferr, berr, rpivot;
 	char equed[3];
     cpl_matrix *Aij_cpl, *bj_cpl;
-    cpl_image *model_cpl;
-    double *Aij, *bj, *sP, *sL, *ycen, *im, *model, *mask; // raw data of cpl vec and matrices
+    double *Aij, *bj, *sP, *sL, *ycen; // raw data of cpl vec and matrices
 
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
     if ( ny != (int)cpl_vector_get_size(sP) ) {
@@ -38,16 +37,16 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
     }
     step=1.e0/osample;
     double omega[ny][nrows][ncols];
+    double im[nrows][ncols];
+    int mask[nrows][ncols];
+    double model[nrows][ncols];
 
 
     Aij_cpl = cpl_matrix_new(ny, ny);
     Aij = cpl_matrix_get_data(Aij_cpl);
     bj_cpl = cpl_matrix_new(ny, 1);
     bj = cpl_matrix_get_data(bj_cpl);
-    im = cpl_image_get_data(im_cpl);
-    model_cpl = cpl_image_new(ncols,nrows,CPL_TYPE_DOUBLE);
-    model = cpl_image_get_data(model_cpl);
-    im = cpl_image_get_data(im_cpl);
+    memcpy(im, cpl_image_get_data(im_cpl), sizeof(im));
     sL = cpl_vector_get_data(sL_cpl);
     sP = cpl_vector_get_data(sP_cpl);
     ycen = cpl_vector_get_data(ycen_cpl);
@@ -55,7 +54,7 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 /*
 reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the image
 */
-    mask = cpl_mask_get_data(cpl_image_get_bpm(im));
+    memcpy( mask, cpl_mask_get_data(cpl_image_get_bpm(im)), sizeof(mask) );
 
 /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
@@ -279,7 +278,8 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 
     cpl_matrix_unwrap(Aij_cpl);
 
-	return 0;
+
+    return cpl_image_wrap_double(ncols, nrows, model);
 }
 
 #define NCOLS 768
