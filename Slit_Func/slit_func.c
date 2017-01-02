@@ -161,7 +161,7 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
         int i;
         printf("\nbefore:");
-        for (i=0;i < sizeof (sL);i++) {
+        for (i=0;i < ny;i++) {
             printf("%lf ",sL[i]);
             }
 
@@ -169,11 +169,6 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
         sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
         sL = cpl_matrix_get_data(sL_cpl);
         cpl_matrix_delete(sL_cpl);
-
-        printf("\nafter:");
-        for (i=0;i < sizeof(sL);i++) {
-            printf("%lf ",sL[i]);
-            }
 
 /* Normalize the slit function */
 
@@ -297,63 +292,91 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 
 int main(int nArgs, void *Args[])
 {
-  int ncols, nrows, osample, ny, iret, i, j, k;
-  FILE *datafile;
-  double norm;
+    int ncols, nrows, osample, ny, i, j, k;
+    FILE *datafile;
+    double norm;
+    static byte mask_data[NROWS][NCOLS];
+    static double im_data[NROWS][NCOLS], ycen_data[NCOLS];
 
-  cpl_init(CPL_INIT_DEFAULT);
+    datafile=fopen("slit_func1.dat", "rb");
+    fread(&osample, sizeof(int), 1, datafile);
+    fread(&ncols, sizeof(int), 1, datafile);
+    fread(&nrows, sizeof(int), 1, datafile);
+    fread(&ny, sizeof(int), 1, datafile);
+    printf("%d %d %d\n", osample,ncols,nrows);
 
-  datafile=fopen("slit_func1.dat", "rb");
-  fread(&osample, sizeof(int), 1, datafile);
-  fread(&ncols, sizeof(int), 1, datafile);
-  fread(&nrows, sizeof(int), 1, datafile);
-  fread(&ny, sizeof(int), 1, datafile);
-  printf("%d %d %d %d\n", osample,ncols,nrows,ny);
-
-  {
-    static byte mask[NROWS][NCOLS];
-    static double im[NROWS][NCOLS], ycen[NCOLS];
-    static double omega[NY][NROWS][NCOLS], sP[NCOLS], sP_old[NCOLS], sL[NY], model[NROWS][NCOLS];
-
-    static double Aij[NY*NY];            /* Various LAPACK arrays                                 */
-    static double Aij_work[NY*NY];
-    static double bj[NY];
-    static int    ipivot[NY];
-    static double r[NY];
-    static double c[NY];
-    static double Adiag[NCOLS-1], Bdiag[NCOLS], Cdiag[NCOLS-1], E[NCOLS];
-
-    fread(mask, sizeof(byte), nrows*ncols, datafile);
-    fread(im, sizeof(double), nrows*ncols, datafile);
-    fread(ycen, sizeof(double), ncols, datafile);
+    fread(mask_data, sizeof(byte), nrows*ncols, datafile);
+    fread(im_data, sizeof(double), nrows*ncols, datafile);
+    fread(ycen_data, sizeof(double), ncols, datafile);
+    printf("nrows=%d, ncols=%d, double=%d\n", nrows, ncols, sizeof(double));
     fclose(datafile);
 
-    printf("nrows=%d, ncols=%d, double=%d\n", nrows, ncols, sizeof(double));
+    cpl_init(CPL_INIT_DEFAULT);
+    cpl_image *model, *im, *tmp;
+    cpl_vector *ycen, *sL, *sP;
+    cpl_mask *mask;
 
-    for(i=0; i<ncols; i++)
+    model = cpl_image_new(ncols, nrows, CPL_TYPE_DOUBLE);
+    im = cpl_image_wrap_double(ncols, nrows, im_data);
+    ycen = cpl_vector_wrap(ncols, ycen_data);
+    sL = cpl_vector_new(ny);
+    mask = cpl_mask_new(ncols, nrows);
+    printf("\nmask:");
+    for (i=0;i < nrows;i++) {
+        for (j=0;j < ncols;j++) {
+            if (mask_data[i][j] == 1) {
+                cpl_mask_set(mask, i, j, CPL_BINARY_0);
+                } else {
+                cpl_mask_set(mask, i, j, CPL_BINARY_1);
+                }
+//        printf("%d ",mask_data[i][j]);
+        }
+    }
+
+    cpl_image_set_bpm(im, mask);
+    tmp = cpl_image_collapse_create(im , 1);
+    cpl_vector_new_from_image_column(tmp,1);
+    cpl_image_delete(tmp);
+
+    /* for(i=0; i<ncols; i++)
     {
         sP[i]=0.e0;
         norm=0.e0;
         for(j=0; j<nrows; j++)
         {
-        	norm+=mask[j][i];
-        	sP[i]+=im[j][i]*mask[j][i];
+            norm+=mask_data[j][i];
+            sP[i]+=im[j][i]*mask[j][i];
         }
         norm/=nrows;
-        if(norm>0) sP[i]/=norm; else sP[i]=-1000.; /* I should handle these columns eventually */
-    }
+        if(norm>0) sP[i]/=norm; else sP[i]=-1000.; 
+    } */
 
-    iret=slit_func_vert(ncols, nrows, ny, im, mask, ycen, osample, 0.e-6, 1.e0,
+    /* iret=slit_func_vert(ncols, nrows, ny, im, mask, ycen, osample, 0.e-6, 1.e0,
                         sP, sL, model, omega, sP_old, Aij, Aij_work, bj, ipivot, r, c,
                         Adiag, Bdiag, Cdiag, E);
+    */
+
+    //iret = slit_func_vert(ncols, nrows, osample, im, mask, ycen, , 0.e-6, 1.e0,
+    //                    sP, sL, model);
+
+
+ 
+    /* int i;
+    printf("\nafter:");
+    for (i=0;i < ny;i++) {
+        printf("%lf ",sL[i]);
+        }
+    */
+
+    return 0;
 
     datafile=fopen("dump.bin", "wb");
     fwrite(sL, sizeof(double), ny, datafile);
     fwrite(sP, sizeof(double), ncols, datafile);
-    fwrite(sP_old, sizeof(double), ncols, datafile);
+    fwrite(sP, sizeof(double), ncols, datafile);
     fwrite(im, sizeof(double), ncols*nrows, datafile);
     fwrite(model, sizeof(double), ncols*nrows, datafile);
     fclose(datafile);
-  }
-  return 0;
+
+    return 0;
 }
