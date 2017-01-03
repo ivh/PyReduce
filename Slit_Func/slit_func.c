@@ -93,8 +93,8 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 
     nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
-    if ( ny != (int)cpl_vector_get_size(sP) ) {
-        cpl_msg_error(__func__, "Size for sP does not match!");
+    if ( ny != (int)cpl_vector_get_size(sL_cpl) ) {
+        cpl_msg_error(__func__, "Size for sL does not match! %d %d",ny,(int)cpl_vector_get_size(sL_cpl));
     }
     step=1.e0/osample;
     double omega[ny][nrows][ncols];
@@ -394,10 +394,6 @@ int main(int nArgs, void *Args[])
     sP = cpl_vector_new_from_image_row(tmp,1);
     cpl_image_delete(tmp);
 
-    for (i=0;i < ny;i++) {
-        printf("%lf, ",cpl_vector_get(sP,i));
-        }
-   
 
     model = slit_func_vert(ncols, nrows, osample, im, ycen, 
                         sL, sP, 
