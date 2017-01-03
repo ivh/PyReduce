@@ -69,6 +69,25 @@ int bandsol(double *a, double *r, int n, int nd)
   return 0;
 }
 
+cpl_image * make_slit(  cpl_image * im_cpl, // full detector image
+                        cpl_vector * ycen_cpl, // current order mid-line y-coordinates
+                        int height // number of pix above and below mid-line
+                        int swath // width per swath
+    ){
+    /*
+    The task of this function is to 
+        * cut out the relevant pixels of the order
+        * shift im in y integers, so that nrows becomes minimal, adapt ycen accordingly
+        * loop over swaths, in half-steps
+        * run slit_func()
+        * merge overlapping swath results by linear weights from swath-width to edge.
+        * return re-assembled model image, slit-fu, spectrum, new mask. 
+    */
+
+
+}
+
+
 // returns model
 cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels                                 */ 
                    int nrows,                     /* Extraction slit height in pixels                      */
@@ -88,8 +107,6 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 	int info, iter, isum;
 	double rcond, ferr, berr, rpivot;
 	char equed[3];
-    cpl_matrix *Aij_cpl, *bj_cpl;
-    double *Aij, *bj, *sP, *sL, *ycen; // raw data of cpl vec and matrices
 
     nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
@@ -98,22 +115,21 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
     }
     step=1.e0/osample;
     double omega[ny][nrows][ncols];
-    double im[nrows][ncols];
     byte mask[nrows][ncols];
     double E[ncols];
     double sP_old[ncols];
     double model[nrows][ncols];
+    double Aij[ny*ny];
+    double bj[ny];
     double Adiag[ncols*3];
     cpl_mask * mask_cpl;
     cpl_binary * mask_cpl_data;
 
-    Aij_cpl = cpl_matrix_new(ny, ny);
-    Aij = cpl_matrix_get_data(Aij_cpl);
-    bj_cpl = cpl_matrix_new(ny, 1);
-    bj = cpl_matrix_get_data(bj_cpl);
-    sL = cpl_vector_get_data(sL_cpl);
+    double *sP, *sL, *ycen; // raw data of cpl vec and matrices
     sP = cpl_vector_get_data(sP_cpl);
+    sL = cpl_vector_get_data(sL_cpl);
     ycen = cpl_vector_get_data(ycen_cpl);
+    double im[nrows][ncols];
     memcpy(im, cpl_image_get_data(im_cpl), sizeof(im));
 
 /*
