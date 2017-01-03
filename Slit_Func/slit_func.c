@@ -32,15 +32,17 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
     double *Aij, *bj, *sP, *sL, *ycen; // raw data of cpl vec and matrices
 
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
-    if ( ny != (int)cpl_vector_get_size(sP) ) {
-        cpl_msg_error(__func__, "Size for sP does not match!");
+    if ( ny != (int)cpl_vector_get_size(sL_cpl) ) {
+        cpl_msg_error(__func__, "Size for sL does not match! %d %d",ny,(int)cpl_vector_get_size(sL_cpl));
     }
     step=1.e0/osample;
     double omega[ny][nrows][ncols];
     double im[nrows][ncols];
     int mask[nrows][ncols];
     double model[nrows][ncols];
-
+    double E[ncols];
+    double Adiag[ncols];
+    double sP_old[ncols];
 
     Aij_cpl = cpl_matrix_new(ny, ny);
     Aij = cpl_matrix_get_data(Aij_cpl);
@@ -111,7 +113,6 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
                    for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y][x];
                    Aij[iy+ny*jy]+=sum*sP[x]*sP[x];
                 }
-                Aij_work[iy+ny*jy]=Aij[iy+ny*jy];
             }
             for(x=0; x<ncols; x++)
            	{
@@ -142,22 +143,6 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 
 /* Solve the system of equations */
 
-/* // LAPACK version to solve
-        equed[0]='N'; equed[1]='\0';
-        info=LAPACKE_dgesvx(LAPACK_COL_MAJOR, 'E', 'N', ny, 1, Aij, ny,
-                            Aij_work, ny, ipivot, equed, r, c, bj, ny, sL, ny,
-                            &rcond, &ferr, &berr, &rpivot);
-        printf("info(sL)=%d\n", info);
-*/
-
-
-        int i;
-        printf("\nbefore:");
-        for (i=0;i < ny;i++) {
-            printf("%lf ",sL[i]);
-            }
-
-
         sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
         sL = cpl_matrix_get_data(sL_cpl);
         cpl_matrix_delete(sL_cpl);
@@ -174,7 +159,6 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 */
         for(x=0; x<ncols; x++)
         {
-        	Bdiag[x]=0.e0;
         	E[x]=0.e0;
         	for(y=0; y<nrows; y++)
             {
@@ -183,7 +167,6 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
         	    {
                     sum+=omega[iy][y][x]*sL[iy];
         	    }
-                Bdiag[x]+=sum*sum*mask[y][x];
                 E[x]+=sum*im[y][x]*mask[y][x];
             }
         }
@@ -199,28 +182,21 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
         	norm/=ncols;
         	lambda=lambda_sP*norm;
         	Adiag[0] =-lambda;
-        	Bdiag[0]+=lambda;
-        	Cdiag[0] =-lambda;
         	for(x=1; x<ncols-1; x++)
         	{
         		Adiag[x]=-lambda;
-        		Bdiag[x]+=2.e0*lambda;
-        		Cdiag[x]=-lambda;
         	}
-        	Bdiag[ncols-1]+=lambda;
-/*        	info=LAPACKE_dpttrf(ncols, Bdiag, Cdiag);
-            printf("info(sP1)=%d\n", info);
-        	info=LAPACKE_dpttrs(LAPACK_COL_MAJOR, ncols, 1, Bdiag, Cdiag, E, ncols);
-            printf("info(sP2)=%d\n", info);
-    */
-        	for(x=0; x<ncols; x++) sP[x]=E[x];
+
+            for(x=0; x<ncols; x++) sP[x]=E[x];
+            /* Solver */
+            cpl_matrix_solve()
         }	
         else
         {
         	for(x=0; x<ncols; x++)
         	{
         	    sP_old[x]=sP[x];
-                sP[x]=E[x]/Bdiag[x];	
+                sP[x]=E[x]/Adiag[x+ncols];	
         	} 
         }
 
