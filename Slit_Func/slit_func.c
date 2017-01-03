@@ -83,7 +83,7 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
                    double sP_stop,                /* Fraction of spectyrum change, stop condition          */
                    int maxiter                   /* Max number of iterations                              */
     ) {
-	int x, y, iy, jy, iy1, iy2, ny;
+	int x, y, iy, jy, iy1, iy2, ny, nd, i, j;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum;
 	double rcond, ferr, berr, rpivot;
@@ -91,32 +91,40 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
     cpl_matrix *Aij_cpl, *bj_cpl;
     double *Aij, *bj, *sP, *sL, *ycen; // raw data of cpl vec and matrices
 
+    nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
-    if ( ny != (int)cpl_vector_get_size(sL_cpl) ) {
-        cpl_msg_error(__func__, "Size for sL does not match! %d %d",ny,(int)cpl_vector_get_size(sL_cpl));
+    if ( ny != (int)cpl_vector_get_size(sP) ) {
+        cpl_msg_error(__func__, "Size for sP does not match!");
     }
     step=1.e0/osample;
     double omega[ny][nrows][ncols];
     double im[nrows][ncols];
-    int mask[nrows][ncols];
-    double model[nrows][ncols];
+    byte mask[nrows][ncols];
     double E[ncols];
-    double Adiag[ncols];
     double sP_old[ncols];
+    double model[nrows][ncols];
+    double Adiag[ncols*3];
+    cpl_mask * mask_cpl;
+    cpl_binary * mask_cpl_data;
 
     Aij_cpl = cpl_matrix_new(ny, ny);
     Aij = cpl_matrix_get_data(Aij_cpl);
     bj_cpl = cpl_matrix_new(ny, 1);
     bj = cpl_matrix_get_data(bj_cpl);
-    memcpy(im, cpl_image_get_data(im_cpl), sizeof(im));
     sL = cpl_vector_get_data(sL_cpl);
     sP = cpl_vector_get_data(sP_cpl);
     ycen = cpl_vector_get_data(ycen_cpl);
+    memcpy(im, cpl_image_get_data(im_cpl), sizeof(im));
 
 /*
 reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the image
 */
-    memcpy( mask, cpl_mask_get_data(cpl_image_get_bpm(im)), sizeof(mask) );
+    mask_cpl = cpl_image_get_bpm(im);
+    cpl_mask_not(mask_cpl);
+    mask_cpl_data = cpl_mask_get_data(mask_cpl);
+    for(i=0; i<nrows;i++){
+        for(j=0; j<ncols;j++) mask[i][j] = (byte)mask_cpl_data[i*ncols + j];
+    }
 
 /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
