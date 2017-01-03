@@ -8,6 +8,66 @@ typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
+int bandsol(double *a, double *r, int n, int nd)
+{
+  double aa;
+  int i, j, k;
+
+/*
+   bandsol solve a sparse system of linear equations with band-diagonal matrix.
+   Band is assumed to be symmetrix relative to the main diaginal.
+   Parameters are:
+         a is 2D array [n,nd] where n - is the number of equations and nd
+           is the width of the band (3 for tri-diagonal system).
+           nd must be an odd number. The main diagonal should be in a(*,nd/2)
+           The first lower subdiagonal should be in a(1:n-1,nd/2-1), the first
+           upper subdiagonal is in a(0:n-2,nd/2+1) etc. For example:
+                  / 0 0 X X X \
+                  | 0 X X X X |
+                  | X X X X X |
+                  | X X X X X |
+              A = | X X X X X |
+                  | X X X X X |
+                  | X X X X X |
+                  | X X X X 0 |
+                  \ X X X 0 0 /
+         r is the array of RHS of size n.
+   bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on degenerate
+   matrix.
+*/
+
+//  if(mod(nd,2)==0) return -1;
+
+/* Forward sweep */
+  for(i=0; i<n-1; i++)
+  {
+    aa=a[i+n*(nd/2)];
+//    if(aa==0.e0) return -3;
+    r[i]/=aa;
+    for(j=0; j<nd; j++) a[i+j*n]/=aa;
+    for(j=1; j<min(nd/2+1,n-i); j++)
+    {
+      aa=a[i+j+n*(nd/2-j)];
+//      if(aa==0.e0) return -j;
+      r[i+j]-=r[i]*aa;
+      for(k=0; k<n*(nd-j); k+=n) a[i+j+k]-=a[i+k+n*j]*aa;
+    }
+  }
+
+/* Backward sweep */
+  r[n-1]/=a[n-1+n*(nd/2)];
+  for(i=n-1; i>0; i--)
+  {
+    for(j=1; j<=min(nd/2,i); j++) r[i-j]-=r[i]*a[i-j+n*(nd/2+j)];
+//    if(a[i-1+n*(nd/2)]==0.e0) return -5;
+    r[i-1]/=a[i-1+n*(nd/2)];
+  }
+
+//  if(a[n*(nd/2)]==0.e0) return -6;  
+  r[0]/=a[n*(nd/2)];
+
+  return 0;
+}
 
 // returns model
 cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels                                 */ 
@@ -104,14 +164,15 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
         for(iy=0; iy<ny; iy++)
         {
             bj[iy]=0.e0;
-            for(jy=0; jy<ny; jy++)
+      for(jy=max(iy-osample,0); jy<=min(iy+osample,ny-1); jy++)
             {
-           	    Aij[iy+ny*jy]=0.e0;
+//        printf("iy=%d jy=%d %d\n", iy, jy, iy+ny*(jy-iy+osample));
+        Aij[iy+ny*(jy-iy+osample)]=0.e0;
            	    for(x=0; x<ncols; x++)
            	    {
           	 	   sum=0.e0;
                    for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y][x];
-                   Aij[iy+ny*jy]+=sum*sP[x]*sP[x];
+          Aij[iy+ny*(jy-iy+osample)]+=sum*sP[x]*sP[x];
                 }
             }
             for(x=0; x<ncols; x++)
@@ -120,7 +181,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
                 for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*mask[y][x]*im[y][x];
                 bj[iy]+=sum*sP[x];
             }
-            diag_tot+=Aij[iy+ny*iy];
+      diag_tot+=Aij[iy+ny*osample];
         }
 
 /* Scale regularization parameters */
@@ -129,28 +190,35 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 
 /* Add regularization parts for the slit function */
 
+    Aij[ny*osample]    +=lambda;           /* Main diagonal  */
+    Aij[ny*(osample+1)]-=lambda;           /* Upper diagonal */
         for(iy=1; iy<ny-1; iy++)
         {
-        	Aij[iy+ny*(iy-1)]-=lambda;      /* Upper diagonal */
-        	Aij[iy+ny*iy    ]+=lambda*2.e0; /* Main diagonal  */
-        	Aij[iy-1+ny*iy  ]-=lambda;      /* Lower diagonal */
-    
+      Aij[iy+ny*(osample-1)]-=lambda;      /* Lower diagonal */
+      Aij[iy+ny*osample    ]+=lambda*2.e0; /* Main diagonal  */
+      Aij[iy+ny*(osample+1)]-=lambda;      /* Upper diagonal */
         }
-      	Aij[ny-1+ny*(ny-2)]-=lambda;
-       	Aij[0             ]+=lambda;
-       	Aij[ny-1+ny*(ny-1)]+=lambda;
-      	Aij[ny-2+ny*(ny-1)]-=lambda;
+    Aij[ny-1+ny*(osample-1)]-=lambda;      /* Lower diagonal */
+    Aij[ny-1+ny*osample]    +=lambda;      /* Main diagonal  */
 
 /* Solve the system of equations */
+    info=bandsol(Aij, bj, ny, nd);
+    if(info) printf("info(sL)=%d\n", info);
 
+/* cpl solver
         sL_cpl = cpl_matrix_solve(Aij_cpl, bj_cpl);
         sL = cpl_matrix_get_data(sL_cpl);
         cpl_matrix_delete(sL_cpl);
+*/
 
 /* Normalize the slit function */
 
         norm=0.e0;
-        for(iy=0; iy<ny; iy++) norm+=sL[iy];
+    for(iy=0; iy<ny; iy++)
+    {
+      sL[iy]=bj[iy];
+      norm+=sL[iy];
+    }
         norm/=osample;
         for(iy=0; iy<ny; iy++) sL[iy]/=norm;
 
@@ -159,6 +227,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 */
         for(x=0; x<ncols; x++)
         {
+      Adiag[x+ncols]=0.e0;
         	E[x]=0.e0;
         	for(y=0; y<nrows; y++)
             {
@@ -167,6 +236,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
         	    {
                     sum+=omega[iy][y][x]*sL[iy];
         	    }
+        Adiag[x+ncols]+=sum*sum*mask[y][x];
                 E[x]+=sum*im[y][x]*mask[y][x];
             }
         }
@@ -181,22 +251,29 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
         	}
         	norm/=ncols;
         	lambda=lambda_sP*norm;
-        	Adiag[0] =-lambda;
+      Adiag[0        ] = 0.e0;
+      Adiag[0+ncols  ]+= lambda;
+      Adiag[0+ncols*2] =-lambda;
         	for(x=1; x<ncols-1; x++)
         	{
         		Adiag[x]=-lambda;
+      	Adiag[x+ncols  ]+= 2.e0*lambda;
+      	Adiag[x+ncols*2] =-lambda;
         	}
+      Adiag[ncols-1        ] =-lambda;
+      Adiag[ncols*2-1+ncols]+= lambda;
+      Adiag[ncols*3-1+ncols] = 0.e0;
 
-            for(x=0; x<ncols; x++) sP[x]=E[x];
-            /* Solver */
-            cpl_matrix_solve()
+      info=bandsol(Adiag, E, ncols, 3);
+
+        	for(x=0; x<ncols; x++) sP[x]=E[x];
         }	
         else
         {
         	for(x=0; x<ncols; x++)
         	{
         	    sP_old[x]=sP[x];
-                sP[x]=E[x]/Adiag[x+ncols];	
+        sP[x]=E[x]/Adiag[x+ncols];	
         	} 
         }
 
@@ -252,7 +329,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
     } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
 
 
-    cpl_matrix_unwrap(Aij_cpl);
+    //cpl_matrix_unwrap(Aij_cpl);
 
 
     return cpl_image_wrap_double(ncols, nrows, model);
