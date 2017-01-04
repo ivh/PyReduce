@@ -85,6 +85,7 @@ cpl_image * make_slit(  cpl_image * im_cpl, // full detector image
     */
 
 
+    return im_cpl;
 }
 
 
@@ -105,8 +106,6 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 	int x, y, iy, jy, iy1, iy2, ny, nd, i, j;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum;
-	double rcond, ferr, berr, rpivot;
-	char equed[3];
 
     nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
@@ -237,7 +236,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 
 /* Normalize the slit function */
 
-        norm=0.e0;
+    norm=0.e0;
     for(iy=0; iy<ny; iy++)
     {
       sL[iy]=bj[iy];
@@ -363,11 +362,10 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 #define NROWS  15
 #define NY    161
 
-int main(int nArgs, void *Args[])
+int main(int nArgs, char *Args[])
 {
-    int ncols, nrows, osample, ny, i, j, k;
+    int ncols, nrows, osample, ny, i, j;
     FILE *datafile;
-    double norm;
     static byte mask_data[NROWS][NCOLS];
     static double im_data[NROWS][NCOLS], ycen_data[NCOLS];
 
@@ -381,7 +379,6 @@ int main(int nArgs, void *Args[])
     fread(mask_data, sizeof(byte), nrows*ncols, datafile);
     fread(im_data, sizeof(double), nrows*ncols, datafile);
     fread(ycen_data, sizeof(double), ncols, datafile);
-    printf("nrows=%d, ncols=%d, double=%d\n", nrows, ncols, sizeof(double));
     fclose(datafile);
 
     cpl_init(CPL_INIT_DEFAULT);

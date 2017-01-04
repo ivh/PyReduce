@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -lm -lcplcore -g -w -O0
+CFLAGS = -lm -lcplcore -g -Wall -O0
 
 binaries = slit_func.bin
 
