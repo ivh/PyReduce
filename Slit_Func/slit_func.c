@@ -71,7 +71,7 @@ int bandsol(double *a, double *r, int n, int nd)
 
 cpl_image * make_slit(  cpl_image * im_cpl, // full detector image
                         cpl_vector * ycen_cpl, // current order mid-line y-coordinates
-                        int height // number of pix above and below mid-line
+                        int height, // number of pix above and below mid-line
                         int swath // width per swath
     ){
     /*
@@ -135,7 +135,7 @@ cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels      
 /*
 reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the image
 */
-    mask_cpl = cpl_image_get_bpm(im);
+    mask_cpl = cpl_image_get_bpm(im_cpl);
     cpl_mask_not(mask_cpl);
     mask_cpl_data = cpl_mask_get_data(mask_cpl);
     for(i=0; i<nrows;i++){
@@ -356,7 +356,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
     //cpl_matrix_unwrap(Aij_cpl);
 
 
-    return cpl_image_wrap_double(ncols, nrows, model);
+    return cpl_image_wrap_double(ncols, nrows, (double *)model);
 }
 
 #define NCOLS 768
@@ -390,7 +390,7 @@ int main(int nArgs, void *Args[])
     cpl_mask *mask;
 
     model = cpl_image_new(ncols, nrows, CPL_TYPE_DOUBLE);
-    im = cpl_image_wrap_double(ncols, nrows, im_data);
+    im = cpl_image_wrap_double(ncols, nrows, (double *)im_data);
     ycen = cpl_vector_wrap(ncols, ycen_data);
     sL = cpl_vector_new(ny);
     mask = cpl_mask_new(ncols, nrows);
@@ -409,7 +409,6 @@ int main(int nArgs, void *Args[])
     tmp = cpl_image_collapse_median_create(im , 0, 0, 0);
     sP = cpl_vector_new_from_image_row(tmp,1);
     cpl_image_delete(tmp);
-
 
     model = slit_func_vert(ncols, nrows, osample, im, ycen, 
                         sL, sP, 
