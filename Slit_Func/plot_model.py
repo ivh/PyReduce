@@ -6,17 +6,19 @@ matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 plt.ioff()
+plt.rcParams['image.cmap'] = 'gray'
+
 
 def midstep(ax, y):
-    return ax.step(np.arange(len(y)), y, where='mid')
+    return ax.step(np.arange(len(y)), y, where='mid',color='k')
 
 fig, (ax1, ax2, ax3, ax4) = plt.subplots(ncols=1,nrows=4,squeeze=True,figsize=(15,6))
-ax1.set_title('sL')
-ax2.set_title('sP')
-ax3.set_title('model')
-ax3.set_title('im-model')
+ax1.set_title('SlitFunction')
+ax2.set_title('Spectrum')
+ax3.set_title('data')
+ax4.set_title('model')
 
-for fname in ['dump.bin', 'dump_lapack.bin']:
+for fname in ['dump_lapack.bin']:
     f = open(fname)
     osample,ncols,nrows,ny = 10, 768, 15, 161
 
@@ -37,9 +39,9 @@ for fname in ['dump.bin', 'dump_lapack.bin']:
     midstep(ax1,sL)
     midstep(ax2,sP)
 
-    ax3.imshow(model)
-
-    ax4.imshow(im-model)
+    im3=ax3.imshow(im, aspect=5)
+    im4=ax4.imshow(model, aspect=5)
+    im3.set_clim(im4.get_clim())
 
 xy=list(ax1.axis())
 xy[2] -= (xy[3] - xy[2])/8.

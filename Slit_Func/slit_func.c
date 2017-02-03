@@ -362,6 +362,13 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 #define NROWS  15
 #define NY    161
 
+void testfu(cpl_vector * vec) {
+    double * dat;
+    int i;
+    dat = cpl_vector_get_data(vec);
+    for (i=0;i<cpl_vector_get_size(vec);i++) printf("%e",dat[i]);
+}
+
 int main(int nArgs, char *Args[])
 {
     int ncols, nrows, osample, ny, i, j;
@@ -374,7 +381,7 @@ int main(int nArgs, char *Args[])
     fread(&ncols, sizeof(int), 1, datafile);
     fread(&nrows, sizeof(int), 1, datafile);
     fread(&ny, sizeof(int), 1, datafile);
-    printf("%d %d %d\n", osample,ncols,nrows);
+    printf("%d %d %d %d\n", osample,ncols,nrows,ny);
 
     fread(mask_data, sizeof(byte), nrows*ncols, datafile);
     fread(im_data, sizeof(double), nrows*ncols, datafile);
@@ -390,6 +397,8 @@ int main(int nArgs, char *Args[])
     im = cpl_image_wrap_double(ncols, nrows, (double *)im_data);
     ycen = cpl_vector_wrap(ncols, ycen_data);
     sL = cpl_vector_new(ny);
+    testfu(sL); 
+
     mask = cpl_mask_new(ncols, nrows);
     for (i=0;i < nrows;i++) { // convert to CPL mask, _1 means masked, inverse to mask_data!
         for (j=0;j < ncols;j++) {
