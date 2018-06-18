@@ -90,7 +90,8 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
                    double sP[ncols],              /* Spectrum resulting from decomposition                 */
                    double sL[ny],                 /* Slit function resulting from decomposition            */
                    double model[nrows][ncols],    /* Model constructed from sp and sf                      */
-                   double omega[ny][nrows][ncols],/* Work array telling what fruction of subpixel iy falls */
+                   double unc[ncols],             /* Spectrum uncertainties                                */
+                   double omega[ny][nrows][ncols],/* Work array telling what fraction of subpixel iy falls */
                                                   /* into pixel {x,y}.                                     */
                    double sP_old[ncols],          /* Work array to control the convergence                 */
                    double Aij[],                  /* Various LAPACK arrays (ny*ny)                         */
@@ -335,6 +336,20 @@ printf("iter=%d, dev=%g sum=%g\n", iter, dev, sum);
 
   } while(iter++<20 && sP_change>1.e-5*sP_max);
 
+  for(x=0; x<ncols; x++)
+  {
+    unc[x]=0.;
+    norm=0.;
+    for(y=0; y<nrows; y++)
+    {
+      norm+=mask[y][x];
+      unc[x]+=(model[y][x]-im[y][x])*(model[y][x]-im[y][x])*
+            mask[y][x];
+    }
+    unc[x]=sqrt(unc[x]/norm*nrows);
+  }
+
+
 	return 0;
 }
 
@@ -361,9 +376,10 @@ int main(int nArgs, char *Args[])
     static double im[NROWS][NCOLS], ycen[NCOLS];
     static double omega[NY][NROWS][NCOLS], sP[NCOLS], sP_old[NCOLS], sL[NY], model[NROWS][NCOLS];
 
-    static double Aij[NY*(2*OSAMPLE+1)];            /* Various LAPACK arrays                                 */
+    static double Aij[NY*(2*OSAMPLE+1)];            /* Various band diagonal solver arrays */
     static double bj[NY];
     static double A3diag[NCOLS*3], RHS[NCOLS];
+    double unc[NCOLS];
 
     fread(mask, sizeof(byte), nrows*ncols, datafile);
     fread(im, sizeof(double), nrows*ncols, datafile);
@@ -390,8 +406,8 @@ int main(int nArgs, char *Args[])
     fclose(datafile);
     
 
-    iret=slit_func_vert(ncols, nrows, ny, im, mask, ycen, osample, 0.e-6, 1.e0,
-                        sP, sL, model, omega, sP_old, Aij, bj, A3diag, RHS);
+    iret=slit_func_vert(ncols, nrows, ny, im, mask, ycen, osample, 0.e-6, 2.e0,
+                        sP, sL, model, unc, omega, sP_old, Aij, bj, A3diag, RHS);
 
 
     datafile=fopen("dump1", "wb");
@@ -400,6 +416,7 @@ int main(int nArgs, char *Args[])
     fwrite(&ny, sizeof(int), 1, datafile);
     fwrite(sL, sizeof(double), ny, datafile);
     fwrite(sP, sizeof(double), ncols, datafile);
+    fwrite(unc, sizeof(double), ncols, datafile);
     fwrite(sP_old, sizeof(double), ncols, datafile);
     fwrite(im, sizeof(double), ncols*nrows, datafile);
     fwrite(model, sizeof(double), ncols*nrows, datafile);
