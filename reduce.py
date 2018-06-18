@@ -12,8 +12,8 @@ from clipnflip import clipnflip
 # from hamdord import hamdord
 # from modeinfo import modeinfo
 from modeinfo_uves import modeinfo_uves as modeinfo
-from sumbias import sumbias
-from sumfits import sumfits
+from combine_bias import combine_bias
+from combine_frames import combine_frames
 
 # some basic settings
 base_dir = './Test'
@@ -29,14 +29,11 @@ modes = config['modes'][:2]
 
 def create_flat(flatlist, inst_mode, exten, bias):
     """ Create a master flat from a list of flats """
-    flat, fhead = sumfits(
+    flat, fhead = combine_frames(
         flatlist, inst_mode, exten=exten)
     flat = clipnflip(flat, fhead)
     # = Subtract master dark. We have to scale it by the number of FF's
     flat = flat - bias * len(flatlist)  # subtract bias
-
-    del fhead['naxis1']
-    del fhead['naxis2']
 
     flat = flat[:, ::-1]
 
@@ -49,7 +46,7 @@ def create_bias(biaslist, inst_mode, exten):
     if n == 0:
         biaslist = np.array([biaslist, biaslist])
         n = 1
-    bias, bhead = sumbias(biaslist[:n], biaslist[n:], inst_mode, exten=exten)
+    bias, bhead = combine_bias(biaslist[:n], biaslist[n:], inst_mode, exten=exten, debug=True)
 
     return bias.astype(np.float32), bhead
 
@@ -112,7 +109,7 @@ if __name__ == '__main__':
             orderdef_fiber_b = files[ob == config["id_fiber_b"]]
             spec = files[ob == 'HD-132205']
 
-            # TODO: to have the same order as idl, for easy control
+            # TODO: to have the same order as idl, for easier control
             biaslist = biaslist[[4, 0, 3, 2, 1]]
 
             # Which parts of the reduction to perform

@@ -22,21 +22,12 @@ def modeinfo_uves(newhead, mode, **kwargs):
         kwargs["orient"] = reorient
         newhead["e_orient"] = kwargs["orient"]
     if kwargs.get("xr") is None:
-        try:
-            presc = newhead['eso det out' + id1 + ' prscx']
-        except KeyError:
-            presc = 0
-        try:
-            ovrsc = newhead['eso det out' + id1 +
-                            ' ovscx']  # oversan along x axis
-        except KeyError:
-            ovrsc = 0
+        presc = newhead.get('eso det out' + id1 + ' prscx', 0)
+        ovrsc = newhead.get('eso det out' + id1 + ' ovscx',
+                            0)  # oversan along x axis
         nxa = newhead['naxis1']  # full size of the whole frame
         # valid pixel range for a given ccd
         nxd = newhead['eso det out' + id1 + ' nx']
-        # if mode eq 'uves_middle' then nxn = nxa - presc - nxd - ovrsc else nxn = 0                 ; offset for 'uves_middle'
-        # xlo = nxn + presc
-        # xhi = nxn + presc + nxd - 1
         newhead["e_xlo"] = presc
         newhead["e_xhi"] = nxa - ovrsc - 1
     else:
@@ -49,36 +40,22 @@ def modeinfo_uves(newhead, mode, **kwargs):
     else:
         newhead["e_ylo"] = kwargs["yr"][0]
         newhead["e_yhi"] = kwargs["yr"][1]
+
     if kwargs.get("gain") is not None:
-        try:
-            kwargs["gain"] = newhead['eso det out' + id1 + ' conad']
-            newhead["e_gain"] = kwargs["gain"]
-        except KeyError:
-            raise Exception('gain  not found in header')
+        kwargs["gain"] = newhead['eso det out' + id1 + ' conad']
+        newhead["e_gain"] = kwargs["gain"]
+
     if kwargs.get("readn") is not None:
-        try:
-            kwargs["readn"] = newhead['eso det out' + id1 + ' ron']
-            newhead["e_readn"] = kwargs["readn"]
-        except KeyError:
-            raise Exception('readnoise not found in header')
+        kwargs["readn"] = newhead['eso det out' + id1 + ' ron']
+        newhead["e_readn"] = kwargs["readn"]
+
     if kwargs.get("backg") is not None:
-        try:
-            drk = newhead['eso ins det' + id2 + ' offdrk']
-        except KeyError:
-            drk = 0
-            print('No dark found in header, continue')
-        try:
-            sky = newhead['eso ins det' + id2 + ' offsky']
-        except KeyError:
-            sky = 0
-            print('No sky found in header, continue')
-        kwargs["backg"] = kwargs["gain"] * (drk + sky)  # convert adu to electrons
+        drk = newhead.get('eso ins det' + id2 + ' offdrk', 0)
+        sky = newhead.get('eso ins det' + id2 + ' offsky', 0)
+        kwargs["backg"] = kwargs["gain"] * \
+            (drk + sky)  # convert adu to electrons
     if kwargs.get("time") is not None:
-        try:
-            kwargs["time"] = newhead['exptime']
-        except KeyError:
-            kwargs["time"] = 0
-            print('No exposure time found in header, continue')
+        kwargs["time"] = newhead.get('exptime', 0)
     # For object frames, prepare for heliocentric correction
     imtype = newhead['object']
     obsctg = newhead['eso dpr catg']
@@ -89,7 +66,8 @@ def modeinfo_uves(newhead, mode, **kwargs):
         if kwargs.get("de2000") is not None:
             kwargs["de2000"] = newhead['dec']
         if kwargs.get("jd") is not None:
-            kwargs["jd"] = newhead['mjd-obs'] + kwargs["time"] / 2. / 3600. / 24. + 0.5e0
+            kwargs["jd"] = newhead['mjd-obs'] + \
+                kwargs["time"] / 2. / 3600. / 24. + 0.5e0
         # observatory coordinates
         if kwargs.get("obslon") is not None:
             kwargs["obslon"] = - newhead['eso tel geolon']
