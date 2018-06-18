@@ -1,0 +1,59 @@
+{
+    "instrument": "UVES",
+    "small": "uves",
+    "modes": [
+        "red",
+        "middle",
+        "blue"
+    ],
+    "extensions": [
+        1,
+        2,
+        0
+    ],
+    "id_mode": "NAXIS",
+    "mode_value": [
+        0,
+        0,
+        2
+    ],
+    "binned": ["2", "2"],
+    "mask_suffix": "",
+
+    "id_bias": "BIAS",
+    "id_flat": "LAMP,FLAT",
+    "id_wave": "LAMP,WAVE",
+    "id_orders": "LAMP,ORDERDEF",
+    "id_fiber_a": "",
+    "id_fiber_b": "",
+    "id_spec": "OBJECT,POINT",
+    
+    "orders_opower": 4,
+    "orders_filter": 80,
+    "orders_threshold": 100,
+    "orders_noise": 8,
+    
+    "normflat_sf_smooth": 2,
+    "normflat_osample": 12,
+    "normflat_swath_width": 200,
+    "normflat_threshold": 20000,
+    
+    "wavecal_osample": 0,
+    
+    "science_sf_smooth": 2,
+    "science_mkscatter_osample": 10,
+    "science_hamspec_osample": 12,
+    "science_mkscatter_swath_width": 400,
+    "science_hamspec_swath_width": 300,
+    "science_lambda_sf": 100,
+    "science_lambda_sp": 100,
+    
+    "manual": 1,
+    "polarim": 0,
+    "isplot": 1,
+    "use_fiber": "AB",
+    "use_median": 1,
+
+    "continuum_parameters_pass1" : [1, 1e5, 1e7, 1],
+    "continuum_parameters_pass2" : [10, 1e4, 1e7, 1]
+}
