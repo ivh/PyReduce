@@ -1,11 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef BUILDING_REDUCE_WIN_DLL
-  #define REDUCE_DLL __declspec(dllexport)
-#else
-  #define REDUCE_DLL
-#endif
 
 #define SWAP(r,s)  do{int t=r; r=s; s=t; } while(0)
 
@@ -94,7 +89,7 @@ int *diag_sort(int *x, int *y, int *index, int n, int nX, int nY)
   return index;
 }
 
-int REDUCE_DLL locate_clusters(int argc, void *argv[])
+int  locate_clusters(int argc, void *argv[])
 {
 /*
  locate_clusters takes a 2D integer array with horizontal structures
@@ -130,10 +125,10 @@ int REDUCE_DLL locate_clusters(int argc, void *argv[])
 
  Returning negative number indicates an error:
    -1     - not all mandatory arguments were specified;
-   -2     - 
+   -2     -
 
  WARNING: locate_clusters do not check the consitency between the actual size
-          of the arrays and their given dimensions. 
+          of the arrays and their given dimensions.
 
   A typical call from IDL may look like this:
 
@@ -155,7 +150,7 @@ int REDUCE_DLL locate_clusters(int argc, void *argv[])
   float noise;
   int iX, iY, half, has_mask;
   float offset, box, nbox;
-  
+
   if(argc<7) return -1;
   nX    =*(int *)argv[0];
   nY    =*(int *)argv[1];
@@ -171,7 +166,7 @@ int REDUCE_DLL locate_clusters(int argc, void *argv[])
     has_mask=1;
   }
   else has_mask=0;
-  
+
   n=0;
   half=filter/2;
   if(has_mask)
@@ -189,7 +184,7 @@ int REDUCE_DLL locate_clusters(int argc, void *argv[])
           if(n==nmax) return -2;
           x[n]=iX; y[n]=iY; n++;
         }
-      }   
+      }
     }
   }
   else
@@ -207,13 +202,13 @@ int REDUCE_DLL locate_clusters(int argc, void *argv[])
           if(n==nmax) return -2;
           x[n]=iX; y[n]=iY; n++;
         }
-      }   
+      }
     }
   }
   return n;
 }
 
-int REDUCE_DLL cluster(int argc, void *argv[])
+int  cluster(int argc, void *argv[])
 {
 /*
  Cluster takes two 1D integer arrays with X and Y coodinates of
@@ -342,7 +337,7 @@ int REDUCE_DLL cluster(int argc, void *argv[])
     if(j2>=0 && x[R2i[j2]]+1==x[i] && y[R2i[j2]]+1==y[i]) j[nj++]=R2i[j2];
     j2=j1+1;                             /* Next X-sorted number        */
     if(j2<n  && x[R2i[j2]]-1==x[i] && y[R2i[j2]]-1==y[i]) j[nj++]=R2i[j2];
-  
+
     njj=0;
     min_clr=n+1;                         /* Initialize minimum color     */
     for(j1=0; j1<nj; j1++)               /* Find minimum color           */
@@ -371,7 +366,7 @@ int REDUCE_DLL cluster(int argc, void *argv[])
   free(Y2i); free(i2Y);
   free(L2i); free(i2L);
   free(R2i); free(i2R);
-	
+
   for(i=0; i<n; i++)                      /* Reduce reference chains in look-up  */
   {                                       /* table to single direct references   */
     translation[i]=translation[translation[i]];
