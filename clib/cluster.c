@@ -89,7 +89,8 @@ int *diag_sort(int *x, int *y, int *index, int n, int nX, int nY)
   return index;
 }
 
-int  locate_clusters(int argc, void *argv[])
+//int  locate_clusters(int argc, void *argv[])
+int locate_clusters(int nX, int nY, int filter, int * im, int nmax, int *x, int *y, float noise, int * mask)
 {
 /*
  locate_clusters takes a 2D integer array with horizontal structures
@@ -145,27 +146,28 @@ int  locate_clusters(int argc, void *argv[])
  History: 17-Jul-2000 N.Piskunov wrote the IDL version.
           02-Jan-2014 N.Piskunov ported this routine to C.
 */
-  int nX, nY, *im, *x, *y, filter, nmax, n;
-  unsigned char *mask;
-  float noise;
-  int iX, iY, half, has_mask;
+  //int nX, nY, *im, *x, *y, filter, nmax, n;
+  //unsigned char *mask;
+  //float noise;
+  int iX, iY, half, has_mask, n;
   float offset, box, nbox;
 
-  if(argc<7) return -1;
-  nX    =*(int *)argv[0];
-  nY    =*(int *)argv[1];
-  filter=*(int *)argv[2];
-  im    = (int *)argv[3];
-  nmax  =*(int *)argv[4];
-  x     = (int *)argv[5];
-  y     = (int *)argv[6];
-  noise = (argc>7)?*(float *)argv[7]:1.;
-  if(argc>8)
-  {
-    mask  = (unsigned char *)argv[8];
-    has_mask=1;
-  }
-  else has_mask=0;
+  //if(argc<7) return -1;
+  //nX    =*(int *)argv[0];
+  //nY    =*(int *)argv[1];
+  //filter=*(int *)argv[2];
+  //im    = (int *)argv[3];
+  //nmax  =*(int *)argv[4];
+  //x     = (int *)argv[5];
+  //y     = (int *)argv[6];
+  //noise = (argc>7)?*(float *)argv[7]:1.;
+  //if(argc>8)
+  //{
+  //  mask  = (unsigned char *)argv[8];
+  //  has_mask=1;
+  //}
+  //else has_mask=0;
+  has_mask=1;
 
   n=0;
   half=filter/2;
