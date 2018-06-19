@@ -1,2 +1,2 @@
 
-int cluster(int argc, void *argv[]);     
+int cluster(int *x, int *y, int n, int nX, int nY, int thres, int *index);

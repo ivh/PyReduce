@@ -208,7 +208,9 @@ int  locate_clusters(int argc, void *argv[])
   return n;
 }
 
-int  cluster(int argc, void *argv[])
+// Original call
+//int  cluster(int argc, void *argv[])
+int cluster(int *x, int *y, int n, int nX, int nY, int thres, int *index)
 {
 /*
  Cluster takes two 1D integer arrays with X and Y coodinates of
@@ -241,7 +243,7 @@ int  cluster(int argc, void *argv[])
                        which are nearly horizontal/vertical.
 */
 
-  int *x, *y, n, nX, nY, thres, *index;
+//  int *x, *y, n, nX, nY, thres, *index;
   int *Xsort, *i2X, *X2i, *Ysort, *i2Y, *Y2i,
       *Lsort, *i2L, *L2i, *Rsort, *i2R, *R2i,
       *dummy, *dummy1;
@@ -250,16 +252,16 @@ int  cluster(int argc, void *argv[])
   int min_clr, max_clr, clrs[9], *uniq_clr, *translation;
 
 
-  if(argc<7) return -1;
-  x=(int *)argv[0];
-  y=(int *)argv[1];
-  n=*(int *)argv[2];
+  //if(argc<7) return -1;
+  //x=(int *)argv[0];
+  //y=(int *)argv[1];
+  //n=*(int *)argv[2];
   if(n<=0) return -2;
-  nX=*(int *)argv[3];
-  nY=*(int *)argv[4];
+  //nX=*(int *)argv[3];
+  //nY=*(int *)argv[4];
   if(n>nX*nY) return -4;
-  thres=*(int *)argv[5];
-  index=(int *)argv[6];
+  //thres=*(int *)argv[5];
+  //index=(int *)argv[6];
 
   dummy =(int *)malloc(n*sizeof(int));
   dummy1=(int *)malloc(n*sizeof(int));
