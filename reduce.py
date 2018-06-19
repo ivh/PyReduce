@@ -12,56 +12,100 @@ from clipnflip import clipnflip
 # from hamdord import hamdord
 # from modeinfo import modeinfo
 from modeinfo_uves import modeinfo_uves as modeinfo
-from combine_bias import combine_bias
-from combine_frames import combine_frames
-
-# some basic settings
-base_dir = './Test'
-mask_dir = './Test/UVES/HD132205'
-instrument = 'UVES'
-target = 'HD132205'
-
-# load configuration for the current instrument
-with open('settings_%s.json' % instrument) as f:
-    config = json.load(f)
-modes = config['modes'][:2]
+from combine_frames import combine_bias, combine_flat
 
 
-def create_flat(flatlist, inst_mode, exten, bias):
-    """ Create a master flat from a list of flats """
-    flat, fhead = combine_frames(
-        flatlist, inst_mode, exten=exten)
-    flat = clipnflip(flat, fhead)
-    # = Subtract master dark. We have to scale it by the number of FF's
-    flat = flat - bias * len(flatlist)  # subtract bias
+def load_header(hdulist, exten=1):
+    """
+    load and combine primary header with extension header
 
-    flat = flat[:, ::-1]
+    Parameters
+    ----------
+    hdulist : list(hdu)
+        list of hdu, usually from fits.open
+    exten : int, optional
+        extension to use in addition to primary (default: 1)
 
-    return flat.astype(np.float32), fhead
+    Returns
+    -------
+    header
+        combined header, extension first
+    """
 
-def create_bias(biaslist, inst_mode, exten):
-    """ Create a Master bias from a list of bias files """
-    n = int(np.floor(len(biaslist) / 2))
-    # necessary to maintain proper dimensionality, if there is just one element
-    if n == 0:
-        biaslist = np.array([biaslist, biaslist])
-        n = 1
-    bias, bhead = combine_bias(biaslist[:n], biaslist[n:], inst_mode, exten=exten, debug=True)
+    head = hdulist[exten].header
+    head.extend(hdulist[0].header, strip=False)
+    return head
 
-    return bias.astype(np.float32), bhead
+
+def sort_files(files, config):
+    """
+    Sort a set of fits files into different categories
+    types are: bias, flat, wavecal, orderdef, orderdef_fiber_a, orderdef_fiber_b, spec
+
+    Parameters
+    ----------
+    files : list(str)
+        files to sort
+    Returns
+    -------
+    biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
+        lists of files, one per type
+    """
+
+    ob = np.zeros(len(files), dtype='U20')
+    ty = np.zeros(len(files), dtype='U20')
+    # mo = np.zeros(len(files), dtype='U20')
+    exptime = np.zeros(len(files))
+
+    for i, f in enumerate(files):
+        h = fits.open(f)[0].header
+        ob[i] = h['OBJECT']
+        ty[i] = h['ESO DPR TYPE']
+        exptime[i] = h['EXPTIME']
+        # mo[i] = h['ESO INS MODE']
+
+    biaslist = files[ty == config["id_bias"]]
+    flatlist = files[ty == config["id_flat"]]
+    wavelist = files[ob == config["id_wave"]]
+    orderlist = files[ob == config["id_orders"]]
+    orderdef_fiber_a = files[ob == config["id_fiber_a"]]
+    orderdef_fiber_b = files[ob == config["id_fiber_b"]]
+    speclist = files[ob == 'HD-132205']
+
+    return biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
+
 
 if __name__ == '__main__':
+    # some basic settings
+    # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
+    base_dir = './Test'
+    mask_dir = './Test/UVES/HD132205'
+
+    instrument = 'UVES'
+    target = 'HD132205'
+
+    # Which parts of the reduction to perform
+    steps_to_take = ['bias', 'flat', 'orders',
+                'norm_flat', 'wavecal', 'science']
+
+    # load configuration for the current instrument
+    with open('settings_%s.json' % instrument) as f:
+        config = json.load(f)
+
+    modes = config['modes'][1:2]  # TODO: just middle for testing
 
     # Search the available days
     dates = os.path.join(base_dir, instrument, target, 'raw', '????-??-??')
     dates = glob.glob(dates)
     dates = [r + os.sep for r in dates if os.path.isdir(r)]
 
+    print('Instrument: ', instrument)
+    print('Target: ', target)
     for night in dates:
         night = os.path.basename(night[:-1])
-        print(night)
+        print('Observation Date: ', night)
         for counter_mode, inst_mode in enumerate(modes):
-            print(inst_mode)
+            print('Instrument Mode: ', inst_mode)
 
             # read configuration settings
             mode = config["modes"][counter_mode]
@@ -71,16 +115,21 @@ if __name__ == '__main__':
             current_mode_value = config["mode_value"][counter_mode]
 
             # define paths
-            raw_path = os.path.join(base_dir, instrument, target, 'raw', night) + os.sep
-            reduced_path = os.path.join(base_dir, instrument, target, 'reduced', night, 'Reduced_' + mode) + os.sep
+            raw_path = os.path.join(
+                base_dir, instrument, target, 'raw', night) + os.sep
+            reduced_path = os.path.join(
+                base_dir, instrument, target, 'reduced', night, 'Reduced_' + mode) + os.sep
 
             # define files
             mask_file = os.path.join(mask_dir, 'mask_%s.fits.gz' % inst_mode)
             bias_file = os.path.join(reduced_path, prefix + '.bias.fits')
             flat_file = os.path.join(reduced_path, prefix + '.flat.fits')
-            norm_flat_file = os.path.join(reduced_path, prefix + '.flat.norm.fits')
-            ord_norm_file = os.path.join(reduced_path, prefix + '.ord_norm.sav')
-            ord_default_file = os.path.join(reduced_path, prefix + '.ord_default.sav')
+            norm_flat_file = os.path.join(
+                reduced_path, prefix + '.flat.norm.fits')
+            ord_norm_file = os.path.join(
+                reduced_path, prefix + '.ord_norm.sav')
+            ord_default_file = os.path.join(
+                reduced_path, prefix + '.ord_default.sav')
 
             # create output folder structure if necessary
             if not os.path.exists(reduced_path):
@@ -88,236 +137,191 @@ if __name__ == '__main__':
 
             # find input files and sort them by type
             files = np.array(glob.glob(raw_path + '%s.*.fits.gz' % instrument))
+            f_bias, f_flat, f_wave, f_order, f_order_a, f_order_b, f_spec = sort_files(
+                files, config)
 
-            ob = np.zeros(len(files), dtype='U20')
-            ty = np.zeros(len(files), dtype='U20')
-            #mo = np.zeros(len(files), dtype='U20')
-            exptime = np.zeros(len(files))
+            # ==========================================================================
+            # Read mask
+            mask = fits.open(mask_file)
+            mhead = modeinfo(mask[0].header, inst_mode)
+            mask = clipnflip(mask, mhead)
 
-            for i, f in enumerate(files):
-                h = fits.open(f)[0].header
-                ob[i] = h['OBJECT']
-                ty[i] = h['ESO DPR TYPE']
-                exptime[i] = h['EXPTIME']
-                #mo[i] = h['ESO INS MODE']
-
-            biaslist = files[ty == config["id_bias"]]
-            flatlist = files[ty == config["id_flat"]]
-            tharlist = files[ob == config["id_wave"]]
-            orderlist = files[ob == config["id_orders"]]
-            orderdef_fiber_a = files[ob == config["id_fiber_a"]]
-            orderdef_fiber_b = files[ob == config["id_fiber_b"]]
-            spec = files[ob == 'HD-132205']
-
-            # TODO: to have the same order as idl, for easier control
-            biaslist = biaslist[[4, 0, 3, 2, 1]]
-
-            # Which parts of the reduction to perform
-            steps_to_take = ['bias', 'flat', 'orders']
-
-            #
             # ==========================================================================
             # Creat master bias
-            #
             if 'bias' in steps_to_take:
-                if len(biaslist) > 0:
-                    print('Creating master bias')
-                    bias, bhead = create_bias(biaslist, inst_mode, exten=exten)
-                    fits.writeto(filename=bias_file, data=bias, header=bhead, overwrite=True)  # save master bias
-                else:
-                    raise FileNotFoundError('No BIAS files found')
+                print('Creating master bias')
+                bias, bhead = combine_bias(f_bias, inst_mode, exten=exten)
+                fits.writeto(bias_file, data=bias,
+                             header=bhead, overwrite=True)
             else:
                 print('Loading master bias')
                 bias = fits.open(bias_file)[0]
+                bias, bhead = bias.data, bias.header
 
             # ==========================================================================
-            # = Create master flat
+            # Create master flat
             if 'flat' in steps_to_take:
-                if len(flatlist) > 0:
-                    print('Creating flat field')
-                    flat, fhead = create_flat(flatlist, inst_mode, exten, bias)
-                    fits.writeto(filename=flat_file, data=flat, header=fhead, overwrite=True)  # save master flat
-                else:
-                    raise FileNotFoundError('No FLAT files found')
+                print('Creating flat field')
+                flat, fhead = combine_flat(f_flat, inst_mode, exten=exten)
+                fits.writeto(flat_file, data=flat,
+                             header=fhead, overwrite=True)
             else:
                 print('Loading flat field')
-                flat = fits.open(flat_file)
+                flat = fits.open(flat_file)[0]
+                flat, fhead = flat.data, flat.header
 
-
-            # This is how far it should work
-            continue
             # ==========================================================================
-            # = Find default orders.
+            # Find default orders.
 
-            # if file_test(ord_default_file) then begin
-            # restore,ord_default_file
-            # endif else begin
             if 'orders' in steps_to_take:
-                mask = fits.open(mask_file)  # read ccd mask
-                mhead = modeinfo(mask[0].header, inst_mode)
-                mask = clipnflip(mask, mhead)
+                print('Order Tracing')
+                # load mask
 
-                dord = flat_file
-                ordim, hrd = fits.open(dord)
+                if config["use_fiber"] == "A":
+                    ordim = fits.open(f_order_a[0])
+                    ordim, hrd = ordim[exten].data, ordim[exten].header
+                if config["use_fiber"] == "B":
+                    ordim = fits.open(f_order_b[0])
+                    ordim, hrd = ordim[exten].data, ordim[exten].header
+                if config["use_fiber"] == "AB":
+                    ordim, hrd = flat, fhead
 
                 # manual selection of what to do with clusters disabled until i figure out how it works
-                ordim, orders, ord_err, or_range, col_range, opower, mask = hamdord(
-                    ordim, filter=30., power=opower, plot=True, mask=mask, thres=200, manual=True, polarim=True)
+                hamdord(ordim, plot=True, mask=mask, manual=True, **config)
 
                 # = Determine extraction width, blaze center column, and base order. Save to disk.
-                ordim, orders, def_xwd, def_sxwd, col_range = getxwd(
-                    ordim, orders, def_xwd, def_sxwd, colrange=col_range, gauss=True)  # get extraction width
+                getxwd(ordim, orders, def_xwd, def_sxwd,
+                       colrange=col_range, gauss=True)  # get extraction width
 
                 # = Save image format description
-                orders, or_range, ord_err, col_range, def_xwd, def_sxwd, ord_default_file = save(
-                    orders, or_range, ord_err, col_range, def_xwd, def_sxwd, file=ord_default_file)
+                save(orders, or_range, ord_err, col_range,
+                     def_xwd, def_sxwd, file=ord_default_file)
+            else:
+                print('Load order tracing data')
+                load(ord_default_file)
 
             # ==========================================================================
             # = Construct normalized flat field.
-            # restore,ord_default_file
 
-            flat = readfits(flat_file, fhead)
-            mask_file, mask, mhead = fits_read(
-                mask_file, mask, mhead)  # read order definition frame
-            mhead = modeinfo(mhead, inst_mode)
-            mask = clipnflip(mask, mhead)
+            if "norm_flat" in steps_to_take:
+                print("Normalize flat field")
+                def_xwd, def_sxwd = getxwd(
+                    flat, orders, colrange=col_range, gauss=True)  # get extraction width
 
-            flat, orders, def_xwd, def_sxwd, col_range, _ = getxwd(
-                flat, orders, def_xwd, def_sxwd, colrange=col_range, gauss=True)  # get extraction width
+                flat, fhead = hamflat(
+                    flat, fhead, orders, blzcoef, colrange=col_range, fxwd=def_xwd, mask=mask, plot=True, **config)
 
-            flat, fhead, orders, blzcoef, col_range, def_xwd, _, _, _, mask, _, _ = hamflat(
-                flat, fhead, orders, blzcoef, colrange=col_range, fxwd=def_xwd, sf_smooth=4., osample=10, swath_width=200, mask=mask, threshold=10000, plot=True)
-
-            orders, or_range, ord_err, col_range, def_xwd, def_sxwd, blzcoef, ord_norm_file = save(
-                orders, or_range, ord_err, col_range, def_xwd, def_sxwd, blzcoef, file=ord_norm_file)
-            norm_flat_file, flat, fhead = writefits(
-                norm_flat_file, flat, fhead)
-
+                save(orders, or_range, ord_err, col_range, def_xwd,
+                     def_sxwd, blzcoef, file=ord_norm_file)
+                fits.writeto(norm_flat_file, data=flat,
+                             header=fhead, overwrite=True)
+            else:
+                print("Load normalized flat field")
+                flat = fits.open(norm_flat_file)
+                flat = flat[0].data, flat[0].header
             # ==========================================================================
-            # Extract thorium spectra.
-            # restore,ord_norm_file
+            # Prepare wavelength calibration
 
-            for n in np.arange(0, n_elements(tharlist) + 1, 1):
-                nameout = strmid(tharlist[n], strpos(
-                    tharlist[n], '/', reverse_search=True) + 1)
-                nameout = reduced_path + \
-                    strmid(nameout, 0, strlen(nameout) - 8)
+            if "wavecal" in steps_to_take:
+                print("Prepare wavelength calibration")
+                for f in f_wave:
+                    nameout = os.path.basename(f)
+                    nameout, _ = os.path.splitext(nameout)
+                    nameout = os.path.join(reduced_path, nameout + '.thar.ech')
 
-                tharlist[n], im, head, exten, _ = fits_read(
-                    tharlist[n], im, head, exten=exten, pdu=True)  # read stellar spectrum
-                # modify header with instrument setup
-                head = modeinfo(head, inst_mode)
-                im = clipnflip(im, head)  # clip
-                flip
-                xwd = def_xwd
-                xwd[:, :] = 6
-                im, head, orders, xwd, def_sxwd, or_range[0], thar, sunc, col_range, _, _ = hamspec(
-                    im, head, orders, xwd, def_sxwd, or_range[0], thar, sig=sunc, colrange=col_range, osample=10, thar=True)
+                    im = fits.open(f)
+                    head = load_header(im, exten=exten)
+                    head = modeinfo(head, inst_mode)
 
-                im = 0
-                head, or_range[0] = sxaddpar(
-                    head, 'obase', or_range[0], ' base order number')  # , before='comment'
-                # save spectrum to disk
-                wdech(nameout + '.thar.ech', head,
-                      thar, bary=True, overwrite=True)
+                    im = im[exten].data
+                    im = clipnflip(im, head)
+
+                    thar, head = hamspec(im, head, orders, def_xwd, def_sxwd,
+                                         or_range[0], sig=sunc, colrange=col_range, thar=True, **config)
+
+                    head['obase'] = (or_range[0], 'base order number')
+
+                    fits.writeto(nameout)
+                    wdech(nameout, data=thar, header=head, overwrite=True)
 
             # ==========================================================================
             # Prepare for science spectra extractionord_norm_file
-            # restore,ord_norm_file
 
-            mask = readfits(mask_file, mhead)
-            mhead = modeinfo(mhead, inst_mode)
-            mask = clipnflip(mask, mhead)
-            flat = readfits(norm_flat_file, fhead)
-            bias = readfits(bias_file, bhead)
+            if "science" in steps_to_take:
+                nord = len(orders[:, 0])
 
-            nord = n_elements(orders[:, 0])
-            xwd = replicate(8, 2, nord)
+                for f in f_spec:
+                    nameout = os.path.basename(f)
+                    nameout, _ = os.path.splitext(f) + '.ech'
+                    nameout = os.path.join(reduced_path, nameout)
 
-            for n in np.arange(0, n_elements(spec) + 1, 1):
-                nameout = strmid(spec[n], strpos(
-                    spec[n], '/', reverse_search=True) + 1)
-                nameout = reduced_path + \
-                    strmid(nameout, 0, strlen(nameout) - 8)
-                spec[n], im, head, exten, _ = fits_read(
-                    spec[n], im, head, exten=exten, pdu=True)  # read stellar spectrum
-                loadct(0)
-                im, _ = display(
-                    im, log=True, tit=spec[n] + '(' + inst_mode + ')')
-                # modify header with instrument setup
-                head = modeinfo(head, inst_mode)
-                im = clipnflip(im, head)  # clip
-                flip
-                im = im - bias
+                    im = fits.open(f)  # read stellar spectrum
+                    head = load_header(im, exten=exten)
+                    head = modeinfo(head, inst_mode)
 
-                # Extract frame information from the header
-                readn = sxpar(head, 'e_readn')
-                dark = sxpar(head, 'e_backg')
-                gain = sxpar(head, 'e_gain')
+                    im = im[exten].data
+                    im = clipnflip(im, head)
+                    im = im - bias
 
-                # Fit the scattered light. The approximation is returned in 2D array bg for each
-                # inter-order troff
-                im, orders, bg, ybg, col_range, _, _, _, mask, _, gain, readn, _ = mkscatter(
-                    im, orders, bg, ybg, colrange=col_range, lambda_sf=60., swath_width=300, osample=10, mask=mask, lambda_sp=10., gain=gain, readn=readn, subtract=True)
+                    # plt.imshow(im)
+                    # plt.title(nameout + '(%s)' % inst_mode)
+                    # plt.show()
 
-                # Flat fielding
-                im = im / flat
+                    # Extract frame information from the header
+                    readn = head['e_readn']
+                    dark = head['e_backg']
+                    gain = head['e_gain']
 
-                # Optimally extract science spectrum
-                im, head, orders, xwd, sxwd, or_range[0], sp, sunc, col_range, _, _, _, mask = hamspec(
-                    im, head, orders, xwd, sxwd, or_range[0], sp, sig=sunc, colrange=col_range, sf_smooth=3., osample=10, swath_width=200, mask=mask, filename=spec[n])
+                    # Fit the scattered light. The approximation is returned in 2D array bg for each
+                    # inter-order troff
+                    bg, ybg = mkscatter(im, orders, colrange=col_range, mask=mask,
+                                        gain=gain, readn=readn, subtract=True, **config)
 
-                im = 0
+                    # Flat fielding
+                    im = im / flat
 
-                #_global.p.multi = __array__((4, 1, 4))
+                    # Optimally extract science spectrum
+                    sp = hamspec(im, head, orders, xwd, sxwd,
+                                 or_range[0], sig=sunc, colrange=col_range, mask=mask, **config)
 
-                sigma = sunc
-                cont = sunc * 0. + 1.
-                for i in np.arange(0, nord - 1 + 1, 1):
-                    x = indgen(col_range[i, 1] -
-                               col_range[i, 0] + 1) + col_range[i, 0]
+                    sigma = sunc
+                    cont = np.full_like(sunc, 1.)
+                    for i in range(nord):
+                        x = np.arange(col_range[i, 0], col_range[i, 1] + 1)
 
-                    # convert uncertainty to relative error
-                    sigma[i, x] = sunc[i, x] / (sp[i, x] > 1.)
+                        # convert uncertainty to relative error
+                        sigma[i, x] = sunc[i, x] / np.clip(sp[i, x], 1., None)
 
-                    s = sp[i, x] / (blzcoef[i, x] > 0.001)
-                    c = top(s, 1, eps=0.0002, poly=True)
-                    s = s / c
-                    c = sp[i, x] / s
-                    cont[i, x] = c
+                        s = sp[i, x] / np.clip(blzcoef[i, x], 0.001, None)
+                        c = top(s, 1, eps=0.0002, poly=True)
+                        s = s / c
+                        c = sp[i, x] / s
+                        cont[i, x] = c
 
-                    yr = __array__((0., 2))
-                    plot(x, s, xs=1, ys=3, xr=[n_elements(
-                        sp[0, :]), 100], charsize=2, yr=yr, title='order:' + strtrim(i + or_range[0], 2))
+                        yr = (0., 2)
+                        plt.plot(x, s)
+                        plt.title('order:%i % i' % (i, or_range[0]))
 
-                #_global.p.multi = 0
-
-                head, or_range[0] = sxaddpar(
-                    head, 'obase', or_range[0], ' base order number')  # , before='comment'
-                # save spectrum to disk
-                wdech(nameout + '.ech', head, sp,
-                      sig=sigma, cont=cont, overwrite=True)
-                pol_angle = hierarch(
-                    head, 'hierarch eso ins ret25 pos', count=nval)
-                if (nval == 0):
-                    pol_angle = hierarch(
-                        head, 'hierarch eso ins ret50 pos', count=nval)
-                    if (nval == 0):
-                        pol_angle = 'no polarimeter'
+                    head["obase"] = (or_range[0], ' base order number')
+                    # save spectrum to disk
+                    fits.writeto(nameout, data=sp, header=head,
+                                 overwrite=True)  # sig=sigma, cont=cont
+                    pol_angle = head.get("eso ins ret25 pos")
+                    if pol_angle is None:
+                        pol_angle = head.get('hierarch eso ins ret50 pos')
+                        if pol_angle is None:
+                            pol_angle = 'no polarimeter'
+                        else:
+                            pol_angle = 'lin %i' % pol_angle
                     else:
-                        pol_angle = 'lin ' + strtrim(pol_angle, 2)
-                else:
-                    pol_angle = 'cir ' + strtrim(pol_angle, 2)
+                        pol_angle = 'cir %i' % pol_angle
 
-                openw(1, reduced_path + night + '.log', append=True)
-                printf(1, 'star: ' + hierarch(head, 'object') + ', polarization: ' +
-                       pol_angle + ', mean s/n=' + strtrim(round(1e0 / mean(sigma))))
-                printf(
-                    1, 'file: ' + strmid(spec[n], strpos(spec[n], '/', reverse_search=True) + 1))
-                printf(
-                    1, '---------------------------------------------------------------------')
-                close(1)
-                print('completed: star ' + hierarch(head, 'object') + ', polarization: ' +
-                      pol_angle + ', mean s/n=' + strtrim(round(1e0 / mean(sigma))))
-                print(
-                    'file: ' + strmid(spec[n], strpos(spec[n], '/', reverse_search=True) + 1))
+                    log_file = os.path.join(reduced_path, night + '.log')
+                    with open(log_file, mode='w+') as log:
+                        log.write('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma))
+                        log.write('file: %s\n' % os.path.basename(nameout))
+                        log.write('----------------------------------\n')
+
+                    print('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma))
+                    print('file: %s\n' % os.path.basename(nameout)
+                    print('----------------------------------\n')
