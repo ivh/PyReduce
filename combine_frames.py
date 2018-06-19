@@ -14,13 +14,47 @@ from modeinfo_uves import modeinfo_uves as modeinfo
 
 
 def gaussfit(x, y):
-    """ gaussian fit to data """
+    """
+    Fit a simple gaussian to data
+
+    gauss(x, a, mu, sigma) = a * exp(-z**2/2)
+    with z = (x - mu) / sigma
+
+    Parameters
+    ----------
+    x : array(float)
+        x values
+    y : array(float)
+        y values
+    Returns
+    -------
+    gauss(x), parameters
+        fitted values for x, fit paramters (a, mu, sigma)
+    """
+
     gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2)**2 / 2)
     popt, _ = curve_fit(gauss, x, y, p0=[max(y), 1, 1])
     return gauss(x, *popt), popt
 
 
 def gaussbroad(x, y, hwhm):
+    """
+    Apply gaussian broadening to x, y data with half width half maximum hwhm
+
+    Parameters
+    ----------
+    x : array(float)
+        x values
+    y : array(float)
+        y values
+    hwhm : float > 0
+        half width half maximum
+    Returns
+    -------
+    array(float)
+        broadened y values
+    """
+
     nw = len(x)
     dw = (x[-1] - x[0]) / (len(x) - 1)
 
@@ -47,7 +81,8 @@ def gaussbroad(x, y, hwhm):
 
 
 def combine_flat(files, inst_setting, **kwargs):
-    """Combine several flat files into one master flat
+    """
+    Combine several flat files into one master flat
 
     Parameters
     ----------
@@ -226,7 +261,7 @@ def combine_bias(files, inst_setting, **kwargs):
     return bias, head
 
 
-def remove_bad_pixels(p, buff, row, nfil, ncol_a, rdnoise_amp, gain_amp, thresh):
+def remove_bad_pixels(p, buffer, row, nfil, ncol_a, rdnoise_amp, gain_amp, thresh):
     """
     find and remove bad pixels
 
@@ -255,25 +290,29 @@ def remove_bad_pixels(p, buff, row, nfil, ncol_a, rdnoise_amp, gain_amp, thresh)
     """
 
     iprob = p > 0
+    if row is not None:
+        buffer = buffer[:, :, row]
 
-    rat, rat.shape = buff[iprob, row] / p[iprob], p.shape
+    rat = np.zeros(p.shape)
+    rat[iprob] = buffer[iprob] / p[iprob]
     amp = (np.sum(rat, axis=0) - np.min(rat, axis=0) -
            np.max(rat, axis=0)) / (nfil - 2)
 
     # make new array for prob, so p is not changed by reference
-    prob, prob.shape = p[iprob], p.shape
-    prob = amp * prob
+    prob = amp[None, :] * p
 
-    mfit = np.where(iprob, prob, 0)
-    predsig = np.sqrt(rdnoise_amp**2 + (mfit / gain_amp))
+    fitted_signal = np.where(iprob, prob, 0)
+    predicted_noise = np.sqrt(rdnoise_amp**2 + (fitted_signal / gain_amp))
 
     # Identify outliers.
-    ibad = buff[:, :, row] - mfit > thresh * predsig
+    ibad = buffer - fitted_signal > thresh * predicted_noise
     nbad = len(np.nonzero(ibad.flat)[0])
 
     # Construct the summed flat.
-    b = np.where(ibad, mfit, buff[:, :, row])
+    b = np.where(ibad, fitted_signal, buffer)
     b = np.sum(b, axis=0)
+    if b.ndim == 2:
+        b = b.swapaxes(0, 1)
     return b, nbad
 
 
@@ -295,9 +334,7 @@ def calc_filwt(buffer):
     filwt = np.sum(buffer, axis=2, dtype=np.float32)
     # norm for probability
     tot_filwt = np.sum(filwt, axis=0, dtype=np.float32)
-    inorm = tot_filwt > 0
-    tot_filwt, tot_filwt.shape = tot_filwt[inorm], tot_filwt.shape
-    filwt[:, inorm] = filwt[:, inorm] / tot_filwt
+    filwt = np.where(tot_filwt > 0, filwt / tot_filwt, filwt)
     return filwt
 
 
@@ -351,7 +388,6 @@ def combine_frames(files, instrument, **kwargs):
     """
 
     exten = kwargs.get("exten", 1)
-    debug = kwargs.get("debug")
     thres = kwargs.get("thres", 3.5)
     hwin = kwargs.get("hwin", 50)
     mask = kwargs.get("mask")
@@ -361,14 +397,15 @@ def combine_frames(files, instrument, **kwargs):
     # Verify sensibility of passed parameters.
     files = np.lib.arraysetops.unique(files)
 
-# ===========================================================================
-    if len(files) < 2:  # true: only one image
+    # Only one image
+    if len(files) < 2:
         bias2 = fits.open(files[0])
         head2 = load_header(bias2)
         head2 = modeinfo(head2, instrument, xr=xr, yr=yr)
         return bias2[exten].data, head2
-# ===========================================================================
-    elif len(files) == 2:  # ;true: only two images
+
+    # Two images
+    elif len(files) == 2:
         bias1 = fits.open(files[0])
         head1 = load_header(bias1)
         head1, exp1 = modeinfo(head1, instrument, time=True)
@@ -398,7 +435,8 @@ def combine_frames(files, instrument, **kwargs):
         head2, _ = modeinfo(head2, instrument, xr=xr, yr=yr)
         return bias2, head2
 
-    # ===========================================================================
+    # More than two images
+
     # Initialize header information lists (one entry per file).
     # Loop through files in list, grabbing and parsing FITS headers.
     # length of longest filename
@@ -409,8 +447,8 @@ def combine_frames(files, instrument, **kwargs):
     fname = files[0]
     hdu = fits.open(fname)
     head2 = load_header(hdu)
-    head2, kw = modeinfo(head2, instrument, xr=xr,
-                         yr=yr, gain=True, readn=True, orient=True)
+    head2, _ = modeinfo(head2, instrument, xr=xr,
+                        yr=yr, gain=True, readn=True, orient=True)
 
     # check if we deal with multiple amplifiers
     n_ampl = head2.get('e_ampl', 1)
@@ -432,8 +470,6 @@ def combine_frames(files, instrument, **kwargs):
 
     # check if non-linearity correction
     linear = head2.get("e_linear", True)
-    if not linear:
-        pref = head2['e_prefmo']
 
     # TODO: what happens for several amplifiers?
     # outer loop through amplifiers (note: 1,2 ...)
@@ -449,8 +485,6 @@ def combine_frames(files, instrument, **kwargs):
         if np.any(ncol != ncol_old) or np.any(nrow != nrow_old):
             raise Exception('Not all files have the same dimensions')
 
-        bscale = np.array([h.get("bscale", 1) for h in heads])
-        bzero = np.array([h.get("bzero", 0) for h in heads])
         obj = [h["object"] for h in heads]
         exposure = [h["exptime"] for h in heads]
         totalexpo = sum(exposure)
@@ -468,90 +502,45 @@ def combine_frames(files, instrument, **kwargs):
         rdnoise_amp = rdnoise[amplifier]
 
         orient = heads[0]['e_orient']
+
         if orient == 0 or orient == 2 or orient == 5 or orient == 7:
-            raise NotImplementedError  # TODO implement, or better combine with other orientation
+            # TODO test this
+            print("WARNING: This orientation is untested !!!")
             ncol_a = xright - xleft + 1
-            nrow_a = ytop - ybottom + 1
 
-            block = fits_read(files, exten=1)
-            block = block[:, :, xleft:xright + 1]
+            mbuff = np.zeros((len(files), ncol_a))
+            prob = np.zeros((len(files), ncol_a))
+            block = np.array([fits.open(f)[exten].data for f in files])
 
-            if (ybottom > 0):  # skip ybottom rows
-                for i_row in range(0, ybottom - 1 + 1, 1):
-                    for ifile in np.arange(0, nfil - 1 + 1, 1):  # loop though files
-                        block = readu(lunit[ifile], dtype=idl_type, n=ncol)
+            for i_row in range(ybottom, ytop + 1):
+                if (i_row) % 100 == 0:
+                    print(i_row, ' rows processed - ',
+                          nfix, ' pixels fixed so far')
 
-            for i_row in range(ybottom, ytop + 1, 1):  # loop through rows
-                if i_row % 100 == 0 and i_row > 0:  # report status
-                    message(strtrim(i_row, 2) + ' rows processed - ' +
-                            strtrim(string(nfix), 2) + ' pixels fixed so far.', info=True)
-                for ifile in np.arange(0, nfil - 1 + 1, 1):  # loop though files
-                    block = readu(lunit[ifile], dtype=idl_type, n=ncol)
-                    blockf = block * bscale[ifile] + bzero[ifile]
-                    if (not linear):  # linearity needs fixing
-                        blockf = call_function(
-                            'nonlinear_' + pref, blockf, head2, amplifier=amplifier, gain=gain_amp)
-                        pass
-                    if (keyword_set(mask)):
-                        img_buffer[ifile, :] = (
-                            blockf * mask[i_row, :])[xleft:xright + 1]
-                    else:
-                        img_buffer[ifile, :] = blockf[xleft:xright + 1]
+                mbuff[:, :] = block[:, xleft:xright + 1, i_row]
 
-                # Construct a probability function based on mbuff data.
-                for icol in range(hwin, ncol_a - hwin):
-                    # filwt = total(mBuff[iCol-hwin:iCol+hwin,*], 1)
-                    filwt = median(
-                        img_buffer[:, icol - hwin:icol + hwin + 1], dimension=1)
+                # Calculate probabilities
+                # Sliding window
+                filwt = np.cumsum(mbuff, axis=1)
+                filwt[:, 2 * hwin:] = filwt[:, 2 * hwin:] - \
+                    filwt[:, :-2 * hwin]
+                filwt = filwt[:, 2 * hwin:]
 
-                    tot_filwt = total(filwt)  # norm for probability
-                    if (tot_filwt > 0.0):
-                        filwt = filwt / tot_filwt
-                    prob[:, icol] = filwt
+                tot_filwt = np.sum(filwt, axis=1)
+                filwt /= tot_filwt[:, None]
+                prob[:, hwin:ncol_a - hwin] = filwt
 
-                prob[:, :hwin] = 2 * prob[:, hwin] - prob[:, 2 * hwin:hwin:-1]
-                prob[:, ncol_a - hwin:ncol_a] = 2 * prob[:, ncola_a -
-                                                         hwin] - prob[:, 2 * (ncol_a - hwin):ncol_a - hwin:-1]
+                # fix edge cases
+                prob[:, :hwin] = 2 * prob[:, hwin][:, None] - \
+                    prob[:, 2 * hwin:hwin:-1]
+                prob[:, ncol_a - hwin: ncol_a] = 2 * prob[:, ncol_a - hwin][:, None] \
+                    - prob[:, ncol_a - hwin:ncol_a - 2 * hwin:-1]
 
-                # Loop through columns, fitting data and constructing mfit.
-                # Reject cosmic rays in amplitude fit by ignoring highest and lowest point.
-                for icol in range(ncol_a):
-                    pr = reform(prob[:, icol])
-                    mfit[:, icol] = 0.0
-                    iprob, nprob = where(pr > 0.0, count='nprob')
-                    if (nprob > 0):
-                        rat = reform(img_buffer[iprob, icol]) / pr[iprob]
-                        amp = (total(rat) - min(rat) - max(rat)) / (nfil - 2)
-                        mfit[iprob, icol] = amp * pr[iprob]
-                    pass
+                # fix bad pixels
+                bias2[xleft:xright + 1, i_row], nbad = remove_bad_pixels(
+                    prob, mbuff, None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+                nfix += nbad
 
-                # Construct noise model.
-                predsig = np.sqrt(rdnoise_amp**2 + abs(mfit / gain_amp))
-
-                # Identify outliers.
-                ibad, nbad = where(img_buffer - mfit > thresh *
-                                   predsig, count='nbad')
-
-                # Debug plot.
-                if keyword_set(debug) and i_row % 10 == 0:
-                    plot(img_buffer - mfit, xsty=3, ysty=3, ps=3, ytit='data - model  (adu)', tit='row = ' +
-                         strtrim(i_row, 2) + ',  threshold = ' + string(thresh, form='(f9.4)'))
-                    oplot(thresh * predsig, co=4)
-                    oplot(-thresh * predsig, co=4)
-                    if nbad > 0:
-                        oplot(ibad, img_buffer[ibad] - mfit[ibad],
-                              ps=2, syms=1.0, co=2)
-                    print('push space to continue...')
-                    print('')
-
-                # Fix bad pixels, if any.
-                if nbad > 0:
-                    img_buffer[ibad] = mfit[ibad]
-                    nfix = nfix + nbad
-
-                # Construct the summed FITS.
-                buff = total(img_buffer, 2)  # / nfil
-                bias2[i_row, xleft:xright + 1] = buff
         elif orient == 1 or orient == 3 or orient == 4 or orient == 6:
 
             ncol_a = xright - xleft + 1
@@ -564,12 +553,13 @@ def combine_frames(files, instrument, **kwargs):
             # The same as mbuff
             block = np.array([fits.open(f)[exten].data for f in files])
             block = block[:, :, xleft:xright + 1]
-            # Initial Window
+
+            # Initial buffer
             img_buffer = np.swapaxes(block[:, :m_row, :], 1, 2)
             # For extrapolation later
             extra_buffer = np.swapaxes(
                 block[:, :hwin, :], 1, 2).astype(np.float32)
-
+            # final buffer
             float_buffer = np.swapaxes(
                 block[:, :m_row + 1, :], 1, 2).astype(np.float32)
             c_row = np.arange(hwin, ytop - ybottom + 1) % (m_row)
@@ -585,6 +575,7 @@ def combine_frames(files, instrument, **kwargs):
                 img_buffer[:, :, j_row[count]] = block[:, m_row + count - 1, :]
                 filwt = calc_filwt(img_buffer)
 
+                # save probailities for special cases
                 if i_row <= ybottom + 2 * hwin:
                     # for 1st special case: rows lesser than ybottom + hwin
                     float_buffer[:, :, i_row - ybottom - hwin] = np.copy(filwt)
@@ -597,24 +588,21 @@ def combine_frames(files, instrument, **kwargs):
                     filwt, img_buffer, c_row[count], len(files), ncol_a, rdnoise_amp, gain_amp, thres)
                 nfix += nbad
 
+            # TODO check the indexing
             # 1st special case: rows less than hwin from the 0th row
-            for i_row in range(ybottom + hwin + 1, ybottom + 2 * hwin + 1):
-                lrow = 2 * hwin - i_row + ybottom
-                prob2 = 2 * float_buffer[:, :ncol_a, 0] - \
-                    float_buffer[:, :ncol_a, i_row - ybottom - hwin]
-
-                bias2[ybottom + lrow, xleft:xright + 1], nbad = remove_bad_pixels(
-                    prob2, extra_buffer, lrow, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
-                nfix += nbad
+            prob2 = 2 * float_buffer[:, :ncol_a, 0][:, :, None] \
+                - float_buffer[:, :ncol_a, :hwin]
+            bias2[ybottom + hwin:ybottom:-1, xleft:xright + 1], nbad = remove_bad_pixels(
+                prob2, extra_buffer, None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+            nfix += nbad
 
             # 2nd special case: rows greater than ytop-hwin
-            for i_row in range(ytop - hwin + 1, ytop + 1):
-                prob2 = 2 * float_buffer[:, :ncol_a, 2 * hwin + 1] - \
-                    float_buffer[:, :ncol_a, ytop - i_row + hwin + 1]
-
-                bias2[i_row, xleft:xright + 1], nbad = remove_bad_pixels(
-                    prob2, img_buffer, c_row[i_row - hwin], len(files), ncol_a, rdnoise_amp, gain_amp, thres)
-                nfix += nbad
+            prob2 = 2 * float_buffer[:, :ncol_a, 2 * hwin + 1][:, :, None] - \
+                float_buffer[:, :ncol_a, :hwin]
+            bias2[ytop - hwin:ytop, xleft:xright + 1], nbad = remove_bad_pixels(
+                prob2, img_buffer[:, :, c_row[ytop - 2 * hwin:ytop - hwin]],
+                None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+            nfix += nbad
 
         print('total cosmic ray hits identified and removed: ', nfix)
 
