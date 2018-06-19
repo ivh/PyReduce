@@ -143,8 +143,8 @@ if __name__ == '__main__':
             # ==========================================================================
             # Read mask
             mask = fits.open(mask_file)
-            mhead = modeinfo(mask[0].header, inst_mode)
-            mask = clipnflip(mask, mhead)
+            mhead, _ = modeinfo(mask[0].header, inst_mode)
+            mask = clipnflip(mask[0].data, mhead)
 
             # ==========================================================================
             # Creat master bias
@@ -318,10 +318,10 @@ if __name__ == '__main__':
 
                     log_file = os.path.join(reduced_path, night + '.log')
                     with open(log_file, mode='w+') as log:
-                        log.write('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma))
+                        log.write('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma)))
                         log.write('file: %s\n' % os.path.basename(nameout))
                         log.write('----------------------------------\n')
 
-                    print('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma))
-                    print('file: %s\n' % os.path.basename(nameout)
+                    print('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma)))
+                    print('file: %s\n' % os.path.basename(nameout))
                     print('----------------------------------\n')
