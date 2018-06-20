@@ -144,6 +144,8 @@ if __name__ == '__main__':
             f_bias, f_flat, f_wave, f_order, f_order_a, f_order_b, f_spec = sort_files(
                 files, config)
 
+            f_bias = f_bias[[4, 0, 3, 2, 1]] #TODO same order as idl for testing
+
             # ==========================================================================
             # Read mask
             mask = fits.open(mask_file)
@@ -156,24 +158,26 @@ if __name__ == '__main__':
             if 'bias' in steps_to_take:
                 print('Creating master bias')
                 bias, bhead = combine_bias(f_bias, inst_mode, exten=exten)
-                fits.writeto(bias_file, data=bias,
+                fits.writeto(bias_file, data=bias.data,
                              header=bhead, overwrite=True)
             else:
                 print('Loading master bias')
                 bias = fits.open(bias_file)[0]
                 bias, bhead = bias.data, bias.header
+                bias = np.ma.masked_array(bias, mask=mask)
 
             # ==========================================================================
             # Create master flat
             if 'flat' in steps_to_take:
                 print('Creating flat field')
                 flat, fhead = combine_flat(f_flat, inst_mode, exten=exten)
-                fits.writeto(flat_file, data=flat,
+                fits.writeto(flat_file, data=flat.data,
                              header=fhead, overwrite=True)
             else:
                 print('Loading flat field')
                 flat = fits.open(flat_file)[0]
                 flat, fhead = flat.data, flat.header
+                flat = np.ma.masked_array(flat, mask=mask)
 
             # ==========================================================================
             # Find default orders.
