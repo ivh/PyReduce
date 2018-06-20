@@ -30,14 +30,14 @@ def modeinfo_uves(newhead, mode, **kwargs):
         # valid pixel range for a given ccd
         nxd = newhead['eso det out' + id1 + ' nx']
         newhead["e_xlo"] = presc
-        newhead["e_xhi"] = nxa - ovrsc - 1
+        newhead["e_xhi"] = nxa - ovrsc
     else:
         newhead["e_xlo"] = kwargs["xr"][0]
         newhead["e_xhi"] = kwargs["xr"][1]
     if kwargs.get("yr") is None:
         ny = newhead['naxis2']
         newhead["e_ylo"] = 0
-        newhead["e_yhi"] = ny - 1  # - 101
+        newhead["e_yhi"] = ny
     else:
         newhead["e_ylo"] = kwargs["yr"][0]
         newhead["e_yhi"] = kwargs["yr"][1]
