@@ -30,7 +30,7 @@ def clipnflip(image, header, **kwargs):
     # Check that required arguments have proper structure.
 
     if image.ndim != 2:
-        raise Exception('image must be a two-dimensional array')
+        raise ValueError('image must be a two-dimensional array')
 
     # Make sure trim region is specificied by procedure or header keyword.
     # This part depends on how many amplifiers were used for the readout
@@ -46,9 +46,9 @@ def clipnflip(image, header, **kwargs):
         # Make sure trim region is a subset of actual image.
         sz = image.shape
         if (np.any(xlo < 0) | np.any(xlo >= sz[1]) | np.any(ylo < 0) |
-                np.any(ylo >= sz[0]) | np.any(xhi < 0) | np.any(xhi >= sz[1]) |
-                np.any(yhi < 0) | np.any(yhi >= sz[0])):
-            raise Exception('Error specifying trim region')
+                np.any(ylo >= sz[0]) | np.any(xhi < 0) | np.any(xhi > sz[1]) |
+                np.any(yhi < 0) | np.any(yhi > sz[0])):
+            raise ValueError('Error specifying trim region')
 
         linear = header.get('e_linear', False)
         if not linear:
@@ -75,21 +75,19 @@ def clipnflip(image, header, **kwargs):
         if n_amp == 2:
             # TODO this needs testing
             if xlo[0] == xlo[1]:
-                xsize = xhi[0] - xlo[0] + 1
-                ysize = yhi[0] - ylo[0] + 1 + yhi[1] - ylo[1] + 1
+                xsize = xhi[0] - xlo[0]
+                ysize = yhi[0] - ylo[0] + yhi[1] - ylo[1]
                 timage = np.empty((xsize, ysize), dtype=image.dtype)
-                ysize = yhi[0] - ylo[0] + 1
-                timage[0:ysize - 1 + 1, 0:xsize - 1 + 1] = image[xlo[0]]
-                timage[ysize:ysize + yhi[1] - ylo[1] +
-                       1, 0:xsize - 1 + 1] = image[xlo[1]]
+                ysize = yhi[0] - ylo[0]
+                timage[:ysize, :xsize] = image[xlo[0]]
+                timage[ysize:, :xsize] = image[xlo[1]]
             elif ylo[0] == ylo[1]:
-                xsize = xhi[0] - xlo[0] + 1 + xhi[1] - xlo[1] + 1
-                ysize = yhi[0] - ylo[0] + 1
+                xsize = xhi[0] - xlo[0] + xhi[1] - xlo[1]
+                ysize = yhi[0] - ylo[0]
                 timage = np.empty((xsize, ysize), dtype=image.dtype)
-                xsize = xhi[0] - xlo[0] + 1
-                timage[0:ysize - 1 + 1, 0:xsize - 1 + 1] = image[xlo[0]]
-                timage[0:ysize - 1 + 1, xsize:xsize +
-                       xhi[1] - xlo[1] + 1] = image[xlo[1]]
+                xsize = xhi[0] - xlo[0]
+                timage[:ysize, :xsize] = image[xlo[0]]
+                timage[:ysize, xsize:] = image[xlo[1]]
             else:
                 raise Exception(
                     'The two ccd sections are aligned neither in x nor in y')
@@ -102,11 +100,11 @@ def clipnflip(image, header, **kwargs):
 
         # Make sure trim region is a subset of actual image.
         sz = image.shape
-        if xhi < xlo or yhi < ylo or xlo < 0 or xhi >= sz[1] or ylo < 0 or yhi >= sz[0]:
-            raise Exception('Could not trim region')
+        if sz[1] < xhi < xlo < 0 or sz[0] < yhi < ylo < 0:
+            raise ValueError('Could not trim region')
 
         # Trim image to leave only the subimage containing valid image data.
-        timage = image[ylo:yhi + 1, xlo:xhi + 1]  # trimmed image
+        timage = image[ylo:yhi, xlo:xhi]  # trimmed image
 
     # Flip image (if necessary) to achieve standard image orientation.
     orient = kwargs.get("orient", header.get('e_orient'))
