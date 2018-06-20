@@ -4,13 +4,13 @@ REDUCE script for spectrograph data
 import glob
 import json
 import os.path
+import pickle
 
 import astropy.io.fits as fits
+import matplotlib.pyplot as plt
 import numpy as np
 
 from clipnflip import clipnflip
-# from hamdord import hamdord
-# from modeinfo import modeinfo
 from modeinfo_uves import modeinfo_uves as modeinfo
 from combine_frames import combine_bias, combine_flat
 
@@ -85,8 +85,12 @@ if __name__ == '__main__':
     target = 'HD132205'
 
     # Which parts of the reduction to perform
-    steps_to_take = ['bias', 'flat', 'orders',
-                'norm_flat', 'wavecal', 'science']
+    steps_to_take = ['bias',
+                     'flat',
+                     'orders',
+                     'norm_flat',
+                     # 'wavecal',
+                     'science']
 
     # load configuration for the current instrument
     with open('settings_%s.json' % instrument) as f:
@@ -145,6 +149,7 @@ if __name__ == '__main__':
             mask = fits.open(mask_file)
             mhead, _ = modeinfo(mask[0].header, inst_mode)
             mask = clipnflip(mask[0].data, mhead)
+            # TODO apply mask to all files, as masked arrays
 
             # ==========================================================================
             # Creat master bias
@@ -186,19 +191,22 @@ if __name__ == '__main__':
                 if config["use_fiber"] == "AB":
                     ordim, hrd = flat, fhead
 
-                # manual selection of what to do with clusters disabled until i figure out how it works
-                hamdord(ordim, plot=True, mask=mask, manual=True, **config)
+                # Mark Orders
+                orders, or_range, ord_err, col_range = hamdord(
+                    ordim, plot=True, manual=True, **config)
 
-                # = Determine extraction width, blaze center column, and base order. Save to disk.
-                getxwd(ordim, orders, def_xwd, def_sxwd,
-                       colrange=col_range, gauss=True)  # get extraction width
+                # Determine extraction width, blaze center column, and base order
+                def_xwd, def_sxwd = getxwd(
+                    ordim, orders, colrange=col_range, gauss=True)
 
-                # = Save image format description
-                save(orders, or_range, ord_err, col_range,
-                     def_xwd, def_sxwd, file=ord_default_file)
+                # Save image format description
+                with open(ord_default_file, 'w') as file:
+                    pickle.dump(file, orders, or_range, ord_err, col_range,
+                                def_xwd, def_sxwd)
             else:
                 print('Load order tracing data')
-                load(ord_default_file)
+                with open(ord_default_file) as file:
+                    pickle.load(file)
 
             # ==========================================================================
             # = Construct normalized flat field.
@@ -208,11 +216,12 @@ if __name__ == '__main__':
                 def_xwd, def_sxwd = getxwd(
                     flat, orders, colrange=col_range, gauss=True)  # get extraction width
 
-                flat, fhead = hamflat(
-                    flat, fhead, orders, blzcoef, colrange=col_range, fxwd=def_xwd, mask=mask, plot=True, **config)
+                flat, fhead, blzcoef = hamflat(
+                    flat, fhead, orders, colrange=col_range, fxwd=def_xwd, mask=mask, plot=True, **config)
 
-                save(orders, or_range, ord_err, col_range, def_xwd,
-                     def_sxwd, blzcoef, file=ord_norm_file)
+                # Save data
+                # with open(ord_norm_file, 'w') as file:
+                #    pickle.dump(file, def_xwd, def_sxwd)
                 fits.writeto(norm_flat_file, data=flat,
                              header=fhead, overwrite=True)
             else:
@@ -225,10 +234,7 @@ if __name__ == '__main__':
             if "wavecal" in steps_to_take:
                 print("Prepare wavelength calibration")
                 for f in f_wave:
-                    nameout = os.path.basename(f)
-                    nameout, _ = os.path.splitext(nameout)
-                    nameout = os.path.join(reduced_path, nameout + '.thar.ech')
-
+                    # Load wavecal image
                     im = fits.open(f)
                     head = load_header(im, exten=exten)
                     head = modeinfo(head, inst_mode)
@@ -236,13 +242,17 @@ if __name__ == '__main__':
                     im = im[exten].data
                     im = clipnflip(im, head)
 
-                    thar, head = hamspec(im, head, orders, def_xwd, def_sxwd,
-                                         or_range[0], sig=sunc, colrange=col_range, thar=True, **config)
+                    # Extract wavecal spectrum
+                    thar, head, sunc = hamspec(im, head, orders, def_xwd, def_sxwd,
+                                               or_range[0], colrange=col_range, thar=True, **config)
 
                     head['obase'] = (or_range[0], 'base order number')
 
-                    fits.writeto(nameout)
-                    wdech(nameout, data=thar, header=head, overwrite=True)
+                    nameout = os.path.basename(f)
+                    nameout, _ = os.path.splitext(nameout)
+                    nameout = os.path.join(reduced_path, nameout + '.thar.ech')
+                    fits.writeto(nameout, data=thar,
+                                 header=head, overwrite=True)
 
             # ==========================================================================
             # Prepare for science spectra extractionord_norm_file
@@ -251,13 +261,10 @@ if __name__ == '__main__':
                 nord = len(orders[:, 0])
 
                 for f in f_spec:
-                    nameout = os.path.basename(f)
-                    nameout, _ = os.path.splitext(f) + '.ech'
-                    nameout = os.path.join(reduced_path, nameout)
 
                     im = fits.open(f)  # read stellar spectrum
                     head = load_header(im, exten=exten)
-                    head = modeinfo(head, inst_mode)
+                    head, _ = modeinfo(head, inst_mode)
 
                     im = im[exten].data
                     im = clipnflip(im, head)
@@ -281,7 +288,7 @@ if __name__ == '__main__':
                     im = im / flat
 
                     # Optimally extract science spectrum
-                    sp = hamspec(im, head, orders, xwd, sxwd,
+                    sp = hamspec(im, head, orders, def_xwd, def_sxwd,
                                  or_range[0], sig=sunc, colrange=col_range, mask=mask, **config)
 
                     sigma = sunc
@@ -304,6 +311,11 @@ if __name__ == '__main__':
 
                     head["obase"] = (or_range[0], ' base order number')
                     # save spectrum to disk
+
+                    nameout = os.path.basename(f)
+                    nameout, _ = os.path.splitext(f) + '.ech'
+                    nameout = os.path.join(reduced_path, nameout)
+
                     fits.writeto(nameout, data=sp, header=head,
                                  overwrite=True)  # sig=sigma, cont=cont
                     pol_angle = head.get("eso ins ret25 pos")
@@ -318,10 +330,12 @@ if __name__ == '__main__':
 
                     log_file = os.path.join(reduced_path, night + '.log')
                     with open(log_file, mode='w+') as log:
-                        log.write('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma)))
+                        log.write('star: %s, polarization: %i, mean s/n=%.2f\n' %
+                                  (head['object'], pol_angle, 1 / np.mean(sigma)))
                         log.write('file: %s\n' % os.path.basename(nameout))
                         log.write('----------------------------------\n')
 
-                    print('star: %s, polarization: %i, mean s/n=%.2f\n' % (head['object'], pol_angle, 1 / np.mean(sigma)))
+                    print('star: %s, polarization: %i, mean s/n=%.2f\n' %
+                          (head['object'], pol_angle, 1 / np.mean(sigma)))
                     print('file: %s\n' % os.path.basename(nameout))
                     print('----------------------------------\n')
