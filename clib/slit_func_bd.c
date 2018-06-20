@@ -102,11 +102,12 @@ int slit_func_vert(int ncols,                     /* Swath width in pixels      
 	int x, y, iy, jy, iy1, iy2;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum, nd;
-  FILE *datafile;
 
   nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
   step=1.e0/osample;
+  printf("ncols = %d, nrows = %d\n", ncols, nrows);
+  printf("img[0,10] = %f\n", im[0][10]);
 
 /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
@@ -360,7 +361,7 @@ printf("iter=%d, dev=%g sum=%g\n", iter, dev, sum);
 
 int main(int nArgs, char *Args[])
 {
-  int ncols, nrows, osample, ny, iret, i, j, k;
+  int ncols, nrows, osample, ny, iret, i, j;
   FILE *datafile;
   double norm;
 
