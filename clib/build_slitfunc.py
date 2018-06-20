@@ -3,7 +3,9 @@
 import os
 from cffi import FFI
 
+
 def build(**kwargs):
+    """Build the C slitfunc library"""
 
     ffibuilder = FFI()
 
@@ -14,13 +16,14 @@ def build(**kwargs):
 
     with open(os.path.join(CWD, 'slit_func_bd.c'), 'r') as f:
         ffibuilder.set_source("clib._slitfunc_bd",
-                            f.read(),
-                            # libraries=["c"],
-                            #sources=[os.path.join(CWD, "cluster.c")],
-                            # library_dirs=["."]
-                            # include_dirs=[os.path.join()]
-                            )
+                              f.read(),
+                              # libraries=["c"],
+                              #sources=[os.path.join(CWD, "cluster.c")],
+                              # library_dirs=["."]
+                              # include_dirs=[os.path.join()]
+                              )
     ffibuilder.compile(**kwargs)
+
 
 if __name__ == "__main__":
     build(verbose=True)
