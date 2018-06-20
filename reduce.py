@@ -5,6 +5,8 @@ import glob
 import json
 import os.path
 import pickle
+import argparse
+import sys
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
@@ -74,6 +76,35 @@ def sort_files(files, config):
 
     return biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
 
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description="General REDUCE script")
+    parser.add_argument('-b', '--bias', action='store_true', help='Create master bias')
+    parser.add_argument('-f', '--flat', action='store_true', help='Create master flat')
+    parser.add_argument('-o', '--orders', action='store_true', help='Trace orders')
+    parser.add_argument('-n', '--norm_flat', action='store_true', help='Normalize flat')
+    parser.add_argument('-w', '--wavecal', action='store_true', help='Prepare wavelength calibration')
+    parser.add_argument('-s', '--science', action='store_true', help='Extract science spectrum')
+
+    parser.add_argument("instrument", type=str, help="instrument used")
+    parser.add_argument("target", type=str, help="target star")
+
+    args = parser.parse_args()
+    instrument = args.instrument.upper()
+    target = args.target.upper()
+
+    steps_to_take = {'bias': args.bias, 'flat': args.flat, 'orders': args.orders,
+                        'norm_flat': args.norm_flat, 'wavecal': args.wavecal, 'science': args.science}
+    steps_to_take = [k for k, v in steps_to_take.items() if v]
+
+    # if no steps are specified use all
+    if len(steps_to_take) == 0:
+        steps_to_take = ['bias', 'flat', 'orders',
+                            'norm_flat', 'wavecal', 'science']
+
+    return instrument, target, steps_to_take
+
+
 
 if __name__ == '__main__':
     # some basic settings
@@ -81,16 +112,25 @@ if __name__ == '__main__':
     base_dir = './Test'
     mask_dir = './Test/UVES/HD132205'
 
-    instrument = 'UVES'
-    target = 'HD132205'
+    if len(sys.argv) > 1:
+        instrument, target, steps_to_take = parse_args()
+    else:
+        # Manual settings
+        # Instrument
+        instrument = "UVES"
+        # target star
+        target = "HD132205"
+        # Which parts of the reduction to perform
+        steps_to_take = ['bias',
+                         'flat',
+                         'orders',
+                         'norm_flat',
+                         # 'wavecal',
+                         'science']
 
-    # Which parts of the reduction to perform
-    steps_to_take = ['bias',
-                     'flat',
-                     'orders',
-                     'norm_flat',
-                     # 'wavecal',
-                     'science']
+
+
+    
 
     # load configuration for the current instrument
     with open('settings_%s.json' % instrument) as f:
@@ -144,7 +184,8 @@ if __name__ == '__main__':
             f_bias, f_flat, f_wave, f_order, f_order_a, f_order_b, f_spec = sort_files(
                 files, config)
 
-            f_bias = f_bias[[4, 0, 3, 2, 1]] #TODO same order as idl for testing
+            # TODO same order as idl for testing
+            f_bias = f_bias[[4, 0, 3, 2, 1]]
 
             # ==========================================================================
             # Read mask
