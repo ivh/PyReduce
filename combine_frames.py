@@ -13,6 +13,25 @@ from clipnflip import clipnflip
 from modeinfo_uves import modeinfo_uves as modeinfo
 
 
+def load_fits(fname, exten, instrument, header_only=False, **kwargs):
+    """
+    load a fits file
+    merge primary and extension header
+    fix reduce specific header values
+    mask array
+    """
+    bias = fits.open(fname)
+    head = load_header(bias)
+    head, kw = modeinfo(head, instrument, **kwargs)
+
+    if header_only:
+        return head, kw
+
+    bias = bias[exten].data
+    bias = np.ma.masked_array(bias, mask=kwargs.get("mask"))
+    return bias, head, kw
+
+
 def gaussfit(x, y):
     """
     Fit a simple gaussian to data
@@ -360,7 +379,7 @@ def load_header(hdulist, exten=1):
     return head
 
 
-def combine_frames(files, instrument, **kwargs):
+def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
     similar images.
@@ -387,37 +406,25 @@ def combine_frames(files, instrument, **kwargs):
         show debug plot of noise distribution (default: False)
     """
 
-    exten = kwargs.get("exten", 1)
-    thres = kwargs.get("thres", 3.5)
-    hwin = kwargs.get("hwin", 50)
-    mask = kwargs.get("mask")
-    xr = kwargs.get("xr")
-    yr = kwargs.get("yr")
-
     # Verify sensibility of passed parameters.
     files = np.lib.arraysetops.unique(files)
 
     # Only one image
     if len(files) < 2:
-        bias2 = fits.open(files[0])
-        head2 = load_header(bias2)
-        head2 = modeinfo(head2, instrument, xr=xr, yr=yr)
-        return bias2[exten].data, head2
+        bias2, head2, _ = load_fits(files[0], exten, instrument, **kwargs)
+        return bias2, head2
 
     # Two images
     elif len(files) == 2:
-        bias1 = fits.open(files[0])
-        head1 = load_header(bias1)
-        head1, exp1 = modeinfo(head1, instrument, time=True)
-        exp1 = exp1["time"]
+        bias1, _, kw = load_fits(
+            files[0], exten, instrument, **kwargs)
+        exp1 = kw["time"]
 
-        bias2 = fits.open(files[1])
-        head2 = load_header(bias2)
-        head2, exp2 = modeinfo(head2, instrument, time=True,
-                               readn=True, orient=True, xr=xr, yr=yr)
-        exp2, rdnoise, orient = exp2["time"], exp2["readn"], exp2["orient"]
+        bias2, head2, kw = load_fits(
+            files[0], exten, instrument, **kwargs)
+        exp2, rdnoise, orient = kw["time"], kw["readn"], kw["orient"]
 
-        bias2 = bias2[exten].data + bias1[exten].data
+        bias2 = bias2 + bias1
         totalexpo = exp1 + exp2
 
         # Add info to header.
@@ -432,7 +439,6 @@ def combine_frames(files, instrument, **kwargs):
         head2['nimages'] = (len(files), 'number of images summed')
         head2.add_history('images coadded by sumfits.pro on %s' %
                           datetime.datetime.now())
-        head2, _ = modeinfo(head2, instrument, xr=xr, yr=yr)
         return bias2, head2
 
     # More than two images
@@ -445,10 +451,7 @@ def combine_frames(files, instrument, **kwargs):
           'obs cols rows  object  exposure')
 
     fname = files[0]
-    hdu = fits.open(fname)
-    head2 = load_header(hdu)
-    head2, _ = modeinfo(head2, instrument, xr=xr,
-                        yr=yr, gain=True, readn=True, orient=True)
+    head2, _ = load_fits(files[0], exten, instrument, **kwargs)
 
     # check if we deal with multiple amplifiers
     n_ampl = head2.get('e_ampl', 1)
@@ -474,10 +477,7 @@ def combine_frames(files, instrument, **kwargs):
     # TODO: what happens for several amplifiers?
     # outer loop through amplifiers (note: 1,2 ...)
     for amplifier in range(n_ampl):
-        heads = [fits.open(f) for f in files]
-        heads = [load_header(h) for h in heads]
-        heads = [modeinfo(h, instrument, readn=True, gain=True, orient=True)[
-            0] for h in heads]
+        heads = [load_fits(f, exten, instrument, header_only=True, **kwargs)[0] for f in files]
 
         # Sanity Check
         ncol = np.array([h['naxis1'] for h in heads])
@@ -510,7 +510,8 @@ def combine_frames(files, instrument, **kwargs):
 
             mbuff = np.zeros((len(files), ncol_a))
             prob = np.zeros((len(files), ncol_a))
-            block = np.array([fits.open(f)[exten].data for f in files])
+            block = np.array(
+                [load_fits(f, exten, instrument, **kwargs)[0] for f in files])
 
             for i_row in range(ybottom, ytop + 1):
                 if (i_row) % 100 == 0:
@@ -551,7 +552,8 @@ def combine_frames(files, instrument, **kwargs):
                     'sumfits: the number of rows should be larger than 2 * win = %i' % m_row)
 
             # The same as mbuff
-            block = np.array([fits.open(f)[exten].data for f in files])
+            block = np.array(
+                [load_fits(f, exten, instrument, **kwargs)[0] for f in files])
             block = block[:, :, xleft:xright + 1]
 
             # Initial buffer
@@ -641,7 +643,5 @@ def combine_frames(files, instrument, **kwargs):
                     k = ii[i]
                     head2 = np.array((head2[0:k - 1 + 1], head2[k + 1:]))
             head2['e_gain'] = (1, ' image was converted to e-')
-
-        head2, _ = modeinfo(head2, instrument, xr=xr, yr=yr)
 
     return bias2, head2

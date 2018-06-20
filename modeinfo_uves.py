@@ -18,9 +18,10 @@ def modeinfo_uves(newhead, mode, **kwargs):
         id1 = '1'
         id2 = '6'
         reorient = 1
-    if kwargs.get("orient") is not None:
-        kwargs["orient"] = reorient
-        newhead["e_orient"] = kwargs["orient"]
+
+    kwargs["orient"] = reorient
+    newhead["e_orient"] = kwargs["orient"]
+
     if kwargs.get("xr") is None:
         presc = newhead.get('eso det out' + id1 + ' prscx', 0)
         ovrsc = newhead.get('eso det out' + id1 + ' ovscx',
@@ -41,25 +42,24 @@ def modeinfo_uves(newhead, mode, **kwargs):
         newhead["e_ylo"] = kwargs["yr"][0]
         newhead["e_yhi"] = kwargs["yr"][1]
 
-    if kwargs.get("gain") is not None:
-        kwargs["gain"] = newhead['eso det out' + id1 + ' conad']
-        newhead["e_gain"] = kwargs["gain"]
+    kwargs["gain"] = newhead['eso det out' + id1 + ' conad']
+    newhead["e_gain"] = kwargs["gain"]
 
-    if kwargs.get("readn") is not None:
-        kwargs["readn"] = newhead['eso det out' + id1 + ' ron']
-        newhead["e_readn"] = kwargs["readn"]
+    kwargs["readn"] = newhead['eso det out' + id1 + ' ron']
+    newhead["e_readn"] = kwargs["readn"]
 
     if kwargs.get("backg") is not None:
         drk = newhead.get('eso ins det' + id2 + ' offdrk', 0)
         sky = newhead.get('eso ins det' + id2 + ' offsky', 0)
         kwargs["backg"] = kwargs["gain"] * \
             (drk + sky)  # convert adu to electrons
-    if kwargs.get("time") is not None:
-        kwargs["time"] = newhead.get('exptime', 0)
+
+    kwargs["time"] = newhead.get('exptime', 0)
+
     # For object frames, prepare for heliocentric correction
     imtype = newhead['object']
     obsctg = newhead['eso dpr catg']
-    if (imtype == 'object*') or (obsctg == 'science*'):
+    if (imtype[:6] == 'object') or (obsctg[:7] == 'science'):
         if kwargs.get("ra2000") is not None:
             kwargs["ra2000"] = newhead['ra']
             kwargs["ra2000"] = kwargs["ra2000"] / 15.
