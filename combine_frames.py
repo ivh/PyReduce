@@ -7,6 +7,7 @@ import datetime
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
 from clipnflip import clipnflip
@@ -284,7 +285,7 @@ def combine_bias(files, inst_setting, **kwargs):
     return bias, head
 
 
-def remove_bad_pixels(p, buffer, row, nfil, rdnoise_amp, gain_amp, thresh):
+def remove_bad_pixels(p, buffer, rdnoise, gain, thresh):
     """
     find and remove bad pixels
 
@@ -313,19 +314,13 @@ def remove_bad_pixels(p, buffer, row, nfil, rdnoise_amp, gain_amp, thresh):
     """
 
     iprob = p > 0
-    if row is not None:
-        buffer = buffer[:, :, row]
 
-    rat = np.zeros(p.shape)
-    rat[iprob] = buffer[iprob] / p[iprob]
-    amp = (np.sum(rat, axis=0) - np.min(rat, axis=0) -
-           np.max(rat, axis=0)) / (nfil - 2)
+    ratio = np.where(iprob, buffer / p, 0.)
+    amp = (np.sum(ratio, axis=0) - np.min(ratio, axis=0) -
+           np.max(ratio, axis=0)) / (buffer.shape[0] - 2)
 
-    # make new array for prob, so p is not changed by reference
-    prob = amp[None, :] * p
-
-    fitted_signal = np.where(iprob, prob, 0)
-    predicted_noise = np.sqrt(rdnoise_amp**2 + (fitted_signal / gain_amp))
+    fitted_signal = np.where(iprob, amp[None, :] * p, 0)
+    predicted_noise = np.sqrt(rdnoise**2 + (fitted_signal / gain))
 
     # Identify outliers.
     ibad = buffer - fitted_signal > thresh * predicted_noise
@@ -339,7 +334,19 @@ def remove_bad_pixels(p, buffer, row, nfil, rdnoise_amp, gain_amp, thresh):
     return b, nbad
 
 
-def calc_probability(buffer, axis=2, hwin=None):
+def running_median(seq, size):
+    ret = np.array([median_filter(s, size=size, mode='constant') for s in seq])
+    m = size // 2
+    return ret[:, m:-m]
+
+
+def running_sum(seq, n):
+    ret = np.cumsum(seq, axis=1)
+    ret[:, n:] -= ret[:, :-n]
+    return ret[:, n - 1:]
+
+
+def calc_probability(buffer, hwin, method='sum'):
     """
     Construct a probability function based on buffer data.
 
@@ -353,17 +360,17 @@ def calc_probability(buffer, axis=2, hwin=None):
         probabilities
     """
 
-    # Take the median for each file
-    if axis == 1:
-        # Sliding median index
-        idx = np.arange(2 * hwin + 1) + \
-            np.arange(buffer.shape[axis] - (2 * hwin + 1) + 1)[:, None]
-        filwt = np.median(buffer[:, idx], axis=2)
-    if axis == 2:
-        filwt = np.median(buffer, axis=axis)
+    # Take the median/sum for each file
+    if method == 'median':
+        # Running median is slow
+        filwt = running_median(buffer, 2 * hwin + 1)
+        tot_filwt = np.mean(filwt, axis=0)
+    if method == 'sum':
+        # Running sum is fast
+        filwt = running_sum(buffer, 2 * hwin + 1)
+        tot_filwt = np.sum(filwt, axis=0)
 
     # norm probability
-    tot_filwt = np.sum(filwt, axis=0, dtype=np.float32)
     filwt = np.where(tot_filwt > 0, filwt / tot_filwt, filwt)
     return filwt
 
@@ -402,59 +409,46 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
     It can handle many frames. Special cases: 1 file in the list (the input is returned as output)
     and 2 files (straight sum is returned).
 
+    If the image orientation is not predominantly vertical, the image is rotated 90 degrees (and rotated back afterwards).
 
-    Case A: image is predominantly horizontal.
-    ============================================
-
-    Open all FITS files in the list. Position after header.
-
+    Open all FITS files in the list.
     Loop through the rows.
-
     Read next row from each file into a row buffer mBuff[nCol, nFil]. Optionally correct the data
     for non-linearity.
 
     Go through the row creating "probability" vector. That is for column iCol take the median of
     the part of the row mBuff[iCol-win:iCol+win,iFil] for each file and divide these medians by the
     mean of them computer across the stack of files. In other words:
-    filwt[iFil]=median(mBuff[iCol-win:iCol+win,iFil])
-    norm_filwt=mean(filwt)
-    prob[iCol,iFil]=(norm_filtwt>0)?filwt[iCol]/norm_filwt:filwt[iCol]
+    >>> filwt[iFil]=median(mBuff[iCol-win:iCol+win,iFil])
+    >>> norm_filwt=mean(filwt)
+    >>> prob[iCol,iFil]=(norm_filtwt>0)?filwt[iCol]/norm_filwt:filwt[iCol]
 
     This is done for all iCol in the range of [win:nCol-win-1]. It is then linearly extrapolated to
     the win zones of both ends. E.g. for iCol in [0:win-1] range:
-    prob[iCol,iFil]=2*prob[win,iFil]-prob[2*win-iCol,iFil]
+    >>> prob[iCol,iFil]=2*prob[win,iFil]-prob[2*win-iCol,iFil]
 
     For the other end ([nCol-win:nCol-1]) it is similar:
-    prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
+    >>> prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
 
     Once the probailities are constructed we can do the fitting, measure scatter and detect outliers.
     We ignore negative or zero probabilities as it should not happen. For each iCol with (some)
     positive probabilities we compute tha ratios of the original data to the probabilities and get
     the mean amplitude of these ratios after rejecting extreme values:
-    ratio=mBuff[iCol,iFil]/prob[iCol,iFil]
-    amp=(total(ratio)-min(ratio)-max(ratio))/(nFil-2)
-    mFit[iCol,iFil]=amp*prob[iCol,iFil]
+    >>> ratio=mBuff[iCol,iFil]/prob[iCol,iFil]
+    >>> amp=(total(ratio)-min(ratio)-max(ratio))/(nFil-2)
+    >>> mFit[iCol,iFil]=amp*prob[iCol,iFil]
 
     Note that for iFil whereprob[iCol,iFil] is zero we simply set mFit to zero. The scatter (noise)
     consists readout noise and shot noise of the model (fit) co-added in quadratures:
-    sig=sqrt(rdnoise*rdnoise + abs(mFit[iCol,iFil]/gain))
+    >>> sig=sqrt(rdnoise*rdnoise + abs(mFit[iCol,iFil]/gain))
 
     and the outliers are defined as:
-    iBad=where(mBuff-mFit gt thres*sig)
+    >>> iBad=where(mBuff-mFit gt thres*sig)
 
-    Bad values are replaced from the fit:
-    mBuff[iBad]=mFit[iBad]
+    >>> Bad values are replaced from the fit:
+    >>> mBuff[iBad]=mFit[iBad]
 
     and mBuff is summed across the file dimension to create an output row.
-
-
-    Case B: image is predominantly vertical.
-    ============================================
-
-    The main difference is that the statistics is collected along the columns. Thus we read a 2*win+1 rows from each file,
-    do statistics, compile the probabilities, construct the fit, measure scatter, replace the outliers and read the next row.
-    Special treatment is required for the first and the last win rows. We can deal with the first win rows once we derived
-    the probailities for the win:2*win rows.
 
     Parameters
     ----------
@@ -478,240 +472,161 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
         show debug plot of noise distribution (default: False)
     """
 
+    DEBUG_NROWS = 1000
+    debug = kwargs.get("debug", False)
+
     # Verify sensibility of passed parameters.
     files = np.lib.arraysetops.unique(files)
 
+    # summarize file info
+    print('Files:')
+    for ifile, fname in zip(range(len(files)), files):
+        print(ifile, fname)
+
     # Only one image
     if len(files) < 2:
-        bias2, head2, _ = load_fits(files[0], exten, instrument, **kwargs)
-        return bias2, head2
-
+        bias, head, _ = load_fits(files[0], exten, instrument, **kwargs)
+        return bias, head
     # Two images
     elif len(files) == 2:
         bias1, _, kw = load_fits(
             files[0], exten, instrument, **kwargs)
         exp1 = kw["time"]
 
-        bias2, head2, kw = load_fits(
+        bias2, head, kw = load_fits(
             files[0], exten, instrument, **kwargs)
         exp2, rdnoise = kw["time"], kw["readn"]
 
-        bias2 = bias2 + bias1
+        bias = bias2 + bias1
         totalexpo = exp1 + exp2
-
-        # Add info to header.
-        head2['bzero'] = 0.0
-        head2['bscale'] = 1.0
-        head2['exptime'] = totalexpo
-        head2['darktime'] = totalexpo
-        # Because we do not devide the signal by the number of files the
-        # read-out noise goes up by the square root of the number of files
-        head2['rdnoise'] = (rdnoise * np.sqrt(len(files)),
-                            'noise in combined image, electrons')
-        head2['nimages'] = (len(files), 'number of images summed')
-        head2.add_history('images coadded by sumfits.pro on %s' %
-                          datetime.datetime.now())
-        return bias2, head2
-
+        rdnoise = np.atleast_1d(rdnoise)
+        nfix = 0
+        linear = head.get("e_linear", True)
     # More than two images
+    else:
+        # Initialize header information lists (one entry per file).
+        # Loop through files in list, grabbing and parsing FITS headers.
+        # length of longest filename
 
-    # Initialize header information lists (one entry per file).
-    # Loop through files in list, grabbing and parsing FITS headers.
-    # length of longest filename
-    filename_length = np.max([len(l) for l in files])
-    print('  file' + ' ' * (filename_length - 3) +
-          'obs cols rows  object  exposure')
+        fname = files[0]
+        head, _ = load_fits(files[0], exten, instrument,
+                            header_only=True, **kwargs)
 
-    fname = files[0]
-    head2, _ = load_fits(files[0], exten, instrument,
-                         header_only=True, **kwargs)
+        # check if we deal with multiple amplifiers
+        n_ampl = head.get('e_ampl', 1)
 
-    # check if we deal with multiple amplifiers
-    n_ampl = head2.get('e_ampl', 1)
+        # section(s) of the detector to process
+        xlow = np.array(list(head['e_xlo*'].values()), ndmin=1)
+        xhigh = np.array(list(head['e_xhi*'].values()), ndmin=1)
+        ylow = np.array(list(head['e_ylo*'].values()), ndmin=1)
+        yhigh = np.array(list(head['e_yhi*'].values()), ndmin=1)
 
-    # section(s) of the detector to process
-    xlow = np.array(list(head2['e_xlo*'].values()), ndmin=1)
-    xhigh = np.array(list(head2['e_xhi*'].values()), ndmin=1)
-    ylow = np.array(list(head2['e_ylo*'].values()), ndmin=1)
-    yhigh = np.array(list(head2['e_yhi*'].values()), ndmin=1)
+        gain = np.array(list(head["e_gain*"].values()), ndmin=1)
+        rdnoise = np.array(list(head["e_readn*"].values()), ndmin=1)
 
-    gain = np.array(list(head2["e_gain*"].values()), ndmin=1)
-    rdnoise = np.array(list(head2["e_readn*"].values()), ndmin=1)
+        nfix = 0  # init fixed pixel counter
 
-    nfix = 0  # init fixed pixel counter
+        # check if non-linearity correction
+        linear = head.get("e_linear", True)
 
-    # check if non-linearity correction
-    linear = head2.get("e_linear", True)
+        # TODO: what happens for several amplifiers?
+        # outer loop through amplifiers (note: 1,2 ...)
+        for amplifier in range(n_ampl):
+            heads = [load_fits(f, exten, instrument,
+                               header_only=True, **kwargs)[0] for f in files]
 
-    # TODO: what happens for several amplifiers?
-    # outer loop through amplifiers (note: 1,2 ...)
-    for amplifier in range(n_ampl):
-        heads = [load_fits(f, exten, instrument,
-                           header_only=True, **kwargs)[0] for f in files]
+            # Sanity Check
+            ncol = np.array([h['naxis1'] for h in heads])
+            nrow = np.array([h['naxis2'] for h in heads])
+            if np.any(ncol != ncol[0]) or np.any(nrow != nrow[0]):
+                raise Exception('Not all files have the same dimensions')
 
-        # Sanity Check
-        ncol = np.array([h['naxis1'] for h in heads])
-        nrow = np.array([h['naxis2'] for h in heads])
-        if np.any(ncol != ncol[0]) or np.any(nrow != nrow[0]):
-            raise Exception('Not all files have the same dimensions')
+            bias = np.zeros((nrow[0], ncol[0]))
 
-        bias2 = np.zeros((nrow[0], ncol[0]))
+            exposure = [h["exptime"] for h in heads]
+            totalexpo = sum(exposure)
 
-        obj = [h["object"] for h in heads]
-        exposure = [h["exptime"] for h in heads]
-        totalexpo = sum(exposure)
+            xleft = xlow[amplifier]
+            xright = xhigh[amplifier]
+            ybottom = ylow[amplifier]
+            ytop = yhigh[amplifier]
 
-        # loop though files
-        for ifile, fname, nc, nr, ob, exp in zip(range(len(files)), files, ncol, nrow, obj, exposure):
-            print(fname, ifile, nc, nr, '  ', ob, exp)  # summarize header info
+            gain_amp = gain[amplifier]
+            rdnoise_amp = rdnoise[amplifier]
 
-        xleft = xlow[amplifier]
-        xright = xhigh[amplifier]
-        ybottom = ylow[amplifier]
-        ytop = yhigh[amplifier]
+            orient = heads[0]['e_orient']
 
-        gain_amp = gain[amplifier]
-        rdnoise_amp = rdnoise[amplifier]
-
-        orient = heads[0]['e_orient']
-        #orient = 0
-
-        if orient == 0 or orient == 2 or orient == 5 or orient == 7:
-            # TODO test this
-            print("WARNING: This orientation is untested !!!")
-            ncol_a = xright - xleft
-
-            mbuff = np.zeros((len(files), ncol_a))
-            prob = np.zeros((len(files), ncol_a))
             block = np.array(
                 [load_fits(f, exten, instrument, **kwargs)[0] for f in files])
 
-            #block = np.rot90(block, k=-1, axes=(1, 2))
+            if orient in [1, 3, 4, 6]:
+                block = np.rot90(block, k=-1, axes=(1, 2))
+                bias = np.rot90(bias, k=-1)
+                xleft, xright, ybottom, ytop = ybottom, ytop, xleft, xright
 
+            #mbuff = np.zeros((len(files), xright - xleft))
+            prob = np.zeros((len(files), xright - xleft))
+
+            # for each row
             for i_row in range(ybottom, ytop):
-                if (i_row) % 100 == 0:
+                if debug and (i_row) % DEBUG_NROWS == 0:
                     print(i_row, ' rows processed - ',
                           nfix, ' pixels fixed so far')
 
-                mbuff[:, :] = block[:, xleft:xright, i_row]
+                # load current row
+                buffer = block[:, i_row, xleft:xright]
 
                 # Calculate probabilities
-                prob[:, hwin:-hwin] = \
-                    calc_probability(mbuff, axis=1, hwin=hwin)
+                prob[:, hwin:-hwin] = calc_probability(buffer, hwin)
 
-                # extrapolate to edge cases
-                prob[:, :hwin] = 2 * prob[:, hwin][:, None] - \
-                    prob[:, 2 * hwin:hwin:-1]
-                prob[:, -hwin:] = 2 * prob[:, -hwin][:, None] \
-                    - prob[:, -hwin:-2 * hwin:-1]
+                # extrapolate to edges
+                prob[:, :hwin] = 2 * prob[:, hwin][:, None] \
+                    - prob[:, 2 * hwin:hwin:-1]
+                prob[:, -hwin:] = 2 * prob[:, -hwin - 1][:, None] \
+                    - prob[:, -hwin - 1:-2 * hwin - 1:-1]
 
                 # fix bad pixels
-                bias2[xleft:xright, i_row], nbad = remove_bad_pixels(
-                    prob, mbuff, None, len(files), rdnoise_amp, gain_amp, thres)
+                bias[i_row, xleft:xright], nbad = \
+                    remove_bad_pixels(
+                        prob, buffer, rdnoise_amp, gain_amp, thres)
                 nfix += nbad
 
-        elif orient == 1 or orient == 3 or orient == 4 or orient == 6:
-            # TODO alternatively: Just rotate image by 90 degrees
+            # rotate back
+            if orient in [1, 3, 4, 6]:
+                bias = np.rot90(bias, 1)
 
-            ncol_a = xright - xleft
-            m_row = 2 * hwin + 1  # of rows in the fifo buffer
+            print('total cosmic ray hits identified and removed: ', nfix)
 
-            if ytop - ybottom + 1 < m_row:
-                raise ValueError(
-                    'sumfits: the number of rows should be larger than 2 * win = %i' % m_row)
+    # Add info to header.
+    head['bzero'] = 0.0
+    head['bscale'] = 1.0
+    head['exptime'] = totalexpo
+    head['darktime'] = totalexpo
+    # Because we do not devide the signal by the number of files the
+    # read-out noise goes up by the square root of the number of files
 
-            # All the image data is loaded into a big array
-            block = np.array(
-                [load_fits(f, exten, instrument, **kwargs)[0] for f in files])
+    for n_amp, rdn in enumerate(rdnoise):
+        head['rdnoise{:0>1}'.format(n_amp + 1)] = (
+            rdn * np.sqrt(len(files)), ' noise in combined image, electrons')
 
-            # Cut off sides which are not used
-            block = block[:, :, xleft:xright]
+    head['nimages'] = (len(files),
+                       ' number of images summed')
+    head['npixfix'] = (nfix,
+                       ' pixels corrected for cosmic rays')
+    head.add_history('images coadded by sumfits.pro on %s' %
+                     datetime.datetime.now())
 
-            # img_buffer: A slice of the images with width m_row
-            img_buffer = np.swapaxes(block[:, :m_row, :], 1, 2)
-            # Save the initial bottom part of the image for extrapolation later
-            extra_buffer = np.swapaxes(
-                block[:, :hwin, :], 1, 2).astype(np.float32)
-            # This will be filled with the first and last hwin lines for the edge cases
-            float_buffer = np.zeros((len(files), ncol_a, 2 * hwin), np.float32)
+    if not linear:  # non-linearity was fixed. mark this in the header
+        raise NotImplementedError()  # TODO Nonlinear
+        i = np.where(head['e_linear'] >= 0)
+        head[i] = np.array((head[0:i - 1 + 1], head[i + 1:]))
+        head['e_linear'] = ('t', ' image corrected of non-linearity')
 
-            c_row = np.arange(hwin, ytop - ybottom) % m_row
-            j_row = np.arange(2 * hwin, ytop - ybottom) % m_row
+        ii = np.where(head['e_gain*'] >= 0)
+        if len(ii[0]) > 0:
+            for i in range(len(ii[0])):
+                k = ii[i]
+                head = np.array((head[0:k - 1 + 1], head[k + 1:]))
+        head['e_gain'] = (1, ' image was converted to e-')
 
-            for i_row in range(ybottom + hwin, ytop - hwin):
-                count = i_row - ybottom - hwin
-                if (i_row) % 100 == 0:
-                    print(i_row, ' rows processed - ',
-                          nfix, ' pixels fixed so far')
-
-                # This simulates reading the file line by line
-                img_buffer[:, :, j_row[count]] = block[:, m_row + count - 1, :]
-                filwt = calc_probability(img_buffer)
-
-                # save probailities for special cases
-                # for 1st special case: rows lesser than ybottom + hwin
-                if i_row <= (ybottom + 2 * hwin):
-                    float_buffer[:, :, i_row - ybottom - hwin] = np.copy(filwt)
-                # for 2nd special case: rows greater than ytop - hwin
-                if i_row >= (ytop - 2 * hwin):
-                    float_buffer[:, :, i_row + 3 *
-                                 hwin - ytop] = np.copy(filwt)
-
-                bias2[i_row, xleft:xright], nbad = remove_bad_pixels(
-                    filwt, img_buffer, c_row[count], len(files), rdnoise_amp, gain_amp, thres)
-                nfix += nbad
-
-            # 1st special case: rows less than hwin from the 0th row
-            prob2 = 2 * float_buffer[:, :ncol_a, 0][:, :, None] \
-                - float_buffer[:, :ncol_a, :hwin]
-            bias2[ybottom + hwin:ybottom:-1, xleft:xright], nbad = remove_bad_pixels(
-                prob2, extra_buffer, None, len(files), rdnoise_amp, gain_amp, thres)
-            nfix += nbad
-
-            # 2nd special case: rows greater than ytop-hwin
-            prob2 = 2 * float_buffer[:, :ncol_a, -1][:, :, None] \
-                - float_buffer[:, :ncol_a, :hwin]
-            bias2[ytop - hwin:ytop, xleft:xright], nbad = remove_bad_pixels(
-                prob2, img_buffer[:, :, c_row[ytop - 2 * hwin:ytop - hwin]],
-                None, len(files), rdnoise_amp, gain_amp, thres)
-            nfix += nbad
-
-        print('total cosmic ray hits identified and removed: ', nfix)
-
-        # Add info to header.
-        head2['bzero'] = 0.0
-        head2['bscale'] = 1.0
-        head2['exptime'] = totalexpo
-        head2['darktime'] = totalexpo
-        # Because we do not devide the signal by the number of files the
-        # read-out noise goes up by the square root of the number of files
-        rdnoise = [rdnoise_amp]
-
-        if len(rdnoise) > 1:
-            for amplifier in range(len(rdnoise) + 1):
-                head2['rdnoise{:0>1}'.format(amplifier)] = (
-                    rdnoise[amplifier - 1] * np.sqrt(len(files)), ' noise in combined image, electrons')
-        else:
-            head2['rdnoise'] = (rdnoise[0] * np.sqrt(len(files)),
-                                ' noise in combined image, electrons')
-        head2['nimages'] = (len(files),
-                            ' number of images summed')
-        head2['npixfix'] = (nfix,
-                            ' pixels corrected for cosmic rays')
-        head2.add_history('images coadded by sumfits.pro on %s' %
-                          datetime.datetime.now())
-
-        if not linear:  # non-linearity was fixed. mark this in the header
-            raise NotImplementedError()  # TODO Nonlinear
-            i = np.where(head2['e_linear'] >= 0)
-            head2[i] = np.array((head2[0:i - 1 + 1], head2[i + 1:]))
-            head2['e_linear'] = ('t', ' image corrected of non-linearity')
-
-            ii = np.where(head2['e_gain*'] >= 0)
-            if len(ii[0]) > 0:
-                for i in range(len(ii[0])):
-                    k = ii[i]
-                    head2 = np.array((head2[0:k - 1 + 1], head2[k + 1:]))
-            head2['e_gain'] = (1, ' image was converted to e-')
-
-    return bias2, head2
+    return bias, head
