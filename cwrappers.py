@@ -8,7 +8,7 @@ import clib._slitfunc_bd.lib as slitfunclib
 from clib._cluster import ffi
 
 
-def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1, noise=0):
+def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     """
     In:
     int ncols,                        Swath width in pixels
@@ -33,15 +33,15 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1, noise=0):
     double E[])                       RHS (ncols)
     """
     #img = np.ascontiguousarray(img.T)
-    img = img.astype(np.ctypeslib.ctypes.c_double)
-    ncols, nrows = img.shape
+    img = np.ascontiguousarray(img.astype(np.ctypeslib.ctypes.c_double))
+    nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
-    cimg = ffi.cast("double **", img.ctypes.data)
+    cimg = ffi.cast("double *", img.ctypes.data)
     if np.ma.is_masked(img):
-        mask = ffi.cast("unsigned char **", (~img.mask).astype(int).ctypes.data)
+        mask = ffi.cast("unsigned char *", (~img.mask).astype(int).ctypes.data)
     else:
-        mask = ffi.cast("unsigned char **", np.ones(img.shape, dtype=int).ctypes.data)
+        mask = ffi.cast("unsigned char *", np.ones(img.shape, dtype=int).ctypes.data)
 
     ycen = ycen.astype(np.ctypeslib.ctypes.c_double)
     cycen = ffi.cast("double *", ycen.ctypes.data)
@@ -53,13 +53,13 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1, noise=0):
     csl = ffi.cast("double *", sl.ctypes.data)
 
     model = np.zeros((nrows, ncols), dtype=np.ctypeslib.ctypes.c_double)
-    cmodel = ffi.cast("double **", model.ctypes.data)
+    cmodel = ffi.cast("double *", model.ctypes.data)
 
     unc = np.zeros(ncols, dtype=np.ctypeslib.ctypes.c_double)
     cunc = ffi.cast("double *", unc.ctypes.data)
 
     omega = np.zeros((ny, nrows, ncols), dtype=np.ctypeslib.ctypes.c_double)
-    comega = ffi.cast("double ***", omega.ctypes.data)
+    comega = ffi.cast("double *", omega.ctypes.data)
 
     sp_old = np.zeros((ny, nrows, ncols), dtype=np.ctypeslib.ctypes.c_double)
     csp_old = ffi.cast("double *", sp_old.ctypes.data)
@@ -115,12 +115,14 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
 
 
 if __name__ == "__main__":
-    img = np.full((110, 90), 1., dtype=float)
-    ycen = np.full(90, 10, dtype=float)
+    from scipy.io import readsav
 
-    img[:, 10] = 20
+    sav = readsav('./Test/test.dat')
+    img = sav['im']
+    ycen = sav['ycen']
 
-    sp, sl, model = slitfunc(img, ycen)
+    print(img[3,50])
+    sp, sl, model = slitfunc(img, ycen, lambda_sl=60, lambda_sp=10, osample=10)
 
     print(sp)
 
