@@ -284,7 +284,7 @@ def combine_bias(files, inst_setting, **kwargs):
     return bias, head
 
 
-def remove_bad_pixels(p, buffer, row, nfil, ncol_a, rdnoise_amp, gain_amp, thresh):
+def remove_bad_pixels(p, buffer, row, nfil, rdnoise_amp, gain_amp, thresh):
     """
     find and remove bad pixels
 
@@ -339,7 +339,7 @@ def remove_bad_pixels(p, buffer, row, nfil, ncol_a, rdnoise_amp, gain_amp, thres
     return b, nbad
 
 
-def calc_filwt(buffer):
+def calc_probability(buffer, axis=2, hwin=None):
     """
     Construct a probability function based on buffer data.
 
@@ -353,9 +353,16 @@ def calc_filwt(buffer):
         probabilities
     """
 
-    # boxcar average for irow
-    filwt = np.sum(buffer, axis=2, dtype=np.float32)
-    # norm for probability
+    # Take the median for each file
+    if axis == 1:
+        # Sliding median index
+        idx = np.arange(2 * hwin + 1) + \
+            np.arange(buffer.shape[axis] - (2 * hwin + 1) + 1)[:, None]
+        filwt = np.median(buffer[:, idx], axis=2)
+    if axis == 2:
+        filwt = np.median(buffer, axis=axis)
+
+    # norm probability
     tot_filwt = np.sum(filwt, axis=0, dtype=np.float32)
     filwt = np.where(tot_filwt > 0, filwt / tot_filwt, filwt)
     return filwt
@@ -387,6 +394,67 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
     similar images.
+
+    combine_frames co-adds a group of FITS files with 2D images of identical dimensions.
+    In the process it rejects cosmic ray, detector defects etc. It is capable of
+    handling images that have strip pattern (e.g. echelle spectra) using the REDUCE
+    modinfo conventions to figure out image orientation and useful pixel ranges.
+    It can handle many frames. Special cases: 1 file in the list (the input is returned as output)
+    and 2 files (straight sum is returned).
+
+
+    Case A: image is predominantly horizontal.
+    ============================================
+
+    Open all FITS files in the list. Position after header.
+
+    Loop through the rows.
+
+    Read next row from each file into a row buffer mBuff[nCol, nFil]. Optionally correct the data
+    for non-linearity.
+
+    Go through the row creating "probability" vector. That is for column iCol take the median of
+    the part of the row mBuff[iCol-win:iCol+win,iFil] for each file and divide these medians by the
+    mean of them computer across the stack of files. In other words:
+    filwt[iFil]=median(mBuff[iCol-win:iCol+win,iFil])
+    norm_filwt=mean(filwt)
+    prob[iCol,iFil]=(norm_filtwt>0)?filwt[iCol]/norm_filwt:filwt[iCol]
+
+    This is done for all iCol in the range of [win:nCol-win-1]. It is then linearly extrapolated to
+    the win zones of both ends. E.g. for iCol in [0:win-1] range:
+    prob[iCol,iFil]=2*prob[win,iFil]-prob[2*win-iCol,iFil]
+
+    For the other end ([nCol-win:nCol-1]) it is similar:
+    prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
+
+    Once the probailities are constructed we can do the fitting, measure scatter and detect outliers.
+    We ignore negative or zero probabilities as it should not happen. For each iCol with (some)
+    positive probabilities we compute tha ratios of the original data to the probabilities and get
+    the mean amplitude of these ratios after rejecting extreme values:
+    ratio=mBuff[iCol,iFil]/prob[iCol,iFil]
+    amp=(total(ratio)-min(ratio)-max(ratio))/(nFil-2)
+    mFit[iCol,iFil]=amp*prob[iCol,iFil]
+
+    Note that for iFil whereprob[iCol,iFil] is zero we simply set mFit to zero. The scatter (noise)
+    consists readout noise and shot noise of the model (fit) co-added in quadratures:
+    sig=sqrt(rdnoise*rdnoise + abs(mFit[iCol,iFil]/gain))
+
+    and the outliers are defined as:
+    iBad=where(mBuff-mFit gt thres*sig)
+
+    Bad values are replaced from the fit:
+    mBuff[iBad]=mFit[iBad]
+
+    and mBuff is summed across the file dimension to create an output row.
+
+
+    Case B: image is predominantly vertical.
+    ============================================
+
+    The main difference is that the statistics is collected along the columns. Thus we read a 2*win+1 rows from each file,
+    do statistics, compile the probabilities, construct the fit, measure scatter, replace the outliers and read the next row.
+    Special treatment is required for the first and the last win rows. We can deal with the first win rows once we derived
+    the probailities for the win:2*win rows.
 
     Parameters
     ----------
@@ -506,6 +574,7 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
         rdnoise_amp = rdnoise[amplifier]
 
         orient = heads[0]['e_orient']
+        #orient = 0
 
         if orient == 0 or orient == 2 or orient == 5 or orient == 7:
             # TODO test this
@@ -517,6 +586,8 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
             block = np.array(
                 [load_fits(f, exten, instrument, **kwargs)[0] for f in files])
 
+            #block = np.rot90(block, k=-1, axes=(1, 2))
+
             for i_row in range(ybottom, ytop):
                 if (i_row) % 100 == 0:
                     print(i_row, ' rows processed - ',
@@ -525,28 +596,22 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
                 mbuff[:, :] = block[:, xleft:xright, i_row]
 
                 # Calculate probabilities
-                # Sliding window
-                filwt = np.cumsum(mbuff, axis=1)
-                filwt[:, 2 * hwin:] = filwt[:, 2 * hwin:] - \
-                    filwt[:, :-2 * hwin]
-                filwt = filwt[:, 2 * hwin:]
+                prob[:, hwin:-hwin] = \
+                    calc_probability(mbuff, axis=1, hwin=hwin)
 
-                tot_filwt = np.sum(filwt, axis=1)
-                filwt /= tot_filwt[:, None]
-                prob[:, hwin:ncol_a - hwin] = filwt
-
-                # fix edge cases
-                prob[:, :ncol_a - hwin] = 2 * prob[:, hwin][:, None] - \
+                # extrapolate to edge cases
+                prob[:, :hwin] = 2 * prob[:, hwin][:, None] - \
                     prob[:, 2 * hwin:hwin:-1]
-                prob[:, ncol_a - hwin: ncol_a] = 2 * prob[:, ncol_a - hwin][:, None] \
-                    - prob[:, ncol_a - hwin:ncol_a - 2 * hwin:-1]
+                prob[:, -hwin:] = 2 * prob[:, -hwin][:, None] \
+                    - prob[:, -hwin:-2 * hwin:-1]
 
                 # fix bad pixels
                 bias2[xleft:xright, i_row], nbad = remove_bad_pixels(
-                    prob, mbuff, None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+                    prob, mbuff, None, len(files), rdnoise_amp, gain_amp, thres)
                 nfix += nbad
 
         elif orient == 1 or orient == 3 or orient == 4 or orient == 6:
+            # TODO alternatively: Just rotate image by 90 degrees
 
             ncol_a = xright - xleft
             m_row = 2 * hwin + 1  # of rows in the fifo buffer
@@ -581,7 +646,7 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
 
                 # This simulates reading the file line by line
                 img_buffer[:, :, j_row[count]] = block[:, m_row + count - 1, :]
-                filwt = calc_filwt(img_buffer)
+                filwt = calc_probability(img_buffer)
 
                 # save probailities for special cases
                 # for 1st special case: rows lesser than ybottom + hwin
@@ -593,14 +658,14 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
                                  hwin - ytop] = np.copy(filwt)
 
                 bias2[i_row, xleft:xright], nbad = remove_bad_pixels(
-                    filwt, img_buffer, c_row[count], len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+                    filwt, img_buffer, c_row[count], len(files), rdnoise_amp, gain_amp, thres)
                 nfix += nbad
 
             # 1st special case: rows less than hwin from the 0th row
             prob2 = 2 * float_buffer[:, :ncol_a, 0][:, :, None] \
                 - float_buffer[:, :ncol_a, :hwin]
             bias2[ybottom + hwin:ybottom:-1, xleft:xright], nbad = remove_bad_pixels(
-                prob2, extra_buffer, None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+                prob2, extra_buffer, None, len(files), rdnoise_amp, gain_amp, thres)
             nfix += nbad
 
             # 2nd special case: rows greater than ytop-hwin
@@ -608,7 +673,7 @@ def combine_frames(files, instrument, exten=1, thres=3.5, hwin=50, **kwargs):
                 - float_buffer[:, :ncol_a, :hwin]
             bias2[ytop - hwin:ytop, xleft:xright], nbad = remove_bad_pixels(
                 prob2, img_buffer[:, :, c_row[ytop - 2 * hwin:ytop - hwin]],
-                None, len(files), ncol_a, rdnoise_amp, gain_amp, thres)
+                None, len(files), rdnoise_amp, gain_amp, thres)
             nfix += nbad
 
         print('total cosmic ray hits identified and removed: ', nfix)
