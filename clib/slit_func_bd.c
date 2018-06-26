@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-typedef unsigned char byte;
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -35,20 +34,20 @@ int bandsol(double *a, double *r, int n, int nd)
    matrix.
 */
 
-  //  if(mod(nd,2)==0) return -1;
+  if(nd % 2 ==0) return -1;
 
   /* Forward sweep */
   for (i = 0; i < n - 1; i++)
   {
     aa = a[i + n * (nd / 2)];
-    //    if(aa==0.e0) return -3;
+    if(aa==0.e0) return -3;
     r[i] /= aa;
     for (j = 0; j < nd; j++)
       a[i + j * n] /= aa;
     for (j = 1; j < min(nd / 2 + 1, n - i); j++)
     {
       aa = a[i + j + n * (nd / 2 - j)];
-      //      if(aa==0.e0) return -j;
+      if(aa==0.e0) return -j;
       r[i + j] -= r[i] * aa;
       for (k = 0; k < n * (nd - j); k += n)
         a[i + j + k] -= a[i + k + n * j] * aa;
@@ -69,11 +68,30 @@ int bandsol(double *a, double *r, int n, int nd)
   return 0;
 }
 
+/*----------------------------------------------------------------------------*/
+/**
+  @brief
+  @param    ncols       Swath width in pixels
+  @param    nrows       Extraction slit height in pixels
+  @param    osample     Subpixel ovsersampling factor
+  @param    im          Image to be decomposed
+  @param    mask        int mask of same dimension as image
+  @param    ycen        Order centre line offset from pixel row boundary
+  @param    sL          Slit function resulting from decomposition, start
+                        guess is input, gets overwriteten with result
+  @param    sP          Spectrum resulting from decomposition
+  @param    model       the model reconstruction of im
+  @param    lambda_sP   Smoothing parameter for the spectrum, could be zero
+  @param    lambda_sL   Smoothing parameter for the slit function, usually >0
+  @param    sP_stop     Fraction of spectyrum change, stop condition
+  @param    maxiter     Max number of iterations
+  @return
+ */
+/*----------------------------------------------------------------------------*/
 int slit_func_vert(int ncols,        /* Swath width in pixels                                 */
                    int nrows,        /* Extraction slit height in pixels                      */
-                   int ny,           /* Size of the slit function array: ny=osample(nrows+1)+1*/
                    double *im,       /* Image to be decomposed                                */
-                   byte *mask,       /* Initial and final mask for the swath                  */
+                   int *mask,        /* Initial and final mask for the swath                  */
                    double *ycen,     /* Order centre line offset from pixel row boundary      */
                    int osample,      /* Subpixel ovsersampling factor                         */
                    double lambda_sP, /* Smoothing parameter for the spectrum, coiuld be zero  */
@@ -81,24 +99,23 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
                    double *sP,       /* Spectrum resulting from decomposition                 */
                    double *sL,       /* Slit function resulting from decomposition            */
                    double *model,    /* Model constructed from sp and sf                      */
-                   double *unc,      /* Spectrum uncertainties                                */
-                   double *omega,    /* Work array telling what fraction of subpixel iy falls */
-                                     /* into pixel {x,y}.                                     */
-                   double *sP_old,   /* Work array to control the convergence                 */
-                   double *Aij,      /* Various LAPACK arrays (ny*ny)                         */
-                   double *bj,       /* ny                                                    */
-                   double *Adiag,    /* Array for solving the tridiagonal SLE for sP (ncols*3)*/
-                   double *E)        /* RHS (ncols)                                           */
+                   double *unc       /* Spectrum uncertainties                                */
+)
 {
-  int x, y, iy, jy, iy1, iy2;
+  int x, y, iy, jy, iy1, iy2, ny;
   double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
   int info, iter, isum, nd;
 
   nd = 2 * osample + 1;
   ny = osample * (nrows + 1) + 1; /* The size of the sf array */
   step = 1.e0 / osample;
-  printf("ncols = %d, nrows = %d\n", ncols, nrows);
-  printf("img[%d,%d] = %f\n", 3, 50, im[3 * ncols + 50]);
+
+  double *E = malloc(ncols * sizeof(double));                  // double E[ncols];
+  double *sP_old = malloc(ncols * sizeof(double));             // double sP_old[ncols];
+  double *Aij = malloc(ny * ny * sizeof(double));              // double Aij[ny*ny];
+  double *bj = malloc(ny * sizeof(double));                    // double bj[ny];
+  double *Adiag = malloc(ncols * 3 * sizeof(double));          // double Adiag[ncols*3];
+  double *omega = malloc(ny * nrows * ncols * sizeof(double)); // double omega[ny][nrows][ncols];
 
   /*
    Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
@@ -127,15 +144,15 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       for (iy = 0; iy < ny; iy++)
       {
         if (iy < iy1)
-          omega[iy * (ncols * nrows) + y * ncols + x] = 0.;
+          omega[iy + (y * ny) + (x * ny * nrows)] = 0.;
         else if (iy == iy1)
-          omega[iy * (ncols * nrows) + y * ncols + x] = d1;
+          omega[iy + (y * ny) + (x * ny * nrows)] = d1;
         else if (iy > iy1 && iy < iy2)
-          omega[iy * (ncols * nrows) + y * ncols + x] = step;
+          omega[iy + (y * ny) + (x * ny * nrows)] = step;
         else if (iy == iy2)
-          omega[iy * (ncols * nrows) + y * ncols + x] = d2;
+          omega[iy + (y * ny) + (x * ny * nrows)] = d2;
         else
-          omega[iy * (ncols * nrows) + y * ncols + x] = 0.;
+          omega[iy + (y * ny) + (x * ny * nrows)] = 0.;
       }
     }
   }
@@ -144,9 +161,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
   iter = 0;
   do
   {
-    /*
-  Compute slit function sL
-*/
+    /*  Compute slit function sL */
 
     /* Fill in band-diagonal SLE array and the RHS */
 
@@ -156,13 +171,13 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       bj[iy] = 0.e0;
       for (jy = max(iy - osample, 0); jy <= min(iy + osample, ny - 1); jy++)
       {
-        //        printf("iy=%d jy=%d %d\n", iy, jy, iy+ny*(jy-iy+osample));
+        //printf("iy=%d jy=%d %d\n", iy, jy, iy+ny*(jy-iy+osample));
         Aij[iy + ny * (jy - iy + osample)] = 0.e0;
         for (x = 0; x < ncols; x++)
         {
           sum = 0.e0;
           for (y = 0; y < nrows; y++)
-            sum += omega[iy * (ncols * nrows) + y * ncols + x] * omega[jy * (nrows * ncols) + y * ncols + x] * mask[y * ncols + x];
+            sum += omega[iy + (y * ny) + (x * ny * nrows)] * omega[jy + (y * ny) + (x * ny * nrows)] * mask[y * ncols + x];
           Aij[iy + ny * (jy - iy + osample)] += sum * sP[x] * sP[x];
         }
       }
@@ -170,15 +185,16 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       {
         sum = 0.e0;
         for (y = 0; y < nrows; y++)
-          sum += omega[iy * (ncols * nrows) + y * ncols + x] * mask[y * ncols + x] * im[y * ncols + x];
+          sum += omega[iy + (y * ny) + (x * ny * nrows)] * mask[y * ncols + x] * im[y * ncols + x];
         bj[iy] += sum * sP[x];
       }
       diag_tot += Aij[iy + ny * osample];
     }
-
+    // printf("SUM : %e\n", sum);
     /* Scale regularization parameters */
 
     lambda = lambda_sL * diag_tot / ny;
+
 
     /* Add regularization parts for the SLE matrix */
 
@@ -210,9 +226,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
     for (iy = 0; iy < ny; iy++)
       sL[iy] /= norm;
 
-    /*
-  Compute spectrum sP
-*/
+    /*  Compute spectrum sP */
     for (x = 0; x < ncols; x++)
     {
       Adiag[x + ncols] = 0.e0;
@@ -222,7 +236,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
         sum = 0.e0;
         for (iy = 0; iy < ny; iy++)
         {
-          sum += omega[iy * (ncols * nrows) + y * ncols + x] * sL[iy];
+          sum += omega[iy + (y * ny) + (x * ny * nrows)] * sL[iy];
         }
         Adiag[x + ncols] += sum * sum * mask[y * ncols + x];
         E[x] += sum * im[y * ncols + x] * mask[y * ncols + x];
@@ -253,9 +267,12 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       Adiag[ncols * 3 - 1 + ncols] = 0.e0;
 
       info = bandsol(Adiag, E, ncols, 3);
+      if (info) printf("info = %d\n", info);
 
       for (x = 0; x < ncols; x++)
+      {
         sP[x] = E[x];
+      }
     }
     else
     {
@@ -274,7 +291,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       {
         sum = 0.e0;
         for (iy = 0; iy < ny; iy++)
-          sum += omega[iy * (ncols * nrows) + y * ncols + x] * sL[iy];
+          sum += omega[iy + (y * ny) + (x * ny * nrows)] * sL[iy];
         model[y * ncols + x] = sum * sP[x];
       }
     }
@@ -335,6 +352,13 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
     }
     unc[x] = sqrt(unc[x] / norm * nrows);
   }
+
+  free(E);
+  free(sP_old);
+  free(omega);
+  free(Aij);
+  free(bj);
+  free(Adiag);
 
   return 0;
 }
