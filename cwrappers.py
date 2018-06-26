@@ -1,6 +1,15 @@
+"""
+Wrapper for REDUCE C functions 
+includes:
+   slit_func
+   locate_cluster
+"""
+
+
 import numpy as np
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
 from scipy.interpolate import interp1d
+
 # TODO DEBUG
 import clib.build_slitfunc
 
@@ -8,6 +17,7 @@ clib.build_slitfunc.build()
 
 import clib._cluster.lib as clusterlib
 import clib._slitfunc_bd.lib as slitfunclib
+import clib._slitfunc_2d.lib as slitfunc_2dlib
 from clib._cluster import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
@@ -99,6 +109,77 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     return sp, sl, model, unc
 
 
+def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **kwargs):
+    nrows, ncols = img.shape
+    ny = osample * (nrows + 1) + 1
+
+    y_lower_lim = int(min(ycen))  # TODO
+
+    # Inital guess for slit function and spectrum
+    # Just sum up the image along one side and normalize
+    sl = np.sum(img, axis=1)
+    sl = sl / np.sum(sl)  # slit function
+
+    sp = np.sum(img * sl[:, None], axis=0)
+    sp = sp / np.sum(sp) * np.sum(img)
+
+    # Stretch sl by oversampling factor
+    old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
+    sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
+
+    sl = sl.astype(c_double)
+    csl = ffi.cast("double *", sl.ctypes.data)
+
+    sp = sp.astype(c_double)
+    csp = ffi.cast("double *", sp.ctypes.data)
+
+    if np.ma.is_masked(img):
+        mask = (~img.mask).astype(c_int).flatten()
+        cmask = ffi.cast("int *", mask.ctypes.data)
+    else:
+        mask = np.ones(nrows * ncols, dtype=c_int)
+        cmask = ffi.cast("int *", mask.ctypes.data)
+
+    img = img.flatten().astype(c_double)
+    img = np.ascontiguousarray(img)
+    cimg = ffi.cast("double *", img.ctypes.data)
+
+    ycen = ycen.astype(c_double)
+    cycen = ffi.cast("double *", ycen.ctypes.data)
+
+    ycen_offset = np.copy(ycen).astype(c_int)
+    cycen_offset = ffi.cast("int *", ycen_offset.ctypes.data)
+
+    shear = shear.astype(c_double)
+    cshear = ffi.cast("double *", shear.ctypes.data)
+
+    model = np.zeros((nrows, ncols), dtype=c_double)
+    cmodel = ffi.cast("double *", model.ctypes.data)
+
+    unc = np.zeros(ncols, dtype=c_double)
+    cunc = ffi.cast("double *", unc.ctypes.data)
+
+    slitfunc_2dlib.slit_func_curved(
+        ncols,
+        nrows,
+        cimg,
+        cmask,
+        cycen,
+        cycen_offset,
+        cshear,
+        y_lower_lim,
+        osample,
+        lambda_sp,
+        lambda_sl,
+        csp,
+        csl,
+        cmodel,
+        cunc,
+    )
+
+    return sp, sl, model, unc
+
+
 def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     img = img.T  # transpose input TODO: why?
 
@@ -137,8 +218,9 @@ if __name__ == "__main__":
     sav = readsav("./Test/test.dat")
     img = sav["im"]
     ycen = sav["ycen"]
+    shear = np.zeros(img.shape[1])
 
-    sp, sl, model, unc = slitfunc(img, ycen, osample=2)
+    sp, sl, model, unc = slitfunc_curved(img, ycen, shear, osample=1)
 
     plt.subplot(211)
     plt.plot(sp)
