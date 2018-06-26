@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
-
-
+from scipy.interpolate import interp1d
+# TODO DEBUG
 import clib.build_slitfunc
 
 clib.build_slitfunc.build()
@@ -9,6 +9,9 @@ clib.build_slitfunc.build()
 import clib._cluster.lib as clusterlib
 import clib._slitfunc_bd.lib as slitfunclib
 from clib._cluster import ffi
+
+c_double = np.ctypeslib.ctypes.c_double
+c_int = np.ctypeslib.ctypes.c_int
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
@@ -36,10 +39,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     double E[])                       RHS (ncols)
     """
 
-    double = np.float64
-    integer = np.int32
-
-    # img = np.ascontiguousarray(img.T)
+    # Get dimensions
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
@@ -52,33 +52,33 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     sp = sp / np.sum(sp) * np.sum(img)
 
     # Stretch sl by oversampling factor
-    sl = np.interp(
-        np.arange(ny), np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True), sl
-    )
+    old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
+    sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
 
-    sl = sl.astype(double)
+    sl = sl.astype(c_double)
     csl = ffi.cast("double *", sl.ctypes.data)
 
-    sp = sp.astype(double)
+    sp = sp.astype(c_double)
     csp = ffi.cast("double *", sp.ctypes.data)
 
-    img = img.flatten().astype(double)
+    img = img.flatten().astype(c_double)
     img = np.ascontiguousarray(img)
     cimg = ffi.cast("double *", img.ctypes.data)
 
     if np.ma.is_masked(img):
-        cmask = ffi.cast("int *", (~img.mask).flat.astype(integer))
+        mask = (~img.mask).astype(c_int).flatten()
+        cmask = ffi.cast("int *", mask.ctypes.data)
     else:
-        mask = np.ones(nrows * ncols, dtype=integer)
+        mask = np.ones(nrows * ncols, dtype=c_int)
         cmask = ffi.cast("int *", mask.ctypes.data)
 
-    ycen = ycen.astype(double)
+    ycen = ycen.astype(c_double)
     cycen = ffi.cast("double *", ycen.ctypes.data)
 
-    model = np.zeros((nrows, ncols), dtype=double)
+    model = np.zeros((nrows, ncols), dtype=c_double)
     cmodel = ffi.cast("double *", model.ctypes.data)
 
-    unc = np.zeros(ncols, dtype=double)
+    unc = np.zeros(ncols, dtype=c_double)
     cunc = ffi.cast("double *", unc.ctypes.data)
 
     slitfunclib.slit_func_vert(
@@ -96,11 +96,11 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         cunc,
     )
 
-    return sp, sl, model  # , unc, omega, sP_old, Aij, nj, Adiag, E
+    return sp, sl, model, unc
 
 
 def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
-    img = img.T  # transpose input
+    img = img.T  # transpose input TODO: why?
 
     img = img.astype("i")
     nX, nY = img.shape
@@ -138,8 +138,7 @@ if __name__ == "__main__":
     img = sav["im"]
     ycen = sav["ycen"]
 
-    # print(img[50, 3])
-    sp, sl, model = slitfunc(img, ycen, osample=1)
+    sp, sl, model, unc = slitfunc(img, ycen, osample=2)
 
     plt.subplot(211)
     plt.plot(sp)

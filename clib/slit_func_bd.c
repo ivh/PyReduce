@@ -40,14 +40,14 @@ int bandsol(double *a, double *r, int n, int nd)
   for (i = 0; i < n - 1; i++)
   {
     aa = a[i + n * (nd / 2)];
-    if(aa==0.e0) return -3;
+    //if(aa==0.e0) return -3;
     r[i] /= aa;
     for (j = 0; j < nd; j++)
       a[i + j * n] /= aa;
     for (j = 1; j < min(nd / 2 + 1, n - i); j++)
     {
       aa = a[i + j + n * (nd / 2 - j)];
-      if(aa==0.e0) return -j;
+      //if(aa==0.e0) return -j;
       r[i + j] -= r[i] * aa;
       for (k = 0; k < n * (nd - j); k += n)
         a[i + j + k] -= a[i + k + n * j] * aa;
