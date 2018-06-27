@@ -25,28 +25,27 @@ c_int = np.ctypeslib.ctypes.c_int
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
-    """
-    In:
-    int ncols,                        Swath width in pixels
-    int nrows,                        Extraction slit height in pixels
-    int ny,                           Size of the slit function array: ny=osample(nrows+1)+1
-    double im[nrows][ncols],          Image to be decomposed
-    byte mask[nrows][ncols],          Initial and final mask for the swath
-    double ycen[ncols],               Order centre line offset from pixel row boundary
-    int osample,                      Subpixel ovsersampling factor
-    double lambda_sP,                 Smoothing parameter for the spectrum, coiuld be zero
-    double lambda_sL,                 Smoothing parameter for the slit function, usually >0
-    Out:
-    double sP[ncols],                 Spectrum resulting from decomposition
-    double sL[ny],                    Slit function resulting from decomposition
-    double model[nrows][ncols],       Model constructed from sp and sf
-    double unc[ncols],                Spectrum uncertainties
-    double omega[ny][nrows][ncols]    Work array telling what fraction of subpixel iy falls into pixel {x,y}.
-    double sP_old[ncols],             Work array to control the convergence
-    double Aij[],                     Various LAPACK arrays (ny*ny)
-    double bj[],                      ny
-    double Adiag[],                   Array for solving the tridiagonal SLE for sP (ncols*3)
-    double E[])                       RHS (ncols)
+    """Decompose image into spectrum and slitfunction
+    
+    This is for vertical(?) orders only, for curved orders use slitfunc_curved instead
+
+    Parameters
+    ----------
+    img : array[n, m]
+        image to decompose, should just contain a small part of the overall image
+    ycen : array[n]
+        traces the center of the order along the image
+    lambda_sp : float, optional
+        smoothing parameter of the spectrum (the default is 0, which no smoothing)
+    lambda_sl : float, optional
+        smoothing parameter of the slitfunction (the default is 0.1, which )
+    osample : int, optional
+        Subpixel ovsersampling factor (the default is 1, which no oversampling)
+    
+    Returns
+    -------
+    sp, sl, model, unc
+        spectrum, slitfunction, model, spectrum uncertainties
     """
 
     # Get dimensions
@@ -110,6 +109,29 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
 
 
 def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **kwargs):
+    """Decompose an image into a spectrum and a slitfunction, image may be curved
+
+    Parameters
+    ----------
+    img : array[n, m]
+        input image
+    ycen : array[n]
+        traces the center of the order
+    shear : array[n]
+        tilt of the order along the image ???, set to 0 if order straight
+    osample : int, optional
+        Subpixel ovsersampling factor (the default is 1, which no oversampling)
+    lambda_sp : float, optional
+        smoothing factor spectrum (the default is 0, which no smoothing)
+    lambda_sl : float, optional
+        smoothing factor slitfunction (the default is 0.1, which small)
+
+    Returns
+    -------
+    sp, sl, model, unc
+        spectrum, slitfunction, model, spectrum uncertainties
+    """
+
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
