@@ -5,6 +5,7 @@ Used to create master bias and master flat
 """
 
 import datetime
+import os
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
@@ -13,48 +14,7 @@ from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
 from clipnflip import clipnflip
-from modeinfo_uves import modeinfo_uves as modeinfo
-
-
-def load_fits(fname, extension, instrument, header_only=False, **kwargs):
-    """
-    load a fits file
-    merge primary and extension header
-    fix reduce specific header values
-    mask array
-    """
-    data = fits.open(fname)
-    head = load_header(data)
-    head, kw = modeinfo(head, instrument, **kwargs)
-
-    if header_only:
-        return head, kw
-
-    data = data[extension].data
-    data = np.ma.masked_array(data, mask=kwargs.get("mask"))
-    return data, head, kw
-
-
-def load_header(hdulist, extension=1):
-    """
-    load and combine primary header with extension header
-
-    Parameters
-    ----------
-    hdulist : list(hdu)
-        list of hdu, usually from fits.open
-    exten : int, optional
-        extension to use in addition to primary (default: 1)
-
-    Returns
-    -------
-    header
-        combined header, extension first
-    """
-
-    head = hdulist[extension].header
-    head.extend(hdulist[0].header, strip=False)
-    return head
+from util import load_fits
 
 
 def gaussfit(x, y):
@@ -326,7 +286,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
         combined image data, header
     """
 
-    DEBUG_NROWS = 1000  # print status update every DEBUG_NROWS rows (if debug is True)
+    DEBUG_NROWS = 100  # print status update every DEBUG_NROWS rows (if debug is True)
     debug = kwargs.get("debug", False)
     dtype = kwargs.get("dtype", np.float32)
 
@@ -337,17 +297,21 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
 
     # Only one image
     if len(files) < 2:
-        result, head, _ = load_fits(files[0], extension, instrument, **kwargs)
+        result, head = load_fits(files[0], instrument, extension, **kwargs)
+        result = result.astype(dtype)
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, _, kw = load_fits(files[0], extension, instrument, **kwargs)
-        exp1 = kw["time"]
+        bias1, head1 = load_fits(files[0], instrument, extension, **kwargs)
+        exp1 = head1["exptime"]
 
-        bias2, head, kw = load_fits(files[0], extension, instrument, **kwargs)
-        exp2, readnoise = kw["time"], kw["readn"]
+        bias2, head2 = load_fits(files[0], instrument, extension, **kwargs)
+        exp2, readnoise = head2["exptime"], head2["e_readn"]
 
         result = bias2 + bias1
+        result = result.astype(dtype)
+        head = head2
+
         total_exposure_time = exp1 + exp2
         readnoise = np.atleast_1d(readnoise)
         n_fixed = 0
@@ -355,10 +319,10 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
     # More than two images
     else:
         # Get information from headers
-
-        # TODO: assume all values are the same in all the headers
+        # TODO: check if all values are the same in all the headers?
+        
         heads = [
-            load_fits(f, extension, instrument, header_only=True, **kwargs)[0]
+            load_fits(f, instrument, extension, header_only=True, **kwargs)
             for f in files
         ]
         head = heads[0]
@@ -384,26 +348,38 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
         y_low = [c[1] for c in head["e_ylo*"].cards]
         y_high = [c[1] for c in head["e_yhi*"].cards]
 
-        gain = np.array(list(head["e_gain*"].values()), ndmin=1)
-        readnoise = np.array(list(head["e_readn*"].values()), ndmin=1)
+        gain = [c[1] for c in head["e_gain*"].cards]
+        readnoise = [c[1] for c in head["e_readn*"].cards]
         total_exposure_time = sum([h["exptime"] for h in heads])
 
-        result = np.zeros((n_rows[0], n_columns[0]), dtype=dtype)  # the combined image
+        # Scaling for image data
+        bscale = [h["bscale"] for h in heads]
+        bzero = [h["bzero"] for h in heads]
+
+        result = np.zeros((n_rows, n_columns), dtype=dtype)  # the combined image
         n_fixed = 0  # number of fixed pixels
 
-        # Load all image data
-        data = np.empty((len(files), n_rows[0], n_columns[0]), dtype="uint16")
-        for i, f in enumerate(files):
-            data[i] = fits.open(f)[extension].data
+        # Load all image hdus, but leave the data on the disk, using memmap
+        # Need to scale data later
+        data = [
+            fits.open(f, memmap=True, do_not_scale_image_data=True)[extension]
+            for f in files
+        ]
 
+        # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:
-            data = np.rot90(data, k=-1, axes=(1, 2))
-            result = np.rot90(result, k=-1)
+            # idx gives the index for accessing the data in the image, which is rotated depending on the orientation
+            # We can not just rotate the whole image, as that requires reading of the whole image
+            index = lambda row, x_left, x_right: (slice(x_left, x_right), row)
+            # Exchange the borders of the image
             x_low, x_high, y_low, y_high = y_low, y_high, x_low, x_high
+        else:
+            index = lambda row, x_left, x_right: (row, slice(x_left, x_right))
 
         # For several amplifiers, different sections of the image are set
         # One for each amplifier, each amplifier is treated seperately
         for amplifier in range(n_amplifier):
+            # Pick data for current amplifier
             x_left = x_low[amplifier]
             x_right = x_high[amplifier]
             y_bottom = y_low[amplifier]
@@ -412,16 +388,19 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
             gain_amp = gain[amplifier]
             readnoise_amp = readnoise[amplifier]
 
+            # Prepare temporary arrays
             buffer = np.zeros((len(files), x_right - x_left))
             probability = np.zeros((len(files), x_right - x_left))
 
             # for each row
             for row in range(y_bottom, y_top):
-                if debug and (row) % DEBUG_NROWS == 0:
+                if (row) % DEBUG_NROWS == 0:
                     print(row, " rows processed - ", n_fixed, " pixels fixed so far")
 
                 # load current row
-                buffer[:, :] = data[:, row, x_left:x_right]
+                idx = index(row, x_left, x_right)
+                for i in range(len(files)):
+                    buffer[i, :] = data[i].data[idx] * bscale[i] + bzero[i]
 
                 # Calculate probabilities
                 probability[:, window:-window] = calculate_probability(buffer, window)
@@ -437,16 +416,15 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
                 )
 
                 # fix bad pixels
-                result[row, x_left:x_right], n_bad = fix_bad_pixels(
+                result[idx], n_bad = fix_bad_pixels(
                     probability, buffer, readnoise_amp, gain_amp, threshold
                 )
                 n_fixed += n_bad
 
-        # rotate back
-        if orientation in [1, 3, 4, 6]:
-            result = np.rot90(result, 1)
-
         print("total cosmic ray hits identified and removed: ", n_fixed)
+
+        result = clipnflip(result, head)
+        result = np.ma.masked_array(result, mask=kwargs.get("mask"))
 
     # Add info to header.
     head["bzero"] = 0.0
@@ -546,47 +524,34 @@ def combine_bias(files, instrument, extension=1, **kwargs):
 
     debug = kwargs.get("debug", False)
 
-    n = len(files) // 2
+    n = len(files)
     # necessary to maintain proper dimensionality, if there is just one element
-    if n == 0:
+    if n == 1:
         files = np.array([files, files])
-        n = 1
-    list1, list2 = files[:n], files[n:]
+        n = 2
+    list1, list2 = files[: n // 2], files[n // 2 :]
 
     # Lists of images.
     n1 = len(list1)
     n2 = len(list2)
-    n = n1 + n2
 
     # Separately images in two groups.
-    bias1, head1 = combine_frames(list1, instrument, extension, **kwargs)
-    bias1 = clipnflip(bias1 / n1, head1)
+    bias1, _ = combine_frames(list1, instrument, extension, **kwargs)
+    bias1 /= n1
 
     bias2, head2 = combine_frames(list2, instrument, extension, **kwargs)
-    bias2 = clipnflip(bias2 / n2, head2)
-
-    if bias1.ndim != bias2.ndim or bias1.shape[0] != bias2.shape[0]:
-        raise Exception("sumbias: bias frames in two lists have different dimensions")
+    bias2 /= n2
 
     # Make sure we know the gain.
     head = head2
-    try:
-        gain = head["e_gain*"]
-        gain = np.array([gain[i] for i in range(len(gain))])
-        gain = gain[0]
-    except KeyError:
-        gain = 1
+    gain = head.get("e_gain*", (1,))[0]
 
-    # Construct unnormalized sum.
-    bias = bias1 * n1 + bias2 * n2
-
-    # Normalize the sum.
-    bias = bias / n
+    # Construct normalized sum.
+    bias = (bias1 * n1 + bias2 * n2) / n
 
     # Compute noise in difference image by fitting Gaussian to distribution.
-    diff = 0.5 * (bias1 - bias2)  # 0.5 like the mean...
+    diff = 0.5 * (bias1 - bias2)
     if np.min(diff) != np.max(diff):
-
         crude = np.median(np.abs(diff))  # estimate of noise
         hmin = -5.0 * crude
         hmax = +5.0 * crude
@@ -648,10 +613,6 @@ def combine_bias(files, instrument, extension=1, **kwargs):
         biasnoise = 1.
         nbad = 0
 
-    obslist = files[0][0]
-    for i in range(1, len(files)):
-        obslist = obslist + " " + files[i][0]
-
     try:
         del head["tapelist"]
     except KeyError:
@@ -659,7 +620,7 @@ def combine_bias(files, instrument, extension=1, **kwargs):
 
     head["bzero"] = 0.0
     head["bscale"] = 1.0
-    head["obslist"] = obslist
+    head["obslist"] = " ".join([os.path.basename(f) for f in files])
     head["nimages"] = (n, "number of images summed")
     head["npixfix"] = (nbad, "pixels corrected for cosmic rays")
     head["bgnoise"] = (biasnoise, "noise in combined image, electrons")

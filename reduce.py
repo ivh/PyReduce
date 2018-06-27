@@ -4,6 +4,7 @@ REDUCE script for spectrograph data
 import glob
 import json
 import os.path
+from os.path import join
 import pickle
 import argparse
 import sys
@@ -15,28 +16,7 @@ import numpy as np
 from clipnflip import clipnflip
 from modeinfo_uves import modeinfo_uves as modeinfo
 from combine_frames import combine_bias, combine_flat
-
-
-def load_header(hdulist, exten=1):
-    """
-    load and combine primary header with extension header
-
-    Parameters
-    ----------
-    hdulist : list(hdu)
-        list of hdu, usually from fits.open
-    exten : int, optional
-        extension to use in addition to primary (default: 1)
-
-    Returns
-    -------
-    header
-        combined header, extension first
-    """
-
-    head = hdulist[exten].header
-    head.extend(hdulist[0].header, strip=False)
-    return head
+from util import load_fits
 
 
 def sort_files(files, config):
@@ -70,19 +50,9 @@ def sort_files(files, config):
     flatlist = files[ty == config["id_flat"]]
     wavelist = files[ob == config["id_wave"]]
     orderlist = files[ob == config["id_orders"]]
-    orderdef_fiber_a = files[ob == config["id_fiber_a"]]
-    orderdef_fiber_b = files[ob == config["id_fiber_b"]]
     speclist = files[ob == "HD-132205"]
 
-    return (
-        biaslist,
-        flatlist,
-        wavelist,
-        orderlist,
-        orderdef_fiber_a,
-        orderdef_fiber_b,
-        speclist,
-    )
+    return (biaslist, flatlist, wavelist, orderlist, speclist)
 
 
 def parse_args():
@@ -154,7 +124,7 @@ if __name__ == "__main__":
     modes = config["modes"][1:2]  # TODO: just middle for testing
 
     # Search the available days
-    dates = os.path.join(base_dir, instrument, target, "raw", "????-??-??")
+    dates = join(base_dir, instrument, target, "raw", "????-??-??")
     dates = glob.glob(dates)
     dates = [r + os.sep for r in dates if os.path.isdir(r)]
 
@@ -169,52 +139,48 @@ if __name__ == "__main__":
             # read configuration settings
             mode = config["modes"][counter_mode]
             inst_mode = config["small"] + "_" + mode
-            exten = config["extensions"][counter_mode]
+            extension = config["extensions"][counter_mode]
             prefix = inst_mode
             current_mode_value = config["mode_value"][counter_mode]
 
             # define paths
-            raw_path = os.path.join(base_dir, instrument, target, "raw", night) + os.sep
+            raw_path = join(base_dir, instrument, target, "raw", night) + os.sep
             reduced_path = (
-                os.path.join(
-                    base_dir, instrument, target, "reduced", night, "Reduced_" + mode
-                )
+                join(base_dir, instrument, target, "reduced", night, "Reduced_" + mode)
                 + os.sep
             )
 
             # define files
-            mask_file = os.path.join(mask_dir, "mask_%s.fits.gz" % inst_mode)
-            bias_file = os.path.join(reduced_path, prefix + ".bias.fits")
-            flat_file = os.path.join(reduced_path, prefix + ".flat.fits")
-            norm_flat_file = os.path.join(reduced_path, prefix + ".flat.norm.fits")
-            ord_norm_file = os.path.join(reduced_path, prefix + ".ord_norm.sav")
-            ord_default_file = os.path.join(reduced_path, prefix + ".ord_default.sav")
+            mask_file = join(mask_dir, "mask_%s.fits.gz" % inst_mode)
+            bias_file = join(reduced_path, prefix + ".bias.fits")
+            flat_file = join(reduced_path, prefix + ".flat.fits")
+            norm_flat_file = join(reduced_path, prefix + ".flat.norm.fits")
+            ord_norm_file = join(reduced_path, prefix + ".ord_norm.sav")
+            ord_default_file = join(reduced_path, prefix + ".ord_default.sav")
 
             # create output folder structure if necessary
             if not os.path.exists(reduced_path):
                 os.makedirs(reduced_path)
 
             # find input files and sort them by type
-            files = np.array(glob.glob(raw_path + "%s.*.fits.gz" % instrument))
-            f_bias, f_flat, f_wave, f_order, f_order_a, f_order_b, f_spec = sort_files(
-                files, config
-            )
-
-            # TODO same order as idl for testing
-            f_bias = f_bias[[4, 0, 3, 2, 1]]
+            files = glob.glob(raw_path + "%s.*.fits" % instrument)
+            files += glob.glob(raw_path + "%s.*.fits.gz" % instrument)
+            files = np.array(files)
+            f_bias, f_flat, f_wave, f_order, f_spec = sort_files(files, config)
 
             # ==========================================================================
             # Read mask
-            mask = fits.open(mask_file)
-            mhead, _ = modeinfo(mask[0].header, inst_mode)
-            mask = clipnflip(mask[0].data, mhead)
-            # TODO apply mask to all files, as masked arrays
+            # the mask is not stored with the data files (it is not supported by astropy)
+            mask, mhead = load_fits(mask_file, inst_mode, extension=0)
+            mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
             # ==========================================================================
             # Creat master bias
             if "bias" in steps_to_take:
                 print("Creating master bias")
-                bias, bhead = combine_bias(f_bias, inst_mode, exten=exten)
+                bias, bhead = combine_bias(
+                    f_bias, inst_mode, mask=mask, extension=extension
+                )
                 fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
             else:
                 print("Loading master bias")
@@ -225,39 +191,36 @@ if __name__ == "__main__":
             # ==========================================================================
             # Create master flat
             if "flat" in steps_to_take:
-                print("Creating flat field")
-                flat, fhead = combine_flat(f_flat, inst_mode, exten=exten)
+                print("Creating master flat")
+                flat, fhead = combine_flat(
+                    f_flat, inst_mode, mask=mask, extension=extension
+                )
                 fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
             else:
-                print("Loading flat field")
+                print("Loading master flat")
                 flat = fits.open(flat_file)[0]
                 flat, fhead = flat.data, flat.header
                 flat = np.ma.masked_array(flat, mask=mask)
 
+            exit()
             # ==========================================================================
             # Find default orders.
 
             if "orders" in steps_to_take:
                 print("Order Tracing")
-                # load mask
 
-                if config["use_fiber"] == "A":
-                    ordim = fits.open(f_order_a[0])
-                    ordim, hrd = ordim[exten].data, ordim[exten].header
-                if config["use_fiber"] == "B":
-                    ordim = fits.open(f_order_b[0])
-                    ordim, hrd = ordim[exten].data, ordim[exten].header
-                if config["use_fiber"] == "AB":
-                    ordim, hrd = flat, fhead
+                order_img, order_head = load_fits(
+                    f_order[0], inst_mode, extension, mask=mask
+                )
 
                 # Mark Orders
                 orders, or_range, ord_err, col_range = hamdord(
-                    ordim, plot=True, manual=True, **config
+                    order_img, plot=True, manual=True, **config
                 )
 
                 # Determine extraction width, blaze center column, and base order
                 def_xwd, def_sxwd = getxwd(
-                    ordim, orders, colrange=col_range, gauss=True
+                    order_img, orders, colrange=col_range, gauss=True
                 )
 
                 # Save image format description
@@ -305,12 +268,7 @@ if __name__ == "__main__":
                 print("Prepare wavelength calibration")
                 for f in f_wave:
                     # Load wavecal image
-                    im = fits.open(f)
-                    head = load_header(im, exten=exten)
-                    head = modeinfo(head, inst_mode)
-
-                    im = im[exten].data
-                    im = clipnflip(im, head)
+                    im, head = load_fits(f, inst_mode, extension, mask=mask)
 
                     # Extract wavecal spectrum
                     thar, head, sunc = hamspec(
@@ -339,18 +297,8 @@ if __name__ == "__main__":
                 nord = len(orders[:, 0])
 
                 for f in f_spec:
-
-                    im = fits.open(f)  # read stellar spectrum
-                    head = load_header(im, exten=exten)
-                    head, _ = modeinfo(head, inst_mode)
-
-                    im = im[exten].data
-                    im = clipnflip(im, head)
-                    im = im - bias
-
-                    # plt.imshow(im)
-                    # plt.title(nameout + '(%s)' % inst_mode)
-                    # plt.show()
+                    im, head = load_fits(f, inst_mode, extension, mask=mask)
+                    im -= bias
 
                     # Extract frame information from the header
                     readn = head["e_readn"]
@@ -371,7 +319,7 @@ if __name__ == "__main__":
                     )
 
                     # Flat fielding
-                    im = im / flat
+                    im /= flat
 
                     # Optimally extract science spectrum
                     sp = hamspec(
@@ -418,6 +366,7 @@ if __name__ == "__main__":
                     fits.writeto(
                         nameout, data=sp, header=head, overwrite=True
                     )  # sig=sigma, cont=cont
+
                     pol_angle = head.get("eso ins ret25 pos")
                     if pol_angle is None:
                         pol_angle = head.get("hierarch eso ins ret50 pos")
@@ -443,4 +392,3 @@ if __name__ == "__main__":
                     )
                     print("file: %s\n" % os.path.basename(nameout))
                     print("----------------------------------\n")
-

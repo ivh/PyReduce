@@ -76,4 +76,4 @@ def modeinfo_uves(newhead, mode, **kwargs):
         if kwargs.get("obsalt") is not None:
             kwargs["obsalt"] = newhead['eso tel geoelev']
 
-    return newhead, kwargs
+    return newhead
