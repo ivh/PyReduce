@@ -1,22 +1,21 @@
 """
 REDUCE script for spectrograph data
 """
+import argparse
 import glob
 import json
 import os.path
 from os.path import join
 import pickle
-import argparse
 import sys
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 
-from clipnflip import clipnflip
-from modeinfo_uves import modeinfo_uves as modeinfo
 from combine_frames import combine_bias, combine_flat
 from util import load_fits
+import trace
 
 
 def sort_files(files, config):
@@ -175,7 +174,7 @@ if __name__ == "__main__":
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
             # ==========================================================================
-            # Creat master bias
+            # Create master bias
             if "bias" in steps_to_take:
                 print("Creating master bias")
                 bias, bhead = combine_bias(
@@ -214,7 +213,7 @@ if __name__ == "__main__":
                 )
 
                 # Mark Orders
-                orders, or_range, ord_err, col_range = hamdord(
+                orders, or_range, ord_err, col_range = trace.mark_orders(
                     order_img, plot=True, manual=True, **config
                 )
 

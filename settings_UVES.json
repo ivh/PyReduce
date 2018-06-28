@@ -24,8 +24,6 @@
     "id_flat": "LAMP,FLAT",
     "id_wave": "LAMP,WAVE",
     "id_orders": "LAMP,ORDERDEF",
-    "id_fiber_a": "",
-    "id_fiber_b": "",
     "id_spec": "OBJECT,POINT",
     
     "orders_opower": 4,
