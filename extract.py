@@ -196,9 +196,290 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
 
     return sp, sl, model, unc
 
-def extract(img, ycen, **kwargs):
+
+def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
+    """
+    # This subroutine extracts a curved arc (arc) from an image array (im). The
+    #   curvature of the arc is determined from polynomial fit coefficients (orc)
+    #   which usually trace the curvature of the echelle orders. The particular
+    #   arc to extract is specified by an order number (onum), which need not be
+    #   integral. Positions of nonintegral orders are interpolated from surrounding
+    #   orders.
+    # im (input array (# columns , # rows)) image from which to extract arc.
+    # orc (input array (# of coeff per fit , # of orders)) coefficients from PIT
+    #   fit of column number versus row number (of echelle orders, usually). The
+    #   polynomials trace arcs (orders, usually) indexed by order number, begining
+    #   with zero closest to row zero and increasing as row number increases.
+    #   **Note**  These are the extended order coefficients.
+    # onum (input scalar) order number of arc to extract - need not be integral.
+    # awid (input scalar) full width of arc to be extracted.
+    #   Two specifications are possible:
+    #     max(awid) <= 1, awid is fraction of the local distance between orders to mash.
+    #     max(awid) >  1, awid is the specific number of pixels to mash.
+    # arc (output vector (# columns)) counts PER PIXEL in arc extracted from image.
+    # [pix (output vector (# columns)] returns the fractional number of pixels
+    #   mashed in each column to make arc.
+    # 29-Nov-91 GB translated from ANA
+    # 22-Dec-91 GB made to return zeros if arc off image
+    # 05-Jul-94 JAV, CMJ Moved endelse to extract full arc instead of half when
+    #           fraction of an arc is specified
+    """
+
+    ncol, nrow = img.shape
+    i1, i2 = x_left_lim, x_right_lim
+    # if(keyword_set(x_left_lim )) then i1 = x_left_lim  else i1 = 0
+    # if(keyword_set(x_right_lim)) then i2 = x_right_lim else i2 = ncol-1
+
+    # Define useful quantities
+    ncol = len(img[0, i1:i2])  # number of columns
+    nrow = len(img[:, i1])  # number of rows
+    maxo = len(orders)  # maximum order covered by orc
+    ix = np.arange(i1, ncol + i1, 1, dtype=float)  # vector of column indicies
+    arc = np.zeros_like(ix)  # dimension arc vector
+    pix = 1.0  # define in case of trouble
+
+    # Interpolate polynomial coefficients for surrounding orders to get polynomial
+    # coefficients.  Note that this is mathematically equivalent to interpolating
+    # the column indicies for surrounding orders, since the column indicies are
+    # linear functions of the polynomial coefficients. However, interpolating
+    # coefficients should be faster.
+    # The +/- 10000 is to force argument of LONG to be positive before truncation.
+
+    if np.max(awid) < 1:  # awid is an order fraction
+        if onum < awid or onum > maxo - awid:  # onum must be covered by orc
+            raise Exception(
+                "Requested order not covered by order location coefficients. %i" % onum
+            )
+
+        ob = onum - awid / 2  # order # of bottom edge of arc
+        obi = int(ob)  # next lowest integral order #A
+        cb = orders[obi] + (ob - obi) * (orders[obi + 1] - orders[obi])
+        yb = np.polyval(cb, ix)  # row # of bottom edge of swath
+
+        ot = onum + awid / 2  # order # of top edge of arc
+        oti = int(ot)  # next lowest integral order #
+        ct = orders[oti] + (ot - oti) * (orders[oti + 1] - orders[oti])
+        yt = np.polyval(ct, ix)  # row # of top edge of swath
+
+    else:  # awid is number of pixels
+        if onum < 0 or onum > maxo:  # onum must be covered by orc
+            raise Exception(
+                "Requested order not covered by order location coefficients. %i" % onum
+            )
+        cb = orders[onum]
+        yb = np.polyval(cb, ix) - awid / 2  # row # of bottom edge of swath
+
+        ct = orders[onum]
+        yt = np.polyval(ct, ix) + awid / 2  # row # of top edge of swath
+
+    if np.min(yb) < 0:  # check if arc is off bottom
+        raise Exception(
+            "FORDS: Warning - requested arc is below bottom of image. %i" % onum
+        )
+    if np.max(yt) > nrow:  # check if arc is off top of im
+        raise Exception(
+            "FORDS: Warning - requested arc is above top of image. %i" % onum
+        )
+
+    diff = np.round(np.mean(yt - yb) * 0.5)
+    yb = np.clip(np.round((yb + yt) * 0.5 - diff), 0, None)
+    yt = np.clip(np.round((yb + yt) * 0.5 + diff), None, nrow - 1)
+    for col in range(ncol):  # sum image in requested arc
+        scol = img[col + i1, yb[col] : yt[col]]
+        arc[col] = sum(scol)
+
+    # Define vectors along edge of swath.
+    # vb = img[ix + ncol * ybi]  # bottommost pixels in swath
+    # vt = img[ix + ncol * yti]  # topmost pixels in swath
+
+    return arc, pix
+
+
+def optimal_extraction(
+    img, head, orders, swath, column_range, order_range, *args, **kwargs
+):
+    print("GETSPEC: Using optimal extraction to produce spectrum.")
+    ofirst, olast = order_range
+    swath_boundaries = np.zeros((2, 1), dtype=int)
+
+    sl_smooth = kwargs.get("sf_smooth", 6)
+    sp_smooth = kwargs.get("sp_smooth", 1)
+    osample = kwargs.get("osample", 1)
+
+    n_row, n_col = img.shape
+    n_ord = len(orders)
+
+    spectrum = np.zeros(n_ord, n_col)
+    slitfunction = np.zeros(n_ord, 50)  # ?
+    uncertainties = [None for _ in orders]
+    ix = np.arange(n_col)
+
+    for i, onum in enumerate(range(ofirst, olast)):  # loop thru orders
+        ncole = (
+            column_range[onum, 1] - column_range[onum, 0] + 1
+        )  # number of columns to extract
+        cole0 = column_range[onum, 0]  # first column to extract
+        cole1 = column_range[onum, 1]  # last column to extract
+
+        # Background must be subtracted for slit function logic to work but kept
+        # as part of the FF signal during normalization
+
+        scatter_below = 0
+        yscatter_below = 0
+        scatter_above = 0
+        yscatter_above = 0
+
+        if n_ord <= 10:
+            print("GETSPEC: extracting relative order %i out of %i" % (onum, n_ord))
+        else:
+            if (onum - 1) % 5 == 0:
+                print(
+                    "GETSPEC: extracting relative orders %i-%i out of %i"
+                    % (onum, np.clip(n_ord, None, onum + 4), n_ord)
+                )
+
+        ycen = np.polyval(orders(onum), ix)  # row at order center
+
+        x_left_lim = cole0  # First column to extract
+        x_right_lim = cole1  # Last column to extract
+        ixx = ix[x_left_lim:x_right_lim]
+        ycenn = ycen[x_left_lim:x_right_lim]
+        if swath[onum, 0] > 1.5:  # Extraction width in pixels
+            ymin = ycenn - swath[onum, 0]
+        else:  # Fractional extraction width
+            ymin = ycenn - swath[onum, 0] * (
+                ycenn - np.polyval(orders[onum - 1], ixx)
+            )  # trough below
+
+        ymin = np.floor(ymin)
+        if min(ymin) < 0:
+            ymin = ymin - min(ymin)  # help for orders at edge
+        if swath[onum, 1] > 1.5:  # Extraction width in pixels
+            ymax = ycenn + swath[onum, 1]
+        else:  # Fractional extraction width
+            ymax = ycenn + swath[onum, 1] * (
+                np.polyval(orders[onum - 1], ixx) - ycenn
+            )  # trough above
+
+        ymax = np.ceil(ymax)
+        if max(ymax) > n_row:
+            ymax = ymax - max(ymax) + n_row - 1  # helps at edge
+
+        # Define a fixed height area containing one spectral order
+        y_lower_lim = int(min(ycen[cole0:cole1] - ymin))  # Pixels below center line
+        y_upper_lim = int(min(ymax - ycen[cole0:cole1]))  # Pixels above center line
+
+        spectrum[i, :], slitfunction[i], _, uncertainties[i, :] = slitfunc(
+            img, ycen, lambda_sp=sp_smooth, lambda_sl=sl_smooth, osample=osample
+        )
+
+    return spectrum, slitfunction, uncertainties
+
+
+def arc_extraction(img, head, orders, swath, column_range, **kwargs):
+    print("Using arc extraction to produce spectrum.")
+    n_row, n_col = img.shape
+    n_ord = len(orders)
+
+    gain = head["e_gain"]
+    dark = head["e_drk"]
+    readn = head["e_readn"]
+
+    spectrum = np.zeros((n_ord, n_col))
+    uncertainties = [None for _ in orders]
+
+    for onum in range(1, n_ord + 1):  # loop thru orders
+        x_left_lim = column_range[onum, 0]  # First column to extract
+        x_right_lim = column_range[onum, 1]  # Last column to extract
+        awid = swath[onum, 0] + swath[onum, 1]
+
+        arc, pix = getarc(
+            img, orders, onum, awid, x_left_lim=x_left_lim, x_right_lim=x_right_lim
+        )  # extract counts/pixel
+
+        spectrum[onum, x_left_lim:x_right_lim] = arc * pix  # store total counts
+        uncertainties[onum, x_left_lim:x_right_lim] = (
+            np.sqrt(abs(arc * pix * gain + dark + pix * readn ** 2)) / gain
+        )  # estimate uncertainty
+
+    return spectrum, 0, uncertainties
+
+
+def extract(img, head, orders, **kwargs):
     # TODO which parameters should be passed here?
-    raise NotImplementedError
+    swath = kwargs.get("xwd", 50)
+    column_range = kwargs.get(
+        "column_range", np.array([(0, img.shape[0]) for _ in orders])
+    )
+    if "tilt" in kwargs.keys():
+        shear = kwargs["tilt"]
+        # TODO use curved extraction
+
+    n_row, n_col = img.shape
+    n_ord = len(orders)
+    order_range = kwargs.get("order_range", (1, n_ord))
+    ix = np.arange(n_col)
+
+    # Extrapolate extra orders above and below the existing ones
+
+    if n_ord > 1:
+        ixx = ix[column_range[0, 0] : column_range[1, 0]]
+        order_low = 2 * orders[0] - orders[1]  # extrapolate orc
+        if swath[0, 0] > 1.5:  # Extraction width in pixels
+            coeff = orders[0]
+            coeff[0] -= swath[0, 0]
+        else:  # Fraction extraction width
+            coeff = 0.5 * ((2 + swath[0, 0]) * orders[0] - swath[0, 0] * orders[1])
+
+        y = np.zeros(n_col)
+        y[column_range[0, 0] : column_range[1, 0]] = np.polyval(
+            coeff, ixx
+        )  # low edge of arc
+        yoff = np.where(y < 0)  # pixels off low edge
+        noff = len(yoff[0])
+    else:
+        noff = 0
+        order_low = [0, *np.zeros_like(coeff)]
+    if noff > 0:  # check if on image
+        #   GETARC will reference im(j) where j<0. These array elements do not exist.
+        raise ("GETSPEC: Top order off image in columns [%s,%s]." % (yoff[0], noff))
+
+    # Extend orc on the high end. Check that requested swath lies on image.
+    if n_ord > 1:
+        ix1 = column_range[-1, 0]
+        ix2 = column_range[-1, 1]
+        ixx = ix[ix1:ix2]
+        order_high = 2 * orders[-1] - orders[-2]  # extrapolate orc
+        if swath[-1, 1] > 1.5:  # Extraction width in pixels
+            coeff = orders[-1]
+            coeff[0] += swath[-1, 1]
+        else:  # Fraction extraction width
+            coeff = 0.5 * ((2 + swath[-1, 1]) * orders[-1] - swath[-1, 1] * orders[-2])
+        y = np.full(n_col, n_row - 1)
+        y[ix1:ix2] = np.polyval(coeff, ixx)  # high edge of arc
+        yoff = np.where(y > n_row)  # pixels off high edge
+        noff = len(yoff[0])
+    else:
+        noff = 0
+        orchi = [n_row, *np.zeros(len(coeff))]
+    if noff > 0:
+        #   GETARC will reference im(j) where j > ncol*nrow-1. These array elements do
+        #     not exist.
+        print("GETSPEC: Bottom order off image in columns [%s,%s]." % (yoff[0], noff))
+
+    orders = [order_low, *orders, *order_high]
+
+    if not kwargs.get("thar", False):
+        spectrum, slitfunction, uncertainties = optimal_extraction(
+            img, head, orders, swath, column_range, order_range, **kwargs
+        )
+    else:
+        spectrum, slitfunction, uncertainties = arc_extraction(
+            img, head, orders, swath, column_range, **kwargs
+        )
+
+    return spectrum, slitfunction, uncertainties
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
