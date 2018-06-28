@@ -13,14 +13,15 @@ def build(**kwargs):
     with open(os.path.join(CWD, "cluster.h")) as f:
         ffibuilder.cdef(f.read(), override=True)
 
-    with open(os.path.join(CWD, 'cluster.c'), 'r') as f:
-        ffibuilder.set_source("clib._cluster",
-                              f.read(),
-                              # libraries=["c"],
-                              #sources=[os.path.join(CWD, "cluster.c")],
-                              # library_dirs=["."]
-                              # include_dirs=[os.path.join()]
-                              )
+    with open(os.path.join(CWD, "cluster.c"), "r") as f:
+        ffibuilder.set_source(
+            "clib._cluster",
+            f.read(),
+            # libraries=["c"],
+            # sources=[os.path.join(CWD, "cluster.c")],
+            # library_dirs=["."]
+            # include_dirs=[os.path.join()]
+        )
     ffibuilder.compile(**kwargs)
 
 
