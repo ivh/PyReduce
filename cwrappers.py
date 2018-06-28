@@ -8,17 +8,18 @@ includes:
 import numpy as np
 
 # TODO DEBUG
-import clib.build_cluster
-clib.build_cluster.build()
+# import clib.build_cluster
+# clib.build_cluster.build()
 
 from clib._cluster import ffi
 import clib._cluster.lib as clusterlib
 
 def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
-    img = img.T  # transpose input TODO: why?
-
+    #img = img.T  # transpose input TODO: why?
     img = img.astype("i")
-    nX, nY = img.shape
+    img = np.ascontiguousarray(img)
+
+    nY, nX = img.shape
     nmax = np.inner(*img.shape) - np.ma.count_masked(img)
     x = np.zeros(nmax, dtype="i")
     y = np.zeros(nmax, dtype="i")
@@ -28,7 +29,7 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     cy = ffi.cast("int *", y.ctypes.data)
 
     if np.ma.is_masked(img):
-        mask = ffi.cast("int *", (~img.mask).astype("i").ctypes.data)
+        mask = ffi.cast("int *", (~img.mask).astype(np.int32).ctypes.data)
     else:
         mask = ffi.cast("int *", np.ones_like(img).ctypes.data)
 
