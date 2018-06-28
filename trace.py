@@ -1,44 +1,52 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-# From my understanding of the IDL code, locate_clusters takes into
-## input: im,n,nx,ny,filter,mask,noise,shift_offset
-## output: x,y
-# TODO: check with TM: it seems this function is implemented in C in cluster.c
-def locate_clusters(im,n,x,y,nx,ny,filter,mask,noise,shift_offset):
+from cwrappers import find_clusters
 
-    a = 0
-    return(x,y)
 
 # TODO: implement the correct default value for the parameters
-def mark_orders(im,power,filter=20.,error,thres=400,plot,polarim,mask,manual,noise=1.,color,shift_offset,cluster_limits):
-
-    # Computing the size of the image array
-    nx = im.shape[0]    # size in x-dimension
-    ny = im.shape[1]    # size in y-dimension
-    n = im.size         # number of elements in the array
+def mark_orders(im, **kwargs):
+    min_cluster = kwargs.get("orders_threshold", 500)
+    filter_size = kwargs.get("orders_filter", 120)
+    noise = kwargs.get("orders_noise", 8)
+    opower = kwargs.get("orders_opower", 4)
 
     # Getting x and y coordinates of all pixels sticking above the filtered image
-    (x,y) = locate_clusters(im,n,x,y,nx,ny,filter,mask,noise) # no shift_offset
+    x, y, clusters, n_clusters = find_clusters(
+        im, min_cluster, filter_size, noise
+    )  # no shift_offset
+    if n_clusters == 0:
+        raise Exception("No clusters found")
 
-    # Locating and marking clusters of pixels
-    # TODO: here the IDL call of cluster is complex and will be simplified with the python wrapper
-    (index,nregions) = cluster(x,y,nx,ny,nregions,thres, iplot) # TODO: implement the input/output parameters
+    orders = []
+    for i in range(1, n_clusters + 1):
+        x_i = x[clusters == i]
+        y_i = y[clusters == i]
+        fit = np.polyfit(y_i, x_i, opower)
+        orders += [fit]
 
-    # Obtaining the coordinates where index (output from cluster) is positive
-    ind = (index > 0).nonzero()
-    n = ind.size
-    if ind > thres:
-        x = x[ind]
-        y = y[ind]
-        index = index[ind]
-    else:
-        print('MARK_ORDERS: No clusters identified')    #TODO: decide on error nomenclature
+    order_range = [i for i in range(1, n_clusters+1)]
 
-    if nregions <= 1:
-        print('MARK_ORDERS: No clusters identified')    #TODO: decide on error nomenclature
+    # TODO combine clusters
+    if kwargs.get("plot", False):
+        cluster_img = np.full_like(im, 0)
+        cluster_img[x, y] = clusters
+        cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
-    # Finding all the clusters crossing the bottom boundary
-    
+        plt.subplot(121)
+        plt.imshow(im)
+        plt.title("Input")
 
+        plt.subplot(122)
+        plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"))
+        plt.title("Clusters")
 
-    return(orders)
+        for order in orders:
+            x = np.arange(im.shape[1])
+            y = np.polyval(order, x)
+            plt.plot(x, y)
+
+        plt.ylim([0, im.shape[0]])
+        plt.show()
+
+    return orders, order_range
