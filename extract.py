@@ -18,7 +18,7 @@ c_int = np.ctypeslib.ctypes.c_int
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     """Decompose image into spectrum and slitfunction
-    
+
     This is for vertical(?) orders only, for curved orders use slitfunc_curved instead
 
     Parameters
@@ -33,7 +33,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         smoothing parameter of the slitfunction (the default is 0.1, which )
     osample : int, optional
         Subpixel ovsersampling factor (the default is 1, which no oversampling)
-    
+
     Returns
     -------
     sp, sl, model, unc
@@ -62,16 +62,17 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     sp = sp.astype(c_double)
     csp = ffi.cast("double *", sp.ctypes.data)
 
-    img = img.flatten().astype(c_double)
-    img = np.ascontiguousarray(img)
-    cimg = ffi.cast("double *", img.ctypes.data)
-
     if np.ma.is_masked(img):
         mask = (~img.mask).astype(c_int).flatten()
+        mask = np.ascontiguousarray(mask)
         cmask = ffi.cast("int *", mask.ctypes.data)
     else:
         mask = np.ones(nrows * ncols, dtype=c_int)
         cmask = ffi.cast("int *", mask.ctypes.data)
+
+    img = img.flatten().astype(c_double)
+    img = np.ascontiguousarray(img)
+    cimg = ffi.cast("double *", img.ctypes.data)
 
     ycen = ycen.astype(c_double)
     cycen = ffi.cast("double *", ycen.ctypes.data)
@@ -100,7 +101,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     return sp, sl, model, unc
 
 
-def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **kwargs):
+def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -131,6 +132,7 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **k
 
     # Inital guess for slit function and spectrum
     # Just sum up the image along one side and normalize
+    # TODO: rotate image before summation?
     sl = np.sum(img, axis=1)
     sl = sl / np.sum(sl)  # slit function
 
@@ -149,6 +151,7 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **k
 
     if np.ma.is_masked(img):
         mask = (~img.mask).astype(c_int).flatten()
+        mask = np.ascontiguousarray(mask)
         cmask = ffi.cast("int *", mask.ctypes.data)
     else:
         mask = np.ones(nrows * ncols, dtype=c_int)
@@ -193,6 +196,9 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1, **k
 
     return sp, sl, model, unc
 
+def extract(img, ycen, **kwargs):
+    # TODO which parameters should be passed here?
+    raise NotImplementedError
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

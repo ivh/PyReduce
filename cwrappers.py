@@ -16,8 +16,16 @@ import clib._cluster.lib as clusterlib
 
 def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     #img = img.T  # transpose input TODO: why?
-    img = img.astype("i")
-    img = np.ascontiguousarray(img)
+
+    if np.ma.is_masked(img):
+        mask = (~img.mask).astype(np.int32).flatten()
+        mask = np.ascontiguousarray(mask)
+        mask = ffi.cast("int *", mask.ctypes.data)
+    else:
+        mask = ffi.cast("int *", np.ones_like(img).ctypes.data)
+
+    img = img.astype("i").flatten()
+    img = np.ascontiguousarray(img.data)
 
     nY, nX = img.shape
     nmax = np.inner(*img.shape) - np.ma.count_masked(img)
@@ -28,10 +36,6 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     cx = ffi.cast("int *", x.ctypes.data)
     cy = ffi.cast("int *", y.ctypes.data)
 
-    if np.ma.is_masked(img):
-        mask = ffi.cast("int *", (~img.mask).astype(np.int32).ctypes.data)
-    else:
-        mask = ffi.cast("int *", np.ones_like(img).ctypes.data)
 
     n = clusterlib.locate_clusters(nX, nY, filter_size, cimg, nmax, cx, cy, noise, mask)
 
