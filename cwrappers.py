@@ -17,9 +17,9 @@ import clib._cluster.lib as clusterlib
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
 
-def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
-    # img = img.T  # transpose input TODO: why?
 
+def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
+    # Don't throw away the mask handle before it is used by c, garbage collection will get rid of it?
     if np.ma.is_masked(img):
         mask = (~img.mask).astype(c_int).flatten()
         mask = np.ascontiguousarray(mask)
@@ -39,15 +39,25 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     cx = ffi.cast("int *", x.ctypes.data)
     cy = ffi.cast("int *", y.ctypes.data)
 
+    # This just finds all pixels above the threshold
     n = clusterlib.locate_clusters(
         nX, nY, filter_size, cimg, nmax, cx, cy, noise, cmask
     )
 
     x = x[:n]
     y = y[:n]
-    clusters = np.zeros(n)
+
+    # Not sure its necessay but the numbering is nicer if we do this
+    sort = np.argsort(y)
+    y = np.ascontiguousarray(y[sort])
+    x = np.ascontiguousarray(x[sort])
+    cx = ffi.cast("int *", x.ctypes.data)
+    cy = ffi.cast("int *", y.ctypes.data)
+
+    clusters = np.zeros(n, dtype=c_int)
     cclusters = ffi.cast("int *", clusters.ctypes.data)
 
+    # This groups the pixels into clusters
     nclus = clusterlib.cluster(cx, cy, n, nX, nY, min_cluster, cclusters)
 
     # transpose output
