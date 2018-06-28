@@ -231,10 +231,10 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # if(keyword_set(x_right_lim)) then i2 = x_right_lim else i2 = ncol-1
 
     # Define useful quantities
-    ncol = len(img[0, i1:i2])  # number of columns
-    nrow = len(img[:, i1])  # number of rows
+    nrow = len(img[0, i1:i2])  # number of columns
+    ncol = len(img[:, i1])  # number of rows
     maxo = len(orders)  # maximum order covered by orc
-    ix = np.arange(i1, ncol + i1, 1, dtype=float)  # vector of column indicies
+    ix = np.arange(i1, nrow + i1, 1, dtype=float)  # vector of column indicies
     arc = np.zeros_like(ix)  # dimension arc vector
     pix = 1.0  # define in case of trouble
 
@@ -266,11 +266,9 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
             raise Exception(
                 "Requested order not covered by order location coefficients. %i" % onum
             )
-        cb = orders[onum]
-        yb = np.polyval(cb, ix) - awid / 2  # row # of bottom edge of swath
-
-        ct = orders[onum]
-        yt = np.polyval(ct, ix) + awid / 2  # row # of top edge of swath
+        c = orders[onum]
+        yb = np.polyval(c, ix) - awid / 2  # row # of bottom edge of swath
+        yt = np.polyval(c, ix) + awid / 2  # row # of top edge of swath
 
     if np.min(yb) < 0:  # check if arc is off bottom
         raise Exception(
@@ -282,11 +280,11 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
         )
 
     diff = np.round(np.mean(yt - yb) * 0.5)
-    yb = np.clip(np.round((yb + yt) * 0.5 - diff), 0, None)
-    yt = np.clip(np.round((yb + yt) * 0.5 + diff), None, nrow - 1)
-    for col in range(ncol):  # sum image in requested arc
-        scol = img[col + i1, yb[col] : yt[col]]
-        arc[col] = sum(scol)
+    yb = np.clip(np.round((yb + yt) * 0.5 - diff), 0, None).astype(int)
+    yt = np.clip(np.round((yb + yt) * 0.5 + diff), None, nrow).astype(int)
+    for col in range(nrow):  # sum image in requested arc
+        scol = img[yb[col] : yt[col], col + i1]
+        arc[col] = np.sum(scol)
 
     # Define vectors along edge of swath.
     # vb = img[ix + ncol * ybi]  # bottommost pixels in swath
@@ -385,10 +383,10 @@ def arc_extraction(img, head, orders, swath, column_range, **kwargs):
     dark = head["e_drk"]
     readn = head["e_readn"]
 
-    spectrum = np.zeros((n_ord, n_col))
-    uncertainties = [None for _ in orders]
+    spectrum = np.zeros((n_ord-2, n_col))
+    uncertainties = np.zeros((n_ord-2, n_col))
 
-    for onum in range(1, n_ord + 1):  # loop thru orders
+    for i, onum in enumerate(range(1, n_ord-1)):  # loop thru orders
         x_left_lim = column_range[onum, 0]  # First column to extract
         x_right_lim = column_range[onum, 1]  # Last column to extract
         awid = swath[onum, 0] + swath[onum, 1]
@@ -397,8 +395,8 @@ def arc_extraction(img, head, orders, swath, column_range, **kwargs):
             img, orders, onum, awid, x_left_lim=x_left_lim, x_right_lim=x_right_lim
         )  # extract counts/pixel
 
-        spectrum[onum, x_left_lim:x_right_lim] = arc * pix  # store total counts
-        uncertainties[onum, x_left_lim:x_right_lim] = (
+        spectrum[i, x_left_lim:x_right_lim] = arc * pix  # store total counts
+        uncertainties[i, x_left_lim:x_right_lim] = (
             np.sqrt(abs(arc * pix * gain + dark + pix * readn ** 2)) / gain
         )  # estimate uncertainty
 
@@ -409,7 +407,7 @@ def extract(img, head, orders, **kwargs):
     # TODO which parameters should be passed here?
     swath = kwargs.get("xwd", 50)
     column_range = kwargs.get(
-        "column_range", np.array([(0, img.shape[0]) for _ in orders])
+        "column_range", np.array([(0, img.shape[1]) for _ in orders])
     )
     if "tilt" in kwargs.keys():
         shear = kwargs["tilt"]
@@ -423,26 +421,22 @@ def extract(img, head, orders, **kwargs):
     # Extrapolate extra orders above and below the existing ones
 
     if n_ord > 1:
-        ixx = ix[column_range[0, 0] : column_range[1, 0]]
+        ixx = ix[column_range[0, 0] : column_range[0, 1]]
         order_low = 2 * orders[0] - orders[1]  # extrapolate orc
         if swath[0, 0] > 1.5:  # Extraction width in pixels
             coeff = orders[0]
-            coeff[0] -= swath[0, 0]
+            coeff[-1] -= swath[0, 0]
         else:  # Fraction extraction width
             coeff = 0.5 * ((2 + swath[0, 0]) * orders[0] - swath[0, 0] * orders[1])
 
-        y = np.zeros(n_col)
-        y[column_range[0, 0] : column_range[1, 0]] = np.polyval(
-            coeff, ixx
-        )  # low edge of arc
-        yoff = np.where(y < 0)  # pixels off low edge
-        noff = len(yoff[0])
+        y = np.polyval(coeff, ixx)  # low edge of arc
+        noff = np.min(y) < 0
     else:
-        noff = 0
-        order_low = [0, *np.zeros_like(coeff)]
-    if noff > 0:  # check if on image
+        noff = False
+        order_low = [0, *np.zeros_like(orders[0])]
+    if noff:  # check if on image
         #   GETARC will reference im(j) where j<0. These array elements do not exist.
-        raise ("GETSPEC: Top order off image in columns [%s,%s]." % (yoff[0], noff))
+        raise Exception("Top order off image.")
 
     # Extend orc on the high end. Check that requested swath lies on image.
     if n_ord > 1:
@@ -452,22 +446,20 @@ def extract(img, head, orders, **kwargs):
         order_high = 2 * orders[-1] - orders[-2]  # extrapolate orc
         if swath[-1, 1] > 1.5:  # Extraction width in pixels
             coeff = orders[-1]
-            coeff[0] += swath[-1, 1]
+            coeff[-1] += swath[-1, 1]
         else:  # Fraction extraction width
             coeff = 0.5 * ((2 + swath[-1, 1]) * orders[-1] - swath[-1, 1] * orders[-2])
-        y = np.full(n_col, n_row - 1)
-        y[ix1:ix2] = np.polyval(coeff, ixx)  # high edge of arc
-        yoff = np.where(y > n_row)  # pixels off high edge
-        noff = len(yoff[0])
+        y = np.polyval(coeff, ixx)  # high edge of arc
+        noff = np.max(y) > n_row
     else:
-        noff = 0
-        orchi = [n_row, *np.zeros(len(coeff))]
-    if noff > 0:
-        #   GETARC will reference im(j) where j > ncol*nrow-1. These array elements do
-        #     not exist.
-        print("GETSPEC: Bottom order off image in columns [%s,%s]." % (yoff[0], noff))
+        noff = False
+        order_high = [n_row, *np.zeros_like(orders[0])]
+    if noff:
+        raise Exception("Bottom order off image in columns.")
 
-    orders = [order_low, *orders, *order_high]
+    orders = [order_low, *orders, order_high]
+    column_range = np.array([column_range[0], *column_range, column_range[-1]])
+    swath = np.array([swath[0], *swath, swath[-1]])
 
     if not kwargs.get("thar", False):
         spectrum, slitfunction, uncertainties = optimal_extraction(
