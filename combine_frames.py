@@ -320,7 +320,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
     else:
         # Get information from headers
         # TODO: check if all values are the same in all the headers?
-        
+
         heads = [
             load_fits(f, instrument, extension, header_only=True, **kwargs)
             for f in files
@@ -490,7 +490,6 @@ def combine_flat(files, instrument, extension=1, **kwargs):
     """
 
     flat, fhead = combine_frames(files, instrument, extension, **kwargs)
-    flat = clipnflip(flat, fhead)
     # Subtract master dark. We have to scale it by the number of Flats
     bias = kwargs.get("bias", 0)
     flat = flat - bias * len(files)  # subtract bias, if passed

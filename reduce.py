@@ -108,9 +108,9 @@ if __name__ == "__main__":
         target = "HD132205"
         # Which parts of the reduction to perform
         steps_to_take = [
-            "bias",
+            # "bias",
             "flat",
-            # 'orders',
+            "orders",
             # 'norm_flat',
             # 'wavecal',
             # 'science',
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             if "flat" in steps_to_take:
                 print("Creating master flat")
                 flat, fhead = combine_flat(
-                    f_flat, inst_mode, mask=mask, extension=extension
+                    f_flat, inst_mode, mask=mask, extension=extension, bias=bias
                 )
                 fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
             else:
@@ -201,7 +201,6 @@ if __name__ == "__main__":
                 flat, fhead = flat.data, flat.header
                 flat = np.ma.masked_array(flat, mask=mask)
 
-            exit()
             # ==========================================================================
             # Find default orders.
 
@@ -213,9 +212,7 @@ if __name__ == "__main__":
                 )
 
                 # Mark Orders
-                orders, or_range, ord_err, col_range = trace.mark_orders(
-                    order_img, plot=True, manual=True, **config
-                )
+                orders = trace.mark_orders(order_img, **config)
 
                 # Determine extraction width, blaze center column, and base order
                 def_xwd, def_sxwd = getxwd(
@@ -232,6 +229,7 @@ if __name__ == "__main__":
                 with open(ord_default_file) as file:
                     pickle.load(file)
 
+            exit()
             # ==========================================================================
             # = Construct normalized flat field.
 
