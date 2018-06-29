@@ -28,7 +28,7 @@
     
     "orders_opower": 4,
     "orders_filter": 80,
-    "orders_threshold": 100,
+    "orders_threshold": 2000,
     "orders_noise": 8,
     
     "normflat_sf_smooth": 2,
@@ -46,9 +46,9 @@
     "science_lambda_sf": 100,
     "science_lambda_sp": 100,
     
-    "manual": 1,
+    "manual": 0,
     "polarim": 0,
-    "isplot": 1,
+    "plot": 0,
     "use_fiber": "AB",
     "use_median": 1,
 

@@ -14,8 +14,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from combine_frames import combine_bias, combine_flat
-from util import load_fits
+from util import load_fits, swap_extension, find_first_index
 import trace
+from extract import extract
+
+# from normalize_flat import normalize_flat
 
 
 def sort_files(files, config):
@@ -108,11 +111,11 @@ if __name__ == "__main__":
         target = "HD132205"
         # Which parts of the reduction to perform
         steps_to_take = [
-            # "bias",
-            "flat",
-            "orders",
+            #"bias",
+            #"flat",
+            # "orders",
             # 'norm_flat',
-            # 'wavecal',
+            "wavecal",
             # 'science',
         ]
 
@@ -132,15 +135,15 @@ if __name__ == "__main__":
     for night in dates:
         night = os.path.basename(night[:-1])
         print("Observation Date: ", night)
-        for counter_mode, inst_mode in enumerate(modes):
-            print("Instrument Mode: ", inst_mode)
+        for mode in modes:
+            print("Instrument Mode: ", mode)
+
+            counter_mode = find_first_index(config["modes"], mode)
 
             # read configuration settings
-            mode = config["modes"][counter_mode]
             inst_mode = config["small"] + "_" + mode
             extension = config["extensions"][counter_mode]
             prefix = inst_mode
-            current_mode_value = config["mode_value"][counter_mode]
 
             # define paths
             raw_path = join(base_dir, instrument, target, "raw", night) + os.sep
@@ -212,43 +215,33 @@ if __name__ == "__main__":
                 )
 
                 # Mark Orders
-                orders = trace.mark_orders(order_img, **config)
+                config["plot"] = True
+                config["manual"] = True
+                orders, column_range = trace.mark_orders(order_img, **config)
 
-                # Determine extraction width, blaze center column, and base order
-                def_xwd, def_sxwd = getxwd(
-                    order_img, orders, colrange=col_range, gauss=True
-                )
+                # TODO
+                # getxwd(
+                #    order_img, orders, colrange=col_range, gauss=True
+                # )
 
                 # Save image format description
-                with open(ord_default_file, "w") as file:
-                    pickle.dump(
-                        file, orders, or_range, ord_err, col_range, def_xwd, def_sxwd
-                    )
+                with open(ord_default_file, "wb") as file:
+                    pickle.dump((orders, column_range), file)
             else:
                 print("Load order tracing data")
-                with open(ord_default_file) as file:
-                    pickle.load(file)
+                with open(ord_default_file, "rb") as file:
+                    orders, column_range = pickle.load(file)
 
-            exit()
             # ==========================================================================
             # = Construct normalized flat field.
 
             if "norm_flat" in steps_to_take:
                 print("Normalize flat field")
-                def_xwd, def_sxwd = getxwd(
-                    flat, orders, colrange=col_range, gauss=True
-                )  # get extraction width
+                # xwd, sxwd = getxwd(
+                #    flat, orders, colrange=col_range, gauss=True
+                # )  # get extraction width
 
-                flat, fhead, blzcoef = hamflat(
-                    flat,
-                    fhead,
-                    orders,
-                    colrange=col_range,
-                    fxwd=def_xwd,
-                    mask=mask,
-                    plot=True,
-                    **config
-                )
+                flat, fhead, blzcoef = normalize_flat(flat, fhead, orders, **config)
 
                 # Save data
                 # with open(ord_norm_file, 'w') as file:
@@ -256,8 +249,9 @@ if __name__ == "__main__":
                 fits.writeto(norm_flat_file, data=flat, header=fhead, overwrite=True)
             else:
                 print("Load normalized flat field")
-                flat = fits.open(norm_flat_file)
-                flat = flat[0].data, flat[0].header
+                # TODO
+                # flat = fits.open(norm_flat_file)
+                # flat = flat[0].data, flat[0].header
             # ==========================================================================
             # Prepare wavelength calibration
 
@@ -267,24 +261,26 @@ if __name__ == "__main__":
                     # Load wavecal image
                     im, head = load_fits(f, inst_mode, extension, mask=mask)
 
+                    # Determine extraction width, blaze center column, and base order
+                    xwd, sxwd = np.full((len(orders), 2), 2), 0
+                    order_range = [0, len(orders)-1]
+
                     # Extract wavecal spectrum
-                    thar, head, sunc = hamspec(
+                    thar, head, sunc = extract(
                         im,
                         head,
                         orders,
-                        def_xwd,
-                        def_sxwd,
-                        or_range[0],
-                        colrange=col_range,
+                        xwd=xwd,
+                        sxwd=sxwd,
+                        order_range=order_range,
+                        column_range=column_range,
                         thar=True,
                         **config
                     )
 
-                    head["obase"] = (or_range[0], "base order number")
+                    head["obase"] = (order_range[0], "base order number")
 
-                    nameout = os.path.basename(f)
-                    nameout, _ = os.path.splitext(nameout)
-                    nameout = os.path.join(reduced_path, nameout + ".thar.ech")
+                    nameout = swap_extension(f, ".thar.ech", reduced_path)
                     fits.writeto(nameout, data=thar, header=head, overwrite=True)
 
             # ==========================================================================
@@ -323,8 +319,8 @@ if __name__ == "__main__":
                         im,
                         head,
                         orders,
-                        def_xwd,
-                        def_sxwd,
+                        xwd,
+                        sxwd,
                         or_range[0],
                         sig=sunc,
                         colrange=col_range,

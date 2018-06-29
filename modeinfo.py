@@ -1,16 +1,17 @@
 import json
 import numpy as np
 
-
+# The same as in util
 def find_first_index(arr, value):
     """ find the first element equal to value in the array arr """
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
-        raise Exception("mode info not found")
-
+        raise Exception("Value %s not found" % value)
 
 class getter:
+    """ gets data from a header (dict) """
+
     def __init__(self, header, info, mode):
         self.header = header
         self.info = info
@@ -65,6 +66,7 @@ def modeinfo(header, instrument, mode):
     header["e_imtype"] = get("image_type")
     header["e_ctg"] = get("category")
 
+    # TODO how to get these parameters?
     header["e_ra"] = get("ra") / 15
     header["e_dec"] = get("dec")
     header["e_jd"] = get("jd") + get("exposure_time") / (7200 * 24) + 0.5
