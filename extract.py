@@ -225,16 +225,15 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     #           fraction of an arc is specified
     """
 
-    ncol, nrow = img.shape
+    # ncol, nrow = img.shape
     i1, i2 = x_left_lim, x_right_lim
     # if(keyword_set(x_left_lim )) then i1 = x_left_lim  else i1 = 0
     # if(keyword_set(x_right_lim)) then i2 = x_right_lim else i2 = ncol-1
 
     # Define useful quantities
-    nrow = len(img[0, i1:i2])  # number of columns
-    ncol = len(img[:, i1])  # number of rows
-    maxo = len(orders)  # maximum order covered by orc
-    ix = np.arange(i1, nrow + i1, 1, dtype=float)  # vector of column indicies
+    ncol = len(img[0, i1:i2])  # number of columns
+    nrow = len(img[:, i1])  # number of rows
+    ix = np.arange(i1, i2, 1, dtype=float)  # vector of column indicies
     arc = np.zeros_like(ix)  # dimension arc vector
     pix = 1.0  # define in case of trouble
 
@@ -246,11 +245,6 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # The +/- 10000 is to force argument of LONG to be positive before truncation.
 
     if np.max(awid) < 1:  # awid is an order fraction
-        if onum < awid or onum > maxo - awid:  # onum must be covered by orc
-            raise Exception(
-                "Requested order not covered by order location coefficients. %i" % onum
-            )
-
         ob = onum - awid / 2  # order # of bottom edge of arc
         obi = int(ob)  # next lowest integral order #A
         cb = orders[obi] + (ob - obi) * (orders[obi + 1] - orders[obi])
@@ -262,11 +256,7 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
         yt = np.polyval(ct, ix)  # row # of top edge of swath
 
     else:  # awid is number of pixels
-        if onum < 0 or onum > maxo:  # onum must be covered by orc
-            raise Exception(
-                "Requested order not covered by order location coefficients. %i" % onum
-            )
-        c = orders[onum]
+        c = np.copy(orders[onum])
         yb = np.polyval(c, ix) - awid / 2  # row # of bottom edge of swath
         yt = np.polyval(c, ix) + awid / 2  # row # of top edge of swath
 
@@ -282,9 +272,21 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     diff = np.round(np.mean(yt - yb) * 0.5)
     yb = np.clip(np.round((yb + yt) * 0.5 - diff), 0, None).astype(int)
     yt = np.clip(np.round((yb + yt) * 0.5 + diff), None, nrow).astype(int)
-    for col in range(nrow):  # sum image in requested arc
-        scol = img[yb[col] : yt[col], col + i1]
-        arc[col] = np.sum(scol)
+
+    # Define the indices for the pixels
+    # in x: the rows between yb and yt
+    # in y: the column, but n times to match the x index
+    index_x = np.array([[i for i in range(yb[col], yt[col])] for col in range(ncol)])
+    index_y = np.array(
+        [[col + i1 for _ in range(yb[col], yt[col])] for col in range(ncol)]
+    )
+    index = (index_x, index_y)
+    # Sum over the prepared index
+    arc = np.sum(img[index], axis=1)
+
+    # for col in range(nrow):  # sum image in requested arc
+    #    scol = img[yb[col] : yt[col], col + i1]
+    #    arc[col] = np.sum(scol)
 
     # Define vectors along edge of swath.
     # vb = img[ix + ncol * ybi]  # bottommost pixels in swath
@@ -383,10 +385,10 @@ def arc_extraction(img, head, orders, swath, column_range, **kwargs):
     dark = head["e_drk"]
     readn = head["e_readn"]
 
-    spectrum = np.zeros((n_ord-2, n_col))
-    uncertainties = np.zeros((n_ord-2, n_col))
+    spectrum = np.zeros((n_ord - 2, n_col))
+    uncertainties = np.zeros((n_ord - 2, n_col))
 
-    for i, onum in enumerate(range(1, n_ord-1)):  # loop thru orders
+    for i, onum in enumerate(range(1, n_ord - 1)):  # loop thru orders
         x_left_lim = column_range[onum, 0]  # First column to extract
         x_right_lim = column_range[onum, 1]  # Last column to extract
         awid = swath[onum, 0] + swath[onum, 1]
@@ -415,50 +417,67 @@ def extract(img, head, orders, **kwargs):
 
     n_row, n_col = img.shape
     n_ord = len(orders)
-    order_range = kwargs.get("order_range", (1, n_ord))
+    order_range = kwargs.get("order_range", (0, n_ord - 1))
+    n_ord = len(order_range)
     ix = np.arange(n_col)
 
     # Extrapolate extra orders above and below the existing ones
 
     if n_ord > 1:
-        ixx = ix[column_range[0, 0] : column_range[0, 1]]
-        order_low = 2 * orders[0] - orders[1]  # extrapolate orc
-        if swath[0, 0] > 1.5:  # Extraction width in pixels
-            coeff = orders[0]
-            coeff[-1] -= swath[0, 0]
-        else:  # Fraction extraction width
-            coeff = 0.5 * ((2 + swath[0, 0]) * orders[0] - swath[0, 0] * orders[1])
-
-        y = np.polyval(coeff, ixx)  # low edge of arc
-        noff = np.min(y) < 0
+        order_low = (
+            2 * orders[order_range[0]] - orders[order_range[0] + 1]
+        )  # extrapolate orc
     else:
-        noff = False
-        order_low = [0, *np.zeros_like(orders[0])]
-    if noff:  # check if on image
-        #   GETARC will reference im(j) where j<0. These array elements do not exist.
-        raise Exception("Top order off image.")
+        order_low = [0, *np.zeros_like(orders[order_range[0]])]
 
     # Extend orc on the high end. Check that requested swath lies on image.
     if n_ord > 1:
-        ix1 = column_range[-1, 0]
-        ix2 = column_range[-1, 1]
-        ixx = ix[ix1:ix2]
-        order_high = 2 * orders[-1] - orders[-2]  # extrapolate orc
-        if swath[-1, 1] > 1.5:  # Extraction width in pixels
-            coeff = orders[-1]
-            coeff[-1] += swath[-1, 1]
-        else:  # Fraction extraction width
-            coeff = 0.5 * ((2 + swath[-1, 1]) * orders[-1] - swath[-1, 1] * orders[-2])
-        y = np.polyval(coeff, ixx)  # high edge of arc
-        noff = np.max(y) > n_row
+        order_high = (
+            2 * orders[order_range[1]] - orders[order_range[1] - 1]
+        )  # extrapolate orc
     else:
-        noff = False
-        order_high = [n_row, *np.zeros_like(orders[0])]
-    if noff:
-        raise Exception("Bottom order off image in columns.")
+        order_high = [n_row, *np.zeros_like(orders[order_range[0]])]
 
-    orders = [order_low, *orders, order_high]
-    column_range = np.array([column_range[0], *column_range, column_range[-1]])
+    # Fix column_range of each order
+    for order in range(order_range[0], order_range[1] + 1):
+        if swath[0, 0] > 1.5:  # Extraction width in pixels
+            coeff_bot, coeff_top = np.copy(orders[order]), np.copy(orders[order])
+            coeff_bot[-1] -= swath[order, 0]
+            coeff_top[-1] += swath[order, 1]
+        else:  # Fraction extraction width
+            coeff_bot = 0.5 * (
+                (2 + swath[order, 0]) * orders[order]
+                - swath[order, 0] * orders[order + 1]
+            )
+            coeff_top = 0.5 * (
+                (2 + swath[order, 1]) * orders[order]
+                - swath[order, 1] * orders[order - 1]
+            )
+
+        ixx = ix[column_range[order][0] : column_range[order][1]]
+        y_bot = np.polyval(coeff_bot, ixx)  # low edge of arc
+        y_top = np.polyval(coeff_top, ixx)  # high edge of arc
+        # shrink column range so that only valid columns are included, this assumes
+        column_range[order] = np.clip(
+            column_range[order][0]
+            + np.where((y_bot > 0) & (y_top < n_row))[0][[0, -1]],
+            None,
+            column_range[order][1],
+        )
+
+    ord = [order_low]
+    for i in range(order_range[0], order_range[1] + 1):
+        ord += [orders[i]]
+    ord += [order_high]
+    orders = np.array(ord)
+
+    crange = [column_range[order_range[0]]]
+    for i in range(order_range[0], order_range[1] + 1):
+        crange += [column_range[i]]
+    crange += [column_range[order_range[1]]]
+    column_range = np.array(crange)
+    del kwargs["column_range"]
+
     swath = np.array([swath[0], *swath, swath[-1]])
 
     if not kwargs.get("thar", False):
@@ -470,7 +489,7 @@ def extract(img, head, orders, **kwargs):
             img, head, orders, swath, column_range, **kwargs
         )
 
-    return spectrum, slitfunction, uncertainties
+    return spectrum, head, uncertainties
 
 
 if __name__ == "__main__":
