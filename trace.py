@@ -129,6 +129,7 @@ def merge_clusters(
             answer = "y"
 
         if answer == "y":
+            print("Merging orders %i and %i" % (before, after))
             y[after] = np.concatenate((y[after], y[before]))
             x[after] = np.concatenate((x[after], x[before]))
             del x[before]
@@ -234,7 +235,14 @@ def mark_orders(im, **kwargs):
 
     # TODO: Discard bad clusters
 
-    # TODO: sort orders from bottom to top
+    # sort orders from bottom to top, using mean coordinate
+    # TODO: better metric for position?
+    key = np.array([[i, np.mean(x[i])] for i in n])
+    key = key[np.argsort(key[:, 1]), 0]
+    n = np.arange(len(n), dtype=int)
+    x = {c: x[key[c]] for c in n}
+    y = {c: y[key[c]] for c in n}
+    orders = {c: orders[key[c]] for c in n}
 
     order_range = {i: (np.min(y[i]), np.max(y[i])) for i in n}
 
