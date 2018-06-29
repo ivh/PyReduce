@@ -38,20 +38,6 @@ def merge_clusters(
     x_poly = np.arange(n_col, dtype=int)
     y_poly = {i: np.polyval(order, x_poly) for i, order in orders.items()}
 
-    # # Find clusters that cross the bottom boundary
-    # icross = np.unique(index[(x == 0) & (index != 0)])
-    # for cross in icross:
-    #     ind = index == cross
-    #     bind = ind & (x == 0)
-    #     index[y[ind] == y[bind]] = 0
-
-    # # Find clusters that cross the top boundary
-    # icross = np.unique(index[(x == n_row - 1) & (index != 0)])
-    # for cross in icross:
-    #     ind = index == cross
-    #     bind = ind & (x == n_row - 1)
-    #     index[y[ind] == y[bind]] = 0
-
     # Calculate mean cluster thickness
     # TODO optimize
     mean_cluster_thickness = 10
@@ -116,29 +102,45 @@ def merge_clusters(
     # TODO fix merges, so that everycluster ends up in the right group
     # e.g. if more than 3 groups merge together, they should all end up in the same one
     merge = merge[np.argsort(merge[:, 0])]
-
+    delete = []
     if manual:
         plt.ion()
     for before, after, overlap, _, _ in merge:
         if plot or manual:
             plot_order(before, after, x, y, x_poly, y_poly, shape)
 
-        if manual:
-            answer = input("Merge? [y/n]")
-        else:
-            answer = "y"
+        while True:
+            if manual:
+                answer = input("Merge? [y/n]")
+            else:
+                answer = "y"
 
-        if answer == "y":
-            print("Merging orders %i and %i" % (before, after))
-            y[after] = np.concatenate((y[after], y[before]))
-            x[after] = np.concatenate((x[after], x[before]))
-            del x[before]
-            del y[before]
-            n_clusters = n_clusters[n_clusters != before]
+            if answer == "n":
+                break
+            elif answer == "y":
+                print("Merging orders %i and %i" % (before, after))
+                y[after] = np.concatenate((y[after], y[before]))
+                x[after] = np.concatenate((x[after], x[before]))
+                delete += [before]
+                break
+            elif answer == "r":
+                delete += [before]
+                break
+            elif answer == "g":
+                delete += [after]
+                break
+            else:
+                print("Choose one")
 
     if manual:
         plt.close()
         plt.ioff()
+
+    delete = np.unique(delete)
+    for d in delete:
+        del x[d]
+        del y[d]
+        n_clusters = n_clusters[n_clusters != d]
 
     return x, y, n_clusters
 
@@ -173,11 +175,11 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
     plt.subplot(121)
-    plt.imshow(im)
+    plt.imshow(im, origin="lower")
     plt.title("Input")
 
     plt.subplot(122)
-    plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"))
+    plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
     plt.title("Clusters")
 
     for i, order in orders.items():
@@ -214,6 +216,8 @@ def mark_orders(im, **kwargs):
 
     # Getting x and y coordinates of all pixels sticking above the filtered image
     x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)
+    # disregard borders of the image
+    clusters[(x == 0) | (y == 0) | (x == im.shape[1]-1) | (y == im.shape[0]-1)] = 0
     if n_clusters == 0:
         raise Exception("No clusters found")
 
