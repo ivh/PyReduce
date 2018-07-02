@@ -7,6 +7,7 @@ import clib.build_extract
 
 clib.build_extract.build()
 
+from util import make_index
 
 import clib._slitfunc_bd.lib as slitfunclib
 import clib._slitfunc_2d.lib as slitfunc_2dlib
@@ -26,7 +27,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     img : array[n, m]
         image to decompose, should just contain a small part of the overall image
     ycen : array[n]
-        traces the center of the order along the image
+        traces the center of the order along the image, relative to the center of the image?
     lambda_sp : float, optional
         smoothing parameter of the spectrum (the default is 0, which no smoothing)
     lambda_sl : float, optional
@@ -40,6 +41,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         spectrum, slitfunction, model, spectrum uncertainties
     """
 
+    if osample != 1:
+        print("WARNING: Oversampling may be wrong !!!")
+
     # Get dimensions
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
@@ -49,12 +53,26 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     sl = np.sum(img, axis=1)
     sl = sl / np.sum(sl)  # slit function
 
-    sp = np.sum(img * sl[:, None], axis=0)
+    sp = np.sum(img, axis=0)
     sp = sp / np.sum(sp) * np.sum(img)
+    if lambda_sp != 0:
+        sp = gaussian_filter1d(sp, lambda_sp)
+
+    sp = np.ascontiguousarray(sp[::-1]) #TODO why?
 
     # Stretch sl by oversampling factor
     old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
     sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
+
+    if hasattr(img, "mask"):
+        mask = (~img.mask).astype(c_int).flatten()
+        mask = np.ascontiguousarray(mask)
+        cmask = ffi.cast("int *", mask.ctypes.data)
+        #img = img.data
+        #sp = sp.data
+    else:
+        mask = np.ones(nrows * ncols, dtype=c_int)
+        cmask = ffi.cast("int *", mask.ctypes.data)
 
     sl = sl.astype(c_double)
     csl = ffi.cast("double *", sl.ctypes.data)
@@ -62,19 +80,12 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     sp = sp.astype(c_double)
     csp = ffi.cast("double *", sp.ctypes.data)
 
-    if np.ma.is_masked(img):
-        mask = (~img.mask).astype(c_int).flatten()
-        mask = np.ascontiguousarray(mask)
-        cmask = ffi.cast("int *", mask.ctypes.data)
-    else:
-        mask = np.ones(nrows * ncols, dtype=c_int)
-        cmask = ffi.cast("int *", mask.ctypes.data)
-
     img = img.flatten().astype(c_double)
     img = np.ascontiguousarray(img)
     cimg = ffi.cast("double *", img.ctypes.data)
 
     ycen = ycen.astype(c_double)
+    ycen = np.ascontiguousarray(ycen)
     cycen = ffi.cast("double *", ycen.ctypes.data)
 
     model = np.zeros((nrows, ncols), dtype=c_double)
@@ -242,7 +253,6 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # the column indicies for surrounding orders, since the column indicies are
     # linear functions of the polynomial coefficients. However, interpolating
     # coefficients should be faster.
-    # The +/- 10000 is to force argument of LONG to be positive before truncation.
 
     if np.max(awid) < 1:  # awid is an order fraction
         ob = onum - awid / 2  # order # of bottom edge of arc
@@ -276,13 +286,10 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # Define the indices for the pixels
     # in x: the rows between yb and yt
     # in y: the column, but n times to match the x index
-    index_x = np.array([[i for i in range(yb[col], yt[col])] for col in range(ncol)])
-    index_y = np.array(
-        [[col + i1 for _ in range(yb[col], yt[col])] for col in range(ncol)]
-    )
-    index = (index_x, index_y)
+    index = make_index(yb, yt, 0, i2 - i1)
+    index = (index[0], index[1] + i1)
     # Sum over the prepared index
-    arc = np.sum(img[index], axis=1)
+    arc = np.sum(img[index], axis=0)
 
     # for col in range(nrow):  # sum image in requested arc
     #    scol = img[yb[col] : yt[col], col + i1]
@@ -405,39 +412,9 @@ def arc_extraction(img, head, orders, swath, column_range, **kwargs):
     return spectrum, 0, uncertainties
 
 
-def extract(img, head, orders, **kwargs):
-    # TODO which parameters should be passed here?
-    swath = kwargs.get("xwd", 50)
-    column_range = kwargs.get(
-        "column_range", np.array([(0, img.shape[1]) for _ in orders])
-    )
-    if "tilt" in kwargs.keys():
-        shear = kwargs["tilt"]
-        # TODO use curved extraction
-
+def fix_column_range(img, orders, order_range, swath, column_range):
     n_row, n_col = img.shape
-    n_ord = len(orders)
-    order_range = kwargs.get("order_range", (0, n_ord - 1))
-    n_ord = len(order_range)
     ix = np.arange(n_col)
-
-    # Extrapolate extra orders above and below the existing ones
-
-    if n_ord > 1:
-        order_low = (
-            2 * orders[order_range[0]] - orders[order_range[0] + 1]
-        )  # extrapolate orc
-    else:
-        order_low = [0, *np.zeros_like(orders[order_range[0]])]
-
-    # Extend orc on the high end. Check that requested swath lies on image.
-    if n_ord > 1:
-        order_high = (
-            2 * orders[order_range[1]] - orders[order_range[1] - 1]
-        )  # extrapolate orc
-    else:
-        order_high = [n_row, *np.zeros_like(orders[order_range[0]])]
-
     # Fix column_range of each order
     for order in range(order_range[0], order_range[1] + 1):
         if swath[0, 0] > 1.5:  # Extraction width in pixels
@@ -465,18 +442,47 @@ def extract(img, head, orders, **kwargs):
             column_range[order][1],
         )
 
-    ord = [order_low]
-    for i in range(order_range[0], order_range[1] + 1):
-        ord += [orders[i]]
-    ord += [order_high]
-    orders = np.array(ord)
+    return column_range
 
-    crange = [column_range[order_range[0]]]
+
+def extract(img, head, orders, **kwargs):
+    # TODO which parameters should be passed here?
+    swath = kwargs.get("xwd", 50)
+    column_range = kwargs.get(
+        "column_range", np.array([(0, img.shape[1]) for _ in orders])
+    )
+
+    # TODO use curved extraction
+    shear = kwargs.get("tilt")
+
+    n_row, n_col = img.shape
+    n_ord = len(orders)
+    order_range = kwargs.get("order_range", (0, n_ord - 1))
+    n_ord = len(order_range)
+
+    # Extrapolate extra orders above and below the existing ones
+    if n_ord > 1:
+        order_low = 2 * orders[order_range[0]] - orders[order_range[0] + 1]
+        order_high = 2 * orders[order_range[1]] - orders[order_range[1] - 1]
+    else:
+        opower = len(orders[order_range[0]])
+        order_low = [0 for _ in range(opower)]
+        order_high = [0 for _ in range(opower - 1)] + [n_row]
+
+    column_range = fix_column_range(img, orders, order_range, swath, column_range)
+
+    tmp_orders = [order_low]
     for i in range(order_range[0], order_range[1] + 1):
-        crange += [column_range[i]]
-    crange += [column_range[order_range[1]]]
-    column_range = np.array(crange)
-    del kwargs["column_range"]
+        tmp_orders += [orders[i]]
+    tmp_orders += [order_high]
+    orders = np.array(tmp_orders)
+
+    tmp_range = [column_range[order_range[0]]]
+    for i in range(order_range[0], order_range[1] + 1):
+        tmp_range += [column_range[i]]
+    tmp_range += [column_range[order_range[1]]]
+    column_range = np.array(tmp_range)
+    del kwargs["column_range"] #TODO needs refactoring
 
     swath = np.array([swath[0], *swath, swath[-1]])
 
@@ -501,7 +507,7 @@ if __name__ == "__main__":
     ycen = sav["ycen"]
     shear = np.zeros(img.shape[1])
 
-    sp, sl, model, unc = slitfunc_curved(img, ycen, shear, osample=1)
+    sp, sl, model, unc = slitfunc(img, ycen, osample=3)
 
     plt.subplot(211)
     plt.plot(sp)
