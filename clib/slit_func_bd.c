@@ -108,7 +108,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
 
   nd = 2 * osample + 1;
   ny = osample * (nrows + 1) + 1; /* The size of the sf array */
-  step = 1.e0 / osample;
+  step = 1. / osample;
 
   double *E = malloc(ncols * sizeof(double));                  // double E[ncols];
   double *sP_old = malloc(ncols * sizeof(double));             // double sP_old[ncols];
@@ -127,13 +127,13 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
 
   for (x = 0; x < ncols; x++)
   {
-    iy2 = (1.e0 - ycen[x]) * osample; /* The initial offset should be reconsidered. It looks fine but needs theory. */
+    iy2 = (1. - ycen[x]) * osample; /* The initial offset should be reconsidered. It looks fine but needs theory. */
     iy1 = iy2 - osample;
 
     if (iy2 == 0)
       d1 = step;
     else if (iy1 == 0)
-      d1 = 0.e0;
+      d1 = 0.;
     else
       d1 = fmod(ycen[x], step);
     d2 = step - d1;
@@ -322,7 +322,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
           mask[y * ncols + x] = 1;
       }
     }
-    printf("iter=%d, dev=%g sum=%g\n", iter, dev, sum);
+    printf("iter=%2i,\tdev=%.5g,\tsum=%.5g\n", iter, dev, sum);
 
     /* Compute the change in the spectrum */
 
