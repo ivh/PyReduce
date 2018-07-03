@@ -1,6 +1,8 @@
 import os
 
 import numpy as np
+from scipy.ndimage.filters import median_filter
+from scipy.linalg import solve_banded, solve
 from astropy.io import fits
 
 # from modeinfo_uves import modeinfo_uves as modeinfo
@@ -77,6 +79,13 @@ def find_first_index(arr, value):
         raise Exception("Value %s not found" % value)
 
 
+def interpolate_masked(masked):
+    mask = np.ma.getmaskarray(masked)
+    idx = np.nonzero(~mask)[0]
+    interpol = np.interp(np.arange(len(masked)), idx, masked[idx])
+    return interpol
+
+
 def make_index(ymin, ymax, xmin, xmax):
     # TODO
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
@@ -90,6 +99,7 @@ def make_index(ymin, ymax, xmin, xmax):
     # Tranpose makes it so that the image orientation stays the same
     index = (index_x.T, index_y.T)
     return index
+
 
 # TODO whats the actual difference between top, middle, and bottom?
 # The clipping of t?
@@ -120,9 +130,9 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
           weight    vector of weights.
     """
 
-    mn = kwargs.get("mn1", np.min(f))
-    mx = kwargs.get("mx1", np.max(f))
-    lambda2 = kwargs.get("lambda2")
+    mn = kwargs.get("min", np.min(f))
+    mx = kwargs.get("max", np.max(f))
+    lambda2 = kwargs.get("lambda2", -1)
 
     if poly:
         j = np.where((f >= mn) & (f <= mx))
@@ -132,7 +142,9 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
         ff = (f[j] - fmin) / (fmax - fmin)
         ff_old = np.copy(ff)
     else:
-        fff = middle(f, order, iterations=iterations, eps=eps, weight=weight, lambda2=lambda2)
+        fff = middle(
+            f, order, iterations=iterations, eps=eps, weight=weight, lambda2=lambda2
+        )
         fmin = min(f) - 1
         fmax = max(f) + 1
         fff = (fff - fmin) / (fmax - fmin)
@@ -141,24 +153,26 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
 
     for _ in range(iterations):
         if poly:
-            order = order
+
             if order > 0:  # this is a bug in rsi poly routine
                 t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
                 t = np.clip(t - ff, 0, None) ** 2
                 dev = np.sqrt(np.polyval(np.polyfit(xx, t, order), xx))
+                dev = np.nan_to_num(dev)
             else:
                 t = np.tile(np.polyfit(xx, ff, order), len(f))
                 t = np.polyfit(xx, np.clip(t - ff, 0, None) ** 2, order)
                 t = np.tile(t, len(f))
                 dev = np.sqrt(t)
+                dev = np.nan_to_num(dev)
         else:
-            t = np.median(3, opt_filter(ff, order, weight=weight, lambda2=lam2))
+            t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
             dev = np.sqrt(
                 opt_filter(
                     np.clip(weight * (t - ff), 0, None),
                     order,
                     weight=weight,
-                    lambda2=lam2,
+                    lambda2=lambda2,
                 )
             )
         ff = np.clip(
@@ -203,9 +217,9 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
           lam2   constraint on 2nd derivative
           wgt    vector of weights.
     """
-    mn = kwargs.get("mn1", np.min(f))
-    mx = kwargs.get("mx1", np.max(f))
-    lambda2 = kwargs.get("lambda")
+    mn = kwargs.get("min", np.min(f))
+    mx = kwargs.get("max", np.max(f))
+    lambda2 = kwargs.get("lambda2", -1)
 
     if poly:
         j = np.where((f >= mn) & (f <= mx))
@@ -230,9 +244,7 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
                 t = np.tile(np.polyfit(xx, ff, order), len(f))
                 dev = np.sqrt(np.tile(np.polyfit(xx, (t - ff) ** 2, order), len(f)))
         else:
-            t = np.median(
-                opt_filter(ff, order, weight=weight, lambda2=lambda2), axis=3
-            )
+            t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
             dev = np.sqrt(
                 opt_filter(
                     weight * (t - ff) ** 2, order, weight=weight, lambda2=lambda2
@@ -277,9 +289,9 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
           lam2   constraint on 2nd derivative
           wgt    vector of weights.
     """
-    mn = kwargs.get("mn1", np.min(f))
-    mx = kwargs.get("mx1", np.max(f))
-    lambda2 = kwargs.get("lambda2")
+    mn = kwargs.get("min", np.min(f))
+    mx = kwargs.get("max", np.max(f))
+    lambda2 = kwargs.get("lambda2", -1)
 
     if poly:
         j = np.where((f >= mn) & (f <= mx))
@@ -289,7 +301,9 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
         ff = (f - fmin) / (fmax - fmin)
         ff_old = ff
     else:
-        fff = middle(f, order, iterations=iterations, eps=eps, weight=weight, lambda2=lambda2)
+        fff = middle(
+            f, order, iterations=iterations, eps=eps, weight=weight, lambda2=lambda2
+        )
         fmin = np.min(f) - 1
         fmax = np.max(f) + 1
         fff = (fff - fmin) / (fmax - fmin)
@@ -326,7 +340,7 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
         return t * fff * (fmax - fmin) + fmin
 
 
-def opt_filter(y, par, par1=None, weight=None, lambda2=None):
+def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
     """
     Optimal filtering of 1D and 2D arrays.
     Uses tridiag in 1D case and sprsin and linbcg in 2D case.
@@ -381,14 +395,17 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=None):
             f = b
         else:
             a = np.full(n, -abs(par))
+            weight = np.full(n, weight)
             b = np.array(
                 [
                     weight[0] + abs(par),
-                    *(weight[1 : n - 2 + 1] + np.full(n - 2, 2 * abs(par))),
-                    weight[n - 1] + abs(par),
+                    *(weight[1:-1] + np.full(n - 2, 2 * abs(par))),
+                    weight[-1] + abs(par),
                 ]
             )
-            f = solve_banded((1, 1), [a, b, a], weight * y)
+            aba = np.array([a, b, a])
+
+            f = solve_banded((1, 1), aba, weight * np.ma.getdata(y))
 
         return f
     else:
