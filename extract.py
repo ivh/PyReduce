@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
 from scipy.interpolate import interp1d
 
@@ -15,6 +16,8 @@ from clib._cluster import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
+
+# plt.ion()  # TODO DEBUG
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
@@ -58,7 +61,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     if lambda_sp != 0:
         sp = gaussian_filter1d(sp, lambda_sp)
 
-    sp = np.ascontiguousarray(sp[::-1]) #TODO why?
+    sp = np.ascontiguousarray(sp[::-1])  # TODO why?
 
     # Stretch sl by oversampling factor
     old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
@@ -68,8 +71,8 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         mask = (~img.mask).astype(c_int).flatten()
         mask = np.ascontiguousarray(mask)
         cmask = ffi.cast("int *", mask.ctypes.data)
-        #img = img.data
-        #sp = sp.data
+        # img = img.data
+        # sp = sp.data
     else:
         mask = np.ones(nrows * ncols, dtype=c_int)
         cmask = ffi.cast("int *", mask.ctypes.data)
@@ -242,7 +245,7 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # if(keyword_set(x_right_lim)) then i2 = x_right_lim else i2 = ncol-1
 
     # Define useful quantities
-    ncol = len(img[0, i1:i2])  # number of columns
+    # ncol = len(img[0, i1:i2])  # number of columns
     nrow = len(img[:, i1])  # number of rows
     ix = np.arange(i1, i2, 1, dtype=float)  # vector of column indicies
     arc = np.zeros_like(ix)  # dimension arc vector
@@ -302,39 +305,359 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     return arc, pix
 
 
+def mkslitf(
+    img,
+    ycen,
+    ylow,
+    yhigh,
+    xlow,
+    xhigh,
+    gain=1,
+    readn=0,
+    lambda_sf=0.1,
+    lambda_sp=0,
+    osample=1,
+    swath_width=None,
+    no_scatter=False,
+    telluric=False,
+    normalize=False,
+    scatter_below=0,
+    scatter_above=0,
+    yscatter_below=0,
+    yscatter_above=0,
+    threshold=0,
+    use_2d=False,
+    plot=False,
+    ord_num=0,
+    **kwargs
+):
+
+    nrow, ncol = img.shape
+    noise = readn / gain
+    irow = np.arange(nrow)
+    ycene = ycen[xlow:xhigh]
+    nysf = yhigh + ylow + 1
+    yslitf0, yslitf1 = -ylow, yhigh
+    jbad = []
+
+    spec = np.zeros(ncol)
+    sunc = np.zeros(ncol)
+
+    no_scatter = no_scatter or (
+        np.all(scatter_below == 0) and np.all(scatter_above == 0)
+    )
+
+    if normalize:
+        im_norm = np.zeros_like(img)
+        im_ordr = np.zeros_like(img)
+
+    if swath_width is None:
+        i = np.unique(ycen.astype(int))  # Points of row crossing
+        ni = len(i)  # This is how many times this order crosses to the next row
+        if len(i) > 1:  # Curved order crosses rows
+            i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
+            nbin = np.clip(
+                int(np.round(ncol / i)) // 3, 3, 20
+            )  # number of swaths along the order
+        else:  # Perfectly aligned orders
+            nbin = np.clip(ncol // 400, 3, None)  # Still follow the changes in PSF
+        nbin = nbin * (xhigh - xlow) // ncol  # Adjust for the true order length
+    else:
+        nbin = np.clip(np.round((xhigh - xlow) / swath_width), 1, None)
+
+    nslitf = osample * (ylow + yhigh + 2) + 1
+    yslitf = yslitf0 + (np.arange(nslitf) - 0.5) / osample - 1.5
+    slitf = np.zeros((2 * nbin, nslitf))
+
+    # Define order boundary
+    yc = ycen.astype(int)
+    ymin = ycen - ylow
+    ymax = ycen + yhigh
+
+    # Calculate boundaries if distinct slitf regions
+    bins = np.linspace(xlow, xhigh, 2 * nbin + 1)  # boundaries of bins
+    ibeg_half = np.ceil(bins[:-2]).astype(int)  # beginning of each bin
+    iend_half = np.floor(bins[2:]).astype(int)  # end of each bin
+    bincen = 0.5 * (ibeg_half + iend_half)  # center of each bin
+
+    # Perform slit decomposition within each swath stepping through the order with
+    # half swath width. Spectra for each decomposition are combined with linear weights.
+    for ihalf in range(0, 2 * nbin - 1):  # loop through swaths
+        ib = ibeg_half[ihalf]  # left column
+        ie = iend_half[ihalf] + 1  # right column
+        nc = ie - ib  # number of columns in swath
+
+        # load data
+        nsf = nc * nysf  # number of slitfunc points
+        j0 = np.zeros(nc, dtype=int)
+        j1 = np.zeros(nc, dtype=int)
+
+        # Cut out swath from image
+        index = make_index(yc - ylow, yc + yhigh, ib, ie)
+        sf = img[index]
+
+        # Telluric
+        if telluric:
+            tel_lim = (
+                telluric if telluric > 5 and telluric < nysf / 2 else min(5, nysf / 3)
+            )
+            tel = np.sum(sf, axis=0)
+            itel = np.arange(nysf)
+            itel = itel[np.abs(itel - nysf / 2) >= tel_lim]
+            tel = sf[itel, :]
+            sc = np.zeros(nc)
+
+            for itel in range(nc):
+                sc[itel] = np.median(tel[itel])
+
+            tell = sc
+        else:
+            tell = 0
+
+        if not no_scatter:
+            # y indices
+            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] - yslitf0])
+            dy_scatter = (index_y.T - yscatter_below[None, ib:ie]) / (
+                yscatter_above[None, ib:ie] - yscatter_below[None, ib:ie]
+            )
+            scatter = (
+                scatter_above[None, ib:ie] - scatter_below[None, ib:ie]
+            ) * dy_scatter + scatter_below[None, ib:ie]
+        else:
+            scatter = 0
+
+        # Do Slitfunction extraction
+        sf -= scatter + tell
+        sf = np.clip(sf, 0, None)
+        sfpnt = sf.flatten()  # ?
+        ysfpnt = (irow[:, None] - ycen[None, :])[index].flatten()  # ?
+
+        # offset from the central line
+        y_offset = ycen[ib:ie] - yc[ib:ie]
+        if use_2d:
+            sp, sfsm, model, unc = slitfunc_curved(
+                sf,
+                y_offset,
+                tilt,
+                lambda_sp=lambda_sp,
+                lambda_sl=lambda_sf,
+                osample=osample,
+            )
+            delta_x = None  # TODO get this from slitfunc_curved
+        else:
+            sp, sfsm, model, unc = slitfunc(
+                sf, y_offset, lambda_sp=lambda_sp, lambda_sl=lambda_sf, osample=osample
+            )
+
+        # Combine overlapping regions
+        weight = np.ones(nc)
+        if ihalf > 0:
+            weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
+        oweight = 1 - weight
+
+        # In case we do FF normalization replace the original image by the
+        # ratio of sf/sfbin where number of counts is larger than threshold
+        # and with 1 elsewhere
+
+        scale = 1
+        if normalize:
+            ii = np.where(model > threshold / gain)
+            sss = np.ones((nysf, nc))
+            ddd = np.zeros((nysf, nc))
+            sss[ii] = sf[ii] / model[ii]
+            ddd = np.copy(model)
+
+            if ihalf > 0:
+                # Here is the layout to understand the lines below
+                #
+                #        1st swath    3rd swath    5th swath      ...
+                #     /============|============|============|============|============|
+                #
+                #               2nd swath    4th swath    6th swath
+                #            |------------|------------|------------|------------|
+                #            |.....|
+                #            overlap
+                #
+                #            +     ******* 1
+                #             +   *
+                #              + *
+                #               *            weights (+) previous swath, (*) current swath
+                #              * +
+                #             *   +
+                #            *     +++++++ 0
+
+                overlap = iend_half[ihalf - 1] - ibeg_half[ihalf] + 1
+                sss[ii] /= scale
+                sp *= scale
+            else:
+                nc_old = nc
+                sss_old = np.zeros((nysf, nc))
+                ddd_old = np.zeros((nysf, nc))
+                overlap = nc_old + 1
+
+            # This loop is complicated because swaths do overlap to ensure continuity of the spectrum.
+            ncc = overlap if ihalf != 0 else ibeg_half[1] - ibeg_half[0]
+
+            for j in range(ncc):
+                # TODO same as above?
+                icen = yc[ib + j]
+                k0 = icen + yslitf0
+                k1 = icen + yslitf1 + 1
+                j0[j] = j * nysf
+                j1[j] = j0[j] + k1 - k0
+                jj = nc_old - ncc + j
+                im_norm[k0:k1, ib + j] = (
+                    sss_old[:, jj] * oweight[j] + sss[:, j] * weight[j]
+                )
+                im_ordr[k0:k1, ib + j] = (
+                    ddd_old[:, jj] * oweight[j] + ddd[:, j] * weight[j]
+                )
+
+            if ihalf == 2 * nbin - 2:
+                for j in range(ncc, nc):
+                    # TODO same as above
+                    icen = yc[ib + j]
+                    k0 = icen + yslitf0
+                    k1 = icen + yslitf1 + 1
+                    j0[j] = j * nysf
+                    j1[j] = j0[j] + k1 - k0
+                    jj = nc_old - ncc + j
+
+                    im_norm[k0:k1, ib + j] = sss[:, j]
+                    im_ordr[k0:k1, ib + j] = ddd[:, j]
+
+            nc_old = nc
+            sss_old = np.copy(sss)
+            ddd_old = np.copy(ddd)
+
+        nbad = len(jbad)
+        if nbad == 1 and jbad == 0:
+            nbad = 0
+
+        # Combine overlaping regions
+        if use_2d:
+            if ihalf > 0 and ihalf < 2 * nbin - 2:
+                spec[ib + delta_x : ie - delta_x] = (
+                    spec[ib + delta_x : ie - delta_x] * oweight[delta_x : nc - delta_x]
+                    + sp[delta_x:-delta_x] * weight[delta_x:-delta_x]
+                )
+            elif ihalf == 0:
+                spec[ib : ie - delta_x] = sp[:-delta_x]
+            elif ihalf == 2 * nbin - 2:
+                spec[ib + delta_x : ie] = (
+                    spec[ib + delta_x : ie] * oweight[delta_x:-1]
+                    + sp[delta_x:-1] * weight[delta_x:-1]
+                )
+        else:
+            spec[ib:ie] = spec[ib:ie] * oweight + sp * weight
+
+        sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
+
+        sfsm2 = model.T.flatten()
+        j = np.argsort(ysfpnt)
+
+        jbad = np.argsort(j)[jbad]
+        ysfpnt = ysfpnt[j]
+        sfpnt = sfpnt[j]
+        sfsm2 = sfsm2[j]
+
+        slitf[ihalf, :] = sfsm / np.sum(sfsm) * osample
+
+        if plot:
+            # TODO make this nice
+            pscale = np.mean(sp)
+            sfplot = gaussian_filter1d(sfsm * pscale, osample)
+            if not no_scatter:
+                poffset = np.mean(scatter_below[ib:ie] + scatter_above[ib:ie]) * 0.5
+            else:
+                poffset = 0
+
+            plt.subplot(221)
+            plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
+            plt.plot(ysfpnt, sfpnt * pscale)
+            plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
+            plt.plot(yslitf, sfplot)
+
+            plt.subplot(222)
+            plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
+            plt.plot(ysfpnt, sfpnt * pscale)
+            plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
+            plt.plot(yslitf, sfplot)
+
+            plt.subplot(223)
+            plt.title("Data - Fit")
+            plt.plot(ysfpnt, (sfpnt - sfsm2) * pscale)
+            plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
+            plt.plot(
+                yslitf, np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
+            )
+            plt.plot(
+                yslitf, -np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
+            )
+
+            plt.subplot(224)
+            plt.title("Data - Fit")
+            plt.plot(ysfpnt, (sfpnt - sfsm2) * pscale)
+            plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
+            plt.plot(
+                yslitf, np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
+            )
+            plt.plot(
+                yslitf, -np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
+            )
+
+            plt.show()
+
+    #TODO ????? is that really correct
+    sunc = np.sqrt(sunc + spec)
+
+    # TODO what to return ?
+    slitf = np.mean(slitf, axis=0)
+    model = spec[:, None] * slitf[None, :]
+    return spec, slitf, model, sunc
+
+
 def optimal_extraction(
-    img, head, orders, swath, column_range, order_range, *args, **kwargs
+    img,
+    head,
+    orders,
+    xwd,
+    column_range,
+    order_range,
+    scatter=None,
+    yscatter=None,
+    **kwargs
 ):
     print("GETSPEC: Using optimal extraction to produce spectrum.")
     ofirst, olast = order_range
-    swath_boundaries = np.zeros((2, 1), dtype=int)
+    # xwd_boundaries = np.zeros((2, 1), dtype=int)
 
-    sl_smooth = kwargs.get("sf_smooth", 6)
-    sp_smooth = kwargs.get("sp_smooth", 1)
-    osample = kwargs.get("osample", 1)
-
-    n_row, n_col = img.shape
+    nrow, ncol = img.shape
     n_ord = len(orders)
 
-    spectrum = np.zeros(n_ord, n_col)
-    slitfunction = np.zeros(n_ord, 50)  # ?
-    uncertainties = [None for _ in orders]
-    ix = np.arange(n_col)
+    spectrum = np.zeros((n_ord, ncol))
+    slitfunction = [None for _ in range(n_ord)]
+    uncertainties = np.zeros((n_ord, ncol))
+    ix = np.arange(ncol)
 
-    for i, onum in enumerate(range(ofirst, olast)):  # loop thru orders
-        ncole = (
-            column_range[onum, 1] - column_range[onum, 0] + 1
-        )  # number of columns to extract
+    if scatter is None:
+        scatter = np.zeros(n_ord)
+        yscatter = np.zeros(n_ord)
+
+    for i, onum in enumerate(range(ofirst, olast + 1)):  # loop thru orders
+        # ncole = (
+        #    column_range[onum, 1] - column_range[onum, 0] + 1
+        # )  # number of columns to extract
         cole0 = column_range[onum, 0]  # first column to extract
         cole1 = column_range[onum, 1]  # last column to extract
 
         # Background must be subtracted for slit function logic to work but kept
         # as part of the FF signal during normalization
 
-        scatter_below = 0
-        yscatter_below = 0
-        scatter_above = 0
-        yscatter_above = 0
+        scatter_below = scatter[onum - 1]
+        yscatter_below = yscatter[onum - 1]
+        scatter_above = scatter[onum]
+        yscatter_above = yscatter[onum]
 
         if n_ord <= 10:
             print("GETSPEC: extracting relative order %i out of %i" % (onum, n_ord))
@@ -345,60 +668,71 @@ def optimal_extraction(
                     % (onum, np.clip(n_ord, None, onum + 4), n_ord)
                 )
 
-        ycen = np.polyval(orders(onum), ix)  # row at order center
+        ycen = np.polyval(orders[onum], ix)  # row at order center
 
         x_left_lim = cole0  # First column to extract
         x_right_lim = cole1  # Last column to extract
+
         ixx = ix[x_left_lim:x_right_lim]
         ycenn = ycen[x_left_lim:x_right_lim]
-        if swath[onum, 0] > 1.5:  # Extraction width in pixels
-            ymin = ycenn - swath[onum, 0]
+        if xwd[onum, 0] > 1.5:  # Extraction width in pixels
+            ymin = ycenn - xwd[onum, 0]
         else:  # Fractional extraction width
-            ymin = ycenn - swath[onum, 0] * (
+            ymin = ycenn - xwd[onum, 0] * (
                 ycenn - np.polyval(orders[onum - 1], ixx)
             )  # trough below
 
         ymin = np.floor(ymin)
         if min(ymin) < 0:
             ymin = ymin - min(ymin)  # help for orders at edge
-        if swath[onum, 1] > 1.5:  # Extraction width in pixels
-            ymax = ycenn + swath[onum, 1]
+        if xwd[onum, 1] > 1.5:  # Extraction width in pixels
+            ymax = ycenn + xwd[onum, 1]
         else:  # Fractional extraction width
-            ymax = ycenn + swath[onum, 1] * (
+            ymax = ycenn + xwd[onum, 1] * (
                 np.polyval(orders[onum - 1], ixx) - ycenn
             )  # trough above
 
         ymax = np.ceil(ymax)
-        if max(ymax) > n_row:
-            ymax = ymax - max(ymax) + n_row - 1  # helps at edge
+        if max(ymax) > nrow:
+            ymax = ymax - max(ymax) + nrow - 1  # helps at edge
 
         # Define a fixed height area containing one spectral order
         y_lower_lim = int(min(ycen[cole0:cole1] - ymin))  # Pixels below center line
         y_upper_lim = int(min(ymax - ycen[cole0:cole1]))  # Pixels above center line
 
-        spectrum[i, :], slitfunction[i], _, uncertainties[i, :] = slitfunc(
-            img, ycen, lambda_sp=sp_smooth, lambda_sl=sl_smooth, osample=osample
+        spectrum[i], slitfunction[i], _, uncertainties[i] = mkslitf(
+            img,
+            ycen,
+            y_lower_lim,
+            y_upper_lim,
+            x_left_lim,
+            x_right_lim,
+            scatter_below=scatter_below,
+            scatter_above=scatter_above,
+            yscatter_below=yscatter_below,
+            yscatter_above=yscatter_above,
+            **kwargs
         )
 
     return spectrum, slitfunction, uncertainties
 
 
-def arc_extraction(img, head, orders, swath, column_range, **kwargs):
+def arc_extraction(img, head, orders, xwd, column_range, **kwargs):
     print("Using arc extraction to produce spectrum.")
-    n_row, n_col = img.shape
+    _, ncol = img.shape
     n_ord = len(orders)
 
     gain = head["e_gain"]
     dark = head["e_drk"]
     readn = head["e_readn"]
 
-    spectrum = np.zeros((n_ord - 2, n_col))
-    uncertainties = np.zeros((n_ord - 2, n_col))
+    spectrum = np.zeros((n_ord - 2, ncol))
+    uncertainties = np.zeros((n_ord - 2, ncol))
 
     for i, onum in enumerate(range(1, n_ord - 1)):  # loop thru orders
         x_left_lim = column_range[onum, 0]  # First column to extract
         x_right_lim = column_range[onum, 1]  # Last column to extract
-        awid = swath[onum, 0] + swath[onum, 1]
+        awid = xwd[onum, 0] + xwd[onum, 1]
 
         arc, pix = getarc(
             img, orders, onum, awid, x_left_lim=x_left_lim, x_right_lim=x_right_lim
@@ -412,23 +746,21 @@ def arc_extraction(img, head, orders, swath, column_range, **kwargs):
     return spectrum, 0, uncertainties
 
 
-def fix_column_range(img, orders, order_range, swath, column_range):
-    n_row, n_col = img.shape
-    ix = np.arange(n_col)
+def fix_column_range(img, orders, order_range, xwd, column_range):
+    nrow, ncol = img.shape
+    ix = np.arange(ncol)
     # Fix column_range of each order
     for order in range(order_range[0], order_range[1] + 1):
-        if swath[0, 0] > 1.5:  # Extraction width in pixels
+        if xwd[0, 0] > 1.5:  # Extraction width in pixels
             coeff_bot, coeff_top = np.copy(orders[order]), np.copy(orders[order])
-            coeff_bot[-1] -= swath[order, 0]
-            coeff_top[-1] += swath[order, 1]
+            coeff_bot[-1] -= xwd[order, 0]
+            coeff_top[-1] += xwd[order, 1]
         else:  # Fraction extraction width
             coeff_bot = 0.5 * (
-                (2 + swath[order, 0]) * orders[order]
-                - swath[order, 0] * orders[order + 1]
+                (2 + xwd[order, 0]) * orders[order] - xwd[order, 0] * orders[order + 1]
             )
             coeff_top = 0.5 * (
-                (2 + swath[order, 1]) * orders[order]
-                - swath[order, 1] * orders[order - 1]
+                (2 + xwd[order, 1]) * orders[order] - xwd[order, 1] * orders[order - 1]
             )
 
         ixx = ix[column_range[order][0] : column_range[order][1]]
@@ -436,8 +768,7 @@ def fix_column_range(img, orders, order_range, swath, column_range):
         y_top = np.polyval(coeff_top, ixx)  # high edge of arc
         # shrink column range so that only valid columns are included, this assumes
         column_range[order] = np.clip(
-            column_range[order][0]
-            + np.where((y_bot > 0) & (y_top < n_row))[0][[0, -1]],
+            column_range[order][0] + np.where((y_bot > 0) & (y_top < nrow))[0][[0, -1]],
             None,
             column_range[order][1],
         )
@@ -447,7 +778,7 @@ def fix_column_range(img, orders, order_range, swath, column_range):
 
 def extract(img, head, orders, **kwargs):
     # TODO which parameters should be passed here?
-    swath = kwargs.get("xwd", 50)
+    xwd = kwargs.get("xwd", 50)
     column_range = kwargs.get(
         "column_range", np.array([(0, img.shape[1]) for _ in orders])
     )
@@ -455,7 +786,7 @@ def extract(img, head, orders, **kwargs):
     # TODO use curved extraction
     shear = kwargs.get("tilt")
 
-    n_row, n_col = img.shape
+    nrow, ncol = img.shape
     n_ord = len(orders)
     order_range = kwargs.get("order_range", (0, n_ord - 1))
     n_ord = len(order_range)
@@ -467,9 +798,9 @@ def extract(img, head, orders, **kwargs):
     else:
         opower = len(orders[order_range[0]])
         order_low = [0 for _ in range(opower)]
-        order_high = [0 for _ in range(opower - 1)] + [n_row]
+        order_high = [0 for _ in range(opower - 1)] + [nrow]
 
-    column_range = fix_column_range(img, orders, order_range, swath, column_range)
+    column_range = fix_column_range(img, orders, order_range, xwd, column_range)
 
     tmp_orders = [order_low]
     for i in range(order_range[0], order_range[1] + 1):
@@ -482,20 +813,24 @@ def extract(img, head, orders, **kwargs):
         tmp_range += [column_range[i]]
     tmp_range += [column_range[order_range[1]]]
     column_range = np.array(tmp_range)
-    del kwargs["column_range"] #TODO needs refactoring
+    del kwargs["column_range"]  # TODO needs refactoring
 
-    swath = np.array([swath[0], *swath, swath[-1]])
+    xwd = np.array([xwd[0], *xwd, xwd[-1]])
+    del kwargs["xwd"]
+
+    order_range = order_range[0] + 1, order_range[1] + 1
+    del kwargs["order_range"]
 
     if not kwargs.get("thar", False):
         spectrum, slitfunction, uncertainties = optimal_extraction(
-            img, head, orders, swath, column_range, order_range, **kwargs
+            img, head, orders, xwd, column_range, order_range, **kwargs
         )
     else:
         spectrum, slitfunction, uncertainties = arc_extraction(
-            img, head, orders, swath, column_range, **kwargs
+            img, head, orders, xwd, column_range, **kwargs
         )
 
-    return spectrum, head, uncertainties
+    return spectrum, uncertainties
 
 
 if __name__ == "__main__":
