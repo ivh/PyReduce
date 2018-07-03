@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from combine_frames import combine_bias, combine_flat
-from util import load_fits, swap_extension, find_first_index, save_fits
+from util import load_fits, swap_extension, find_first_index, save_fits, top
 import trace
 from extract import extract
 from make_scatter import make_scatter
@@ -99,7 +99,7 @@ def parse_args():
     return instrument, target, steps_to_take
 
 
-def main(target, instrument, mode, config, steps="all"):
+def main(target, instrument, mode, night, config, steps="all"):
     counter_mode = find_first_index(config["modes"], mode)
 
     # read configuration settings
@@ -216,7 +216,7 @@ def main(target, instrument, mode, config, steps="all"):
             order_range = [0, len(orders) - 1]
 
             # Extract wavecal spectrum
-            thar, head, sunc = extract(
+            thar, sunc = extract(
                 im,
                 head,
                 orders,
@@ -224,7 +224,7 @@ def main(target, instrument, mode, config, steps="all"):
                 sxwd=sxwd,
                 order_range=order_range,
                 column_range=column_range,
-                thar=True,
+                thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
                 **config
             )
 
@@ -244,6 +244,10 @@ def main(target, instrument, mode, config, steps="all"):
             im, head = load_fits(f, inst_mode, extension, mask=mask, dtype=np.float32)
             im -= bias
 
+            # TODO DEBUG
+            xwd, sxwd = np.full((len(orders), 2), 25), 0
+            order_range = [0, len(orders) - 1]
+
             # Extract frame information from the header
             readn = head["e_readn"]
             dark = head["e_backg"]
@@ -251,68 +255,80 @@ def main(target, instrument, mode, config, steps="all"):
 
             # Fit the scattered light. The approximation is returned in 2D array bg for each
             # inter-order troff
-            bg, ybg = make_scatter(
-                im,
-                orders,
-                colrange=column_range,
-                gain=gain,
-                readn=readn,
-                subtract=True,
-                lam_sp=config.get("science_lambda_sp", 1),
-                lam_sf=config.get("science_lambda_sf", 0),
-                swath_width=config.get("science_mkscatter_swath_width", 400),
-                osample=config.get("science_mkscatter_osample", 1),
-                **config
-            )
+
+            # TODO DEBUG
+            try:
+                with open("background.dat", "rb") as _f:
+                    bg, ybg = pickle.load(_f)
+            except IOError:
+                bg, ybg = make_scatter(
+                    im,
+                    orders,
+                    colrange=column_range,
+                    gain=gain,
+                    readn=readn,
+                    subtract=True,
+                    lam_sp=config.get("science_lambda_sp", 1),
+                    lam_sf=config.get("science_lambda_sf", 0),
+                    swath_width=config.get("science_mkscatter_swath_width", 400),
+                    osample=config.get("science_mkscatter_osample", 1),
+                    **config
+                )
+                with open("background.dat", "wb") as _f:
+                    pickle.dump((bg, ybg), _f)
+
+            # TODO: background is too large, missing normalization?
+            # TODO: where is it even used?
 
             # Flat fielding
             im /= flat
 
             # Optimally extract science spectrum
-            sp = hamspec(
+            sp, sunc = extract(
                 im,
                 head,
                 orders,
-                xwd,
-                sxwd,
-                or_range[0],
-                sig=sunc,
-                colrange=col_range,
-                mask=mask,
+                xwd=xwd,
+                sxwd=sxwd,
+                order_range=order_range,
+                column_range=column_range,
+                lambda_sf=0.1,
+                lambda_sp=0,
+                scatter=None,  # bg
+                yscatter=None,  # ybg
+                gain=gain,
+                readn=readn,
+                osample=1,
                 **config
             )
 
+            # TODO: blzcoef from normalized flatfield
             # Calculate Continuum and Error
             sigma = sunc
             cont = np.full_like(sunc, 1.)
-            for i in range(nord):
-                x = np.arange(col_range[i, 0], col_range[i, 1] + 1)
+            # for i in range(nord):
+            #     x = np.arange(column_range[i][0], column_range[i][1] + 1)
 
-                # convert uncertainty to relative error
-                sigma[i, x] = sunc[i, x] / np.clip(sp[i, x], 1., None)
+            #     # convert uncertainty to relative error
+            #     sigma[i, x] = sunc[i, x] / np.clip(sp[i, x], 1., None)
 
-                s = sp[i, x] / np.clip(blzcoef[i, x], 0.001, None)
-                c = top(s, 1, eps=0.0002, poly=True)
-                s = s / c
-                c = sp[i, x] / s
-                cont[i, x] = c
+            #     s = sp[i, x] / np.clip(blzcoef[i, x], 0.001, None)
+            #     c = top(s, 1, eps=0.0002, poly=True)
+            #     s = s / c
+            #     c = sp[i, x] / s
+            #     cont[i, x] = c
 
-                yr = (0., 2)
-                plt.plot(x, s)
-                plt.title("order:%i % i" % (i, or_range[0]))
+            #     yr = (0., 2)
+            #     plt.plot(x, s)
+            #     plt.title("order:%i % i" % (i, order_range[0]))
 
             sigma *= cont  # Scale Error with Continuum
 
-            head["obase"] = (or_range[0], " base order number")
+            head["obase"] = (order_range[0], " base order number")
+            
             # save spectrum to disk
-
-            nameout = os.path.basename(f)
-            nameout, _ = os.path.splitext(f) + ".ech"
-            nameout = os.path.join(reduced_path, nameout)
-
-            fits.writeto(
-                nameout, data=sp, header=head, overwrite=True
-            )  # sig=sigma, cont=cont
+            nameout = swap_extension(f, ".ech", path=reduced_path)
+            save_fits(nameout, head, spec=sp, sig=sigma, cont=cont)
 
             pol_angle = head.get("eso ins ret25 pos")
             if pol_angle is None:
@@ -327,14 +343,14 @@ def main(target, instrument, mode, config, steps="all"):
             log_file = os.path.join(reduced_path, night + ".log")
             with open(log_file, mode="w+") as log:
                 log.write(
-                    "star: %s, polarization: %i, mean s/n=%.2f\n"
+                    "star: %s, polarization: %s, mean s/n=%.2f\n"
                     % (head["object"], pol_angle, 1 / np.mean(sigma))
                 )
                 log.write("file: %s\n" % os.path.basename(nameout))
                 log.write("----------------------------------\n")
 
             print(
-                "star: %s, polarization: %i, mean s/n=%.2f\n"
+                "star: %s, polarization: %s, mean s/n=%.2f\n"
                 % (head["object"], pol_angle, 1 / np.mean(sigma))
             )
             print("file: %s\n" % os.path.basename(nameout))
@@ -370,7 +386,7 @@ if __name__ == "__main__":
         config = json.load(f)
 
     # TODO: Test settings
-    config["plot"] = True
+    config["plot"] = False
     config["manual"] = True
     modes = config["modes"][1:2]
 
@@ -386,4 +402,4 @@ if __name__ == "__main__":
         print("Observation Date: ", night)
         for mode in modes:
             print("Instrument Mode: ", mode)
-            main(target, instrument, mode, config, steps=steps_to_take)
+            main(target, instrument, mode, night, config, steps=steps_to_take)

@@ -86,18 +86,20 @@ def interpolate_masked(masked):
     return interpol
 
 
-def make_index(ymin, ymax, xmin, xmax):
+def make_index(ymin, ymax, xmin, xmax, zero=0):
     # TODO
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
     # in x: the rows between ymin and ymax
     # in y: the column, but n times to match the x index
+    if zero:
+        zero = xmin
 
-    index_x = np.array([np.arange(ymin[col], ymax[col]) for col in range(xmin, xmax)])
+    index_x = np.array([np.arange(ymin[col], ymax[col]+1) for col in range(xmin-zero, xmax-zero)])
     index_y = np.array(
-        [np.full(ymax[col] - ymin[col], col) for col in range(xmin, xmax)]
+        [np.full(ymax[col] - ymin[col] + 1, col) for col in range(xmin-zero, xmax-zero)]
     )
     # Tranpose makes it so that the image orientation stays the same
-    index = (index_x.T, index_y.T)
+    index = (index_x.T + zero, index_y.T)
     return index
 
 
