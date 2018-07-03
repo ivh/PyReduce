@@ -53,9 +53,9 @@ def make_scatter(im, orders, **kwargs):
 
     # Initialize arrays.
     xcol = np.arange(ncol)  # indices of all columns
-    back = np.zeros((nord, ncol))  # fitted scattered light model
-    back_data = np.zeros((nord, ncol))  # scattered light data
-    yback = np.zeros((nord, ncol))  # scattered light coordinates
+    back = np.zeros((nord + 1, ncol))  # fitted scattered light model
+    back_data = np.zeros((nord + 1, ncol))  # scattered light data
+    yback = np.zeros((nord + 1, ncol))  # scattered light coordinates
     ycen1 = np.polyval(orders[0], xcol)  # the shape of the starting order
 
     # TODO DEBUG
@@ -110,8 +110,10 @@ def make_scatter(im, orders, **kwargs):
         # TODO why is this so slow?
         # TODO use passed parameters
         osamp = 1
+        # TODO: Copying these ensures that nothing bad happens during slitfunc, which sometimes happens otherwise
+        sf = np.copy(sf)
+        tmp = np.copy(tmp)
         sp, sfsm, model, unc = slitfunc(sf, tmp, lambda_sp=2, lambda_sl=2, osample=1)
-
         nslitf = len(sfsm)
         yslitf = (
             np.arange(-0.5, nslitf - 0.5, 1) / osamp - 1.5 - height
@@ -287,11 +289,11 @@ def make_scatter(im, orders, **kwargs):
             back_data[order1, j] = interpolate_bad_pixels(ycen[j], y1, y2, im, j, nrow)
 
             if order0 == first:  # for the first order try
-                yy = min(ycen0[j], ycen1[j]) - abs(ycen[j] - ycen0[j])  # to find background below
+                yy = ycen0[j] - (ycen[j] - ycen0[j])  # to find background below
                 yback[0, j] = yy  # scattered light coordinates
                 back_data[0, j] = interpolate_bad_pixels(yy, y1, y2, im, j, nrow)
             elif order1 == last:  # for the last order try
-                yy = max(ycen0[j], ycen1[j]) + abs(ycen1[j] - ycen[j])  # to find background above
+                yy = ycen1[j] + (ycen1[j] - ycen[j])  # to find background above
                 yback[-1, j] = yy  # scattered light coordinates
                 back_data[-1, j] = interpolate_bad_pixels(yy, y1, y2, im, j, nrow)
 
