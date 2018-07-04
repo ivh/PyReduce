@@ -3,9 +3,8 @@ from scipy.interpolate import interp1d
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
 
 # TODO DEBUG
-import clib.build_extract
-
-clib.build_extract.build()
+# import clib.build_extract
+# clib.build_extract.build()
 
 import clib._slitfunc_bd.lib as slitfunclib
 import clib._slitfunc_2d.lib as slitfunc_2dlib
@@ -15,7 +14,7 @@ c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
 
 
-def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
+def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     """Decompose image into spectrum and slitfunction
 
     This is for vertical(?) orders only, for curved orders use slitfunc_curved instead
@@ -28,7 +27,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         traces the center of the order along the image, relative to the center of the image?
     lambda_sp : float, optional
         smoothing parameter of the spectrum (the default is 0, which no smoothing)
-    lambda_sl : float, optional
+    lambda_sf : float, optional
         smoothing parameter of the slitfunction (the default is 0.1, which )
     osample : int, optional
         Subpixel ovsersampling factor (the default is 1, which no oversampling)
@@ -92,6 +91,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
     unc = np.zeros(ncols, dtype=c_double)
     cunc = ffi.cast("double *", unc.ctypes.data)
 
+    # TODO there is a bug with lambda_sp != 0, causing the c code to crash (or rather the interface) in some cases
+    # does the size of the output change?
+
     slitfunclib.slit_func_vert(
         ncols,
         nrows,
@@ -100,7 +102,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sl=0.1, osample=1):
         cycen,
         osample,
         lambda_sp,
-        lambda_sl,
+        lambda_sf,
         csp,
         csl,
         cmodel,
