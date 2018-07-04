@@ -11,80 +11,13 @@ import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import median_filter
-from scipy.optimize import curve_fit
+
 
 from clipnflip import clipnflip
-from util import load_fits
+from util import load_fits, gaussbroad, gaussfit
 
 
-def gaussfit(x, y):
-    """
-    Fit a simple gaussian to data
 
-    gauss(x, a, mu, sigma) = a * exp(-z**2/2)
-    with z = (x - mu) / sigma
-
-    Parameters
-    ----------
-    x : array(float)
-        x values
-    y : array(float)
-        y values
-    Returns
-    -------
-    gauss(x), parameters
-        fitted values for x, fit paramters (a, mu, sigma)
-    """
-
-    gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2) ** 2 / 2)
-    popt, _ = curve_fit(gauss, x, y, p0=[max(y), 1, 1])
-    return gauss(x, *popt), popt
-
-
-def gaussbroad(x, y, hwhm):
-    """
-    Apply gaussian broadening to x, y data with half width half maximum hwhm
-
-    Parameters
-    ----------
-    x : array(float)
-        x values
-    y : array(float)
-        y values
-    hwhm : float > 0
-        half width half maximum
-    Returns
-    -------
-    array(float)
-        broadened y values
-    """
-
-    # alternatively use:
-    # from scipy.ndimage.filters import gaussian_filter1d as gaussbroad
-    # but that doesn't have an x coordinate
-
-    nw = len(x)
-    dw = (x[-1] - x[0]) / (len(x) - 1)
-
-    if hwhm > 5 * (x[-1] - x[0]):
-        return np.full(len(x), sum(y) / len(x))
-
-    nhalf = int(3.3972872 * hwhm / dw)
-    ng = 2 * nhalf + 1  # points in gaussian (odd!)
-    # wavelength scale of gaussian
-    wg = dw * (np.arange(0, ng, 1, dtype=float) - (ng - 1) / 2)
-    xg = (0.83255461 / hwhm) * wg  # convenient absisca
-    gpro = (0.46974832 * dw / hwhm) * np.exp(-xg * xg)  # unit area gaussian w/ FWHM
-    gpro = gpro / np.sum(gpro)
-
-    # Pad spectrum ends to minimize impact of Fourier ringing.
-    npad = nhalf + 2  # pad pixels on each end
-    spad = np.concatenate((np.full(npad, y[0]), y, np.full(npad, y[-1])))
-
-    # Convolve and trim.
-    sout = np.convolve(spad, gpro)  # convolve with gaussian
-    sout = sout[npad : npad + nw]  # trim to original data / length
-    return sout  # return broadened spectrum.
 
 
 def running_median(arr, size):
