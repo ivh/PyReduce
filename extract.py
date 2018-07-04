@@ -8,7 +8,6 @@ from make_scatter import make_scatter
 from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
-
 def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     """
     # This subroutine extracts a curved arc (arc) from an image array (im). The
@@ -91,11 +90,10 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # Sum over the prepared index
     arc = np.sum(img[index], axis=0)
 
-
     return arc, pix
 
 
-def mkslitf(
+def make_slitfunction(
     img,
     ycen,
     ylow,
@@ -129,8 +127,7 @@ def mkslitf(
     irow = np.arange(nrow)
     ycene = ycen[xlow:xhigh]
     nysf = yhigh + ylow + 1
-    yslitf0, yslitf1 = -ylow, yhigh
-    jbad = []
+    yslitf = -ylow, yhigh
 
     spec = np.zeros(ncol)
     sunc = np.zeros(ncol)
@@ -154,7 +151,6 @@ def mkslitf(
         nbin = np.clip(int(np.round((xhigh - xlow) / swath_width)), 1, None)
 
     nslitf = osample * (ylow + yhigh + 2) + 1
-    yslitf = yslitf0 + (np.arange(nslitf) - 0.5) / osample - 1.5
     slitf = np.zeros((2 * nbin, nslitf))
 
     # Define order boundary
@@ -193,10 +189,11 @@ def mkslitf(
         ie = iend_half[ihalf] + 1  # right column
         nc = ie - ib  # number of columns in swath
 
-        # load data
-        nsf = nc * nysf  # number of slitfunc points
-        j0 = np.zeros(nc, dtype=int)
-        j1 = np.zeros(nc, dtype=int)
+        # Weight for combining overlapping regions
+        weight = np.ones(nc)
+        if ihalf > 0:
+            weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
+        oweight = 1 - weight
 
         # Cut out swath from image
         index = make_index(yc - ylow, yc + yhigh, ib, ie)
@@ -222,7 +219,7 @@ def mkslitf(
 
         if not no_scatter:
             # y indices
-            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] - yslitf0])
+            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] - yslitf[0]])
             dy_scatter = (index_y.T - yscatter_below[None, ib:ie]) / (
                 yscatter_above[None, ib:ie] - yscatter_below[None, ib:ie]
             )
@@ -235,8 +232,6 @@ def mkslitf(
         # Do Slitfunction extraction
         sf -= scatter + tell
         sf = np.clip(sf, 0, None)
-        sfpnt = sf.flatten()  # ?
-        ysfpnt = (irow[:, None] - ycen[None, :])[index].flatten()  # ?
 
         # offset from the central line
         y_offset = ycen[ib:ie] - yc[ib:ie]
@@ -257,23 +252,16 @@ def mkslitf(
                 sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
             )
 
-        # Combine overlapping regions
-        weight = np.ones(nc)
-        if ihalf > 0:
-            weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
-        oweight = 1 - weight
-
-        # In case we do FF normalization replace the original image by the
-        # ratio of sf/sfbin where number of counts is larger than threshold
-        # and with 1 elsewhere
-
-        scale = 1
         if normalize:
+            # In case we do FF normalization replace the original image by the
+            # ratio of sf/sfbin where number of counts is larger than threshold
+            # and with 1 elsewhere
+            scale = 1
+
             ii = np.where(model > threshold / gain)
             sss = np.ones((nysf, nc))
-            ddd = np.zeros((nysf, nc))
-            sss[ii] = sf[ii] / model[ii]
             ddd = np.copy(model)
+            sss[ii] = sf[ii] / model[ii]
 
             if ihalf > 0:
                 overlap = iend_half[ihalf - 1] - ibeg_half[ihalf] + 1
@@ -285,10 +273,10 @@ def mkslitf(
                 ddd_old = np.zeros((nysf, nc))
                 overlap = ibeg_half[1] - ibeg_half[0]
 
-            # This loop is complicated because swaths do overlap to ensure continuity of the spectrum.
+            # Combine new and old sections
             ncc = overlap
 
-            index = make_index(yc + yslitf0, yc + yslitf1, ib, ib + ncc)
+            index = make_index(yc + yslitf[0], yc + yslitf[1], ib, ib + ncc)
             im_norm[index] = (
                 sss_old[:, -ncc:] * oweight[:ncc] + sss[:, :ncc] * weight[:ncc]
             )
@@ -298,17 +286,13 @@ def mkslitf(
 
             if ihalf == 2 * nbin - 2:
                 # TODO check
-                index = make_index(yc + yslitf0, yc + yslitf1, ib + ncc, ib + nc)
+                index = make_index(yc + yslitf[0], yc + yslitf[1], ib + ncc, ib + nc)
                 im_norm[index] = sss[:, ncc:nc]
                 im_ordr[index] = ddd[:, ncc:nc]
 
             nc_old = nc
             sss_old = np.copy(sss)
             ddd_old = np.copy(ddd)
-
-        nbad = len(jbad)
-        if nbad == 1 and jbad == 0:
-            nbad = 0
 
         # Combine overlaping regions
         if use_2d:
@@ -329,60 +313,51 @@ def mkslitf(
 
         sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
 
-        sfsm2 = model.T.flatten()
-        j = np.argsort(ysfpnt)
-
-        jbad = np.argsort(j)[jbad]
-        ysfpnt = ysfpnt[j]
-        sfpnt = sfpnt[j]
-        sfsm2 = sfsm2[j]
-
-        slitf[ihalf, :] = sfsm / np.sum(sfsm) * osample
-
         if plot:
             # TODO make this nice
+            plt.clf()
+            scale = 1
             pscale = np.mean(sp)
-            sfplot = gaussian_filter1d(sfsm * pscale, osample)
+            sfplot = gaussian_filter1d(sfsm, osample)
+            sfflat = sfsm[:-2] * pscale
+            model = np.mean(model, axis=1)
             if not no_scatter:
                 poffset = np.mean(scatter_below[ib:ie] + scatter_above[ib:ie]) * 0.5
             else:
                 poffset = 0
 
+            # Plot 1: The observed slit
             plt.subplot(221)
             plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
-            plt.plot(ysfpnt, sfpnt * pscale)
-            plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            plt.plot(yslitf, sfplot)
+            #plt.plot(sfflat)
+            # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
+            plt.plot(sfflat, '+')
+            plt.plot(model)
 
+            # Plot 2: The recovered slit function
             plt.subplot(222)
             plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
-            plt.plot(ysfpnt, sfpnt * pscale)
-            plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            plt.plot(yslitf, sfplot)
+            plt.plot(model)
+            # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
+            #plt.plot(sfplot)
 
+            # Plot 3: Difference between observed and recovered
             plt.subplot(223)
             plt.title("Data - Fit")
-            plt.plot(ysfpnt, (sfpnt - sfsm2) * pscale)
-            plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
-            plt.plot(
-                yslitf, np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
-            )
-            plt.plot(
-                yslitf, -np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
-            )
+            plt.plot(sfflat - model)
+            # plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
+            plt.plot(np.sqrt((model + poffset + readn ** 2) / gain))
+            plt.plot(-np.sqrt((model + poffset + readn ** 2) / gain))
 
             plt.subplot(224)
             plt.title("Data - Fit")
-            plt.plot(ysfpnt, (sfpnt - sfsm2) * pscale)
-            plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
-            plt.plot(
-                yslitf, np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
-            )
-            plt.plot(
-                yslitf, -np.sqrt((sfsm * pscale / scale + poffset + readn ** 2) / gain)
-            )
+            plt.plot(sfflat - model)
+            # plt.plot(ysfpnt[jbad], (sf.flat - sfsm.flat)[jbad] * pscale, "g+")
+            plt.plot(np.sqrt((model + poffset + readn ** 2) / gain))
+            plt.plot(-np.sqrt((model + poffset + readn ** 2) / gain))
 
-            plt.show()
+            plt.draw()
+            plt.pause(0.001)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
@@ -478,7 +453,7 @@ def optimal_extraction(
 
         # Define a fixed height area containing one spectral order
         x_left_lim, x_right_lim = column_range[onum]  # First and last column to extract
-        
+
         ycen = np.polyval(orders[onum], ix)
         y_lower_lim, y_upper_lim = get_y_scale(
             orders[onum],
@@ -490,7 +465,7 @@ def optimal_extraction(
             nrow,
         )
 
-        spectrum[i], slitfunction[i], _, uncertainties[i] = mkslitf(
+        spectrum[i], slitfunction[i], _, uncertainties[i] = make_slitfunction(
             img,
             ycen,
             y_lower_lim,
@@ -551,7 +526,7 @@ def fix_column_range(img, orders, xwd, column_range):
         y_top = np.polyval(coeff_top, ixx)  # high edge of arc
         # shrink column range so that only valid columns are included, this assumes
         column_range[i] = np.clip(
-            column_range[i, 0] + np.where((y_bot > 0) & (y_top < nrow-1))[0][[0, -1]],
+            column_range[i, 0] + np.where((y_bot > 0) & (y_top < nrow - 1))[0][[0, -1]],
             None,
             column_range[i, 1],
         )
@@ -597,7 +572,7 @@ def extract(
 
     # TODO use curved extraction
     shear = kwargs.get("tilt")
-    kwargs["use2D"] = shear is not None
+    kwargs["use_2D"] = shear is not None
 
     nrow, ncol = img.shape
     nord, opower = orders.shape
@@ -639,12 +614,12 @@ def extract(
 
     # Prepare normalized flat field image if necessary
     if normalize:
-        im_norm = np.zeros_like(img)
-        im_ordr = np.zeros_like(img)
+        im_norm = np.ones_like(img)
+        im_ordr = np.ones_like(img)
     else:
         im_norm = im_ordr = None
 
-    if not thar: #the "normal" case, except for wavelength calibration files
+    if not thar:  # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
             orders,
