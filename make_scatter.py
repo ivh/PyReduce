@@ -113,7 +113,7 @@ def make_scatter(im, orders, **kwargs):
         # TODO: Copying these ensures that nothing bad happens during slitfunc, which sometimes happens otherwise
         sf = np.copy(sf)
         tmp = np.copy(tmp)
-        sp, sfsm, model, unc = slitfunc(sf, tmp, lambda_sp=2, lambda_sl=2, osample=1)
+        sp, sfsm, model, unc = slitfunc(sf, tmp, lambda_sp=2, lambda_sf=2, osample=1)
         nslitf = len(sfsm)
         yslitf = (
             np.arange(-0.5, nslitf - 0.5, 1) / osamp - 1.5 - height

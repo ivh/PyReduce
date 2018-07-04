@@ -159,7 +159,7 @@ def mkslitf(
             nbin = np.clip(ncol // 400, 3, None)  # Still follow the changes in PSF
         nbin = nbin * (xhigh - xlow) // ncol  # Adjust for the true order length
     else:
-        nbin = np.clip(np.round((xhigh - xlow) / swath_width), 1, None)
+        nbin = np.clip(int(np.round((xhigh - xlow) / swath_width)), 1, None)
 
     nslitf = osample * (ylow + yhigh + 2) + 1
     yslitf = yslitf0 + (np.arange(nslitf) - 0.5) / osample - 1.5
@@ -170,7 +170,7 @@ def mkslitf(
     ymin = ycen - ylow
     ymax = ycen + yhigh
 
-    # Calculate boundaries if distinct slitf regions
+    # Calculate boundaries of distinct slitf regions
     # Here is the layout to understand the lines below
     #
     #        1st swath    3rd swath    5th swath      ...
@@ -259,8 +259,10 @@ def mkslitf(
             )
             delta_x = None  # TODO get this from slitfunc_curved
         else:
+            sf = np.copy(sf)
+            y_offset = np.copy(y_offset)
             sp, sfsm, model, unc = slitfunc(
-                sf, y_offset, lambda_sp=lambda_sp, lambda_sl=lambda_sf, osample=osample
+                sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
             )
 
         # Combine overlapping regions
@@ -513,7 +515,7 @@ def optimal_extraction(
     return spectrum, slitfunction, uncertainties
 
 
-def arc_extraction(img, orders, xwd, column_range, **kwargs):
+def arc_extraction(img, orders, xwd, column_range, gain=1, readn=0, dark=0, **kwargs):
     print("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
     nord = len(orders)
