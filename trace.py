@@ -217,7 +217,7 @@ def mark_orders(im, **kwargs):
     # Getting x and y coordinates of all pixels sticking above the filtered image
     x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)
     # disregard borders of the image
-    clusters[(x == 0) | (y == 0) | (x == im.shape[1]-1) | (y == im.shape[0]-1)] = 0
+    clusters[(x == 0) | (y == 0) | (x == im.shape[1] - 1) | (y == im.shape[0] - 1)] = 0
     if n_clusters == 0:
         raise Exception("No clusters found")
 
@@ -246,11 +246,11 @@ def mark_orders(im, **kwargs):
     n = np.arange(len(n), dtype=int)
     x = {c: x[key[c]] for c in n}
     y = {c: y[key[c]] for c in n}
-    orders = {c: orders[key[c]] for c in n}
+    orders = np.array([orders[key[c]] for c in n])
 
-    order_range = {i: (np.min(y[i]), np.max(y[i])) for i in n}
+    column_range = np.array([[np.min(y[i]), np.max(y[i])] for i in n])
 
     if plot:
-        plot_orders(im, x, y, n, orders, order_range)
+        plot_orders(im, x, y, n, orders, column_range)
 
-    return orders, order_range
+    return orders, column_range

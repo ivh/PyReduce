@@ -5,24 +5,22 @@ import argparse
 import glob
 import json
 import os.path
-from os.path import join
 import pickle
 import sys
+from os.path import join
+from trace import mark_orders
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 
 from combine_frames import combine_bias, combine_flat
-from util import load_fits, swap_extension, find_first_index, save_fits, top
-import trace
 from extract import extract
-from make_scatter import make_scatter
-
-# from normalize_flat import normalize_flat
-
+from normalize_flat import normalize_flat
+from util import find_first_index, load_fits, save_fits, swap_extension, top
 
 # TODO turn dicts into numpy structured array
+# TODO proper logging
 
 
 def sort_files(files, config):
@@ -134,7 +132,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     # ==========================================================================
     # Read mask
     # the mask is not stored with the data files (it is not supported by astropy)
-    mask, mhead = load_fits(mask_file, inst_mode, extension=0)
+    mask, _ = load_fits(mask_file, inst_mode, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
     # ==========================================================================
@@ -169,10 +167,10 @@ def main(target, instrument, mode, night, config, steps="all"):
     if "orders" in steps or steps == "all":
         print("Order Tracing")
 
-        order_img, order_head = load_fits(f_order[0], inst_mode, extension, mask=mask)
+        order_img, _ = load_fits(f_order[0], inst_mode, extension, mask=mask)
 
         # Mark Orders
-        orders, column_range = trace.mark_orders(order_img, **config)
+        orders, column_range = mark_orders(order_img)
 
         # Save image format description
         with open(ord_default_file, "wb") as file:
@@ -187,21 +185,28 @@ def main(target, instrument, mode, night, config, steps="all"):
 
     if "norm_flat" in steps or steps == "all":
         print("Normalize flat field")
+        # TODO
         # xwd, sxwd = getxwd(
         #    flat, orders, colrange=col_range, gauss=True
         # )  # get extraction width
+        xwd = 8
 
-        flat, fhead, blzcoef = normalize_flat(flat, fhead, orders, **config)
+        flat, blzcoef = normalize_flat(
+            flat, fhead, orders, column_range=column_range, xwd=xwd, threshold=10000
+        )
 
         # Save data
-        # with open(ord_norm_file, 'w') as file:
-        #    pickle.dump(file, def_xwd, def_sxwd)
-        fits.writeto(norm_flat_file, data=flat, header=fhead, overwrite=True)
+        with open(ord_norm_file, "wb") as file:
+            pickle.dump(blzcoef, file)
+        fits.writeto(norm_flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
         print("Load normalized flat field")
-        # TODO
-        # flat = fits.open(norm_flat_file)
-        # flat = flat[0].data, flat[0].header
+        flat = fits.open(norm_flat_file)[0]
+        flat, fhead = flat.data, flat.header
+        flat = np.ma.masked_array(flat, mask=mask)
+
+        with open(ord_norm_file, "rb") as file:
+            blzcoef = pickle.load(file)
     # ==========================================================================
     # Prepare wavelength calibration
 
@@ -225,7 +230,6 @@ def main(target, instrument, mode, night, config, steps="all"):
                 order_range=order_range,
                 column_range=column_range,
                 thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
-                **config
             )
 
             head["obase"] = (order_range[0], "base order number")
@@ -238,101 +242,55 @@ def main(target, instrument, mode, night, config, steps="all"):
     # Prepare for science spectra extraction
 
     if "science" in steps or steps == "all":
-        nord = len(orders)
-
+        print("Extract science spectra")
         for f in f_spec:
             im, head = load_fits(f, inst_mode, extension, mask=mask, dtype=np.float32)
+            # Correct for bias and flat field
             im -= bias
+            im /= flat
 
             # TODO DEBUG
             xwd, sxwd = np.full((len(orders), 2), 25), 0
-            order_range = [0, len(orders) - 1]
-
-            # Extract frame information from the header
-            readn = head["e_readn"]
-            dark = head["e_backg"]
-            gain = head["e_gain"]
-
-            # Fit the scattered light. The approximation is returned in 2D array bg for each
-            # inter-order troff
-
-            # TODO DEBUG
-            try:
-                with open("background.dat", "rb") as _f:
-                    bg, ybg = pickle.load(_f)
-            except IOError:
-                bg, ybg = make_scatter(
-                    im,
-                    orders,
-                    colrange=column_range,
-                    gain=gain,
-                    readn=readn,
-                    subtract=True,
-                    lam_sp=config.get("science_lambda_sp", 1),
-                    lam_sf=config.get("science_lambda_sf", 0),
-                    swath_width=config.get("science_mkscatter_swath_width", 400),
-                    osample=config.get("science_mkscatter_osample", 1),
-                    **config
-                )
-                with open("background.dat", "wb") as _f:
-                    pickle.dump((bg, ybg), _f)
-
-            # TODO: background is too large, missing normalization?
-            # TODO: where is it even used?
-
-            # Flat fielding
-            im /= flat
 
             # Optimally extract science spectrum
-            sp, sunc = extract(
+            spec, sigma = extract(
                 im,
                 head,
                 orders,
                 xwd=xwd,
                 sxwd=sxwd,
-                order_range=order_range,
                 column_range=column_range,
                 lambda_sf=0.1,
                 lambda_sp=0,
-                scatter=None,  # bg
-                yscatter=None,  # ybg
-                gain=gain,
-                readn=readn,
                 osample=1,
-                **config
             )
 
-            # TODO: blzcoef from normalized flatfield
             # Calculate Continuum and Error
-            sigma = sunc
-            cont = np.full_like(sunc, 1.)
-            # for i in range(nord):
-            #     x = np.arange(column_range[i][0], column_range[i][1] + 1)
+            # TODO plotting
+            cont = np.full_like(sigma, 1.)
+            
+            # convert uncertainty to relative error
+            sigma /= np.clip(spec, 1., None)
+            s = spec / np.clip(blzcoef, 0.001, None)
 
-            #     # convert uncertainty to relative error
-            #     sigma[i, x] = sunc[i, x] / np.clip(sp[i, x], 1., None)
-
-            #     s = sp[i, x] / np.clip(blzcoef[i, x], 0.001, None)
-            #     c = top(s, 1, eps=0.0002, poly=True)
-            #     s = s / c
-            #     c = sp[i, x] / s
-            #     cont[i, x] = c
-
-            #     yr = (0., 2)
-            #     plt.plot(x, s)
-            #     plt.title("order:%i % i" % (i, order_range[0]))
+            # fit simple continuum
+            for i in range(len(orders)):
+                c = top(s[i], 1, eps=0.0002, poly=True)
+                s[i] = s[i] / c
+                c = spec[i] / s[i]
+                cont[i] = c
 
             sigma *= cont  # Scale Error with Continuum
 
             head["obase"] = (order_range[0], " base order number")
-            
+
             # save spectrum to disk
             nameout = swap_extension(f, ".ech", path=reduced_path)
-            save_fits(nameout, head, spec=sp, sig=sigma, cont=cont)
+            save_fits(nameout, head, spec=spec, sig=sigma, cont=cont)
 
             pol_angle = head.get("eso ins ret25 pos")
             if pol_angle is None:
-                pol_angle = head.get("hierarch eso ins ret50 pos")
+                pol_angle = head.get("eso ins ret50 pos")
                 if pol_angle is None:
                     pol_angle = "no polarimeter"
                 else:
@@ -372,14 +330,7 @@ if __name__ == "__main__":
         # target star
         target = "HD132205"
         # Which parts of the reduction to perform
-        steps_to_take = [
-            # "bias",
-            # "flat",
-            # "orders",
-            # "norm_flat",
-            # "wavecal",
-            "science"
-        ]
+        steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
 
     # load configuration for the current instrument
     with open("settings_%s.json" % instrument) as f:

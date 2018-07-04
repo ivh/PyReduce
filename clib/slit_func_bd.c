@@ -322,7 +322,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
           mask[y * ncols + x] = 1;
       }
     }
-    printf("iter=%2i,\tdev=%.5g,\tsum=%.5g\n", iter, dev, sum);
+    // printf("iter=%2i,\tdev=%.5g,\tsum=%.5g\n", iter, dev, sum);
 
     /* Compute the change in the spectrum */
 

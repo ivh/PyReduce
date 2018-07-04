@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from extract import slitfunc
+from slitfunc_wrapper import slitfunc
 from util import bottom, make_index, middle, interpolate_masked
 
 
@@ -33,19 +33,19 @@ def make_scatter(im, orders, **kwargs):
 
     # Get image size.
     nrow, ncol = im.shape
-    first = sorted(orders.keys())[0]  # first order
-    last = sorted(orders.keys())[-1]  # last order
-    nord = last - first + 1
+    first = 0  # first order
+    last = len(orders)+1  # last order
+    nord = len(orders)
 
     # Get kwargs data, TODO change names
     ccd_gain = kwargs.get("gain", 1)
     ccd_rdnoise = kwargs.get("readn", 0) / ccd_gain
     osamp = kwargs.get("osample", 10)
-    lambda_sf = kwargs.get("lam_sf", 1)
-    lambda_sp = kwargs.get("lam_sp", 0)
+    lambda_sf = kwargs.get("lambda_sf", 1)
+    lambda_sp = kwargs.get("lambda_sp", 0)
     extra_offset = kwargs.get("order_extra_width", 1)
-    width = kwargs.get("swath_width")
-    column_range = kwargs.get("colrange", np.array([(0, ncol) for _ in orders]))
+    width = kwargs.get("swath_width", 400)
+    column_range = kwargs.get("column_range", np.tile([0, ncol], (nord, 0)))
 
     debug = kwargs.get("debug", False)
     pol = kwargs.get("pol", False)

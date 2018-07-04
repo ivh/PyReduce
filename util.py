@@ -47,8 +47,8 @@ def save_fits(fname, header, **kwargs):
 
     columns = []
     for key, value in kwargs.items():
-        arr = value.flatten()[None, :]
-        dtype = "D" if value.dtype == np.float64 else "E"
+        arr = value.flatten()[None, :].astype(np.float32) #TODO good enough?
+        dtype = "E"
         form = "%i%s" % (value.size, dtype)
         dim = str(value.shape[::-1])
         columns += [fits.Column(name=key.upper(), array=arr, format=form, dim=dim)]
