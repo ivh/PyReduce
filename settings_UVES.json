@@ -38,10 +38,10 @@
     
     "wavecal_osample": 0,
     
-    "science_osample": 12,
+    "science_osample": 1,
     "science_swath_width": 300,
     "science_lambda_sf": 0.1,
-    "science_lambda_sp": 0,
+    "science_lambda_sp": 1,
     
     "manual": 0,
     "polarim": 0,

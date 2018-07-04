@@ -87,18 +87,10 @@ def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     # Define the indices for the pixels
     # in x: the rows between yb and yt
     # in y: the column, but n times to match the x index
-    index = make_index(yb, yt, 0, i2 - i1)
-    index = (index[0], index[1] + i1)
+    index = make_index(yb, yt, i1, i2, zero=True)
     # Sum over the prepared index
     arc = np.sum(img[index], axis=0)
 
-    # for col in range(nrow):  # sum image in requested arc
-    #    scol = img[yb[col] : yt[col], col + i1]
-    #    arc[col] = np.sum(scol)
-
-    # Define vectors along edge of swath.
-    # vb = img[ix + ncol * ybi]  # bottommost pixels in swath
-    # vt = img[ix + ncol * yti]  # topmost pixels in swath
 
     return arc, pix
 
@@ -559,7 +551,7 @@ def fix_column_range(img, orders, xwd, column_range):
         y_top = np.polyval(coeff_top, ixx)  # high edge of arc
         # shrink column range so that only valid columns are included, this assumes
         column_range[i] = np.clip(
-            column_range[i, 0] + np.where((y_bot > 0) & (y_top < nrow))[0][[0, -1]],
+            column_range[i, 0] + np.where((y_bot > 0) & (y_top < nrow-1))[0][[0, -1]],
             None,
             column_range[i, 1],
         )

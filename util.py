@@ -96,10 +96,10 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
 
     index_x = np.array([np.arange(ymin[col], ymax[col]+1) for col in range(xmin-zero, xmax-zero)])
     index_y = np.array(
-        [np.full(ymax[col] - ymin[col] + 1, col) for col in range(xmin-zero, xmax-zero)]
+        [np.full(ymax[col] - ymin[col]+1, col) for col in range(xmin-zero, xmax-zero)]
     )
     # Tranpose makes it so that the image orientation stays the same
-    index = (index_x.T + zero, index_y.T)
+    index = (index_x.T, index_y.T + zero)
     return index
 
 
