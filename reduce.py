@@ -14,6 +14,7 @@ import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 
+from getxwd import getxwd
 from combine_frames import combine_bias, combine_flat
 from extract import extract
 from normalize_flat import normalize_flat
@@ -38,7 +39,7 @@ def sort_files(files, config):
         lists of files, one per type
     """
 
-    #TODO use instrument info instead of settings for labels?
+    # TODO use instrument info instead of settings for labels?
     ob = np.zeros(len(files), dtype="U20")
     ty = np.zeros(len(files), dtype="U20")
     # mo = np.zeros(len(files), dtype='U20')
@@ -193,11 +194,8 @@ def main(target, instrument, mode, night, config, steps="all"):
 
     if "norm_flat" in steps or steps == "all":
         print("Normalize flat field")
-        # TODO
-        # xwd, sxwd = getxwd(
-        #    flat, orders, colrange=col_range, gauss=True
-        # )  # get extraction width
         xwd = 8
+        #xwd, sxwd = getxwd(flat, orders, colrange=column_range, gauss = True, pixels=True)
 
         flat, blzcoef = normalize_flat(
             flat,
@@ -207,8 +205,8 @@ def main(target, instrument, mode, night, config, steps="all"):
             xwd=xwd,
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
-            lambda_sp=config.get("normflat_sp_smooth", 400),
-            swath_width=config.get("normflat_swath_width", 200),
+            lambda_sp=config.get("normflat_sp_smooth", 4),
+            swath_width=config.get("normflat_swath_width", None),
         )
 
         # Save data
@@ -266,8 +264,9 @@ def main(target, instrument, mode, night, config, steps="all"):
             im -= bias
             im /= flat
 
-            # TODO DEBUG
-            xwd, sxwd = np.full((len(orders), 2), 25), 0
+            #TODO may or may not work
+            #xwd, sxwd = getxwd(im, orders, colrange=column_range, pixels=True)
+            xwd, sxwd = 25, 0
 
             # Optimally extract science spectrum
             spec, sigma = extract(
@@ -281,6 +280,7 @@ def main(target, instrument, mode, night, config, steps="all"):
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
+                plot=True,
             )
 
             # Calculate Continuum and Error
@@ -348,7 +348,14 @@ if __name__ == "__main__":
         # target star
         target = "HD132205"
         # Which parts of the reduction to perform
-        steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
+        steps_to_take = [
+            #"bias",
+            #"flat",
+            #"orders",
+            #"norm_flat",
+            #"wavecal",
+            "science",
+        ]
 
     # load configuration for the current instrument
     with open("settings_%s.json" % instrument) as f:
