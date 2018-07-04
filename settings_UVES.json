@@ -38,13 +38,10 @@
     
     "wavecal_osample": 0,
     
-    "science_sf_smooth": 2,
-    "science_mkscatter_osample": 10,
-    "science_hamspec_osample": 12,
-    "science_mkscatter_swath_width": 400,
-    "science_hamspec_swath_width": 300,
-    "science_lambda_sf": 100,
-    "science_lambda_sp": 100,
+    "science_osample": 12,
+    "science_swath_width": 300,
+    "science_lambda_sf": 0.1,
+    "science_lambda_sp": 0,
     
     "manual": 0,
     "polarim": 0,

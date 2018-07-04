@@ -8,3 +8,4 @@
 *.dat
 dump*
 clib/_*
+reduce.cprof

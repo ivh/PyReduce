@@ -206,13 +206,7 @@ def plot_order(i, j, x, y, x_poly, y_poly, shape):
 
 
 # TODO: implement the correct default value for the parameters
-def mark_orders(im, **kwargs):
-    min_cluster = kwargs.get("orders_threshold", 500)
-    filter_size = kwargs.get("orders_filter", 120)
-    noise = kwargs.get("orders_noise", 8)
-    opower = kwargs.get("orders_opower", 4)
-    plot = kwargs.get("plot", False)
-    manual = kwargs.get("manual", False)
+def mark_orders(im, min_cluster=500, filter_size=120, noise=8, opower=4, plot=False, manual=True):
 
     # Getting x and y coordinates of all pixels sticking above the filtered image
     x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)

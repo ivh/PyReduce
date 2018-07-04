@@ -38,6 +38,7 @@ def sort_files(files, config):
         lists of files, one per type
     """
 
+    #TODO use instrument info instead of settings for labels?
     ob = np.zeros(len(files), dtype="U20")
     ty = np.zeros(len(files), dtype="U20")
     # mo = np.zeros(len(files), dtype='U20')
@@ -170,7 +171,14 @@ def main(target, instrument, mode, night, config, steps="all"):
         order_img, _ = load_fits(f_order[0], inst_mode, extension, mask=mask)
 
         # Mark Orders
-        orders, column_range = mark_orders(order_img)
+        orders, column_range = mark_orders(
+            order_img,
+            min_cluster=config.get("orders_threshold", 500),
+            filter_size=config.get("orders_filter", 120),
+            noise=config.get("orders_noise", 8),
+            opower=config.get("orders_opower", 4),
+            manual=True,
+        )
 
         # Save image format description
         with open(ord_default_file, "wb") as file:
@@ -192,7 +200,15 @@ def main(target, instrument, mode, night, config, steps="all"):
         xwd = 8
 
         flat, blzcoef = normalize_flat(
-            flat, fhead, orders, column_range=column_range, xwd=xwd, threshold=10000
+            flat,
+            fhead,
+            orders,
+            column_range=column_range,
+            xwd=xwd,
+            threshold=config.get("normflat_threshold", 10000),
+            lambda_sf=config.get("normflat_sf_smooth", 8),
+            lambda_sp=config.get("normflat_sp_smooth", 400),
+            swath_width=config.get("normflat_swath_width", 200),
         )
 
         # Save data
@@ -221,7 +237,7 @@ def main(target, instrument, mode, night, config, steps="all"):
             order_range = [0, len(orders) - 1]
 
             # Extract wavecal spectrum
-            thar, sunc = extract(
+            thar, _ = extract(
                 im,
                 head,
                 orders,
@@ -230,6 +246,7 @@ def main(target, instrument, mode, night, config, steps="all"):
                 order_range=order_range,
                 column_range=column_range,
                 thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
+                osample=config.get("wavecal_osample", 1),
             )
 
             head["obase"] = (order_range[0], "base order number")
@@ -260,15 +277,16 @@ def main(target, instrument, mode, night, config, steps="all"):
                 xwd=xwd,
                 sxwd=sxwd,
                 column_range=column_range,
-                lambda_sf=0.1,
-                lambda_sp=0,
-                osample=1,
+                lambda_sf=config.get("science_lambda_sf", 0.1),
+                lambda_sp=config.get("science_lambda_sp", 0),
+                osample=config.get("science_osample", 1),
+                swath_width=config.get("science_swath_width", 300),
             )
 
             # Calculate Continuum and Error
             # TODO plotting
             cont = np.full_like(sigma, 1.)
-            
+
             # convert uncertainty to relative error
             sigma /= np.clip(spec, 1., None)
             s = spec / np.clip(blzcoef, 0.001, None)
