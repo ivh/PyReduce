@@ -178,27 +178,6 @@ def gaussbroad(x, y, hwhm):
     sout = sout[npad : npad + nw]  # trim to original data / length
     return sout  # return broadened spectrum.
 
-
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",, and bottom?
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
     bottom tries to fit a smooth curve to the lower envelope
