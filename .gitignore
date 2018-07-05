@@ -9,3 +9,4 @@
 dump*
 clib/_*
 reduce.cprof
+log.log

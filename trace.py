@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import combinations
-
+import logging
 from cwrappers import find_clusters
 
 
@@ -118,7 +118,7 @@ def merge_clusters(
             if answer == "n":
                 break
             elif answer == "y":
-                print("Merging orders %i and %i" % (before, after))
+                logging.info("Merging orders %i and %i", before, after)
                 y[after] = np.concatenate((y[after], y[before]))
                 x[after] = np.concatenate((x[after], x[before]))
                 delete += [before]
@@ -206,7 +206,9 @@ def plot_order(i, j, x, y, x_poly, y_poly, shape):
 
 
 # TODO: implement the correct default value for the parameters
-def mark_orders(im, min_cluster=500, filter_size=120, noise=8, opower=4, plot=False, manual=True):
+def mark_orders(
+    im, min_cluster=500, filter_size=120, noise=8, opower=4, plot=False, manual=True
+):
 
     # Getting x and y coordinates of all pixels sticking above the filtered image
     x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)

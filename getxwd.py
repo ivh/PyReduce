@@ -1,5 +1,5 @@
 import numpy as np
-
+import logging
 from util import gaussfit
 
 
@@ -153,8 +153,8 @@ def getxwd(im, orc, colrange=None, gauss=False, pixels=False, givepixels=None, d
     
         sig = 0.1*np.max( xwd ) 
     
-    print('getxwd: extraction width (min,max) = (%d, %d)' % (np.min( xwd ),np.max( xwd ))) 
-    print('getxwd: sigma = %d' % sig) 
+    logging.info('getxwd: extraction width (min,max) = (%d, %d)' % (np.min( xwd ),np.max( xwd ))) 
+    logging.info('getxwd: sigma = %d' % sig) 
     
     # # plot frame, orders and their extraction widths
     if  plotall : 

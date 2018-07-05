@@ -7,6 +7,7 @@ Used to create master bias and master flat
 import datetime
 import os
 
+import logging
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
@@ -224,9 +225,9 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
     dtype = kwargs.get("dtype", np.float32)
 
     # summarize file info
-    print("Files:")
+    logging.info("Files:")
     for i, fname in zip(range(len(files)), files):
-        print(i, fname)
+        logging.info(i, fname)
 
     # Only one image
     if len(files) < 2:
@@ -328,7 +329,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
             # for each row
             for row in range(y_bottom, y_top):
                 if (row) % DEBUG_NROWS == 0:
-                    print(row, " rows processed - ", n_fixed, " pixels fixed so far")
+                    logging.debug(row, " rows processed - ", n_fixed, " pixels fixed so far")
 
                 # load current row
                 idx = index(row, x_left, x_right)
@@ -354,7 +355,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
                 )
                 n_fixed += n_bad
 
-        print("total cosmic ray hits identified and removed: ", n_fixed)
+        logging.info("total cosmic ray hits identified and removed: ", n_fixed)
 
         result = clipnflip(result, head)
         result = np.ma.masked_array(result, mask=kwargs.get("mask"))
@@ -517,10 +518,10 @@ def combine_bias(files, instrument, extension=1, **kwargs):
         bgnoise = biasnoise * np.sqrt(n)
 
         # Print diagnostics.
-        print("change in bias between image sets= %f electrons" % (gain * par[1],))
-        print("measured background noise per image= %f" % bgnoise)
-        print("background noise in combined image= %f" % biasnoise)
-        print("fixing %i bad pixels" % nbad)
+        logging.info("change in bias between image sets= %f electrons" % (gain * par[1],))
+        logging.info("measured background noise per image= %f" % bgnoise)
+        logging.info("background noise in combined image= %f" % biasnoise)
+        logging.info("fixing %i bad pixels" % nbad)
 
         if debug:
             # Plot noise distribution.

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import logging
 
 from slitfunc_wrapper import slitfunc
 from util import bottom, make_index, middle, interpolate_masked
@@ -34,7 +35,7 @@ def make_scatter(im, orders, **kwargs):
     # Get image size.
     nrow, ncol = im.shape
     first = 0  # first order
-    last = len(orders)+1  # last order
+    last = len(orders) + 1  # last order
     nord = len(orders)
 
     # Get kwargs data, TODO change names
@@ -63,7 +64,7 @@ def make_scatter(im, orders, **kwargs):
 
     # Loop over neighbouring orders, (0, 1), (1, 2), (2, 3), ...
     for order0, order1 in zip(range(first, last), range(first + 1, last + 1)):
-        print("orders: %i, %i" % (order0, order1))
+        logging.debug("orders: %i, %i" % (order0, order1))
         # Calculate shapes
         ycen0 = np.polyval(orders[order0], xcol)
         ycen1 = np.polyval(orders[order1], xcol)
@@ -180,9 +181,8 @@ def make_scatter(im, orders, **kwargs):
         # ===========================================================================
 
         if n1 == 0 or n2 == 0:  # ultimate method
-            print(
-                "mkscatter: failed finding interorder boundaries. "
-                + "using 5 pixels around central line."
+            logging.info(
+                "mkscatter: failed finding interorder boundaries. Using 5 pixels around central line."
             )
             k = np.sort(abs(yslitf))[0] + [-3, 3]
             nback = len(k)
@@ -297,9 +297,8 @@ def make_scatter(im, orders, **kwargs):
                 yback[-1, j] = yy  # scattered light coordinates
                 back_data[-1, j] = interpolate_bad_pixels(yy, y1, y2, im, j, nrow)
 
-        if (order1 % 10) == 5 or (order1 % 10) == 0 and order1 != last:
-            print("mkscatter: order %i of total  %i was processed" % (order1, last))
-    print("mkscatter: order %i was processed" % last)
+        if (order1 % 10) == 5 or (order1 % 10) == 0 or nord < 10:
+            logging.info("mkscatter: order %i of total  %i was processed", order1, last)
 
     # bad pixels are masked out
     back_data = np.ma.masked_array(back_data, mask=back_data == -1000)

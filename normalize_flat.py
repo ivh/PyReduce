@@ -1,10 +1,12 @@
 import numpy as np
+import logging
+import pickle
 
 from make_scatter import make_scatter
 from extract import extend_orders, fix_column_range, optimal_extraction, extract
 
 
-def normalize_flat(img, head, orders, threshold=90000, **kwargs):
+def normalize_flat(img, head, orders, threshold=90000, column_range=None, **kwargs):
     """
     Use slit functions to normalize an echelle image of a flat field lamp.
     Inputs:
@@ -35,13 +37,44 @@ def normalize_flat(img, head, orders, threshold=90000, **kwargs):
     04-Mar-2008 NP, return uncertainties in the blaze functions
     """
 
-    #TODO plots
+    # TODO plots
 
     percent_above_threshold = np.count_nonzero(img > threshold) / img.size
     if percent_above_threshold < 0.1:
-        print("WARNING: Your flat has only %.2f %% pixels with signal above %i" % (percent_above_threshold, threshold))
-        #TODO ask for confirmation
+        logging.warning(
+            "The flat has only %.2f %% pixels with signal above %i",
+            percent_above_threshold,
+            threshold,
+        )
+        # TODO ask for confirmation
 
-    im_norm, im_ordr, blaze = extract(img, head, orders, normalize=True, scatter=True, threshold=threshold, **kwargs)
+    nrow, ncol = img.shape
+    nord, opower = orders.shape
+
+    if column_range is None:
+        column_range = np.tile([0, ncol], (nord, 0))
+
+    try:
+        logging.warning("Loading background from data file, change this")
+        _f = open("background.dat", "rb")
+        scatter, yscatter = pickle.load(_f)
+    except FileNotFoundError:
+        scatter, yscatter = make_scatter(
+            img, orders, column_range=column_range, subtract=True, **kwargs
+        )
+        _f = open("background.dat", "wb")
+        pickle.dump((scatter, yscatter), _f)
+
+    im_norm, im_ordr, blaze = extract(
+        img,
+        head,
+        orders,
+        normalize=True,
+        scatter=scatter,
+        yscatter=yscatter,
+        threshold=threshold,
+        column_range=column_range,
+        **kwargs
+    )
 
     return im_norm, blaze

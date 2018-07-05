@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 from scipy.interpolate import interp1d
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
 
@@ -17,7 +18,7 @@ c_int = np.ctypeslib.ctypes.c_int
 def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     """Decompose image into spectrum and slitfunction
 
-    This is for vertical(?) orders only, for curved orders use slitfunc_curved instead
+    This is for horizontal straight orders only, for curved orders use slitfunc_curved instead
 
     Parameters
     ----------
@@ -39,7 +40,10 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     """
 
     if osample != 1:
-        print("WARNING: Oversampling may be wrong !!!")
+        logging.warning("WARNING: Oversampling may be wrong !!!")
+
+    if lambda_sp != 0:
+        logging.warning("THIS WILL PROBABLY NOT WORK")
 
     # Get dimensions
     nrows, ncols = img.shape
@@ -47,26 +51,22 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     # Inital guess for slit function and spectrum
     # Just sum up the image along one side and normalize
-    sl = np.sum(img, axis=1)
-    sl = sl / np.sum(sl)  # slit function
+    #sl = np.sum(img, axis=1)
+    #sl = sl / np.sum(sl)
 
-    sp = np.sum(img, axis=0)
-    sp = sp / np.sum(sp) * np.sum(img)
+    sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img)) 
     if lambda_sp != 0:
         sp = gaussian_filter1d(sp, lambda_sp)
 
-    sp = np.ascontiguousarray(sp[::-1])  # TODO why?
-
     # Stretch sl by oversampling factor
-    old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
-    sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
+    #old_points = np.linspace(0, ny-1, nrows, endpoint=True)
+    #sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
+    sl = np.zeros(ny, dtype=float)
 
     if hasattr(img, "mask"):
         mask = (~img.mask).astype(c_int).flatten()
         mask = np.ascontiguousarray(mask)
         cmask = ffi.cast("int *", mask.ctypes.data)
-        # img = img.data
-        # sp = sp.data
     else:
         mask = np.ones(nrows * ncols, dtype=c_int)
         cmask = ffi.cast("int *", mask.ctypes.data)
@@ -90,9 +90,6 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     unc = np.zeros(ncols, dtype=c_double)
     cunc = ffi.cast("double *", unc.ctypes.data)
-
-    # TODO there is a bug with lambda_sp != 0, causing the c code to crash (or rather the interface) in some cases
-    # does the size of the output change?
 
     slitfunclib.slit_func_vert(
         ncols,
@@ -217,7 +214,7 @@ if __name__ == "__main__":
     ycen = sav["ycen"]
     shear = np.zeros(img.shape[1])
 
-    sp, sl, model, unc = slitfunc(img, ycen, osample=3)
+    sp, sl, model, unc = slitfunc_curved(img, ycen, shear, osample=3)
 
     plt.subplot(211)
     plt.plot(sp)

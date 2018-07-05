@@ -2,11 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 
+import logging
 import pickle
 
 from make_scatter import make_scatter
 from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
+
 
 def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
     """
@@ -246,8 +248,6 @@ def make_slitfunction(
             )
             delta_x = None  # TODO get this from slitfunc_curved
         else:
-            sf = np.copy(sf)
-            y_offset = np.copy(y_offset)
             sp, sfsm, model, unc = slitfunc(
                 sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
             )
@@ -329,9 +329,9 @@ def make_slitfunction(
             # Plot 1: The observed slit
             plt.subplot(221)
             plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
-            #plt.plot(sfflat)
+            # plt.plot(sfflat)
             # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            plt.plot(sfflat, '+')
+            plt.plot(sfflat, "+")
             plt.plot(model)
 
             # Plot 2: The recovered slit function
@@ -339,7 +339,7 @@ def make_slitfunction(
             plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
             plt.plot(model)
             # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            #plt.plot(sfplot)
+            # plt.plot(sfplot)
 
             # Plot 3: Difference between observed and recovered
             plt.subplot(223)
@@ -410,8 +410,7 @@ def optimal_extraction(
     polarization=False,
     **kwargs
 ):
-    print("GETSPEC: Using optimal extraction to produce spectrum.")
-    # xwd_boundaries = np.zeros((2, 1), dtype=int)
+    logging.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
     nord = len(orders)
@@ -434,22 +433,16 @@ def optimal_extraction(
             oo = ((onum - 1) // 2) * 2 + 1
             scatter_below = scatter[oo - 1]
             yscatter_below = yscatter[oo - 1]
-            scatter_above = scatter[oo]
-            yscatter_above = yscatter[oo]
+            scatter_above = scatter[oo + 1]
+            yscatter_above = yscatter[oo + 1]
         else:
             scatter_below = scatter[onum - 1]
             yscatter_below = yscatter[onum - 1]
             scatter_above = scatter[onum]
             yscatter_above = yscatter[onum]
 
-        if nord <= 10:
-            print("GETSPEC: extracting relative order %i out of %i" % (onum, nord))
-        else:
-            if (onum - 1) % 5 == 0:
-                print(
-                    "GETSPEC: extracting relative orders %i-%i out of %i"
-                    % (onum, np.clip(nord, None, onum + 4), nord)
-                )
+        if nord < 10 or onum % 5 == 0:
+            logging.info("Extracting relative order %i out of %i" % (onum, nord))
 
         # Define a fixed height area containing one spectral order
         x_left_lim, x_right_lim = column_range[onum]  # First and last column to extract
@@ -483,7 +476,7 @@ def optimal_extraction(
 
 
 def arc_extraction(img, orders, xwd, column_range, gain=1, readn=0, dark=0, **kwargs):
-    print("Using arc extraction to produce spectrum.")
+    logging.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
     nord = len(orders)
 
@@ -557,7 +550,6 @@ def extract(
     column_range=None,
     xwd=0.5,
     order_range=None,
-    scatter=False,
     thar=False,
     **kwargs
 ):
@@ -597,22 +589,9 @@ def extract(
     # Fix column range
     column_range = fix_column_range(img, orders, xwd, column_range)
 
-    # Calculate background scatter if necessary
-    if scatter:
-        # TODO DEBUG
-        try:
-            _f = open("background.dat", "rb")
-            scatter, yscatter = pickle.load(_f)
-        except FileNotFoundError:
-            scatter, yscatter = make_scatter(
-            img, orders, column_range=column_range, subtract=True, **kwargs
-            )
-            _f = open("background.dat", "wb")
-            pickle.dump((bg, ybg), _f)
-    else:
-        scatter = yscatter = None
-
     # Prepare normalized flat field image if necessary
+    # These will be passed and "returned" by reference
+    # I dont like it, but it works for now
     if normalize:
         im_norm = np.ones_like(img)
         im_ordr = np.ones_like(img)
@@ -625,8 +604,6 @@ def extract(
             orders,
             xwd,
             column_range,
-            scatter=scatter,
-            yscatter=yscatter,
             im_norm=im_norm,
             im_ordr=im_ordr,
             **kwargs
