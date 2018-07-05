@@ -263,9 +263,9 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
         Adiag[x + ncols * 2] = -lambda;
       }
       Adiag[ncols - 1] = -lambda;
-      Adiag[ncols * 2 - 1 + ncols] += lambda;
+      Adiag[ncols * 2 - 1] += lambda;
       //this addresses memory outside the array and causes C to crash occasionally
-      //Adiag[ncols * 3 - 1 + ncols] = 0.e0; 
+      Adiag[ncols * 3 - 1] = 0.e0; 
 
       info = bandsol(Adiag, E, ncols, 3);
       if (info) printf("info = %d\n", info);
