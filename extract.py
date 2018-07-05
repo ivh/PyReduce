@@ -601,14 +601,14 @@ def extract(
     if scatter:
         # TODO DEBUG
         try:
-            with open("background.dat", "rb") as _f:
-                scatter, yscatter = pickle.load(_f)
-        except IOError:
+            _f = open("background.dat", "rb")
+            scatter, yscatter = pickle.load(_f)
+        except FileNotFoundError:
             scatter, yscatter = make_scatter(
-                img, orders, column_range=column_range, subtract=True, **kwargs
+            img, orders, column_range=column_range, subtract=True, **kwargs
             )
-            with open("background.dat", "wb") as _f:
-                pickle.dump((bg, ybg), _f)
+            _f = open("background.dat", "wb")
+            pickle.dump((bg, ybg), _f)
     else:
         scatter = yscatter = None
 
