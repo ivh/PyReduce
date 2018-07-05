@@ -80,7 +80,7 @@ class UVES(instrument):
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
-            ob[i] = h[info["target"]]
+            ob[i] = h[info["target"]].replace("-", "")
             ty[i] = h[info["observation_type"]]
             mo[i] = h.get(info["instrument_mode"], "")
 
