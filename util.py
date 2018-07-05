@@ -8,7 +8,7 @@ from astropy.io import fits
 
 # from modeinfo_uves import modeinfo_uves as modeinfo
 from clipnflip import clipnflip
-from modeinfo import modeinfo
+from instruments.instrument_info import modeinfo
 
 
 def load_fits(fname, instrument, extension, **kwargs):

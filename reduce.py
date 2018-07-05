@@ -8,10 +8,11 @@ import os.path
 import pickle
 import sys
 from os.path import join
-from trace import mark_orders
+import logging
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
+
 import numpy as np
 
 from getxwd import getxwd
@@ -19,46 +20,10 @@ from combine_frames import combine_bias, combine_flat
 from extract import extract
 from normalize_flat import normalize_flat
 from util import find_first_index, load_fits, save_fits, swap_extension, top
+from instruments.instrument_info import sort_files
+from trace import mark_orders  # TODO: trace is a standard library name
 
 # TODO turn dicts into numpy structured array
-# TODO proper logging
-
-
-def sort_files(files, config):
-    """
-    Sort a set of fits files into different categories
-    types are: bias, flat, wavecal, orderdef, orderdef_fiber_a, orderdef_fiber_b, spec
-
-    Parameters
-    ----------
-    files : list(str)
-        files to sort
-    Returns
-    -------
-    biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
-        lists of files, one per type
-    """
-
-    # TODO use instrument info instead of settings for labels?
-    ob = np.zeros(len(files), dtype="U20")
-    ty = np.zeros(len(files), dtype="U20")
-    # mo = np.zeros(len(files), dtype='U20')
-    exptime = np.zeros(len(files))
-
-    for i, f in enumerate(files):
-        h = fits.open(f)[0].header
-        ob[i] = h["OBJECT"]
-        ty[i] = h["ESO DPR TYPE"]
-        exptime[i] = h["EXPTIME"]
-        # mo[i] = h['ESO INS MODE']
-
-    biaslist = files[ty == config["id_bias"]]
-    flatlist = files[ty == config["id_flat"]]
-    wavelist = files[ob == config["id_wave"]]
-    orderlist = files[ob == config["id_orders"]]
-    speclist = files[ob == "HD-132205"]
-
-    return (biaslist, flatlist, wavelist, orderlist, speclist)
 
 
 def parse_args():
@@ -99,11 +64,35 @@ def parse_args():
     return instrument, target, steps_to_take
 
 
+def start_logging():
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Command Line output
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
+    ch.setFormatter(ch_formatter)
+
+    # Log file settings
+    file = logging.FileHandler("log.log")
+    file.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    file.setFormatter(file_formatter)
+
+    logger.addHandler(ch)
+    logger.addHandler(file)
+
+    logging.captureWarnings(True)
+
+    logging.debug("----------------------")
+
+
 def main(target, instrument, mode, night, config, steps="all"):
     counter_mode = find_first_index(config["modes"], mode)
 
     # read configuration settings
-    inst_mode = config["small"] + "_" + mode
+    inst_mode = config["instrument"].lower() + "_" + mode
     extension = config["extensions"][counter_mode]
     prefix = inst_mode
 
@@ -113,7 +102,7 @@ def main(target, instrument, mode, night, config, steps="all"):
         join(base_dir, instrument, target, "reduced", night, "Reduced_" + mode) + os.sep
     )
 
-    # define files
+    # define intermediary product files
     mask_file = join(mask_dir, "mask_%s.fits.gz" % inst_mode)
     bias_file = join(reduced_path, prefix + ".bias.fits")
     flat_file = join(reduced_path, prefix + ".flat.fits")
@@ -129,7 +118,10 @@ def main(target, instrument, mode, night, config, steps="all"):
     files = glob.glob(raw_path + "%s.*.fits" % instrument)
     files += glob.glob(raw_path + "%s.*.fits.gz" % instrument)
     files = np.array(files)
-    f_bias, f_flat, f_wave, f_order, f_spec = sort_files(files, config)
+    
+    f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
+        files, target, instrument, mode
+    )
 
     # ==========================================================================
     # Read mask
@@ -140,11 +132,11 @@ def main(target, instrument, mode, night, config, steps="all"):
     # ==========================================================================
     # Create master bias
     if "bias" in steps or steps == "all":
-        print("Creating master bias")
+        logging.info("Creating master bias")
         bias, bhead = combine_bias(f_bias, inst_mode, mask=mask, extension=extension)
         fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
     else:
-        print("Loading master bias")
+        logging.info("Loading master bias")
         bias = fits.open(bias_file)[0]
         bias, bhead = bias.data, bias.header
         bias = np.ma.masked_array(bias, mask=mask)
@@ -152,13 +144,13 @@ def main(target, instrument, mode, night, config, steps="all"):
     # ==========================================================================
     # Create master flat
     if "flat" in steps or steps == "all":
-        print("Creating master flat")
+        logging.info("Creating master flat")
         flat, fhead = combine_flat(
             f_flat, inst_mode, mask=mask, extension=extension, bias=bias
         )
         fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
-        print("Loading master flat")
+        logging.info("Loadinging master flat")
         flat = fits.open(flat_file)[0]
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
@@ -167,7 +159,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     # Find default orders.
 
     if "orders" in steps or steps == "all":
-        print("Order Tracing")
+        logging.info("Tracing orders")
 
         order_img, _ = load_fits(f_order[0], inst_mode, extension, mask=mask)
 
@@ -185,7 +177,7 @@ def main(target, instrument, mode, night, config, steps="all"):
         with open(ord_default_file, "wb") as file:
             pickle.dump((orders, column_range), file)
     else:
-        print("Load order tracing data")
+        logging.info("Loading order tracing data")
         with open(ord_default_file, "rb") as file:
             orders, column_range = pickle.load(file)
 
@@ -193,9 +185,9 @@ def main(target, instrument, mode, night, config, steps="all"):
     # = Construct normalized flat field.
 
     if "norm_flat" in steps or steps == "all":
-        print("Normalize flat field")
-        xwd = 8
-        #xwd, sxwd = getxwd(flat, orders, colrange=column_range, gauss = True, pixels=True)
+        logging.info("Normalizing flat field")
+        xwd = 40
+        # xwd, sxwd = getxwd(flat, orders, colrange=column_range, gauss = True, pixels=True)
 
         flat, blzcoef = normalize_flat(
             flat,
@@ -205,7 +197,7 @@ def main(target, instrument, mode, night, config, steps="all"):
             xwd=xwd,
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
-            lambda_sp=config.get("normflat_sp_smooth", 4),
+            lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
         )
 
@@ -214,7 +206,7 @@ def main(target, instrument, mode, night, config, steps="all"):
             pickle.dump(blzcoef, file)
         fits.writeto(norm_flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
-        print("Load normalized flat field")
+        logging.info("Loading normalized flat field")
         flat = fits.open(norm_flat_file)[0]
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
@@ -225,7 +217,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     # Prepare wavelength calibration
 
     if "wavecal" in steps or steps == "all":
-        print("Prepare wavelength calibration")
+        logging.info("Preparing wavelength calibration")
         for f in f_wave:
             # Load wavecal image
             im, head = load_fits(f, inst_mode, extension, mask=mask)
@@ -257,15 +249,15 @@ def main(target, instrument, mode, night, config, steps="all"):
     # Prepare for science spectra extraction
 
     if "science" in steps or steps == "all":
-        print("Extract science spectra")
+        logging.info("Extracting science spectra")
         for f in f_spec:
             im, head = load_fits(f, inst_mode, extension, mask=mask, dtype=np.float32)
             # Correct for bias and flat field
             im -= bias
             im /= flat
 
-            #TODO may or may not work
-            #xwd, sxwd = getxwd(im, orders, colrange=column_range, pixels=True)
+            # TODO may or may not work
+            # xwd, sxwd = getxwd(im, orders, colrange=column_range, pixels=True)
             xwd, sxwd = 25, 0
 
             # Optimally extract science spectrum
@@ -298,7 +290,7 @@ def main(target, instrument, mode, night, config, steps="all"):
                 c = spec[i] / s[i]
                 cont[i] = c
 
-            sigma *= cont  # Scale Error with Continuum
+            sigma *= cont * spec  # Scale Error with Continuum
 
             head["obase"] = (order_range[0], " base order number")
 
@@ -316,21 +308,14 @@ def main(target, instrument, mode, night, config, steps="all"):
             else:
                 pol_angle = "cir %i" % pol_angle
 
-            log_file = os.path.join(reduced_path, night + ".log")
-            with open(log_file, mode="w+") as log:
-                log.write(
-                    "star: %s, polarization: %s, mean s/n=%.2f\n"
-                    % (head["object"], pol_angle, 1 / np.mean(sigma))
-                )
-                log.write("file: %s\n" % os.path.basename(nameout))
-                log.write("----------------------------------\n")
-
-            print(
-                "star: %s, polarization: %s, mean s/n=%.2f\n"
-                % (head["object"], pol_angle, 1 / np.mean(sigma))
+            logging.info(
+                "star: %s, polarization: %s, mean s/n=%.2f",
+                head["object"],
+                pol_angle,
+                1 / np.mean(sigma),
             )
-            print("file: %s\n" % os.path.basename(nameout))
-            print("----------------------------------\n")
+            logging.info("file: %s", os.path.basename(nameout))
+            logging.debug("--------------------------------")
 
 
 if __name__ == "__main__":
@@ -338,6 +323,7 @@ if __name__ == "__main__":
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
     base_dir = "./Test"
     mask_dir = "./Test/UVES/HD132205"
+    start_logging()
 
     if len(sys.argv) > 1:
         instrument, target, steps_to_take = parse_args()
@@ -349,11 +335,11 @@ if __name__ == "__main__":
         target = "HD132205"
         # Which parts of the reduction to perform
         steps_to_take = [
-            #"bias",
-            #"flat",
-            #"orders",
-            #"norm_flat",
-            #"wavecal",
+            # "bias",
+            # "flat",
+            # "orders",
+            "norm_flat",
+            # "wavecal",
             "science",
         ]
 
@@ -371,11 +357,11 @@ if __name__ == "__main__":
     dates = glob.glob(dates)
     dates = [r + os.sep for r in dates if os.path.isdir(r)]
 
-    print("Instrument: ", instrument)
-    print("Target: ", target)
+    logging.info("Instrument: %s", instrument)
+    logging.info("Target: %s", target)
     for night in dates:
         night = os.path.basename(night[:-1])
-        print("Observation Date: ", night)
+        logging.info("Observation Date: %s", night)
         for mode in modes:
-            print("Instrument Mode: ", mode)
+            logging.info("Instrument Mode: %s", mode)
             main(target, instrument, mode, night, config, steps=steps_to_take)

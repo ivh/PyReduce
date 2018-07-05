@@ -1,6 +1,5 @@
 {
     "instrument": "UVES",
-    "small": "uves",
     "modes": [
         "red",
         "middle",
@@ -11,21 +10,9 @@
         2,
         0
     ],
-    "id_mode": "NAXIS",
-    "mode_value": [
-        0,
-        0,
-        2
-    ],
     "binned": ["2", "2"],
     "mask_suffix": "",
 
-    "id_bias": "BIAS",
-    "id_flat": "LAMP,FLAT",
-    "id_wave": "LAMP,WAVE",
-    "id_orders": "LAMP,ORDERDEF",
-    "id_spec": "OBJECT,POINT",
-    
     "orders_opower": 4,
     "orders_filter": 80,
     "orders_threshold": 2000,
@@ -34,14 +21,14 @@
     "normflat_sf_smooth": 2,
     "normflat_osample": 12,
     "normflat_swath_width": 200,
-    "normflat_threshold": 20000,
+    "normflat_threshold": 1000,
     
-    "wavecal_osample": 0,
+    "wavecal_osample": 1,
     
     "science_osample": 1,
     "science_swath_width": 300,
     "science_lambda_sf": 0.1,
-    "science_lambda_sp": 1,
+    "science_lambda_sp": 0,
     
     "manual": 0,
     "polarim": 0,
