@@ -15,9 +15,6 @@ def get_instrument_info(instrument):
     return instrument.load_info()
 
 def sort_files(files, target, instrument, mode):
-    
-    files = np.array(files)
-
     instrument = load_instrument(instrument)
     return instrument.sort_files(files, target, mode)
 
