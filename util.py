@@ -48,7 +48,7 @@ def save_fits(fname, header, **kwargs):
 
     columns = []
     for key, value in kwargs.items():
-        arr = value.flatten()[None, :].astype(np.float32) #TODO good enough?
+        arr = value.flatten()[None, :].astype(np.float32)  # TODO good enough?
         dtype = "E"
         form = "%i%s" % (value.size, dtype)
         dim = str(value.shape[::-1])
@@ -95,13 +95,19 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     if zero:
         zero = xmin
 
-    index_x = np.array([np.arange(ymin[col], ymax[col]+1) for col in range(xmin-zero, xmax-zero)])
+    index_x = np.array(
+        [np.arange(ymin[col], ymax[col] + 1) for col in range(xmin - zero, xmax - zero)]
+    )
     index_y = np.array(
-        [np.full(ymax[col] - ymin[col]+1, col) for col in range(xmin-zero, xmax-zero)]
+        [
+            np.full(ymax[col] - ymin[col] + 1, col)
+            for col in range(xmin - zero, xmax - zero)
+        ]
     )
     # Tranpose makes it so that the image orientation stays the same
     index = (index_x.T, index_y.T + zero)
     return index
+
 
 def gaussfit(x, y):
     """
@@ -172,10 +178,27 @@ def gaussbroad(x, y, hwhm):
     sout = sout[npad : npad + nw]  # trim to original data / length
     return sout  # return broadened spectrum.
 
-# TODO whats the actual difference between top, middle, and bottom?
-# The clipping of t?
 
-
+            "bias",
+            "flat",
+            "orders",
+            "norm_flat",
+            "wavecal",, and bottom?
+            "bias",
+            "flat",
+            "orders",
+            "norm_flat",
+            "wavecal",
+            "bias",
+            "flat",
+            "orders",
+            "norm_flat",
+            "wavecal",
+            "bias",
+            "flat",
+            "orders",
+            "norm_flat",
+            "wavecal",
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
     bottom tries to fit a smooth curve to the lower envelope
@@ -228,14 +251,14 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
             if order > 0:  # this is a bug in rsi poly routine
                 t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
                 t = np.clip(t - ff, 0, None) ** 2
-                dev = np.sqrt(np.polyval(np.polyfit(xx, t, order), xx))
-                dev = np.nan_to_num(dev)
+                tmp = np.polyval(np.polyfit(xx, t, order), xx)
+                dev = np.sqrt(np.nan_to_num(tmp))
             else:
                 t = np.tile(np.polyfit(xx, ff, order), len(f))
                 t = np.polyfit(xx, np.clip(t - ff, 0, None) ** 2, order)
                 t = np.tile(t, len(f))
+                dev = np.nan_to_num(t)
                 dev = np.sqrt(t)
-                dev = np.nan_to_num(dev)
         else:
             t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
             dev = np.sqrt(
@@ -310,10 +333,13 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
         if poly:
             if order > 0:  # this is a bug in rsi poly routine
                 t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
-                dev = np.sqrt(np.polyval(np.polyfit(xx, (t - ff) ** 2, order), xx))
+                tmp = np.polyval(np.polyfit(xx, (t - ff) ** 2, order), xx)
+                dev = np.sqrt(np.nan_to_num(tmp))
             else:
                 t = np.tile(np.polyfit(xx, ff, order), len(f))
-                dev = np.sqrt(np.tile(np.polyfit(xx, (t - ff) ** 2, order), len(f)))
+                t = np.tile(np.polyfit(xx, (t - ff) ** 2, order), len(f))
+                t = np.nan_to_num(t)
+                dev = np.sqrt(t)
         else:
             t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
             dev = np.sqrt(
@@ -385,9 +411,9 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
         order = int(order)
         if poly:
             t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
-            dev = np.sqrt(
-                np.polyval(np.polyfit(xx, np.clip(ff - t, 0, None) ** 2, order), xx)
-            )
+            tmp = np.polyval(np.polyfit(xx, np.clip(ff - t, 0, None) ** 2, order), xx)
+            tmp[np.isnan(tmp) | (tmp < 0)] = 0
+            dev = np.sqrt(tmp)
         else:
             t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
             dev = np.sqrt(

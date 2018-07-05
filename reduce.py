@@ -118,7 +118,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     files = glob.glob(raw_path + "%s.*.fits" % instrument)
     files += glob.glob(raw_path + "%s.*.fits.gz" % instrument)
     files = np.array(files)
-    
+
     f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
         files, target, instrument, mode
     )
@@ -272,26 +272,30 @@ def main(target, instrument, mode, night, config, steps="all"):
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=True,
+                plot=False,
             )
 
             # Calculate Continuum and Error
             # TODO plotting
             cont = np.full_like(sigma, 1.)
 
+            # TODO do we even want this to happen?
             # convert uncertainty to relative error
-            sigma /= np.clip(spec, 1., None)
+            # Temp copy for calculation
+            sunc = np.copy(sigma)
+            sunc /= np.clip(spec, 1., None)
             s = spec / np.clip(blzcoef, 0.001, None)
 
             # fit simple continuum
             for i in range(len(orders)):
-                c = top(s[i], 1, eps=0.0002, poly=True)
-                s[i] = s[i] / c
-                c = spec[i] / s[i]
-                cont[i] = c
+                c = top(s[i][s[i] != 0], 1, eps=0.0002, poly=True)
+                s[i][s[i] != 0] = s[i][s[i] != 0] / c
+                c = spec[i][s[i] != 0] / s[i][s[i] != 0]
+                cont[i][s[i] != 0] = np.copy(c)
 
-            sigma *= cont * spec  # Scale Error with Continuum
+            sigma *= cont  # Scale Error with Continuum
 
+            order_range = (0, len(orders)) #TODO
             head["obase"] = (order_range[0], " base order number")
 
             # save spectrum to disk
@@ -335,11 +339,11 @@ if __name__ == "__main__":
         target = "HD132205"
         # Which parts of the reduction to perform
         steps_to_take = [
-            # "bias",
-            # "flat",
-            # "orders",
+            "bias",
+            "flat",
+            "orders",
             "norm_flat",
-            # "wavecal",
+            "wavecal",
             "science",
         ]
 
