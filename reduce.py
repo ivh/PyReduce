@@ -1,94 +1,80 @@
 """
 REDUCE script for spectrograph data
 """
-import argparse
 import glob
 import json
 import os.path
 import pickle
 import sys
 from os.path import join
+from getxwd import getxwd
 import logging
+
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
-
 import numpy as np
 
-from getxwd import getxwd
+# PyReduce subpackages
 from combine_frames import combine_bias, combine_flat
 from extract import extract
 from normalize_flat import normalize_flat
-from util import find_first_index, load_fits, save_fits, swap_extension, top
+from util import find_first_index, load_fits, save_fits, swap_extension, \
+        top, parse_args, start_logging
 from instruments.instrument_info import sort_files
 from trace import mark_orders  # TODO: trace is a standard library name
 
 # TODO turn dicts into numpy structured array
 
+def main():
+    # some basic settings
+    # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
+    base_dir = "./Test"
+    mask_dir = "./Test/UVES/HD132205"
+    start_logging()
 
-def parse_args():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="General REDUCE script")
-    parser.add_argument("-b", "--bias", action="store_true", help="Create master bias")
-    parser.add_argument("-f", "--flat", action="store_true", help="Create master flat")
-    parser.add_argument("-o", "--orders", action="store_true", help="Trace orders")
-    parser.add_argument("-n", "--norm_flat", action="store_true", help="Normalize flat")
-    parser.add_argument(
-        "-w", "--wavecal", action="store_true", help="Prepare wavelength calibration"
-    )
-    parser.add_argument(
-        "-s", "--science", action="store_true", help="Extract science spectrum"
-    )
+    if len(sys.argv) > 1:
+        instrument, target, steps_to_take = parse_args()
+    else:
+        # Manual settings
+        # Instrument
+        instrument = "UVES"
+        # target star
+        target = "HD132205"
+        # Which parts of the reduction to perform
+        steps_to_take = [
+            #"bias",
+            #"flat",
+            #"orders",
+            "norm_flat",
+            "wavecal",
+            "science",
+        ]
 
-    parser.add_argument("instrument", type=str, help="instrument used")
-    parser.add_argument("target", type=str, help="target star")
+    # load configuration for the current instrument
+    with open("settings_%s.json" % instrument) as f:
+        config = json.load(f)
 
-    args = parser.parse_args()
-    instrument = args.instrument.upper()
-    target = args.target.upper()
+    # TODO: Test settings
+    config["plot"] = False
+    config["manual"] = True
+    modes = config["modes"][1:2]
 
-    steps_to_take = {
-        "bias": args.bias,
-        "flat": args.flat,
-        "orders": args.orders,
-        "norm_flat": args.norm_flat,
-        "wavecal": args.wavecal,
-        "science": args.science,
-    }
-    steps_to_take = [k for k, v in steps_to_take.items() if v]
+    # Search the available days
+    dates = join(base_dir, instrument, target, "raw", "????-??-??")
+    dates = glob.glob(dates)
+    dates = [r + os.sep for r in dates if os.path.isdir(r)]
 
-    # if no steps are specified use all
-    if len(steps_to_take) == 0:
-        steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
+    logging.info("Instrument: %s", instrument)
+    logging.info("Target: %s", target)
+    for night in dates:
+        night = os.path.basename(night[:-1])
+        logging.info("Observation Date: %s", night)
+        for mode in modes:
+            logging.info("Instrument Mode: %s", mode)
+            run_steps(base_dir, mask_dir, target, instrument, mode, night, config, steps=steps_to_take)
 
-    return instrument, target, steps_to_take
-
-
-def start_logging():
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-
-    # Command Line output
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
-    ch.setFormatter(ch_formatter)
-
-    # Log file settings
-    file = logging.FileHandler("log.log")
-    file.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file.setFormatter(file_formatter)
-
-    logger.addHandler(ch)
-    logger.addHandler(file)
-
-    logging.captureWarnings(True)
-
-    logging.debug("----------------------")
-
-
-def main(target, instrument, mode, night, config, steps="all"):
+def run_steps(base_dir, mask_dir, target, instrument, mode, night, config, steps="all"):
     counter_mode = find_first_index(config["modes"], mode)
 
     # read configuration settings
@@ -322,50 +308,6 @@ def main(target, instrument, mode, night, config, steps="all"):
             logging.debug("--------------------------------")
 
 
+            
 if __name__ == "__main__":
-    # some basic settings
-    # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
-    base_dir = "./Test"
-    mask_dir = "./Test/UVES/HD132205"
-    start_logging()
-
-    if len(sys.argv) > 1:
-        instrument, target, steps_to_take = parse_args()
-    else:
-        # Manual settings
-        # Instrument
-        instrument = "UVES"
-        # target star
-        target = "HD132205"
-        # Which parts of the reduction to perform
-        steps_to_take = [
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",
-            "science",
-        ]
-
-    # load configuration for the current instrument
-    with open("settings_%s.json" % instrument) as f:
-        config = json.load(f)
-
-    # TODO: Test settings
-    config["plot"] = False
-    config["manual"] = True
-    modes = config["modes"][1:2]
-
-    # Search the available days
-    dates = join(base_dir, instrument, target, "raw", "????-??-??")
-    dates = glob.glob(dates)
-    dates = [r + os.sep for r in dates if os.path.isdir(r)]
-
-    logging.info("Instrument: %s", instrument)
-    logging.info("Target: %s", target)
-    for night in dates:
-        night = os.path.basename(night[:-1])
-        logging.info("Observation Date: %s", night)
-        for mode in modes:
-            logging.info("Instrument Mode: %s", mode)
-            main(target, instrument, mode, night, config, steps=steps_to_take)
+    main()

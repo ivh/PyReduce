@@ -1,4 +1,5 @@
 import os
+import argparse
 
 import numpy as np
 from scipy.ndimage.filters import median_filter
@@ -9,6 +10,70 @@ from astropy.io import fits
 # from modeinfo_uves import modeinfo_uves as modeinfo
 from clipnflip import clipnflip
 from instruments.instrument_info import modeinfo
+
+import logging
+
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description="General REDUCE script")
+    parser.add_argument("-b", "--bias", action="store_true", help="Create master bias")
+    parser.add_argument("-f", "--flat", action="store_true", help="Create master flat")
+    parser.add_argument("-o", "--orders", action="store_true", help="Trace orders")
+    parser.add_argument("-n", "--norm_flat", action="store_true", help="Normalize flat")
+    parser.add_argument(
+        "-w", "--wavecal", action="store_true", help="Prepare wavelength calibration"
+    )
+    parser.add_argument(
+        "-s", "--science", action="store_true", help="Extract science spectrum"
+    )
+
+    parser.add_argument("instrument", type=str, help="instrument used")
+    parser.add_argument("target", type=str, help="target star")
+
+    args = parser.parse_args()
+    instrument = args.instrument.upper()
+    target = args.target.upper()
+
+    steps_to_take = {
+        "bias": args.bias,
+        "flat": args.flat,
+        "orders": args.orders,
+        "norm_flat": args.norm_flat,
+        "wavecal": args.wavecal,
+        "science": args.science,
+    }
+    steps_to_take = [k for k, v in steps_to_take.items() if v]
+
+    # if no steps are specified use all
+    if len(steps_to_take) == 0:
+        steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
+
+    return instrument, target, steps_to_take
+
+
+def start_logging():
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Command Line output
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
+    ch.setFormatter(ch_formatter)
+
+    # Log file settings
+    file = logging.FileHandler("log.log")
+    file.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    file.setFormatter(file_formatter)
+
+    logger.addHandler(ch)
+    logger.addHandler(file)
+
+    logging.captureWarnings(True)
+
+    logging.debug("----------------------")
+
 
 
 def load_fits(fname, instrument, extension, **kwargs):
