@@ -10,91 +10,6 @@ from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
 
-def getarc(img, orders, onum, awid, x_left_lim=0, x_right_lim=-1):
-    """
-    # This subroutine extracts a curved arc (arc) from an image array (im). The
-    #   curvature of the arc is determined from polynomial fit coefficients (orc)
-    #   which usually trace the curvature of the echelle orders. The particular
-    #   arc to extract is specified by an order number (onum), which need not be
-    #   integral. Positions of nonintegral orders are interpolated from surrounding
-    #   orders.
-    # im (input array (# columns , # rows)) image from which to extract arc.
-    # orc (input array (# of coeff per fit , # of orders)) coefficients from PIT
-    #   fit of column number versus row number (of echelle orders, usually). The
-    #   polynomials trace arcs (orders, usually) indexed by order number, begining
-    #   with zero closest to row zero and increasing as row number increases.
-    #   **Note**  These are the extended order coefficients.
-    # onum (input scalar) order number of arc to extract - need not be integral.
-    # awid (input scalar) full width of arc to be extracted.
-    #   Two specifications are possible:
-    #     max(awid) <= 1, awid is fraction of the local distance between orders to mash.
-    #     max(awid) >  1, awid is the specific number of pixels to mash.
-    # arc (output vector (# columns)) counts PER PIXEL in arc extracted from image.
-    # [pix (output vector (# columns)] returns the fractional number of pixels
-    #   mashed in each column to make arc.
-    # 29-Nov-91 GB translated from ANA
-    # 22-Dec-91 GB made to return zeros if arc off image
-    # 05-Jul-94 JAV, CMJ Moved endelse to extract full arc instead of half when
-    #           fraction of an arc is specified
-    """
-
-    # ncol, nrow = img.shape
-    i1, i2 = x_left_lim, x_right_lim
-    # if(keyword_set(x_left_lim )) then i1 = x_left_lim  else i1 = 0
-    # if(keyword_set(x_right_lim)) then i2 = x_right_lim else i2 = ncol-1
-
-    # Define useful quantities
-    # ncol = len(img[0, i1:i2])  # number of columns
-    nrow = len(img[:, i1])  # number of rows
-    ix = np.arange(i1, i2, 1, dtype=float)  # vector of column indicies
-    arc = np.zeros_like(ix)  # dimension arc vector
-    pix = 1.0  # define in case of trouble
-
-    # Interpolate polynomial coefficients for surrounding orders to get polynomial
-    # coefficients.  Note that this is mathematically equivalent to interpolating
-    # the column indicies for surrounding orders, since the column indicies are
-    # linear functions of the polynomial coefficients. However, interpolating
-    # coefficients should be faster.
-
-    if np.max(awid) < 1:  # awid is an order fraction
-        ob = onum - awid / 2  # order # of bottom edge of arc
-        obi = int(ob)  # next lowest integral order #A
-        cb = orders[obi] + (ob - obi) * (orders[obi + 1] - orders[obi])
-        yb = np.polyval(cb, ix)  # row # of bottom edge of swath
-
-        ot = onum + awid / 2  # order # of top edge of arc
-        oti = int(ot)  # next lowest integral order #
-        ct = orders[oti] + (ot - oti) * (orders[oti + 1] - orders[oti])
-        yt = np.polyval(ct, ix)  # row # of top edge of swath
-
-    else:  # awid is number of pixels
-        c = np.copy(orders[onum])
-        yb = np.polyval(c, ix) - awid / 2  # row # of bottom edge of swath
-        yt = np.polyval(c, ix) + awid / 2  # row # of top edge of swath
-
-    if np.min(yb) < 0:  # check if arc is off bottom
-        raise Exception(
-            "FORDS: Warning - requested arc is below bottom of image. %i" % onum
-        )
-    if np.max(yt) > nrow:  # check if arc is off top of im
-        raise Exception(
-            "FORDS: Warning - requested arc is above top of image. %i" % onum
-        )
-
-    diff = np.round(np.mean(yt - yb) * 0.5)
-    yb = np.clip(np.round((yb + yt) * 0.5 - diff), 0, None).astype(int)
-    yt = np.clip(np.round((yb + yt) * 0.5 + diff), None, nrow).astype(int)
-
-    # Define the indices for the pixels
-    # in x: the rows between yb and yt
-    # in y: the column, but n times to match the x index
-    index = make_index(yb, yt, i1, i2, zero=True)
-    # Sum over the prepared index
-    arc = np.sum(img[index], axis=0)
-
-    return arc, pix
-
-
 def make_slitfunction(
     img,
     ycen,
@@ -475,27 +390,59 @@ def optimal_extraction(
     return spectrum, slitfunction, uncertainties
 
 
-def arc_extraction(img, orders, xwd, column_range, gain=1, readn=0, dark=0, **kwargs):
+def arc_extraction(
+    img, orders, xwd, column_range, gain=1, readn=0, dark=0, plot=False, **kwargs
+):
     logging.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
-    nord = len(orders)
+    nord, _ = orders.shape
+
+    if plot:
+        # Prepare output image
+        output = np.zeros((np.sum(xwd[1:-1]) + nord - 2, ncol))
+        pos = [0]
 
     spectrum = np.zeros((nord - 2, ncol))
     uncertainties = np.zeros((nord - 2, ncol))
+    x = np.arange(ncol)
 
     for i, onum in enumerate(range(1, nord - 1)):  # loop thru orders
         x_left_lim = column_range[onum, 0]  # First column to extract
         x_right_lim = column_range[onum, 1]  # Last column to extract
-        awid = xwd[onum, 0] + xwd[onum, 1]
 
-        arc, pix = getarc(
-            img, orders, onum, awid, x_left_lim=x_left_lim, x_right_lim=x_right_lim
-        )  # extract counts/pixel
+        ycen = np.polyval(orders[onum], x).astype(int)
+        yb, yt = ycen - xwd[onum, 0], ycen + xwd[onum, 1]
+        index = make_index(yb, yt, x_left_lim, x_right_lim)
 
-        spectrum[i, x_left_lim:x_right_lim] = arc * pix  # store total counts
+        # Sum over the prepared index
+        arc = np.sum(img[index], axis=0)
+
+        spectrum[i, x_left_lim:x_right_lim] = arc  # store total counts
         uncertainties[i, x_left_lim:x_right_lim] = (
-            np.sqrt(abs(arc * pix * gain + dark + pix * readn ** 2)) / gain
+            np.sqrt(np.abs(arc * gain + dark + readn ** 2)) / gain
         )  # estimate uncertainty
+
+        if plot:
+            output[pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim] = img[
+                index
+            ]
+            pos += [pos[i] + index[0].shape[0]]
+
+    if plot:
+        plt.imshow(
+            output, vmin=0, vmax=np.mean(output) + 5 * np.std(output), origin="lower"
+        )
+
+        for i in range(nord - 2):
+            tmp = spectrum[i] - np.min(
+                spectrum[i, column_range[i + 1, 0] : column_range[i + 1, 1]]
+            )
+            tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
+            tmp += pos[i]
+            tmp[tmp < pos[i]] = pos[i]
+            plt.plot(x, tmp)
+
+        plt.show()
 
     return spectrum, 0, uncertainties
 
@@ -600,13 +547,7 @@ def extract(
 
     if not thar:  # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
-            img,
-            orders,
-            xwd,
-            column_range,
-            im_norm=im_norm,
-            im_ordr=im_ordr,
-            **kwargs
+            img, orders, xwd, column_range, im_norm=im_norm, im_ordr=im_ordr, **kwargs
         )
     else:
         spectrum, slitfunction, uncertainties = arc_extraction(
