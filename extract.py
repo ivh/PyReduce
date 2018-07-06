@@ -10,6 +10,74 @@ from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
 
+def plot_slitfunction(sp, sfsm, model, osample, onum, ib, ie, readn, gain):
+    # TODO make this nice
+    scale = 1
+    pscale = np.mean(sp)
+    sfplot = gaussian_filter1d(sfsm, osample)
+    sfflat = sfsm[:-2] * pscale
+    model = np.mean(model, axis=1)
+
+    if not hasattr(plot_slitfunction, "fig"):
+        plt.ion()
+        fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True)
+        line = {}
+        line[0], = axes[0, 0].plot(sfflat, "+")
+        line[1], = axes[0, 0].plot(model)
+
+        line[2], = axes[0, 1].plot(sfflat)
+        line[3], = axes[0, 1].plot(model, "+")
+
+        line[4], = axes[1, 0].plot(sfflat - model)
+        line[5], = axes[1, 0].plot(np.sqrt((model + readn ** 2) / gain))
+        line[6], = axes[1, 0].plot(-np.sqrt((model + readn ** 2) / gain))
+
+        line[7], = axes[1, 1].plot(sfflat - model)
+        line[8], = axes[1, 1].plot(np.sqrt((model + readn ** 2) / gain))
+        line[9], = axes[1, 1].plot(-np.sqrt((model + readn ** 2) / gain))
+
+        axes[1, 0].set_title("Data - Fit")
+        axes[1, 1].set_title("Data - Fit")
+
+        setattr(plot_slitfunction, "fig", fig)
+        setattr(plot_slitfunction, "axes", axes)
+        setattr(plot_slitfunction, "lines", line)
+    else:
+        fig = plot_slitfunction.fig
+        axes = plot_slitfunction.axes
+        line = plot_slitfunction.lines
+
+    fig.suptitle("Order %i, Columns %i through %i" % (onum, ib, ie))
+
+    # Plot 1: The observed slit
+    axes[0, 0].set_ylim(0, np.max(sfflat))
+    line[0].set_ydata(sfflat)
+    line[1].set_ydata(model)
+
+    # Plot 2: The recovered slit function
+    axes[0, 1].set_ylim(0, np.max(model))
+    line[2].set_ydata(sfflat)
+    line[3].set_ydata(model)
+
+    # Plot 3: Difference between observed and recovered
+
+    tmp = np.sqrt((model + readn ** 2) / gain)
+    axes[1, 0].set_ylim(-np.max(tmp), np.max(tmp))
+    line[4].set_ydata(sfflat - model)
+    line[5].set_ydata(tmp)
+    line[6].set_ydata(-tmp)
+
+    tmp = np.sqrt((model + readn ** 2) / gain)
+    axes[1, 1].set_ylim(-np.max(tmp), np.max(tmp))
+    line[7].set_ydata(sfflat - model)
+    line[8].set_ydata(tmp)
+    line[9].set_ydata(-tmp)
+
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+    # plt.pause(0.001)
+
+
 def make_slitfunction(
     img,
     ycen,
@@ -38,6 +106,9 @@ def make_slitfunction(
     im_ordr=None,
     **kwargs
 ):
+
+    if use_2d:
+        raise NotImplementedError("Curved extraction not supported yet")
 
     nrow, ncol = img.shape
     noise = readn / gain
@@ -152,20 +223,20 @@ def make_slitfunction(
 
         # offset from the central line
         y_offset = ycen[ib:ie] - yc[ib:ie]
-        if use_2d:
-            sp, sfsm, model, unc = slitfunc_curved(
-                sf,
-                y_offset,
-                tilt,
-                lambda_sp=lambda_sp,
-                lambda_sl=lambda_sf,
-                osample=osample,
-            )
-            delta_x = None  # TODO get this from slitfunc_curved
-        else:
-            sp, sfsm, model, unc = slitfunc(
-                sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
-            )
+        # if use_2d:
+        #     sp, sfsm, model, unc = slitfunc_curved(
+        #         sf,
+        #         y_offset,
+        #         tilt,
+        #         lambda_sp=lambda_sp,
+        #         lambda_sl=lambda_sf,
+        #         osample=osample,
+        #     )
+        #     delta_x = None  # TODO get this from slitfunc_curved
+        # else:
+        sp, sfsm, model, unc = slitfunc(
+            sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
+        )
 
         if normalize:
             # In case we do FF normalization replace the original image by the
@@ -210,69 +281,27 @@ def make_slitfunction(
             ddd_old = np.copy(ddd)
 
         # Combine overlaping regions
-        if use_2d:
-            if ihalf > 0 and ihalf < 2 * nbin - 2:
-                spec[ib + delta_x : ie - delta_x] = (
-                    spec[ib + delta_x : ie - delta_x] * oweight[delta_x : nc - delta_x]
-                    + sp[delta_x:-delta_x] * weight[delta_x:-delta_x]
-                )
-            elif ihalf == 0:
-                spec[ib : ie - delta_x] = sp[:-delta_x]
-            elif ihalf == 2 * nbin - 2:
-                spec[ib + delta_x : ie] = (
-                    spec[ib + delta_x : ie] * oweight[delta_x:-1]
-                    + sp[delta_x:-1] * weight[delta_x:-1]
-                )
-        else:
-            spec[ib:ie] = spec[ib:ie] * oweight + sp * weight
+        # TODO
+        # if use_2d:
+        #     if ihalf > 0 and ihalf < 2 * nbin - 2:
+        #         spec[ib + delta_x : ie - delta_x] = (
+        #             spec[ib + delta_x : ie - delta_x] * oweight[delta_x : nc - delta_x]
+        #             + sp[delta_x:-delta_x] * weight[delta_x:-delta_x]
+        #         )
+        #     elif ihalf == 0:
+        #         spec[ib : ie - delta_x] = sp[:-delta_x]
+        #     elif ihalf == 2 * nbin - 2:
+        #         spec[ib + delta_x : ie] = (
+        #             spec[ib + delta_x : ie] * oweight[delta_x:-1]
+        #             + sp[delta_x:-1] * weight[delta_x:-1]
+        #         )
+        # else:
 
+        spec[ib:ie] = spec[ib:ie] * oweight + sp * weight
         sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
 
         if plot:
-            # TODO make this nice
-            plt.clf()
-            scale = 1
-            pscale = np.mean(sp)
-            sfplot = gaussian_filter1d(sfsm, osample)
-            sfflat = sfsm[:-2] * pscale
-            model = np.mean(model, axis=1)
-            if not no_scatter:
-                poffset = np.mean(scatter_below[ib:ie] + scatter_above[ib:ie]) * 0.5
-            else:
-                poffset = 0
-
-            # Plot 1: The observed slit
-            plt.subplot(221)
-            plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
-            # plt.plot(sfflat)
-            # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            plt.plot(sfflat, "+")
-            plt.plot(model)
-
-            # Plot 2: The recovered slit function
-            plt.subplot(222)
-            plt.title("Order %i, Columns %i through %i" % (ord_num, ib, ie))
-            plt.plot(model)
-            # plt.plot(ysfpnt[jbad], sfpnt[jbad] * pscale, "g+")
-            # plt.plot(sfplot)
-
-            # Plot 3: Difference between observed and recovered
-            plt.subplot(223)
-            plt.title("Data - Fit")
-            plt.plot(sfflat - model)
-            # plt.plot(ysfpnt[jbad], (sfpnt - sfsm2)[jbad] * pscale, "g+")
-            plt.plot(np.sqrt((model + poffset + readn ** 2) / gain))
-            plt.plot(-np.sqrt((model + poffset + readn ** 2) / gain))
-
-            plt.subplot(224)
-            plt.title("Data - Fit")
-            plt.plot(sfflat - model)
-            # plt.plot(ysfpnt[jbad], (sf.flat - sfsm.flat)[jbad] * pscale, "g+")
-            plt.plot(np.sqrt((model + poffset + readn ** 2) / gain))
-            plt.plot(-np.sqrt((model + poffset + readn ** 2) / gain))
-
-            plt.draw()
-            plt.pause(0.001)
+            plot_slitfunction(sp, sfsm, model, osample, ord_num, ib, ie, readn, gain)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
@@ -384,6 +413,7 @@ def optimal_extraction(
             scatter_above=scatter_above,
             yscatter_below=yscatter_below,
             yscatter_above=yscatter_above,
+            ord_num=onum - 1,
             **kwargs
         )
 
