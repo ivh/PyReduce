@@ -87,7 +87,7 @@ class UVES(instrument):
             lists of files, one per type
         """
         info = self.load_info()
-        target = target.casefold()
+        target = target.upper()
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
