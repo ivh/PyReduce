@@ -10,3 +10,5 @@ dump*
 clib/_*
 reduce.cprof
 log.log
+.ipynb_checkpoints
+Pipfile.lock
