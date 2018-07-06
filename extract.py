@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
-
+import astropy.io.fits as fits
 import logging
 import pickle
 
@@ -9,73 +9,176 @@ from make_scatter import make_scatter
 from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
+def getflatimg(img, axis=0):
+    idx = np.indices(img.shape)[axis]
+    return idx.flatten(), img.flat
 
-def plot_slitfunction(sp, sfsm, model, osample, onum, ib, ie, readn, gain):
-    # TODO make this nice
-    scale = 1
-    pscale = np.mean(sp)
-    sfplot = gaussian_filter1d(sfsm, osample)
-    sfflat = sfsm[:-2] * pscale
-    model = np.mean(model, axis=1)
+
+def getspecvar(img):
+    ny, nx = img.shape
+    nimg = np.transpose(np.transpose(img) / img.sum(axis=1))
+    x = np.indices(img.shape)[1]
+    return x.flatten(), nimg.flat
+
+
+def getslitvar(img, xoff):
+    x = np.indices(img.shape)[0]
+    x = x.astype("f")
+    for i in range(x.shape[0]):
+        x[i, :] -= xoff - 1
+    return x.flatten(), img.flat
+
+def plot_slitfunction(img, spec, slitf, model, ycen):
+
+    di = img.data / np.sum(img)
+    ds = spec.data / np.sum(spec)
+
+    df = np.copy(slitf)
+    dm = model / np.sum(model)
+
+    ny, nx = di.shape
+    size = di.size
+    ny_os = len(df)
+    os = (ny_os - 1) / (ny + 1)
 
     if not hasattr(plot_slitfunction, "fig"):
         plt.ion()
-        fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True)
-        line = {}
-        line[0], = axes[0, 0].plot(sfflat, "+")
-        line[1], = axes[0, 0].plot(model)
+        FIG = plt.figure(figsize=(12, 4))
+        FIG.tight_layout(pad=0.05)
 
-        line[2], = axes[0, 1].plot(sfflat)
-        line[3], = axes[0, 1].plot(model, "+")
+        AX1 = FIG.add_subplot(231)
+        AX2 = FIG.add_subplot(132)
+        AX3 = FIG.add_subplot(133)
+        AX4 = FIG.add_subplot(234)
 
-        line[4], = axes[1, 0].plot(sfflat - model)
-        line[5], = axes[1, 0].plot(np.sqrt((model + readn ** 2) / gain))
-        line[6], = axes[1, 0].plot(-np.sqrt((model + readn ** 2) / gain))
+        im1 = AX1.imshow(di)
+        im2, = AX2.plot(ds, "-k")
+        im4 = AX4.imshow(dm)
 
-        line[7], = axes[1, 1].plot(sfflat - model)
-        line[8], = axes[1, 1].plot(np.sqrt((model + readn ** 2) / gain))
-        line[9], = axes[1, 1].plot(-np.sqrt((model + readn ** 2) / gain))
+        specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)        
+        slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
+        slitfu, = AX3.plot(np.linspace(0, ny, len(df)), df, "-k", lw=3)
 
-        axes[1, 0].set_title("Data - Fit")
-        axes[1, 1].set_title("Data - Fit")
-
-        setattr(plot_slitfunction, "fig", fig)
-        setattr(plot_slitfunction, "axes", axes)
-        setattr(plot_slitfunction, "lines", line)
+        setattr(plot_slitfunction, "fig", FIG)
+        setattr(plot_slitfunction, "ny", ny)
+        setattr(plot_slitfunction, "nx", nx)
+        
+        setattr(plot_slitfunction, "im1", im1)
+        setattr(plot_slitfunction, "im2", im2)
+        setattr(plot_slitfunction, "specvar", specvar)        
+        setattr(plot_slitfunction, "slitvar", slitvar)
+        setattr(plot_slitfunction, "slitfu", slitfu)        
+        setattr(plot_slitfunction, "im4", im4)
     else:
-        fig = plot_slitfunction.fig
-        axes = plot_slitfunction.axes
-        line = plot_slitfunction.lines
+        FIG = plot_slitfunction.fig
+        im1 = plot_slitfunction.im1
+        im2 = plot_slitfunction.im2
+        im4 = plot_slitfunction.im4
+        specvar = plot_slitfunction.specvar
+        slitvar = plot_slitfunction.slitvar
+        slitfu = plot_slitfunction.slitfu
 
-    fig.suptitle("Order %i, Columns %i through %i" % (onum, ib, ie))
+        ny = plot_slitfunction.ny
+        nx = plot_slitfunction.nx
 
-    # Plot 1: The observed slit
-    axes[0, 0].set_ylim(0, np.max(sfflat))
-    line[0].set_ydata(sfflat)
-    line[1].set_ydata(model)
+    # Fix size of array
+    if di.shape[0] > ny:
+        di = di[:ny, :]
+        df = df[:ny+2]
+        dm = dm[:ny, :]
+    elif di.shape[0] < ny:
+        di = np.pad(di, ((ny - di.shape[0], 0), (0,0)), "constant")
+        df = np.pad(df, (0, ny+2 - df.shape[0]), "constant")
+        dm = np.pad(dm, ((ny - dm.shape[0], 0), (0,0)), "constant")
+    
+    if di.shape[1] > nx:
+        di = di[:, :nx]
+        ds = ds[:nx]
+        dm = dm[:, :nx]
+        ycen = ycen[:nx]
+    elif di.shape[1] < nx:
+        di = np.pad(di, ((0,0), (0, nx - di.shape[1])), "constant")
+        ds = np.pad(ds, (0, nx - ds.shape[0]), "constant")
+        dm = np.pad(dm, ((0,0), (0, nx - dm.shape[1])), "constant")
+        ycen = np.pad(ycen, (0, nx - ycen.shape[0]), "constant")
+    
+    # Update data
+    im1.set_data(di)
+    im2.set_ydata(ds)
+    im4.set_data(dm)
 
-    # Plot 2: The recovered slit function
-    axes[0, 1].set_ylim(0, np.max(model))
-    line[2].set_ydata(sfflat)
-    line[3].set_ydata(model)
+    slitvar.set_data(*getslitvar(di * nx, ycen))
+    specvar.set_data(*getspecvar(di))
+    slitfu.set_ydata(df)
 
-    # Plot 3: Difference between observed and recovered
+    FIG.canvas.draw()
+    FIG.canvas.flush_events()
 
-    tmp = np.sqrt((model + readn ** 2) / gain)
-    axes[1, 0].set_ylim(-np.max(tmp), np.max(tmp))
-    line[4].set_ydata(sfflat - model)
-    line[5].set_ydata(tmp)
-    line[6].set_ydata(-tmp)
+    # # TODO make this nice
+    # scale = 1
+    # pscale = np.mean(sp)
+    # sfplot = gaussian_filter1d(sfsm, osample)
+    # sfflat = sfsm[:-2] * pscale
+    # model = np.mean(model, axis=1)
 
-    tmp = np.sqrt((model + readn ** 2) / gain)
-    axes[1, 1].set_ylim(-np.max(tmp), np.max(tmp))
-    line[7].set_ydata(sfflat - model)
-    line[8].set_ydata(tmp)
-    line[9].set_ydata(-tmp)
+    # if not hasattr(plot_slitfunction, "fig"):
+    #     plt.ion()
+    #     fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True)
+    #     line = {}
+    #     line[0], = axes[0, 0].plot(sfflat, "+")
+    #     line[1], = axes[0, 0].plot(model)
 
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-    # plt.pause(0.001)
+    #     line[2], = axes[0, 1].plot(sfflat)
+    #     line[3], = axes[0, 1].plot(model, "+")
+
+    #     line[4], = axes[1, 0].plot(sfflat - model)
+    #     line[5], = axes[1, 0].plot(np.sqrt((model + readn ** 2) / gain))
+    #     line[6], = axes[1, 0].plot(-np.sqrt((model + readn ** 2) / gain))
+
+    #     line[7], = axes[1, 1].plot(sfflat - model)
+    #     line[8], = axes[1, 1].plot(np.sqrt((model + readn ** 2) / gain))
+    #     line[9], = axes[1, 1].plot(-np.sqrt((model + readn ** 2) / gain))
+
+    #     axes[1, 0].set_title("Data - Fit")
+    #     axes[1, 1].set_title("Data - Fit")
+
+    #     setattr(plot_slitfunction, "fig", fig)
+    #     setattr(plot_slitfunction, "axes", axes)
+    #     setattr(plot_slitfunction, "lines", line)
+    # else:
+    #     fig = plot_slitfunction.fig
+    #     axes = plot_slitfunction.axes
+    #     line = plot_slitfunction.lines
+
+    # fig.suptitle("Order %i, Columns %i through %i" % (onum, ib, ie))
+
+    # # Plot 1: The observed slit
+    # axes[0, 0].set_ylim(0, np.max(sfflat))
+    # line[0].set_ydata(sfflat)
+    # line[1].set_ydata(model)
+
+    # # Plot 2: The recovered slit function
+    # axes[0, 1].set_ylim(0, np.max(model))
+    # line[2].set_ydata(sfflat)
+    # line[3].set_ydata(model)
+
+    # # Plot 3: Difference between observed and recovered
+
+    # tmp = np.sqrt((model + readn ** 2) / gain)
+    # axes[1, 0].set_ylim(-np.max(tmp), np.max(tmp))
+    # line[4].set_ydata(sfflat - model)
+    # line[5].set_ydata(tmp)
+    # line[6].set_ydata(-tmp)
+
+    # tmp = np.sqrt((model + readn ** 2) / gain)
+    # axes[1, 1].set_ylim(-np.max(tmp), np.max(tmp))
+    # line[7].set_ydata(sfflat - model)
+    # line[8].set_ydata(tmp)
+    # line[9].set_ydata(-tmp)
+
+    # fig.canvas.draw()
+    # fig.canvas.flush_events()
+    # # plt.pause(0.001)
 
 
 def extract_spectrum(
@@ -168,7 +271,6 @@ def extract_spectrum(
     bins = np.linspace(xlow, xhigh, 2 * nbin + 1)  # boundaries of bins
     ibeg_half = np.ceil(bins[:-2]).astype(int)  # beginning of each bin
     iend_half = np.floor(bins[2:]).astype(int)  # end of each bin
-    bincen = 0.5 * (ibeg_half + iend_half)  # center of each bin
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
@@ -301,7 +403,8 @@ def extract_spectrum(
         sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
 
         if plot:
-            plot_slitfunction(sp, sfsm, model, osample, ord_num, ib, ie, readn, gain)
+            plot_slitfunction(sf, sp, sfsm, model, y_offset)
+            # plot_slitfunction(sp, sfsm, model, osample, ord_num, ib, ie, readn, gain)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
