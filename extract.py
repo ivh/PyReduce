@@ -16,19 +16,17 @@ def getflatimg(img, axis=0):
 
 def getspecvar(img):
     ny, nx = img.shape
-    nimg = np.transpose(np.transpose(img) / img.sum(axis=1))
+    nimg = img / img.sum(axis=1)[:, None]
     x = np.indices(img.shape)[1]
     return x.flatten(), nimg.flat
 
 
 def getslitvar(img, xoff):
     x = np.indices(img.shape)[0]
-    x = x.astype("f")
-    for i in range(x.shape[0]):
-        x[i, :] -= xoff - 1
+    x = x - xoff[None, :]
     return x.flatten(), img.flat
 
-def plot_slitfunction(img, spec, slitf, model, ycen):
+def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
 
     di = img.data / np.sum(img)
     ds = spec.data / np.sum(spec)
@@ -47,17 +45,22 @@ def plot_slitfunction(img, spec, slitf, model, ycen):
         FIG.tight_layout(pad=0.05)
 
         AX1 = FIG.add_subplot(231)
+        AX1.set_title("Swath")
         AX2 = FIG.add_subplot(132)
+        AX2.set_title("Spectrum")
         AX3 = FIG.add_subplot(133)
+        AX3.set_title("Slit")
         AX4 = FIG.add_subplot(234)
+        AX4.set_title("Model")
+
 
         im1 = AX1.imshow(di)
-        im2, = AX2.plot(ds, "-k")
         im4 = AX4.imshow(dm)
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)        
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
         slitfu, = AX3.plot(np.linspace(0, ny, len(df)), df, "-k", lw=3)
+        im2, = AX2.plot(ds, "-k")
 
         setattr(plot_slitfunction, "fig", FIG)
         setattr(plot_slitfunction, "ny", ny)
@@ -87,9 +90,11 @@ def plot_slitfunction(img, spec, slitf, model, ycen):
         df = df[:ny+2]
         dm = dm[:ny, :]
     elif di.shape[0] < ny:
-        di = np.pad(di, ((ny - di.shape[0], 0), (0,0)), "constant")
-        df = np.pad(df, (0, ny+2 - df.shape[0]), "constant")
-        dm = np.pad(dm, ((ny - dm.shape[0], 0), (0,0)), "constant")
+        ypad = ny - di.shape[0], 0
+        #ypad = int(np.ceil(ypad/2)), int(np.floor(ypad/2))
+        di = np.pad(di, (ypad, (0,0)), "edge")
+        df = np.pad(df, (ny+2 - df.shape[0], 0), "edge")
+        dm = np.pad(dm, (ypad, (0,0)), "edge")
     
     if di.shape[1] > nx:
         di = di[:, :nx]
@@ -97,88 +102,25 @@ def plot_slitfunction(img, spec, slitf, model, ycen):
         dm = dm[:, :nx]
         ycen = ycen[:nx]
     elif di.shape[1] < nx:
-        di = np.pad(di, ((0,0), (0, nx - di.shape[1])), "constant")
-        ds = np.pad(ds, (0, nx - ds.shape[0]), "constant")
-        dm = np.pad(dm, ((0,0), (0, nx - dm.shape[1])), "constant")
-        ycen = np.pad(ycen, (0, nx - ycen.shape[0]), "constant")
+        xpad = nx - di.shape[1], 0
+        #xpad = int(np.ceil(xpad/2)), int(np.floor(xpad/2))
+        di = np.pad(di, ((0,0), xpad), "edge")
+        ds = np.pad(ds, xpad, "edge")
+        dm = np.pad(dm, ((0,0), xpad), "edge")
+        ycen = np.pad(ycen, xpad, "edge")
     
     # Update data
+    FIG.suptitle("Order %i, Columns %i - %i" % (onum, left, right))
     im1.set_data(di)
     im2.set_ydata(ds)
     im4.set_data(dm)
 
     slitvar.set_data(*getslitvar(di * nx, ycen))
-    specvar.set_data(*getspecvar(di))
     slitfu.set_ydata(df)
+    specvar.set_data(*getspecvar(di))
 
     FIG.canvas.draw()
     FIG.canvas.flush_events()
-
-    # # TODO make this nice
-    # scale = 1
-    # pscale = np.mean(sp)
-    # sfplot = gaussian_filter1d(sfsm, osample)
-    # sfflat = sfsm[:-2] * pscale
-    # model = np.mean(model, axis=1)
-
-    # if not hasattr(plot_slitfunction, "fig"):
-    #     plt.ion()
-    #     fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True)
-    #     line = {}
-    #     line[0], = axes[0, 0].plot(sfflat, "+")
-    #     line[1], = axes[0, 0].plot(model)
-
-    #     line[2], = axes[0, 1].plot(sfflat)
-    #     line[3], = axes[0, 1].plot(model, "+")
-
-    #     line[4], = axes[1, 0].plot(sfflat - model)
-    #     line[5], = axes[1, 0].plot(np.sqrt((model + readn ** 2) / gain))
-    #     line[6], = axes[1, 0].plot(-np.sqrt((model + readn ** 2) / gain))
-
-    #     line[7], = axes[1, 1].plot(sfflat - model)
-    #     line[8], = axes[1, 1].plot(np.sqrt((model + readn ** 2) / gain))
-    #     line[9], = axes[1, 1].plot(-np.sqrt((model + readn ** 2) / gain))
-
-    #     axes[1, 0].set_title("Data - Fit")
-    #     axes[1, 1].set_title("Data - Fit")
-
-    #     setattr(plot_slitfunction, "fig", fig)
-    #     setattr(plot_slitfunction, "axes", axes)
-    #     setattr(plot_slitfunction, "lines", line)
-    # else:
-    #     fig = plot_slitfunction.fig
-    #     axes = plot_slitfunction.axes
-    #     line = plot_slitfunction.lines
-
-    # fig.suptitle("Order %i, Columns %i through %i" % (onum, ib, ie))
-
-    # # Plot 1: The observed slit
-    # axes[0, 0].set_ylim(0, np.max(sfflat))
-    # line[0].set_ydata(sfflat)
-    # line[1].set_ydata(model)
-
-    # # Plot 2: The recovered slit function
-    # axes[0, 1].set_ylim(0, np.max(model))
-    # line[2].set_ydata(sfflat)
-    # line[3].set_ydata(model)
-
-    # # Plot 3: Difference between observed and recovered
-
-    # tmp = np.sqrt((model + readn ** 2) / gain)
-    # axes[1, 0].set_ylim(-np.max(tmp), np.max(tmp))
-    # line[4].set_ydata(sfflat - model)
-    # line[5].set_ydata(tmp)
-    # line[6].set_ydata(-tmp)
-
-    # tmp = np.sqrt((model + readn ** 2) / gain)
-    # axes[1, 1].set_ylim(-np.max(tmp), np.max(tmp))
-    # line[7].set_ydata(sfflat - model)
-    # line[8].set_ydata(tmp)
-    # line[9].set_ydata(-tmp)
-
-    # fig.canvas.draw()
-    # fig.canvas.flush_events()
-    # # plt.pause(0.001)
 
 
 def extract_spectrum(
@@ -403,8 +345,7 @@ def extract_spectrum(
         sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
 
         if plot:
-            plot_slitfunction(sf, sp, sfsm, model, y_offset)
-            # plot_slitfunction(sp, sfsm, model, osample, ord_num, ib, ie, readn, gain)
+            plot_slitfunction(sf, sp, sfsm, model, y_offset, ord_num, ib, ie)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
@@ -463,6 +404,7 @@ def optimal_extraction(
         scatter = np.zeros(nord)
         yscatter = np.zeros(nord)
 
+    #TODO each order is independant so extract in parallel
     for i, onum in enumerate(range(1, nord - 1)):  # loop through orders
         # Background must be subtracted for slit function logic to work but kept
         # as part of the FF signal during normalization
