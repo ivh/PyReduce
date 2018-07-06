@@ -16,7 +16,11 @@ class getter:
         self.header = header
         self.info = info
         self.index = find_first_index(info["modes"], mode)
-        self.id = info["id"][self.index]
+
+        # Pick values for the given mode
+        for k, v in self.info.items():
+            if isinstance(v, list):
+                self.info[k] = v[self.index]
 
     def __call__(self, key, alt=None):
         return self.get(key, alt)
@@ -26,13 +30,33 @@ class getter:
         if isinstance(value, list):
             value = value[self.index]
         if isinstance(value, str):
-            value = value.format(id=self.id)
+            value = value.format(**self.info)
             value = self.header.get(value, alt)
         return value
 
 
 class instrument:
+    """
+    Abstract parent class for all instruments
+    Handles the handling of instrument specific information
+    """
+
     def load_info(self):
+        """
+        Load static instrument information
+        Either as fits header keywords or static values
+        
+        Returns
+        ------
+        info : dict(str:object)
+            dictionary of REDUCE names for properties to Header keywords/static values
+
+        Raises
+        ------
+        NotImplementedError
+            This needs to exist for every instrument
+        """
+
         raise NotImplementedError("Instrument info must be defined for each instrument seperately")
 
     def add_header_info(self, header, mode, *args, **kwargs):
@@ -97,19 +121,14 @@ class instrument:
         """
         info = self.load_info()
 
-        # TODO is this also instrument specific? Probably
-        # TODO use instrument info instead of settings for labels?
         ob = np.zeros(len(files), dtype="U20")
         ty = np.zeros(len(files), dtype="U20")
-        mo = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
             ob[i] = h[info["target"]]
             ty[i] = h[info["observation_type"]]
-            mo[i] = h.get(info["instrument_mode"], "")
 
-        # TODO instrument mode check
         biaslist = files[ty == info["id_bias"]]
         flatlist = files[ty == info["id_flat"]]
         wavelist = files[ob == info["id_wave"]]

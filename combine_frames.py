@@ -18,9 +18,6 @@ from clipnflip import clipnflip
 from util import load_fits, gaussbroad, gaussfit
 
 
-
-
-
 def running_median(arr, size):
     """Calculate the running median of a 2D sequence
 
@@ -135,7 +132,7 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
     return corrected_signal, nbad
 
 
-def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **kwargs):
+def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=50, **kwargs):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
     similar images.
@@ -231,15 +228,15 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
 
     # Only one image
     if len(files) < 2:
-        result, head = load_fits(files[0], instrument, extension, **kwargs)
+        result, head = load_fits(files[0], instrument, mode, extension, **kwargs)
         result = result.astype(dtype)
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(files[0], instrument, extension, **kwargs)
+        bias1, head1 = load_fits(files[0], instrument, mode, extension, **kwargs)
         exp1 = head1["exptime"]
 
-        bias2, head2 = load_fits(files[0], instrument, extension, **kwargs)
+        bias2, head2 = load_fits(files[0], instrument, mode, extension, **kwargs)
         exp2, readnoise = head2["exptime"], head2["e_readn"]
 
         result = bias2 + bias1
@@ -256,7 +253,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(f, instrument, extension, header_only=True, **kwargs)
+            load_fits(f, instrument, mode, extension, header_only=True, **kwargs)
             for f in files
         ]
         head = heads[0]
@@ -329,7 +326,9 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
             # for each row
             for row in range(y_bottom, y_top):
                 if (row) % DEBUG_NROWS == 0:
-                    logging.debug("%i rows processed - %i pixels fixed so far", row, n_fixed)
+                    logging.debug(
+                        "%i rows processed - %i pixels fixed so far", row, n_fixed
+                    )
 
                 # load current row
                 idx = index(row, x_left, x_right)
@@ -396,7 +395,7 @@ def combine_frames(files, instrument, extension=1, threshold=3.5, window=50, **k
     return result, head
 
 
-def combine_flat(files, instrument, extension=1, **kwargs):
+def combine_flat(files, instrument, mode, extension=1, **kwargs):
     """
     Combine several flat files into one master flat
 
@@ -423,14 +422,14 @@ def combine_flat(files, instrument, extension=1, **kwargs):
         image and header of master flat
     """
 
-    flat, fhead = combine_frames(files, instrument, extension, **kwargs)
+    flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark. We have to scale it by the number of Flats
     bias = kwargs.get("bias", 0)
     flat = flat - bias * len(files)  # subtract bias, if passed
     return flat, fhead
 
 
-def combine_bias(files, instrument, extension=1, **kwargs):
+def combine_bias(files, instrument, mode, extension=1, **kwargs):
     """
     Combine bias frames, determine read noise, reject bad pixels.
     Read noise calculation only valid if both lists yield similar noise.
@@ -458,6 +457,7 @@ def combine_bias(files, instrument, extension=1, **kwargs):
     debug = kwargs.get("debug", False)
 
     n = len(files)
+    # TODO split bias into before and after observation sets
     # necessary to maintain proper dimensionality, if there is just one element
     if n == 1:
         files = np.array([files, files])
@@ -469,10 +469,10 @@ def combine_bias(files, instrument, extension=1, **kwargs):
     n2 = len(list2)
 
     # Separately images in two groups.
-    bias1, _ = combine_frames(list1, instrument, extension, **kwargs)
+    bias1, _ = combine_frames(list1, instrument, mode, extension, **kwargs)
     bias1 /= n1
 
-    bias2, head2 = combine_frames(list2, instrument, extension, **kwargs)
+    bias2, head2 = combine_frames(list2, instrument, mode, extension, **kwargs)
     bias2 /= n2
 
     # Make sure we know the gain.
@@ -519,9 +519,9 @@ def combine_bias(files, instrument, extension=1, **kwargs):
 
         # Print diagnostics.
         logging.info("change in bias between image sets= %f electrons", gain * par[1])
-        logging.info("measured background noise per image= %f" , bgnoise)
-        logging.info("background noise in combined image= %f" , biasnoise)
-        logging.info("fixing %i bad pixels" , nbad)
+        logging.info("measured background noise per image= %f", bgnoise)
+        logging.info("background noise in combined image= %f", biasnoise)
+        logging.info("fixing %i bad pixels", nbad)
 
         if debug:
             # Plot noise distribution.

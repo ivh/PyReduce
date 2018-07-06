@@ -64,7 +64,7 @@ def parse_args():
     return instrument, target, steps_to_take
 
 
-def start_logging():
+def start_logging(log_file="log.log"):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
@@ -75,7 +75,7 @@ def start_logging():
     ch.setFormatter(ch_formatter)
 
     # Log file settings
-    file = logging.FileHandler("log.log")
+    file = logging.FileHandler(log_file)
     file.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file.setFormatter(file_formatter)
@@ -92,31 +92,33 @@ def main(target, instrument, mode, night, config, steps="all"):
     counter_mode = find_first_index(config["modes"], mode)
 
     # read configuration settings
-    inst_mode = config["instrument"].lower() + "_" + mode
     extension = config["extensions"][counter_mode]
-    prefix = inst_mode
+    prefix = instrument.lower() + "_" + mode
 
     # define paths
-    raw_path = join(base_dir, instrument, target, "raw", night) + os.sep
-    reduced_path = (
-        join(base_dir, instrument, target, "reduced", night, "Reduced_" + mode) + os.sep
+    raw_path = input_dir.format(
+        instrument=instrument, target=target, night=night, mode=mode
+    )
+    reduced_path = output_dir.format(
+        instrument=instrument, target=target, night=night, mode=mode
     )
 
+    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
+
     # define intermediary product files
-    mask_file = join(mask_dir, "mask_%s.fits.gz" % inst_mode)
     bias_file = join(reduced_path, prefix + ".bias.fits")
     flat_file = join(reduced_path, prefix + ".flat.fits")
-    norm_flat_file = join(reduced_path, prefix + ".flat.norm.fits")
-    ord_norm_file = join(reduced_path, prefix + ".ord_norm.sav")
-    ord_default_file = join(reduced_path, prefix + ".ord_default.sav")
+    norm_flat_file = join(reduced_path, prefix + ".flat_norm.fits")
+    blaze_file = join(reduced_path, prefix + ".ord_norm.sav")
+    order_file = join(reduced_path, prefix + ".ord_default.sav")
 
     # create output folder structure if necessary
     if not os.path.exists(reduced_path):
         os.makedirs(reduced_path)
 
     # find input files and sort them by type
-    files = glob.glob(raw_path + "%s.*.fits" % instrument)
-    files += glob.glob(raw_path + "%s.*.fits.gz" % instrument)
+    files = glob.glob(join(raw_path, "%s.*.fits" % instrument))
+    files += glob.glob(join(raw_path, "%s.*.fits.gz" % instrument))
     files = np.array(files)
 
     f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
@@ -126,14 +128,16 @@ def main(target, instrument, mode, night, config, steps="all"):
     # ==========================================================================
     # Read mask
     # the mask is not stored with the data files (it is not supported by astropy)
-    mask, _ = load_fits(mask_file, inst_mode, extension=0)
+    mask, _ = load_fits(mask_file, instrument, mode, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
     # ==========================================================================
     # Create master bias
     if "bias" in steps or steps == "all":
         logging.info("Creating master bias")
-        bias, bhead = combine_bias(f_bias, inst_mode, mask=mask, extension=extension)
+        bias, bhead = combine_bias(
+            f_bias, instrument, mode, mask=mask, extension=extension
+        )
         fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
     else:
         logging.info("Loading master bias")
@@ -146,7 +150,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     if "flat" in steps or steps == "all":
         logging.info("Creating master flat")
         flat, fhead = combine_flat(
-            f_flat, inst_mode, mask=mask, extension=extension, bias=bias
+            f_flat, instrument, mode, mask=mask, extension=extension, bias=bias
         )
         fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
@@ -161,7 +165,7 @@ def main(target, instrument, mode, night, config, steps="all"):
     if "orders" in steps or steps == "all":
         logging.info("Tracing orders")
 
-        order_img, _ = load_fits(f_order[0], inst_mode, extension, mask=mask)
+        order_img, _ = load_fits(f_order[0], instrument, mode, extension, mask=mask)
 
         # Mark Orders
         orders, column_range = mark_orders(
@@ -174,11 +178,11 @@ def main(target, instrument, mode, night, config, steps="all"):
         )
 
         # Save image format description
-        with open(ord_default_file, "wb") as file:
+        with open(order_file, "wb") as file:
             pickle.dump((orders, column_range), file)
     else:
         logging.info("Loading order tracing data")
-        with open(ord_default_file, "rb") as file:
+        with open(order_file, "rb") as file:
             orders, column_range = pickle.load(file)
 
     # ==========================================================================
@@ -202,7 +206,7 @@ def main(target, instrument, mode, night, config, steps="all"):
         )
 
         # Save data
-        with open(ord_norm_file, "wb") as file:
+        with open(blaze_file, "wb") as file:
             pickle.dump(blzcoef, file)
         fits.writeto(norm_flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
@@ -211,7 +215,7 @@ def main(target, instrument, mode, night, config, steps="all"):
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
 
-        with open(ord_norm_file, "rb") as file:
+        with open(blaze_file, "rb") as file:
             blzcoef = pickle.load(file)
     # ==========================================================================
     # Prepare wavelength calibration
@@ -220,7 +224,7 @@ def main(target, instrument, mode, night, config, steps="all"):
         logging.info("Preparing wavelength calibration")
         for f in f_wave:
             # Load wavecal image
-            im, head = load_fits(f, inst_mode, extension, mask=mask)
+            im, head = load_fits(f, instrument, mode, extension, mask=mask)
 
             # Determine extraction width, blaze center column, and base order
             xwd, sxwd = np.full((len(orders), 2), 2), 0
@@ -251,7 +255,9 @@ def main(target, instrument, mode, night, config, steps="all"):
     if "science" in steps or steps == "all":
         logging.info("Extracting science spectra")
         for f in f_spec:
-            im, head = load_fits(f, inst_mode, extension, mask=mask, dtype=np.float32)
+            im, head = load_fits(
+                f, instrument, mode, extension, mask=mask, dtype=np.float32
+            )
             # Correct for bias and flat field
             im -= bias
             im /= flat
@@ -277,30 +283,30 @@ def main(target, instrument, mode, night, config, steps="all"):
 
             # Calculate Continuum and Error
             # TODO plotting
-            cont = np.full_like(sigma, 1.)
+            # cont = np.full_like(sigma, 1.)
 
             # TODO do we even want this to happen?
             # convert uncertainty to relative error
             # Temp copy for calculation
-            sunc = np.copy(sigma)
-            sunc /= np.clip(spec, 1., None)
-            s = spec / np.clip(blzcoef, 0.001, None)
+            # sunc = np.copy(sigma)
+            # sunc /= np.clip(spec, 1., None)
+            # s = spec / np.clip(blzcoef, 0.001, None)
 
-            # fit simple continuum
-            for i in range(len(orders)):
-                c = top(s[i][s[i] != 0], 1, eps=0.0002, poly=True)
-                s[i][s[i] != 0] = s[i][s[i] != 0] / c
-                c = spec[i][s[i] != 0] / s[i][s[i] != 0]
-                cont[i][s[i] != 0] = np.copy(c)
+            # # fit simple continuum
+            # for i in range(len(orders)):
+            #     c = top(s[i][s[i] != 0], 1, eps=0.0002, poly=True)
+            #     s[i][s[i] != 0] = s[i][s[i] != 0] / c
+            #     c = spec[i][s[i] != 0] / s[i][s[i] != 0]
+            #     cont[i][s[i] != 0] = np.copy(c)
 
-            sigma *= cont  # Scale Error with Continuum
+            # sigma *= cont  # Scale Error with Continuum
 
-            order_range = (0, len(orders)) #TODO
+            order_range = (0, len(orders))  # TODO
             head["obase"] = (order_range[0], " base order number")
 
             # save spectrum to disk
             nameout = swap_extension(f, ".ech", path=reduced_path)
-            save_fits(nameout, head, spec=spec, sig=sigma, cont=cont)
+            save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef)
 
             pol_angle = head.get("eso ins ret25 pos")
             if pol_angle is None:
@@ -325,9 +331,12 @@ def main(target, instrument, mode, night, config, steps="all"):
 if __name__ == "__main__":
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
-    base_dir = "./Test"
-    mask_dir = "./Test/UVES/HD132205"
-    start_logging()
+    input_dir = "./Test/{instrument}/{target}/raw/{night}"
+    output_dir = "./Test/{instrument}/{target}/reduced/{night}/Reduced_{mode}"
+
+    mask_dir = "./masks"
+    log_file = "log.log"
+    start_logging(log_file)
 
     if len(sys.argv) > 1:
         instrument, target, steps_to_take = parse_args()
@@ -339,12 +348,12 @@ if __name__ == "__main__":
         target = "HD132205"
         # Which parts of the reduction to perform
         steps_to_take = [
-            "bias",
-            "flat",
-            "orders",
-            "norm_flat",
-            "wavecal",
-            "science",
+            # "bias",
+            # "flat",
+            # "orders",
+            # "norm_flat",
+            # "wavecal",
+            "science"
         ]
 
     # load configuration for the current instrument
@@ -357,7 +366,7 @@ if __name__ == "__main__":
     modes = config["modes"][1:2]
 
     # Search the available days
-    dates = join(base_dir, instrument, target, "raw", "????-??-??")
+    dates = join("./Test", instrument, target, "raw", "????-??-??")
     dates = glob.glob(dates)
     dates = [r + os.sep for r in dates if os.path.isdir(r)]
 

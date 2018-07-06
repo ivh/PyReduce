@@ -11,7 +11,7 @@ from clipnflip import clipnflip
 from instruments.instrument_info import modeinfo
 
 
-def load_fits(fname, instrument, extension, **kwargs):
+def load_fits(fname, instrument, mode, extension, **kwargs):
     """
     load fits file, REDUCE style
     
@@ -23,7 +23,6 @@ def load_fits(fname, instrument, extension, **kwargs):
     hdu = fits.open(fname)
     header = hdu[extension].header
     header.extend(hdu[0].header, strip=False)
-    instrument, mode = instrument.split("_")
     header = modeinfo(header, instrument, mode)
 
     if kwargs.get("header_only", False):
