@@ -34,7 +34,7 @@ int bandsol(double *a, double *r, int n, int nd)
    matrix.
 */
 
-  if(nd % 2 ==0) return -1;
+//  if(nd % 2 ==0) return -1;
 
   /* Forward sweep */
   for (i = 0; i < n - 1; i++)
@@ -42,15 +42,13 @@ int bandsol(double *a, double *r, int n, int nd)
     aa = a[i + n * (nd / 2)];
     //if(aa==0.e0) return -3;
     r[i] /= aa;
-    for (j = 0; j < nd; j++)
-      a[i + j * n] /= aa;
+    for(j=0; j<nd; j++) a[i+j*n]/=aa;
     for (j = 1; j < min(nd / 2 + 1, n - i); j++)
     {
       aa = a[i + j + n * (nd / 2 - j)];
       //if(aa==0.e0) return -j;
       r[i + j] -= r[i] * aa;
-      for (k = 0; k < n * (nd - j); k += n)
-        a[i + j + k] -= a[i + k + n * j] * aa;
+      for(k=0; k<n*(nd-j); k+=n) a[i+j+k]-=a[i+k+n*j]*aa;
     }
   }
 
@@ -58,8 +56,7 @@ int bandsol(double *a, double *r, int n, int nd)
   r[n - 1] /= a[n - 1 + n * (nd / 2)];
   for (i = n - 1; i > 0; i--)
   {
-    for (j = 1; j <= min(nd / 2, i); j++)
-      r[i - j] -= r[i] * a[i - j + n * (nd / 2 + j)];
+    for(j=1; j<=min(nd/2,i); j++) r[i-j]-=r[i]*a[i-j+n*(nd/2+j)];
     r[i - 1] /= a[i - 1 + n * (nd / 2)];
   }
 
@@ -68,26 +65,6 @@ int bandsol(double *a, double *r, int n, int nd)
   return 0;
 }
 
-/*----------------------------------------------------------------------------*/
-/**
-  @brief
-  @param    ncols       Swath width in pixels
-  @param    nrows       Extraction slit height in pixels
-  @param    osample     Subpixel ovsersampling factor
-  @param    im          Image to be decomposed
-  @param    mask        int mask of same dimension as image
-  @param    ycen        Order centre line offset from pixel row boundary
-  @param    sL          Slit function resulting from decomposition, start
-                        guess is input, gets overwriteten with result
-  @param    sP          Spectrum resulting from decomposition
-  @param    model       the model reconstruction of im
-  @param    lambda_sP   Smoothing parameter for the spectrum, could be zero
-  @param    lambda_sL   Smoothing parameter for the slit function, usually >0
-  @param    sP_stop     Fraction of spectyrum change, stop condition
-  @param    maxiter     Max number of iterations
-  @return
- */
-/*----------------------------------------------------------------------------*/
 int slit_func_vert(int ncols,        /* Swath width in pixels                                 */
                    int nrows,        /* Extraction slit height in pixels                      */
                    double *im,       /* Image to be decomposed                                */
@@ -127,15 +104,12 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
 
   for (x = 0; x < ncols; x++)
   {
-    iy2 = (1. - ycen[x]) * osample; /* The initial offset should be reconsidered. It looks fine but needs theory. */
+		iy2=(1.e0-ycen[x])*osample; /* The initial offset should be reconsidered. It looks fine but needs theory. */
     iy1 = iy2 - osample;
 
-    if (iy2 == 0)
-      d1 = step;
-    else if (iy1 == 0)
-      d1 = 0.;
-    else
-      d1 = fmod(ycen[x], step);
+		if(iy2==0)      d1=step;
+		else if(iy1==0) d1=0.e0;
+		else            d1=fmod(ycen[x], step);
     d2 = step - d1;
     for (y = 0; y < nrows; y++)
     {
