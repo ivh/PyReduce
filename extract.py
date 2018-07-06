@@ -315,31 +315,23 @@ def make_slitfunction(
 def get_y_scale(order, order_below, order_above, ix, cole, xwd, nrow):
     ycen = np.polyval(order, ix)  # row at order center
 
-    x_left_lim = cole[0]  # First column to extract
-    x_right_lim = cole[1]  # Last column to extract
+    left, right = cole  # First column to extract
 
-    ixx = ix[x_left_lim:x_right_lim]
-    ycenn = ycen[x_left_lim:x_right_lim]
-    if xwd[0] > 1.5:  # Extraction width in pixels
-        ymin = ycenn - xwd[0]
-    else:  # Fractional extraction width
-        ymin = ycenn - xwd[0] * (ycenn - np.polyval(order_below, ixx))  # trough below
+    ycenn = ycen[left:right]
 
+    ymin = ycenn - xwd[0]
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
-    if xwd[1] > 1.5:  # Extraction width in pixels
-        ymax = ycenn + xwd[1]
-    else:  # Fractional extraction width
-        ymax = ycenn + xwd[1] * (np.polyval(order_above, ixx) - ycenn)  # trough above
 
+    ymax = ycenn + xwd[1]
     ymax = np.ceil(ymax)
     if max(ymax) > nrow:
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
 
     # Define a fixed height area containing one spectral order
-    y_lower_lim = int(min(ycen[cole[0] : cole[1]] - ymin))  # Pixels below center line
-    y_upper_lim = int(min(ymax - ycen[cole[0] : cole[1]]))  # Pixels above center line
+    y_lower_lim = int(np.min(ycen[left:right] - ymin))  # Pixels below center line
+    y_upper_lim = int(np.min(ymax - ycen[left:right]))  # Pixels above center line
 
     return y_lower_lim, y_upper_lim
 
@@ -483,13 +475,10 @@ def fix_column_range(img, orders, xwd, column_range):
     # Fix column_range of each order
     for i in range(1, len(orders) - 1):
         order = orders[i]
-        if xwd[i, 0] > 1.5:  # Extraction width in pixels
-            coeff_bot, coeff_top = np.copy(order), np.copy(order)
-            coeff_bot[-1] -= xwd[i, 0]
-            coeff_top[-1] += xwd[i, 1]
-        else:  # Fraction extraction width
-            coeff_bot = 0.5 * ((2 + xwd[i, 0]) * order - xwd[i, 0] * orders[i + 1])
-            coeff_top = 0.5 * ((2 + xwd[i, 1]) * order - xwd[i, 1] * orders[i - 1])
+
+        coeff_bot, coeff_top = np.copy(order), np.copy(order)
+        coeff_bot[-1] -= xwd[i, 0]
+        coeff_top[-1] += xwd[i, 1]
 
         ixx = ix[column_range[i, 0] : column_range[i, 1]]
         y_bot = np.polyval(coeff_bot, ixx)  # low edge of arc
@@ -518,6 +507,33 @@ def extend_orders(orders, nrow):
 
     orcend = np.array([order_low, *orders, order_high])
     return orcend
+
+
+def fix_extraction_width(xwd, orders, column_range, ncol):
+    """ convert fractional extraction width to pixel range """
+    if np.all(xwd > 1.5):
+        # already in pixel scale
+        xwd = xwd.astype(int)
+        return xwd
+
+    x = np.arange(ncol)
+    # if extraction width is in relative scale transform to pixel scale
+    for i in range(1, len(xwd) - 1):
+        left, right = column_range[i]
+        current = np.polyval(orders[i], x[left:right])
+
+        if xwd[i, 0] < 1.5:
+            below = np.polyval(orders[i - 1], x[left:right])
+            xwd[i, 0] *= np.mean(current - below)
+        if xwd[i, 1] < 1.5:
+            above = np.polyval(orders[i + 1], x[left:right])
+            xwd[i, 1] *= np.mean(above - current)
+
+    xwd[0] = xwd[1]
+    xwd[-1] = xwd[-2]
+    xwd = xwd.astype(int)
+
+    return xwd
 
 
 def extract(
@@ -563,9 +579,11 @@ def extract(
     xwd = np.array([xwd[0], *xwd, xwd[-1]])
     column_range = np.array([column_range[0], *column_range, column_range[-1]])
 
-    # Fix column range
+    # Fix column range, so that all extractions are fully within the image
+    xwd = fix_extraction_width(xwd, orders, column_range, ncol)
     column_range = fix_column_range(img, orders, xwd, column_range)
 
+    # TODO
     # Prepare normalized flat field image if necessary
     # These will be passed and "returned" by reference
     # I dont like it, but it works for now
