@@ -59,7 +59,7 @@ class instrument:
 
         raise NotImplementedError("Instrument info must be defined for each instrument seperately")
 
-    def add_header_info(self, header, mode, *args, **kwargs):
+    def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         info = self.load_info()
         get = getter(header, info, mode)
@@ -101,7 +101,7 @@ class instrument:
 
         return header
 
-    def sort_files(self, files, target, mode, *args, **kwargs):
+    def sort_files(self, files, target, mode, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec

@@ -26,7 +26,7 @@ from util import (
     parse_args,
     start_logging,
 )
-from instruments.instrument_info import sort_files
+from instruments.instrument_info import sort_files, get_instrument_info
 from trace import mark_orders  # TODO: trace is a standard library name
 from getxwd import getxwd
 
@@ -44,6 +44,7 @@ def main():
     start_logging(log_file)
 
     if len(sys.argv) > 1:
+        # Command Line arguments passed
         instrument, target, steps_to_take = parse_args()
     else:
         # Manual settings
@@ -61,24 +62,26 @@ def main():
             "science",
         ]
 
-    # load configuration for the current instrument
-    with open("settings_%s.json" % instrument) as f:
+    # config: paramters for the current reduction
+    # info: constant, instrument specific parameters
+    with open("settings_%s.json" % instrument.upper()) as f:
         config = json.load(f)
+    info = get_instrument_info(instrument)
 
     # TODO: Test settings
-    config["plot"] = False
+    config["plot"] = True
     config["manual"] = True
-    modes = config["modes"][1:2]
+    modes = info["modes"][1:2]
 
     # Search the available days
     dates = input_dir.format(instrument=instrument, target=target, night="????-??-??")
     dates = glob.glob(dates)
-    dates = [r + os.sep for r in dates if os.path.isdir(r)]
+    dates = [r for r in dates if os.path.isdir(r)]
 
     logging.info("Instrument: %s", instrument)
     logging.info("Target: %s", target)
     for night in dates:
-        night = os.path.basename(night[:-1])
+        night = os.path.basename(night)
         logging.info("Observation Date: %s", night)
         for mode in modes:
             logging.info("Instrument Mode: %s", mode)
@@ -91,6 +94,7 @@ def main():
                 mode,
                 night,
                 config,
+                info,
                 steps=steps_to_take,
             )
 
@@ -104,42 +108,43 @@ def run_steps(
     mode,
     night,
     config,
+    info,
     steps="all",
 ):
-    counter_mode = find_first_index(config["modes"], mode)
+    imode = find_first_index(info["modes"], mode)
 
     # read configuration settings
-    extension = config["extensions"][counter_mode]
-    prefix = instrument.lower() + "_" + mode
+    extension = info["extension"][imode]
+    prefix = "%s_%s" % (instrument.lower(), mode.lower())
 
     # define paths
-    raw_path = input_dir.format(
+    input_dir = input_dir.format(
         instrument=instrument, target=target, night=night, mode=mode
     )
-    reduced_path = output_dir.format(
+    output_dir = output_dir.format(
         instrument=instrument, target=target, night=night, mode=mode
     )
 
     mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
 
     # define intermediary product files
-    bias_file = join(reduced_path, prefix + ".bias.fits")
-    flat_file = join(reduced_path, prefix + ".flat.fits")
-    norm_flat_file = join(reduced_path, prefix + ".flat_norm.fits")
-    blaze_file = join(reduced_path, prefix + ".ord_norm.sav")
-    order_file = join(reduced_path, prefix + ".ord_default.sav")
+    bias_file = join(output_dir, prefix + ".bias.fits")
+    flat_file = join(output_dir, prefix + ".flat.fits")
+    norm_flat_file = join(output_dir, prefix + ".flat_norm.fits")
+    blaze_file = join(output_dir, prefix + ".ord_norm.sav")
+    order_file = join(output_dir, prefix + ".ord_default.sav")
 
     # create output folder structure if necessary
-    if not os.path.exists(reduced_path):
-        os.makedirs(reduced_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     # find input files and sort them by type
-    files = glob.glob(join(raw_path, "%s.*.fits" % instrument))
-    files += glob.glob(join(raw_path, "%s.*.fits.gz" % instrument))
+    files = glob.glob(join(input_dir, "%s.*.fits" % instrument))
+    files += glob.glob(join(input_dir, "%s.*.fits.gz" % instrument))
     files = np.array(files)
 
     f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
-        files, target, instrument, mode
+        files, target, instrument, mode, **config
     )
 
     # ==========================================================================
@@ -184,14 +189,14 @@ def run_steps(
 
         order_img, _ = load_fits(f_order[0], instrument, mode, extension, mask=mask)
 
-        # Mark Orders
         orders, column_range = mark_orders(
             order_img,
             min_cluster=config.get("orders_threshold", 500),
             filter_size=config.get("orders_filter", 120),
             noise=config.get("orders_noise", 8),
             opower=config.get("orders_opower", 4),
-            manual=True,
+            manual=config.get("orders_manual", True),
+            plot=config.get("plot", False),
         )
 
         # Save image format description
@@ -208,6 +213,7 @@ def run_steps(
     if "norm_flat" in steps or steps == "all":
         logging.info("Normalizing flat field")
         extraction_width = 0.5
+        order_range = (0, len(orders) - 1)
 
         flat, blzcoef = normalize_flat(
             flat,
@@ -215,10 +221,12 @@ def run_steps(
             orders,
             column_range=column_range,
             extraction_width=extraction_width,
+            order_range=order_range,
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
+            plot=config.get("plot", False),
         )
 
         # Save data
@@ -244,26 +252,25 @@ def run_steps(
 
             # Determine extraction width, blaze center column, and base order
             extraction_width = 0.25
-            order_range = [0, len(orders) - 1]
+            order_range = (0, len(orders) - 1)
 
             # Extract wavecal spectrum
             thar, _ = extract(
                 im,
                 head,
                 orders,
+                thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
                 extraction_width=extraction_width,
                 order_range=order_range,
                 column_range=column_range,
-                thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
                 osample=config.get("wavecal_osample", 1),
-                plot=True,
+                plot=config.get("plot", False),
             )
 
             head["obase"] = (order_range[0], "base order number")
 
-            nameout = swap_extension(f, ".thar.ech", reduced_path)
+            nameout = swap_extension(f, ".thar.ech", output_dir)
             save_fits(nameout, head, spec=thar)
-            # fits.writeto(nameout, data=thar, header=head, overwrite=True)
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -278,8 +285,9 @@ def run_steps(
             im -= bias
             im /= flat
 
-            # TODO may or may not work
+            # Set extraction width
             extraction_width = 0.4
+            order_range = (0, len(orders) - 1)
 
             # Optimally extract science spectrum
             spec, sigma = extract(
@@ -288,11 +296,12 @@ def run_steps(
                 orders,
                 extraction_width=extraction_width,
                 column_range=column_range,
+                order_range=order_range,
                 lambda_sf=config.get("science_lambda_sf", 0.1),
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=True,
+                plot=config.get("plot", False),
             )
 
             # Calculate Continuum and Error
@@ -320,7 +329,7 @@ def run_steps(
             pol_angle = head.get("e_pol", "--")
 
             # save spectrum to disk
-            nameout = swap_extension(f, ".ech", path=reduced_path)
+            nameout = swap_extension(f, ".ech", path=output_dir)
             save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef)
 
             logging.info(

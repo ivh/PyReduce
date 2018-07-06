@@ -14,11 +14,11 @@ def get_instrument_info(instrument):
     instrument = load_instrument(instrument)
     return instrument.load_info()
 
-def sort_files(files, target, instrument, mode):
+def sort_files(files, target, instrument, mode, **kwargs):
     instrument = load_instrument(instrument)
-    return instrument.sort_files(files, target, mode)
+    return instrument.sort_files(files, target, mode, **kwargs)
 
-def modeinfo(header, instrument, mode):
+def modeinfo(header, instrument, mode, **kwargs):
     instrument = load_instrument(instrument)
-    header = instrument.add_header_info(header, mode)
+    header = instrument.add_header_info(header, mode, **kwargs)
     return header

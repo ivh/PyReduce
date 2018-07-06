@@ -1,23 +1,12 @@
 {
-    "instrument": "UVES",
-    "modes": [
-        "red",
-        "middle",
-        "blue"
-    ],
-    "extensions": [
-        1,
-        2,
-        0
-    ],
-    "binned": ["2", "2"],
-    "mask_suffix": "",
+    "__instrument__": "UVES",
 
     "orders_opower": 4,
     "orders_filter": 80,
     "orders_threshold": 2000,
     "orders_noise": 8,
-    
+    "orders_manual": true,
+
     "normflat_sf_smooth": 2,
     "normflat_osample": 12,
     "normflat_swath_width": 200,
@@ -30,11 +19,11 @@
     "science_lambda_sf": 0.1,
     "science_lambda_sp": 0,
     
-    "manual": 0,
-    "polarim": 0,
-    "plot": 0,
+    
+    "polarim": false,
+    "plot": true,
     "use_fiber": "AB",
-    "use_median": 1,
+    "use_median": true,
 
     "continuum_parameters_pass1" : [1, 1e5, 1e7, 1],
     "continuum_parameters_pass2" : [10, 1e4, 1e7, 1]

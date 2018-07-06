@@ -61,7 +61,7 @@ class UVES(instrument):
         }
         return info
 
-    def add_header_info(self, header, mode, *args, **kwargs):
+    def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
@@ -84,7 +84,7 @@ class UVES(instrument):
 
         return header
 
-    def sort_files(self, files, target, mode, *args, **kwargs):
+    def sort_files(self, files, target, mode, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
