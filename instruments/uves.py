@@ -109,7 +109,7 @@ class UVES(instrument):
             )
 
             # Fix naming
-            ob[i] = ob[i].casefold().replace("-", "")
+            ob[i] = ob[i].replace("-", "")
             mo[i] = mo[i].casefold()
 
         # TODO allow several names for the target?
