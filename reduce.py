@@ -4,12 +4,10 @@ REDUCE script for spectrograph data
 import glob
 import json
 import os.path
+from os.path import join
 import pickle
 import sys
-from os.path import join
-from getxwd import getxwd
 import logging
-
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
@@ -30,6 +28,7 @@ from util import (
 )
 from instruments.instrument_info import sort_files
 from trace import mark_orders  # TODO: trace is a standard library name
+from getxwd import getxwd
 
 # TODO turn dicts into numpy structured array
 
@@ -57,7 +56,7 @@ def main():
             # "bias",
             # "flat",
             # "orders",
-            "norm_flat",
+            # "norm_flat",
             "wavecal",
             "science",
         ]
@@ -208,15 +207,14 @@ def run_steps(
 
     if "norm_flat" in steps or steps == "all":
         logging.info("Normalizing flat field")
-        xwd = 40
-        # xwd, sxwd = getxwd(flat, orders, colrange=column_range, gauss = True, pixels=True)
+        extraction_width = 0.5
 
         flat, blzcoef = normalize_flat(
             flat,
             fhead,
             orders,
             column_range=column_range,
-            xwd=xwd,
+            extraction_width=extraction_width,
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
@@ -245,7 +243,7 @@ def run_steps(
             im, head = load_fits(f, instrument, mode, extension, mask=mask)
 
             # Determine extraction width, blaze center column, and base order
-            xwd, sxwd = np.full((len(orders), 2), 2), 0
+            extraction_width = 0.25
             order_range = [0, len(orders) - 1]
 
             # Extract wavecal spectrum
@@ -253,12 +251,12 @@ def run_steps(
                 im,
                 head,
                 orders,
-                xwd=xwd,
-                sxwd=sxwd,
+                extraction_width=extraction_width,
                 order_range=order_range,
                 column_range=column_range,
                 thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
                 osample=config.get("wavecal_osample", 1),
+                plot=True,
             )
 
             head["obase"] = (order_range[0], "base order number")
@@ -281,22 +279,20 @@ def run_steps(
             im /= flat
 
             # TODO may or may not work
-            # xwd, sxwd = getxwd(im, orders, colrange=column_range, pixels=True)
-            xwd, sxwd = 25, 0
+            extraction_width = 0.4
 
             # Optimally extract science spectrum
             spec, sigma = extract(
                 im,
                 head,
                 orders,
-                xwd=xwd,
-                sxwd=sxwd,
+                extraction_width=extraction_width,
                 column_range=column_range,
                 lambda_sf=config.get("science_lambda_sf", 0.1),
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=False,
+                plot=True,
             )
 
             # Calculate Continuum and Error
@@ -321,20 +317,11 @@ def run_steps(
 
             order_range = (0, len(orders))  # TODO
             head["obase"] = (order_range[0], " base order number")
+            pol_angle = head.get("e_pol", "--")
 
             # save spectrum to disk
             nameout = swap_extension(f, ".ech", path=reduced_path)
             save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef)
-
-            pol_angle = head.get("eso ins ret25 pos")
-            if pol_angle is None:
-                pol_angle = head.get("eso ins ret50 pos")
-                if pol_angle is None:
-                    pol_angle = "no polarimeter"
-                else:
-                    pol_angle = "lin %i" % pol_angle
-            else:
-                pol_angle = "cir %i" % pol_angle
 
             logging.info(
                 "star: %s, polarization: %s, mean s/n=%.2f",

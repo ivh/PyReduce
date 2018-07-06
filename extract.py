@@ -78,7 +78,7 @@ def plot_slitfunction(sp, sfsm, model, osample, onum, ib, ie, readn, gain):
     # plt.pause(0.001)
 
 
-def make_slitfunction(
+def extract_spectrum(
     img,
     ycen,
     ylow,
@@ -312,19 +312,19 @@ def make_slitfunction(
     return spec, slitf, model, sunc
 
 
-def get_y_scale(order, order_below, order_above, ix, cole, xwd, nrow):
+def get_y_scale(order, order_below, order_above, ix, cole, extraction_width, nrow):
     ycen = np.polyval(order, ix)  # row at order center
 
     left, right = cole  # First column to extract
 
     ycenn = ycen[left:right]
 
-    ymin = ycenn - xwd[0]
+    ymin = ycenn - extraction_width[0]
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
 
-    ymax = ycenn + xwd[1]
+    ymax = ycenn + extraction_width[1]
     ymax = np.ceil(ymax)
     if max(ymax) > nrow:
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
@@ -339,7 +339,7 @@ def get_y_scale(order, order_below, order_above, ix, cole, xwd, nrow):
 def optimal_extraction(
     img,
     orders,
-    xwd,
+    extraction_width,
     column_range,
     scatter=None,
     yscatter=None,
@@ -390,11 +390,11 @@ def optimal_extraction(
             orders[onum + 1],  # order above
             ix,
             column_range[onum],
-            xwd[onum],
+            extraction_width[onum],
             nrow,
         )
 
-        spectrum[i], slitfunction[i], _, uncertainties[i] = make_slitfunction(
+        spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(
             img,
             ycen,
             y_lower_lim,
@@ -413,7 +413,15 @@ def optimal_extraction(
 
 
 def arc_extraction(
-    img, orders, xwd, column_range, gain=1, readn=0, dark=0, plot=False, **kwargs
+    img,
+    orders,
+    extraction_width,
+    column_range,
+    gain=1,
+    readn=0,
+    dark=0,
+    plot=False,
+    **kwargs
 ):
     logging.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
@@ -421,7 +429,7 @@ def arc_extraction(
 
     if plot:
         # Prepare output image
-        output = np.zeros((np.sum(xwd[1:-1]) + nord - 2, ncol))
+        output = np.zeros((np.sum(extraction_width[1:-1]) + nord - 2, ncol))
         pos = [0]
 
     spectrum = np.zeros((nord - 2, ncol))
@@ -433,7 +441,7 @@ def arc_extraction(
         x_right_lim = column_range[onum, 1]  # Last column to extract
 
         ycen = np.polyval(orders[onum], x).astype(int)
-        yb, yt = ycen - xwd[onum, 0], ycen + xwd[onum, 1]
+        yb, yt = ycen - extraction_width[onum, 0], ycen + extraction_width[onum, 1]
         index = make_index(yb, yt, x_left_lim, x_right_lim)
 
         # Sum over the prepared index
@@ -469,7 +477,7 @@ def arc_extraction(
     return spectrum, 0, uncertainties
 
 
-def fix_column_range(img, orders, xwd, column_range):
+def fix_column_range(img, orders, extraction_width, column_range):
     nrow, ncol = img.shape
     ix = np.arange(ncol)
     # Fix column_range of each order
@@ -477,8 +485,8 @@ def fix_column_range(img, orders, xwd, column_range):
         order = orders[i]
 
         coeff_bot, coeff_top = np.copy(order), np.copy(order)
-        coeff_bot[-1] -= xwd[i, 0]
-        coeff_top[-1] += xwd[i, 1]
+        coeff_bot[-1] -= extraction_width[i, 0]
+        coeff_top[-1] += extraction_width[i, 1]
 
         ixx = ix[column_range[i, 0] : column_range[i, 1]]
         y_bot = np.polyval(coeff_bot, ixx)  # low edge of arc
@@ -509,31 +517,31 @@ def extend_orders(orders, nrow):
     return orcend
 
 
-def fix_extraction_width(xwd, orders, column_range, ncol):
+def fix_extraction_width(extraction_width, orders, column_range, ncol):
     """ convert fractional extraction width to pixel range """
-    if np.all(xwd > 1.5):
+    if np.all(extraction_width > 1.5):
         # already in pixel scale
-        xwd = xwd.astype(int)
-        return xwd
+        extraction_width = extraction_width.astype(int)
+        return extraction_width
 
     x = np.arange(ncol)
     # if extraction width is in relative scale transform to pixel scale
-    for i in range(1, len(xwd) - 1):
+    for i in range(1, len(extraction_width) - 1):
         left, right = column_range[i]
         current = np.polyval(orders[i], x[left:right])
 
-        if xwd[i, 0] < 1.5:
+        if extraction_width[i, 0] < 1.5:
             below = np.polyval(orders[i - 1], x[left:right])
-            xwd[i, 0] *= np.mean(current - below)
-        if xwd[i, 1] < 1.5:
+            extraction_width[i, 0] *= np.mean(current - below)
+        if extraction_width[i, 1] < 1.5:
             above = np.polyval(orders[i + 1], x[left:right])
-            xwd[i, 1] *= np.mean(above - current)
+            extraction_width[i, 1] *= np.mean(above - current)
 
-    xwd[0] = xwd[1]
-    xwd[-1] = xwd[-2]
-    xwd = xwd.astype(int)
+    extraction_width[0] = extraction_width[1]
+    extraction_width[-1] = extraction_width[-2]
+    extraction_width = extraction_width.astype(int)
 
-    return xwd
+    return extraction_width
 
 
 def extract(
@@ -541,7 +549,7 @@ def extract(
     head,
     orders,
     column_range=None,
-    xwd=0.5,
+    extraction_width=0.5,
     order_range=None,
     thar=False,
     **kwargs
@@ -565,23 +573,27 @@ def extract(
         order_range = (0, nord - 1)
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 0))
-    if np.isscalar(xwd):
-        xwd = np.tile([xwd, xwd], (nord, 1))
+    if np.isscalar(extraction_width):
+        extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
 
     # Limit orders (and related properties) to orders in range
     nord = order_range[1] - order_range[0] + 1
     orders = orders[order_range[0] : order_range[1] + 1]
     column_range = column_range[order_range[0] : order_range[1] + 1]
-    xwd = xwd[order_range[0] : order_range[1] + 1]
+    extraction_width = extraction_width[order_range[0] : order_range[1] + 1]
 
     # Extend orders and related properties
     orders = extend_orders(orders, nrow)
-    xwd = np.array([xwd[0], *xwd, xwd[-1]])
+    extraction_width = np.array(
+        [extraction_width[0], *extraction_width, extraction_width[-1]]
+    )
     column_range = np.array([column_range[0], *column_range, column_range[-1]])
 
     # Fix column range, so that all extractions are fully within the image
-    xwd = fix_extraction_width(xwd, orders, column_range, ncol)
-    column_range = fix_column_range(img, orders, xwd, column_range)
+    extraction_width = fix_extraction_width(
+        extraction_width, orders, column_range, ncol
+    )
+    column_range = fix_column_range(img, orders, extraction_width, column_range)
 
     # TODO
     # Prepare normalized flat field image if necessary
@@ -595,11 +607,17 @@ def extract(
 
     if not thar:  # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
-            img, orders, xwd, column_range, im_norm=im_norm, im_ordr=im_ordr, **kwargs
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            im_norm=im_norm,
+            im_ordr=im_ordr,
+            **kwargs
         )
     else:
         spectrum, slitfunction, uncertainties = arc_extraction(
-            img, orders, xwd, column_range, **kwargs
+            img, orders, extraction_width, column_range, **kwargs
         )
 
     if normalize:

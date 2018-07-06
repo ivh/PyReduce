@@ -70,6 +70,18 @@ class UVES(instrument):
         header["e_ra"] /= 15
         header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
 
+        pol_angle = header.get("eso ins ret25 pos")
+        if pol_angle is None:
+            pol_angle = header.get("eso ins ret50 pos")
+            if pol_angle is None:
+                pol_angle = "no polarimeter"
+            else:
+                pol_angle = "lin %i" % pol_angle
+        else:
+            pol_angle = "cir %i" % pol_angle
+
+        header["e_pol"] = (pol_angle, "polarization angle")
+
         return header
 
     def sort_files(self, files, target, mode, *args, **kwargs):
