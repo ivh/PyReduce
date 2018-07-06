@@ -16,7 +16,7 @@ def getflatimg(img, axis=0):
 
 def getspecvar(img):
     ny, nx = img.shape
-    nimg = img / img.sum(axis=1)[:, None]
+    nimg = img / np.nansum(img, axis=1)[:, None]
     x = np.indices(img.shape)[1]
     return x.flatten(), nimg.flat
 
@@ -54,8 +54,10 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         AX4.set_title("Model")
 
 
-        im1 = AX1.imshow(di)
-        im4 = AX4.imshow(dm)
+
+        im1 = AX1.imshow(di, aspect="auto")
+        line1, = AX1.plot(ny/2 + ycen, '-r')
+        im4 = AX4.imshow(dm, aspect="auto")
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)        
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
@@ -67,6 +69,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         setattr(plot_slitfunction, "nx", nx)
         
         setattr(plot_slitfunction, "im1", im1)
+        setattr(plot_slitfunction, "line1", line1)
         setattr(plot_slitfunction, "im2", im2)
         setattr(plot_slitfunction, "specvar", specvar)        
         setattr(plot_slitfunction, "slitvar", slitvar)
@@ -77,6 +80,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         im1 = plot_slitfunction.im1
         im2 = plot_slitfunction.im2
         im4 = plot_slitfunction.im4
+        line1 = plot_slitfunction.line1
         specvar = plot_slitfunction.specvar
         slitvar = plot_slitfunction.slitvar
         slitfu = plot_slitfunction.slitfu
@@ -90,11 +94,10 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         df = df[:ny+2]
         dm = dm[:ny, :]
     elif di.shape[0] < ny:
-        ypad = ny - di.shape[0], 0
-        #ypad = int(np.ceil(ypad/2)), int(np.floor(ypad/2))
-        di = np.pad(di, (ypad, (0,0)), "edge")
-        df = np.pad(df, (ny+2 - df.shape[0], 0), "edge")
-        dm = np.pad(dm, (ypad, (0,0)), "edge")
+        ypad = 0, ny - di.shape[0]
+        di = np.pad(di, (ypad, (0,0)), "constant", constant_values=np.nan)
+        df = np.pad(df, (0, ny+2 - df.shape[0]), "constant", constant_values=np.nan)
+        dm = np.pad(dm, (ypad, (0,0)), "constant", constant_values=np.nan)
     
     if di.shape[1] > nx:
         di = di[:, :nx]
@@ -102,18 +105,18 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         dm = dm[:, :nx]
         ycen = ycen[:nx]
     elif di.shape[1] < nx:
-        xpad = nx - di.shape[1], 0
-        #xpad = int(np.ceil(xpad/2)), int(np.floor(xpad/2))
-        di = np.pad(di, ((0,0), xpad), "edge")
-        ds = np.pad(ds, xpad, "edge")
-        dm = np.pad(dm, ((0,0), xpad), "edge")
-        ycen = np.pad(ycen, xpad, "edge")
+        xpad = 0, nx - di.shape[1]
+        di = np.pad(di, ((0,0), xpad), "constant", constant_values=np.nan)
+        ds = np.pad(ds, xpad, "constant", constant_values=np.nan)
+        dm = np.pad(dm, ((0,0), xpad), "constant", constant_values=np.nan)
+        ycen = np.pad(ycen, xpad, "constant", constant_values=np.nan)
     
     # Update data
     FIG.suptitle("Order %i, Columns %i - %i" % (onum, left, right))
     im1.set_data(di)
     im2.set_ydata(ds)
     im4.set_data(dm)
+    line1.set_ydata(ny/2 + ycen)
 
     slitvar.set_data(*getslitvar(di * nx, ycen))
     slitfu.set_ydata(df)
