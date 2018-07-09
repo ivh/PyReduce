@@ -45,6 +45,8 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     if lambda_sp != 0:
         logging.warning("THIS WILL PROBABLY NOT WORK")
 
+    original = img
+
     # Get dimensions
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
@@ -105,6 +107,8 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         cmodel,
         cunc,
     )
+
+    original.mask = ~mask.astype(bool)
 
     return sp, sl, model, unc
 
