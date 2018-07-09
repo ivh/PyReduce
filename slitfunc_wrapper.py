@@ -57,34 +57,27 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     #sl = sl / np.sum(sl)
 
     sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img)) 
-    if lambda_sp != 0:
-        sp = gaussian_filter1d(sp, lambda_sp)
+    #if lambda_sp != 0:
+    #    sp = gaussian_filter1d(sp, lambda_sp)
 
     # Stretch sl by oversampling factor
     #old_points = np.linspace(0, ny-1, nrows, endpoint=True)
     #sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
-    sl = np.zeros(ny, dtype=float)
+    
+    mask = ~np.ma.getmask(img)
+    mask = np.ascontiguousarray(mask, dtype=c_int)
+    cmask = ffi.cast("int *", mask.ctypes.data)
 
-    if hasattr(img, "mask"):
-        mask = (~img.mask).astype(c_int).flatten()
-        mask = np.ascontiguousarray(mask)
-        cmask = ffi.cast("int *", mask.ctypes.data)
-    else:
-        mask = np.ones(nrows * ncols, dtype=c_int)
-        cmask = ffi.cast("int *", mask.ctypes.data)
-
-    sl = sl.astype(c_double)
+    sl = np.zeros(ny, dtype=c_double)
     csl = ffi.cast("double *", sl.ctypes.data)
 
-    sp = sp.astype(c_double)
+    sp = np.ascontiguousarray(sp, dtype=c_double)
     csp = ffi.cast("double *", sp.ctypes.data)
 
-    img = img.flatten().astype(c_double)
-    img = np.ascontiguousarray(img)
+    img = np.ascontiguousarray(img, dtype=c_double)
     cimg = ffi.cast("double *", img.ctypes.data)
 
-    ycen = ycen.astype(c_double)
-    ycen = np.ascontiguousarray(ycen)
+    ycen = np.ascontiguousarray(ycen, dtype=c_double)
     cycen = ffi.cast("double *", ycen.ctypes.data)
 
     model = np.zeros((nrows, ncols), dtype=c_double)
@@ -108,7 +101,10 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         cunc,
     )
 
-    original.mask = ~mask.astype(bool)
+    if np.ma.is_masked(original):
+        original.mask = ~mask.astype(bool)
+    else:
+        original = np.ma.masked_array(original, ~mask.astype(bool))
 
     return sp, sl, model, unc
 
@@ -218,7 +214,7 @@ if __name__ == "__main__":
     ycen = sav["ycen"]
     shear = np.zeros(img.shape[1])
 
-    sp, sl, model, unc = slitfunc_curved(img, ycen, shear, osample=3)
+    sp, sl, model, unc = slitfunc(img, ycen, osample=1)
 
     plt.subplot(211)
     plt.plot(sp)
