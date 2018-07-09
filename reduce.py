@@ -33,34 +33,36 @@ from getxwd import getxwd
 # TODO turn dicts into numpy structured array
 
 
-def main():
+def main(
+    instrument="UVES",
+    target="HD132205",
+    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science"),
+):
+    """
+    Main entry point for REDUCE scripts,
+    default values can be changed as required if reduce is used as a script
+
+    Finds input directories, and loops over observation nights and instrument modes
+
+    instrument : str
+        instrument used for the observation (e.g. UVES, HARPS)
+    target : str
+        the observed star, as named in the folder structure/fits headers
+    steps : {tuple(str), "all"}, optional
+        which steps of the reduction process to perform
+        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
+        alternatively set steps to "all", which is equivalent to setting all steps
+        Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
+    """
+
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
+    # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
     input_dir = "./Test/{instrument}/{target}/raw/{night}"
     output_dir = "./Test/{instrument}/{target}/reduced/{night}/Reduced_{mode}"
 
-    mask_dir = "./masks"
-    log_file = "log.log"
+    log_file = "%s.log" % target
     start_logging(log_file)
-
-    if len(sys.argv) > 1:
-        # Command Line arguments passed
-        instrument, target, steps_to_take = parse_args()
-    else:
-        # Manual settings
-        # Instrument
-        instrument = "UVES"
-        # target star
-        target = "HD132205"
-        # Which parts of the reduction to perform
-        steps_to_take = [
-            # "bias",
-            # "flat",
-            # "orders",
-            # "norm_flat",
-            "wavecal",
-            "science",
-        ]
 
     # config: paramters for the current reduction
     # info: constant, instrument specific parameters
@@ -88,21 +90,19 @@ def main():
             run_steps(
                 input_dir,
                 output_dir,
-                mask_dir,
                 target,
                 instrument,
                 mode,
                 night,
                 config,
                 info,
-                steps=steps_to_take,
+                steps=steps,
             )
 
 
 def run_steps(
     input_dir,
     output_dir,
-    mask_dir,
     target,
     instrument,
     mode,
@@ -110,7 +110,37 @@ def run_steps(
     config,
     info,
     steps="all",
+    mask_dir="./masks",
 ):
+    """Reduce all observations from a single night and instrument mode
+
+    Parameters
+    ----------
+    input_dir : str
+        input directory, may contain tags {instrument}, {night}, {target}, {mode}
+    output_dir : str
+        output directory, may contain tags {instrument}, {night}, {target}, {mode}
+    target : str
+        observed targets as used in directory names/fits headers
+    instrument : str
+        instrument used for observations
+    mode : str
+        instrument mode used (e.g. "red" or "blue" for HARPS)
+    night : str
+        Observation night, in the same format as used in the directory structure/file sorting
+    config : dict
+        numeric reduction specific settings, like pixel threshold, which may change between runs
+    info : dict
+        fixed instrument specific values, usually header keywords for gain, readnoise, etc.
+    steps : {tuple(str), "all"}, optional
+        which steps of the reduction process to perform
+        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
+        alternatively set steps to "all", which is equivalent to setting all steps
+        Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
+    mask_dir : str, optional
+        directory containing the masks, defaults to predefined REDUCE masks
+    """
+
     imode = find_first_index(info["modes"], mode)
 
     # read configuration settings
@@ -286,7 +316,7 @@ def run_steps(
             im /= flat
 
             # Set extraction width
-            extraction_width = 0.4
+            extraction_width = 25
             order_range = (0, len(orders) - 1)
 
             # Optimally extract science spectrum
@@ -343,4 +373,11 @@ def run_steps(
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        # Command Line arguments passed
+        args = parse_args()
+    else:
+        # Use "default" values set in main function
+        args = {}
+
+    main(**args)

@@ -49,7 +49,7 @@ def parse_args():
     if len(steps_to_take) == 0:
         steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
 
-    return instrument, target, steps_to_take
+    return {"instrument":instrument, "target":target, "steps":steps_to_take}
 
 
 def start_logging(log_file="log.log"):
