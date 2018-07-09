@@ -18,7 +18,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     E = np.zeros(ncols)
     sp_old = np.zeros(ncols)
-    Aij = np.zeros((ny, ny))
+    Aij = np.zeros((nd, ny))
     Adiag = np.zeros((3, ncols))
     bj = np.zeros(ny)
     omega = np.zeros((ny, nrows, ncols))
@@ -37,8 +37,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
             d1 = ycen[x] % step
         d2 = step - d1
 
-        iy1 = iy1 + osample * np.arange(nrows)
-        iy2 = iy2 + osample * np.arange(nrows)
+        #TODO ? offset
+        iy1 = iy1 + osample * np.arange(nrows) - osample
+        iy2 = iy2 + osample * np.arange(nrows) - osample
 
         omega[iy[:, None] == iy1[None, :], x] = d1
         omega[(iy[:, None] > iy1[None, :]) & (iy[:, None] < iy2[None, :]), x] = step
@@ -55,13 +56,13 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         #TODO more efficient way of doing this!
         for iy in range(ny):
             for jy in range(max(iy - osample, 0), min(iy + osample, ny - 1) + 1):
-                Aij[iy, jy - iy + osample] = np.sum(
+                Aij[jy - iy + osample, iy] = np.sum(
                     np.sum(omega[iy] * omega[jy] * mask, axis=0) * sp * sp
                 )
 
             bj[iy] = np.sum(np.sum(omega[iy] * mask * im, axis=0) * sp)
 
-        diag_tot = np.sum(Aij[:, osample])
+        diag_tot = np.sum(Aij[osample, :])
 
         ## Scale regularization parameters */
 
@@ -71,21 +72,21 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         # Franklin regularization? (A + lambda * D) x = b
 
         # Main diagonal  */
-        Aij[0, osample] += lamb
-        Aij[1:-1, osample] += lamb * 2
-        Aij[-1, osample] += lamb
+        Aij[osample, 0] += lamb
+        Aij[osample, 1:-1] += lamb * 2
+        Aij[osample, -1] += lamb
 
         # Upper diagonal */
-        Aij[0, osample + 1] -= lamb
-        Aij[1:-1, osample + 1] -= lamb
+        Aij[osample + 1, 0] -= lamb
+        Aij[osample + 1, 1:-1] -= lamb
 
         # Lower diagonal */
-        Aij[1:-1, osample - 1] -= lamb
-        Aij[-1, osample - 1] -= lamb
+        Aij[osample - 1, 1:-1] -= lamb
+        Aij[osample - 1, -1] -= lamb
 
         # Solve the system of equations */
         tmp = (nd - 1) // 2
-        bj = solve_banded((tmp, tmp), Aij[:, :nd].T, bj)
+        bj = solve_banded((tmp, tmp), Aij, bj)
 
         # Normalize the slit function */
         sf = np.copy(bj) / np.sum(bj) * osample
