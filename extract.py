@@ -16,7 +16,7 @@ def getflatimg(img, axis=0):
 
 def getspecvar(img):
     ny, nx = img.shape
-    nimg = img / np.nansum(img, axis=1)[:, None]
+    nimg = img  / np.nansum(img, axis=1)[:, None]
     x = np.indices(img.shape)[1]
     return x.flatten(), nimg.flat
 
@@ -28,18 +28,36 @@ def getslitvar(img, xoff):
 
 def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
 
+    ny, nx = img.shape
+    ny_orig = ny
+    size = img.size
+    ny_os = len(slitf)
+    os = (ny_os - 1) / (ny + 1)
+
+    mask = np.ma.getmask(img)
+    idx = np.indices(img.shape)
+
     di = img.data / np.sum(img)
     ds = spec.data / np.sum(spec)
 
     df = np.copy(slitf)
     dm = model / np.sum(model)
 
-    ny, nx = di.shape
-    size = di.size
-    ny_os = len(df)
-    os = (ny_os - 1) / (ny + 1)
+    max_bad_pixels = 100
 
+    xbad = np.full(max_bad_pixels, np.nan)
+    ybad = np.full(max_bad_pixels, np.nan)
+    ibad = np.zeros(max_bad_pixels)
+    jbad = np.zeros(max_bad_pixels)
+    n = np.ma.count_masked(img)
+    xbad[:n] = (di/np.nansum(di, axis=1)[:, None])[mask][:max_bad_pixels]
+    ybad[:n] = (di[mask] * nx)[:max_bad_pixels]
+    ibad[:n] = idx[0][mask][:max_bad_pixels]
+    jbad[:n] = idx[1][mask][:max_bad_pixels]
+
+    # on first execution of plot create a new figure
     if not hasattr(plot_slitfunction, "fig"):
+        # If no figure exists, create a new one
         plt.ion()
         FIG = plt.figure(figsize=(12, 4))
         FIG.tight_layout(pad=0.05)
@@ -53,34 +71,49 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
         AX4 = FIG.add_subplot(234)
         AX4.set_title("Model")
 
-
-
-        im1 = AX1.imshow(di, aspect="auto")
-        line1, = AX1.plot(ny/2 + ycen, '-r')
-        im4 = AX4.imshow(dm, aspect="auto")
+        im1 = AX1.imshow(di, aspect="auto", origin="lower")
+        line1, = AX1.plot(ny_orig/2 + ycen, '-r')
+        im4 = AX4.imshow(dm, aspect="auto", origin="lower")
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)        
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
         slitfu, = AX3.plot(np.linspace(0, ny, len(df)), df, "-k", lw=3)
-        im2, = AX2.plot(ds, "-k")
 
+        masked, = AX3.plot(ibad, ybad, '+g')
+        masked2, = AX2.plot(jbad, xbad, '+g')
+
+        line2, = AX2.plot(ds, "-k")
+
+        # Save plots to this function
         setattr(plot_slitfunction, "fig", FIG)
+        setattr(plot_slitfunction, "ax1", AX1)
+        setattr(plot_slitfunction, "ax2", AX2)
+        setattr(plot_slitfunction, "ax3", AX3)
+        setattr(plot_slitfunction, "ax4", AX4)
         setattr(plot_slitfunction, "ny", ny)
         setattr(plot_slitfunction, "nx", nx)
         
         setattr(plot_slitfunction, "im1", im1)
         setattr(plot_slitfunction, "line1", line1)
-        setattr(plot_slitfunction, "im2", im2)
+        setattr(plot_slitfunction, "line2", line2)
+        setattr(plot_slitfunction, "masked", masked)
+        setattr(plot_slitfunction, "masked2", masked2)
         setattr(plot_slitfunction, "specvar", specvar)        
         setattr(plot_slitfunction, "slitvar", slitvar)
         setattr(plot_slitfunction, "slitfu", slitfu)        
         setattr(plot_slitfunction, "im4", im4)
     else:
         FIG = plot_slitfunction.fig
+        AX1 = plot_slitfunction.ax1
+        AX2 = plot_slitfunction.ax2
+        AX3 = plot_slitfunction.ax3
+        AX4 = plot_slitfunction.ax4
         im1 = plot_slitfunction.im1
-        im2 = plot_slitfunction.im2
+        line2 = plot_slitfunction.line2
         im4 = plot_slitfunction.im4
         line1 = plot_slitfunction.line1
+        masked = plot_slitfunction.masked
+        masked2 = plot_slitfunction.masked2
         specvar = plot_slitfunction.specvar
         slitvar = plot_slitfunction.slitvar
         slitfu = plot_slitfunction.slitfu
@@ -114,13 +147,31 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
     # Update data
     FIG.suptitle("Order %i, Columns %i - %i" % (onum, left, right))
     im1.set_data(di)
-    im2.set_ydata(ds)
     im4.set_data(dm)
-    line1.set_ydata(ny/2 + ycen)
+
+    # Set new limits
+    AX1.set_xlim((0, img.shape[1]))
+    AX1.set_ylim((0, img.shape[0]))
+    AX4.set_xlim((0, img.shape[1]))
+    AX4.set_ylim((0, img.shape[0]))
+
+    line1.set_ydata(ny_orig/2 + ycen)
+    line2.set_ydata(ds)
 
     slitvar.set_data(*getslitvar(di * nx, ycen))
     slitfu.set_ydata(df)
     specvar.set_data(*getspecvar(di))
+
+    masked.set_xdata(ibad)
+    masked.set_ydata(ybad)
+
+    masked2.set_xdata(jbad)
+    masked2.set_ydata(xbad)
+
+    AX2.set_ylim((0, np.nanmax(di/np.nansum(di, axis=1)[:, None]) * 1.1))
+    AX3.set_ylim((0, np.nanmax(di) * nx * 1.1))
+
+
 
     FIG.canvas.draw()
     FIG.canvas.flush_events()
