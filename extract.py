@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 import astropy.io.fits as fits
@@ -6,7 +7,8 @@ import logging
 import pickle
 
 from make_scatter import make_scatter
-from slitfunc_wrapper import slitfunc, slitfunc_curved
+from slitfunc import slitfunc
+#from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
 def getflatimg(img, axis=0):
@@ -21,12 +23,12 @@ def getspecvar(img):
     return x.flatten(), nimg.flat
 
 
-def getslitvar(img, xoff):
+def getslitvar(img, xoff, osample=1):
     x = np.indices(img.shape)[0]
     x = x - xoff[None, :]
-    return x.flatten(), img.flat
+    return x.flatten() * osample, img.flat
 
-def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
+def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample):
 
     ny, nx = img.shape
     ny_orig = ny
@@ -77,7 +79,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)        
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
-        slitfu, = AX3.plot(np.linspace(0, ny, len(df)), df, "-k", lw=3)
+        slitfu, = AX3.plot(np.linspace(0, len(df), len(df)), df, "-k", lw=3)
 
         masked, = AX3.plot(ibad, ybad, '+g')
         masked2, = AX2.plot(jbad, xbad, '+g')
@@ -146,13 +148,17 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
     
     # Update data
     FIG.suptitle("Order %i, Columns %i - %i" % (onum, left, right))
+    
+    im1.set_norm(mcolors.Normalize(vmin=np.nanmin(di), vmax=np.nanmax(di)))
     im1.set_data(di)
+    im4.set_norm(mcolors.Normalize(vmin=np.nanmin(dm), vmax=np.nanmax(dm)))
     im4.set_data(dm)
+    
 
     line1.set_ydata(ny_orig/2 + ycen)
     line2.set_ydata(ds)
 
-    slitvar.set_data(*getslitvar(di * nx, ycen))
+    slitvar.set_data(*getslitvar(di * nx, ycen, osample=osample))
     slitfu.set_ydata(df)
     specvar.set_data(*getspecvar(di))
 
@@ -173,11 +179,9 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
     AX2.set_ylim((0, np.nanmax(di/np.nansum(di, axis=1)[:, None]) * 1.1))
     AX3.set_ylim((0, np.nanmax(di) * nx * 1.1))
 
-
-
     FIG.canvas.draw()
     FIG.canvas.flush_events()
-
+    #plt.show()
 
 def extract_spectrum(
     img,
@@ -401,7 +405,7 @@ def extract_spectrum(
         sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
 
         if plot:
-            plot_slitfunction(sf, sp, sfsm, model, y_offset, ord_num, ib, ie)
+            plot_slitfunction(sf, sp, sfsm, model, y_offset, ord_num, ib, ie, osample)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
