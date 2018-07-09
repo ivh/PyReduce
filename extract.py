@@ -149,12 +149,6 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
     im1.set_data(di)
     im4.set_data(dm)
 
-    # Set new limits
-    AX1.set_xlim((0, img.shape[1]))
-    AX1.set_ylim((0, img.shape[0]))
-    AX4.set_xlim((0, img.shape[1]))
-    AX4.set_ylim((0, img.shape[0]))
-
     line1.set_ydata(ny_orig/2 + ycen)
     line2.set_ydata(ds)
 
@@ -168,6 +162,14 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right):
     masked2.set_xdata(jbad)
     masked2.set_ydata(xbad)
 
+    # Set new limits
+    AX1.set_xlim((0, img.shape[1]))
+    AX1.set_ylim((0, img.shape[0]))
+    AX4.set_xlim((0, img.shape[1]))
+    AX4.set_ylim((0, img.shape[0]))
+
+    AX2.set_xlim((0, len(spec)))
+    AX3.set_xlim((0, len(slitf)))
     AX2.set_ylim((0, np.nanmax(di/np.nansum(di, axis=1)[:, None]) * 1.1))
     AX3.set_ylim((0, np.nanmax(di) * nx * 1.1))
 
