@@ -243,12 +243,12 @@ def make_scatter(im, orders, **kwargs):
         ]  # find all the points below
         nback = iback.shape[0]
         if nback <= 5:
-            plt.plot(yslitf, sfsm, xs=1)
+            plt.plot(yslitf, sfsm)
             plt.plot(
                 yslitf,
                 bottom(np.clip(sfsm, None, np.median(sfsm)), 1, eps=dev, poly=True),
             )
-            plt.plot(yslitf[k], sfsm[k], psym=2)
+            plt.plot(yslitf[k], sfsm[k], "*")
             raise Exception(
                 "mkscatter: major error in the order format: could not detect inter-order troff"
             )
