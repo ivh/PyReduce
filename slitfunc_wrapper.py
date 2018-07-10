@@ -42,9 +42,6 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     if osample != 1:
         logging.warning("WARNING: Oversampling may be wrong !!!")
 
-    if lambda_sp != 0:
-        logging.warning("THIS WILL PROBABLY NOT WORK")
-
     original = img
 
     # Get dimensions

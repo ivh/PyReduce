@@ -227,19 +227,18 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
       }
       norm /= ncols;
       lambda = lambda_sP * norm;
-      Adiag[0] = 0.e0;
-      Adiag[0 + ncols] += lambda;
-      Adiag[0 + ncols * 2] = -lambda;
+      Adiag[0 + 0] = 0.e0; //0,0
+      Adiag[0 + ncols] += lambda; // 1, 0
+      Adiag[0 + ncols * 2] -= lambda; //2, 0
       for (x = 1; x < ncols - 1; x++)
       {
-        Adiag[x] = -lambda;
+        Adiag[x] -= lambda;
         Adiag[x + ncols] += 2.e0 * lambda;
-        Adiag[x + ncols * 2] = -lambda;
+        Adiag[x + ncols * 2] -= lambda;
       }
-      Adiag[ncols - 1] = -lambda;
-      Adiag[ncols * 2 - 1] += lambda;
-      //this addresses memory outside the array and causes C to crash occasionally
-      Adiag[ncols * 3 - 1] = 0.e0; 
+      Adiag[ncols - 1 + 0] -= lambda; //0, -1
+      Adiag[ncols - 1 + ncols] += lambda; // 1, -1
+      Adiag[ncols - 1 + ncols * 2] = 0.e0; // 2, -1
 
       info = bandsol(Adiag, E, ncols, 3);
       if (info) printf("info = %d\n", info);
