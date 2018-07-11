@@ -2,10 +2,14 @@ import numpy as np
 
 
 from scipy.io import readsav
+from scipy.optimize import curve_fit
 import astropy.io.fits as fits
+
+from util import save_fits
 
 
 import matplotlib.pyplot as plt
+
 
 class AlignmentPlot:
     def __init__(self, ax, thar, cs_lines):
@@ -14,14 +18,14 @@ class AlignmentPlot:
         self.nord, self.ncol = thar.shape
         self.RED, self.GREEN, self.BLUE = 0, 1, 2
 
-        #TODO
+        # TODO
         thar[thar < 2] = 0
         thar[thar > 15000] = 15000
-        
+
         self.thar = thar / np.max(thar)
 
         norm = (np.e - 1) / np.max(cs_lines.height)
-        cs_lines.height = np.log( 1 + cs_lines.height * norm)
+        cs_lines.height = np.log(1 + cs_lines.height * norm)
         self.cs_lines = cs_lines
 
         self.order_first = 0
@@ -44,25 +48,33 @@ class AlignmentPlot:
                         self.GREEN,
                     ] = line.height
 
-        self.im.imshow(ref_image,  aspect="auto", origin="lower", extent=(0, self.ncol, 0, self.nord))
+        self.im.imshow(
+            ref_image,
+            aspect="auto",
+            origin="lower",
+            extent=(0, self.ncol, 0, self.nord),
+        )
         self.im.figure.canvas.draw()
 
-
     def connect(self):
-        self.cidclick = self.im.figure.canvas.mpl_connect("button_press_event", self.on_click)
+        self.cidclick = self.im.figure.canvas.mpl_connect(
+            "button_press_event", self.on_click
+        )
 
     def on_click(self, event):
         order = int(np.floor(event.ydata))
-        spec = "ref" if (event.ydata - order) > 0.5 else "thar" # if True then reference
+        spec = (
+            "ref" if (event.ydata - order) > 0.5 else "thar"
+        )  # if True then reference
         x = event.xdata
         print("Order: %i, Spectrum: %s, x: %g" % (order, "ref" if spec else "thar", x))
 
         # on every second click
         if self.first:
             self.first = False
-            self.order_first =  order
+            self.order_first = order
             self.spec_first = spec
-            self.x_first =  x
+            self.x_first = x
         else:
             # Clicked different spectra
             if spec != self.spec_first:
@@ -74,16 +86,59 @@ class AlignmentPlot:
                 self.offset[1] += offset_x
                 self.make_ref_image()
 
-    
 
-def align(thar, cs_lines):
+def align(thar, cs_lines, manual=True):
     # Align using window like in IDL REDUCE
     # TODO auto align (using cross corelation?)
-    _, ax = plt.subplots()
-    ap = AlignmentPlot(ax, thar, cs_lines)
-    ap.connect()
+    if manual:
+        _, ax = plt.subplots()
+        ap = AlignmentPlot(ax, thar, cs_lines)
+        ap.connect()
+        plt.show()
+        offset = ap.offset
+    else:
+        raise NotImplementedError("Use manual alignment for now")
+    return offset
+
+
+def build_2d_solution(thar, cs_lines, offset, oincr=1, obase=0):
+    nord, ncol = thar.shape
+    wave = np.zeros((nord, ncol))
+
+    cs_lines.xfirst += offset[1]
+    cs_lines.xlast += offset[1]
+    cs_lines.order += offset[0]
+
+    mask = ~cs_lines.flag.astype(bool)
+
+    m_wave = cs_lines.wll[mask]
+    m_pix = cs_lines.posm[mask]
+    m_ord = cs_lines.order[mask] * oincr + obase
+
+    # 2d polynomial fit with: x = m_pix, y = m_ord, z = m_wave
+    degree_x, degree_y = 2, 2
+
+    def func(x, *c):
+        c = np.array(c)
+        c.shape = degree_x, degree_y
+        value = np.polynomial.polynomial.polyval2d(x[0], x[1], c)
+        return value
+
+    popt, pcov = curve_fit(
+        func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
+    )
+
+    x = np.arange(ncol)
+    y = np.arange(nord)
+    x, y = np.meshgrid(x, y)
+    im = func([x, y], *popt)
+
+    # TODO: DEBUG
+    plt.imshow(im, aspect="auto")
     plt.show()
-    return ap.offset
+
+    print(popt)
+    return im
 
 
 def wavecal(thar, head, solution_2d, cs_lines):
@@ -92,9 +147,15 @@ def wavecal(thar, head, solution_2d, cs_lines):
     wave_solution = np.zeros((nord, ncol))
 
     # Step 1: align thar and reference
-    align(thar, cs_lines)
-    # Step 2: fit
+    # offset = align(thar, cs_lines)
+    offset = (1, 106)
+
+    # Step 2: discard large residual
+
     # Step 3: auto ID lines
+
+    # Step 4: build 2d solution
+    wave_solution = build_2d_solution(thar, cs_lines, offset)
 
     return wave_solution  # wavelength solution
 
