@@ -1,8 +1,9 @@
 import numpy as np
-
+from numpy.polynomial.polynomial import polyval2d
 
 from scipy.io import readsav
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks_cwt, find_peaks
 import astropy.io.fits as fits
 
 from util import save_fits
@@ -101,61 +102,120 @@ def align(thar, cs_lines, manual=True):
     return offset
 
 
-def build_2d_solution(thar, cs_lines, offset, oincr=1, obase=0):
-    nord, ncol = thar.shape
-    wave = np.zeros((nord, ncol))
-
-    cs_lines.xfirst += offset[1]
-    cs_lines.xlast += offset[1]
-    cs_lines.order += offset[0]
-
+def build_2d_solution(cs_lines, oincr=1, obase=0):
+    # Only use flagged data
+    #TODO whoch fields to use for fit?
     mask = ~cs_lines.flag.astype(bool)
-
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask] * oincr + obase
 
     # 2d polynomial fit with: x = m_pix, y = m_ord, z = m_wave
-    degree_x, degree_y = 2, 2
+    # TODO: Choose polynomial degree
+    degree_x, degree_y = 3, 3
+    degree_x, degree_y = degree_x+1, degree_y+1 #Due to how np polyval2d workss
 
     def func(x, *c):
         c = np.array(c)
         c.shape = degree_x, degree_y
-        value = np.polynomial.polynomial.polyval2d(x[0], x[1], c)
+        value = polyval2d(x[0], x[1], c)
         return value
 
     popt, pcov = curve_fit(
         func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
     )
+    popt.shape = degree_x, degree_y
+    return popt
 
+
+def make_wave(thar, wave_solution):
+    nord, ncol = thar.shape
     x = np.arange(ncol)
     y = np.arange(nord)
     x, y = np.meshgrid(x, y)
-    im = func([x, y], *popt)
+    wave_img = polyval2d(x, y, wave_solution)
+    return wave_img
 
-    # TODO: DEBUG
-    plt.imshow(im, aspect="auto")
+
+def auto_id(thar, wave_img, cs_lines, threshold=1):
+    # TODO: auto ID based on wavelength solution or position on detector?
+    # Set flags in cs_lines
+    nord, ncol = thar.shape
+
+    # Step 1: find peaks in thar
+    # Step 2: compare lines in cs_lines with peaks
+    # Step 3: toggle flag on if close enough
+    for iord in range(nord):
+        # TODO pick good settings
+        vec = thar[iord, thar[iord] > 0]
+        vec -= np.min(vec)
+        peak_idx = find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3)
+        # peak_idx, _ = find_peaks(thar[iord], height = 1100, width=3)
+        pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
+        # plt.plot(x, vec)
+        # plt.plot(x[peak_idx], vec[peak_idx], 'r+')
+        # plt.show()
+
+        for i, line in enumerate(cs_lines):
+            if line.order == iord:
+                diff = np.abs(line.wll - pos_wave)
+                if np.min(diff) < threshold:
+                    cs_lines.flag[i] = 0  # 0 == True, 1 == False
+
+    return cs_lines
+
+def reject_lines(thar, wave_solution, cs_lines):
+    # Calculate residuals
+    x = cs_lines.posm
+    y = cs_lines.order
+    solution = polyval2d(x, y, wave_solution)
+    residual = solution - cs_lines.wll
+
+    plt.plot(cs_lines.order, residual, '+')
     plt.show()
 
-    print(popt)
-    return im
-
+    return cs_lines
 
 def wavecal(thar, head, solution_2d, cs_lines):
-    nord = solution_2d["nord"]
-    ncol = solution_2d["ncol"]
-    wave_solution = np.zeros((nord, ncol))
+    obase = solution_2d["obase"]
+    oincr = solution_2d["oincr"]
+    nord, ncol = thar.shape
 
     # Step 1: align thar and reference
-    # offset = align(thar, cs_lines)
+    # TODO: offset = align(thar, cs_lines)
     offset = (1, 106)
+    # Step 1.5: Apply offset
+    # be careful not to apply offset twice
+    cs_lines.xfirst += offset[1]
+    cs_lines.xlast += offset[1]
+    cs_lines.order += offset[0]
 
-    # Step 2: discard large residual
+    # Step 2: build 2d solution
+    wave_solution = build_2d_solution(cs_lines)
+    # Step 2.5: calculate wavelength solution for each point
+    wave_img = make_wave(thar, wave_solution)
 
-    # Step 3: auto ID lines
+    # Step 3: reject lines, which do not correlate to observed lines
+    cs_lines = reject_lines(thar, wave_solution, cs_lines)
 
     # Step 4: build 2d solution
-    wave_solution = build_2d_solution(thar, cs_lines, offset)
+    wave_solution = build_2d_solution(cs_lines)
+    # Step 4.5: calculate wavelength solution for each point
+    wave_img = make_wave(thar, wave_solution)
+
+    # Step 5: auto ID lines
+    cs_lines = auto_id(thar, wave_img, cs_lines)
+
+    # Step 6: build final 2d solution
+    wave_solution = build_2d_solution(cs_lines)
+    # Step 6.5: calculate wavelength solution for each point
+    wave_img = make_wave(thar, wave_solution)
+
+    #repeat steps 3-6 as necessay
+
+    # TODO: DEBUG
+    plt.imshow(wave_img, aspect="auto")
+    plt.show()
 
     return wave_solution  # wavelength solution
 
@@ -195,6 +255,7 @@ if __name__ == "__main__":
         "ncol": int(solution_2d[1]),
         "nord": int(solution_2d[2]),
         "obase": int(solution_2d[3]),
+        "oincr": int(reference["oincr"]),
         "ncross": int(solution_2d[7]),
         "coldeg": int(solution_2d[8]),
         "orddeg": int(solution_2d[9]),
