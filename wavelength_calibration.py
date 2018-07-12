@@ -231,7 +231,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     return cs_lines
 
 
-def wavecal(thar, cs_lines, plot=True):
+def wavecal(thar, cs_lines, plot=True, manual=False):
     # normalize images
     thar = np.ma.masked_array(thar, mask=thar == 0)
     thar -= np.min(thar)
@@ -240,7 +240,7 @@ def wavecal(thar, cs_lines, plot=True):
     cs_lines.height /= np.max(cs_lines.height)
 
     # Step 1: align thar and reference
-    offset = align(thar, cs_lines, plot=plot)
+    offset = align(thar, cs_lines, plot=plot, manual=manual)
     # Step 1.5: Apply offset
     # be careful not to apply offset twice
     cs_lines.xfirst += offset[1]

@@ -13,6 +13,7 @@ import time
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.io import readsav
 
 # PyReduce subpackages
 from combine_frames import combine_bias, combine_flat
@@ -27,9 +28,10 @@ from util import (
     parse_args,
     start_logging,
 )
-from instruments.instrument_info import sort_files, get_instrument_info
+from instruments import instrument_info
 from trace import mark_orders  # TODO: trace is a standard library name
 from getxwd import getxwd
+from wavelength_calibration import wavecal
 
 # TODO turn dicts into numpy structured array
 
@@ -37,14 +39,7 @@ from getxwd import getxwd
 def main(
     instrument="UVES",
     target="HD132205",
-    steps=(
-        "bias",
-        "flat",
-        "orders",
-        "norm_flat",
-        "wavecal",
-        "science",
-    ),
+    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science"),
 ):
     """
     Main entry point for REDUCE scripts,
@@ -76,7 +71,7 @@ def main(
     # info: constant, instrument specific parameters
     with open("settings_%s.json" % instrument.upper()) as f:
         config = json.load(f)
-    info = get_instrument_info(instrument)
+    info = instrument_info.get_instrument_info(instrument)
 
     # TODO: Test settings
     config["plot"] = True
@@ -181,7 +176,7 @@ def run_steps(
     files += glob.glob(join(input_dir, "%s.*.fits.gz" % instrument))
     files = np.array(files)
 
-    f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
+    f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
         files, target, instrument, mode, **config
     )
     logging.debug("Bias files:\n%s", str(f_bias))
@@ -189,7 +184,6 @@ def run_steps(
     logging.debug("Wavecal files:\n%s", str(f_wave))
     logging.debug("Orderdef files:\n%s", str(f_order))
     logging.debug("Science files:\n%s", str(f_spec))
-    
 
     # ==========================================================================
     # Read mask
@@ -285,14 +279,15 @@ def run_steps(
 
         with open(blaze_file, "rb") as file:
             blzcoef = pickle.load(file)
+
     # ==========================================================================
     # Prepare wavelength calibration
 
     if "wavecal" in steps or steps == "all":
-        logging.info("Preparing wavelength calibration")
+        logging.info("Creating wavelength calibration")
         for f in f_wave:
             # Load wavecal image
-            im, head = load_fits(f, instrument, mode, extension, mask=mask)
+            thar, thead = load_fits(f, instrument, mode, extension, mask=mask)
 
             # Determine extraction width, blaze center column, and base order
             extraction_width = 0.25
@@ -300,8 +295,8 @@ def run_steps(
 
             # Extract wavecal spectrum
             thar, _ = extract(
-                im,
-                head,
+                thar,
+                thead,
                 orders,
                 thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
                 extraction_width=extraction_width,
@@ -310,11 +305,25 @@ def run_steps(
                 osample=config.get("wavecal_osample", 1),
                 plot=config.get("plot", False),
             )
+            thead["obase"] = (order_range[0], "base order number")
 
-            head["obase"] = (order_range[0], "base order number")
+            # Create wavelength calibration fit
+            reference = instrument_info.get_wavecal_filename(instrument, thead, mode)
+            reference = readsav(reference)
+            cs_lines = reference["cs_lines"]
+            wave = wavecal(
+                thar,
+                cs_lines,
+                plot=config.get("plot", False),
+                manual=config.get("wavecal_manual", False),
+            )
 
             nameout = swap_extension(f, ".thar.ech", output_dir)
-            save_fits(nameout, head, spec=thar)
+            save_fits(nameout, thead, spec=thar, wave=wave)
+    else:
+        fname = swap_extension(f_wave[-1], ".thar.ech", output_dir)
+        thar = fits.open(fname)
+        wave = thar[1].data["WAVE"][0]
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -347,9 +356,9 @@ def run_steps(
                 swath_width=config.get("science_swath_width", 300),
                 plot=config.get("plot", False),
             )
+            head["obase"] = (order_range[0], " base order number")
 
             # Calculate Continuum and Error
-            # TODO plotting
             # cont = np.full_like(sigma, 1.)
 
             # TODO do we even want this to happen?
@@ -368,22 +377,12 @@ def run_steps(
 
             # sigma *= cont  # Scale Error with Continuum
 
-            order_range = (0, len(orders))  # TODO
-            head["obase"] = (order_range[0], " base order number")
-            pol_angle = head.get("e_pol", "--")
-
             # save spectrum to disk
             nameout = swap_extension(f, ".ech", path=output_dir)
-            save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef)
+            save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef, wave=wave)
+            logging.info("science file: %s", os.path.basename(nameout))
 
-            logging.info(
-                "star: %s, polarization: %s, mean s/n=%.2f",
-                head["object"],
-                pol_angle,
-                1 / np.mean(sigma),
-            )
-            logging.info("file: %s", os.path.basename(nameout))
-            logging.debug("--------------------------------")
+    logging.debug("--------------------------------")
 
 
 if __name__ == "__main__":
