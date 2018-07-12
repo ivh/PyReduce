@@ -38,10 +38,6 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     sp, sl, model, unc
         spectrum, slitfunction, model, spectrum uncertainties
     """
-
-    if osample != 1:
-        logging.warning("WARNING: Oversampling may be wrong !!!")
-
     original = img
 
     # Get dimensions
