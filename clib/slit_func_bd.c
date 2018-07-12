@@ -89,7 +89,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
 
   double *E = malloc(ncols * sizeof(double));                  // double E[ncols];
   double *sP_old = malloc(ncols * sizeof(double));             // double sP_old[ncols];
-  double *Aij = malloc(ny * ny * sizeof(double));              // double Aij[ny*ny];
+  double *Aij = malloc(ny * nd * sizeof(double));              // double Aij[ny*ny];
   double *bj = malloc(ny * sizeof(double));                    // double bj[ny];
   double *Adiag = malloc(ncols * 3 * sizeof(double));          // double Adiag[ncols*3];
   double *omega = malloc(ny * nrows * ncols * sizeof(double)); // double omega[ny][nrows][ncols];
