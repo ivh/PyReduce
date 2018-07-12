@@ -8,6 +8,7 @@ from os.path import join
 import pickle
 import sys
 import logging
+import time
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
@@ -36,7 +37,14 @@ from getxwd import getxwd
 def main(
     instrument="UVES",
     target="HD132205",
-    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science"),
+    steps=(
+        "bias",
+        "flat",
+        "orders",
+        "norm_flat",
+        "wavecal",
+        "science",
+    ),
 ):
     """
     Main entry point for REDUCE scripts,
@@ -176,6 +184,12 @@ def run_steps(
     f_bias, f_flat, f_wave, f_order, f_spec = sort_files(
         files, target, instrument, mode, **config
     )
+    logging.debug("Bias files:\n%s", str(f_bias))
+    logging.debug("Flat files:\n%s", str(f_flat))
+    logging.debug("Wavecal files:\n%s", str(f_wave))
+    logging.debug("Orderdef files:\n%s", str(f_order))
+    logging.debug("Science files:\n%s", str(f_spec))
+    
 
     # ==========================================================================
     # Read mask
@@ -206,7 +220,7 @@ def run_steps(
         )
         fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
-        logging.info("Loadinging master flat")
+        logging.info("Loading master flat")
         flat = fits.open(flat_file)[0]
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
@@ -380,4 +394,7 @@ if __name__ == "__main__":
         # Use "default" values set in main function
         args = {}
 
+    start = time.time()
     main(**args)
+    finish = time.time()
+    print("Execution time: %f s" % (finish - start))
