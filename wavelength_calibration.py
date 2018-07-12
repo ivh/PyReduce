@@ -3,7 +3,8 @@ from numpy.polynomial.polynomial import polyval2d
 
 from scipy.io import readsav
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks_cwt, find_peaks
+from scipy import signal
+from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
 from util import save_fits
@@ -13,26 +14,19 @@ import matplotlib.pyplot as plt
 
 
 class AlignmentPlot:
-    def __init__(self, ax, thar, cs_lines):
+    def __init__(self, ax, thar, cs_lines, offset=[0, 0]):
         self.im = ax
         self.first = True
         self.nord, self.ncol = thar.shape
         self.RED, self.GREEN, self.BLUE = 0, 1, 2
 
-        # TODO
-        thar[thar < 2] = 0
-        thar[thar > 15000] = 15000
-
-        self.thar = thar / np.max(thar)
-
-        norm = (np.e - 1) / np.max(cs_lines.height)
-        cs_lines.height = np.log(1 + cs_lines.height * norm)
+        self.thar = thar
         self.cs_lines = cs_lines
 
         self.order_first = 0
         self.spec_first = ""
         self.x_first = 0
-        self.offset = [0, 0]
+        self.offset = offset
 
         self.make_ref_image()
 
@@ -43,17 +37,20 @@ class AlignmentPlot:
             ref_image[iord * 2, idx, self.RED] = self.thar[iord, idx]
             if 0 <= iord + self.offset[0] < self.nord:
                 for line in self.cs_lines[self.cs_lines.order == iord]:
+                    first = np.clip(line.xfirst + self.offset[1], 0, self.ncol)
+                    last = np.clip(line.xlast + self.offset[1], 0, self.ncol)
                     ref_image[
-                        (iord + self.offset[0]) * 2 + 1,
-                        line.xfirst + self.offset[1] : line.xlast + self.offset[1],
-                        self.GREEN,
-                    ] = line.height
+                        (iord + self.offset[0]) * 2 + 1, first:last, self.GREEN
+                    ] = line.height * signal.gaussian(last - first, line.width)
 
         self.im.imshow(
             ref_image,
             aspect="auto",
             origin="lower",
             extent=(0, self.ncol, 0, self.nord),
+        )
+        self.im.figure.suptitle(
+            "Alignment, ThAr: RED, Reference: GREEN\nGreen should be above red!"
         )
         self.im.figure.canvas.draw()
 
@@ -88,9 +85,8 @@ class AlignmentPlot:
                 self.make_ref_image()
 
 
-def align(thar, cs_lines, manual=True):
+def align(thar, cs_lines, manual=False, plot=False):
     # Align using window like in IDL REDUCE
-    # TODO auto align (using cross corelation?)
     if manual:
         _, ax = plt.subplots()
         ap = AlignmentPlot(ax, thar, cs_lines)
@@ -98,22 +94,44 @@ def align(thar, cs_lines, manual=True):
         plt.show()
         offset = ap.offset
     else:
-        raise NotImplementedError("Use manual alignment for now")
+        # make image from cs_lines
+        min_order = np.min(cs_lines.order)
+        img = np.zeros_like(thar)
+        for line in cs_lines:
+            img[line.order, line.xfirst : line.xlast] = line.height * signal.gaussian(
+                line.xlast - line.xfirst, line.width
+            )
+        img = np.ma.masked_array(img, mask=img == 0)
+
+        # Cross correlate with thar image
+        correlation = signal.correlate2d(thar, img, mode="same")
+        offset_order, offset_x = np.unravel_index(
+            np.argmax(correlation), correlation.shape
+        )
+
+        offset_order = 2 * offset_order - thar.shape[0] + min_order + 1
+        offset_x = offset_x - thar.shape[1] / 2
+        offset = int(offset_order), int(offset_x)
+
+        if plot:
+            _, ax = plt.subplots()
+            AlignmentPlot(ax, thar, cs_lines, offset=offset)
+            plt.show()
+
     return offset
 
 
-def build_2d_solution(cs_lines, oincr=1, obase=0):
+def build_2d_solution(cs_lines, plot=False):
     # Only use flagged data
-    #TODO whoch fields to use for fit?
+    # TODO which fields to use for fit?
     mask = ~cs_lines.flag.astype(bool)
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
-    m_ord = cs_lines.order[mask] * oincr + obase
+    m_ord = cs_lines.order[mask]
 
-    # 2d polynomial fit with: x = m_pix, y = m_ord, z = m_wave
-    # TODO: Choose polynomial degree
-    degree_x, degree_y = 3, 3
-    degree_x, degree_y = degree_x+1, degree_y+1 #Due to how np polyval2d workss
+    # 2d polynomial fit with: x = column, y = order, z = wavelength
+    degree_x, degree_y = 5, 5
+    degree_x, degree_y = degree_x + 1, degree_y + 1  # Due to how np polyval2d workss
 
     def func(x, *c):
         c = np.array(c)
@@ -128,16 +146,26 @@ def build_2d_solution(cs_lines, oincr=1, obase=0):
     return popt
 
 
-def make_wave(thar, wave_solution):
+def make_wave(thar, wave_solution, plot=False):
     nord, ncol = thar.shape
     x = np.arange(ncol)
     y = np.arange(nord)
     x, y = np.meshgrid(x, y)
     wave_img = polyval2d(x, y, wave_solution)
+
+    if plot:
+        plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))
+        cbar = plt.colorbar()
+        plt.xlabel("Column")
+        plt.ylabel("Order")
+        cbar.set_label("Wavelength [Å]")
+        plt.title("2D Wavelength solution")
+        plt.show()
+
     return wave_img
 
 
-def auto_id(thar, wave_img, cs_lines, threshold=1):
+def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
     # TODO: auto ID based on wavelength solution or position on detector?
     # Set flags in cs_lines
     nord, ncol = thar.shape
@@ -149,12 +177,8 @@ def auto_id(thar, wave_img, cs_lines, threshold=1):
         # TODO pick good settings
         vec = thar[iord, thar[iord] > 0]
         vec -= np.min(vec)
-        peak_idx = find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3)
-        # peak_idx, _ = find_peaks(thar[iord], height = 1100, width=3)
+        peak_idx = signal.find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3)
         pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
-        # plt.plot(x, vec)
-        # plt.plot(x[peak_idx], vec[peak_idx], 'r+')
-        # plt.show()
 
         for i, line in enumerate(cs_lines):
             if line.order == iord:
@@ -164,60 +188,82 @@ def auto_id(thar, wave_img, cs_lines, threshold=1):
 
     return cs_lines
 
-def reject_lines(thar, wave_solution, cs_lines):
+
+def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     # Calculate residuals
+    nord, ncol = thar.shape
     x = cs_lines.posm
     y = cs_lines.order
     solution = polyval2d(x, y, wave_solution)
-    residual = solution - cs_lines.wll
+    # Residual in m/s
+    residual = (solution - cs_lines.wll) / cs_lines.wll * speed_of_light
+    cs_lines.flag[np.abs(residual) > clip] = 1  # 1 = False
+    mask = ~cs_lines.flag.astype(bool)
 
-    plt.plot(cs_lines.order, residual, '+')
-    plt.show()
+    if plot:
+        _, axis = plt.subplots()
+        axis.plot(cs_lines.order[mask], residual[mask], "+")
+        axis.plot(cs_lines.order[~mask], residual[~mask], "d")
+        axis.set_xlabel("Order")
+        axis.set_ylabel("Residual")
+        axis.set_title("Residuals over order")
+
+        fig, ax = plt.subplots(nrows=nord // 2, ncols=2, sharex=True)
+        plt.subplots_adjust(hspace=0)
+        fig.suptitle("Residuals over columns")
+
+        for iord in range(nord):
+            lines = cs_lines[cs_lines.order == iord]
+            solution = polyval2d(lines.posm, lines.order, wave_solution)
+            # Residual in m/s
+            residual = (solution - lines.wll) / lines.wll * speed_of_light
+            mask = ~lines.flag.astype(bool)
+            ax[iord // 2, iord % 2].plot(lines.posm[mask], residual[mask], "+")
+            ax[iord // 2, iord % 2].plot(lines.posm[~mask], residual[~mask], "d")
+            # ax[iord // 2, iord % 2].tick_params(labelleft=False)
+            ax[iord // 2, iord % 2].set_ylim(-clip * 1.5, +clip * 1.5)
+
+        ax[-1, 0].set_xlabel("Column")
+        ax[-1, 1].set_xlabel("Column")
+
+        plt.show()
 
     return cs_lines
 
-def wavecal(thar, head, solution_2d, cs_lines):
-    obase = solution_2d["obase"]
-    oincr = solution_2d["oincr"]
-    nord, ncol = thar.shape
+
+def wavecal(thar, cs_lines, plot=True):
+    # normalize images
+    thar = np.ma.masked_array(thar, mask=thar == 0)
+    thar -= np.min(thar)
+    thar /= np.max(thar)
+
+    cs_lines.height /= np.max(cs_lines.height)
 
     # Step 1: align thar and reference
-    # TODO: offset = align(thar, cs_lines)
-    offset = (1, 106)
+    offset = align(thar, cs_lines, plot=plot)
     # Step 1.5: Apply offset
     # be careful not to apply offset twice
     cs_lines.xfirst += offset[1]
     cs_lines.xlast += offset[1]
     cs_lines.order += offset[0]
 
-    # Step 2: build 2d solution
-    wave_solution = build_2d_solution(cs_lines)
-    # Step 2.5: calculate wavelength solution for each point
-    wave_img = make_wave(thar, wave_solution)
+    for j in range(3):
+        for i in range(5):
+            wave_solution = build_2d_solution(cs_lines)
+            cs_lines = reject_lines(
+                thar, wave_solution, cs_lines, plot=i == 4 and j == 2 and plot
+            )
 
-    # Step 3: reject lines, which do not correlate to observed lines
-    cs_lines = reject_lines(thar, wave_solution, cs_lines)
+        wave_solution = build_2d_solution(cs_lines)
+        wave_img = make_wave(thar, wave_solution)
 
-    # Step 4: build 2d solution
-    wave_solution = build_2d_solution(cs_lines)
-    # Step 4.5: calculate wavelength solution for each point
-    wave_img = make_wave(thar, wave_solution)
-
-    # Step 5: auto ID lines
-    cs_lines = auto_id(thar, wave_img, cs_lines)
+        cs_lines = auto_id(thar, wave_img, cs_lines)
 
     # Step 6: build final 2d solution
-    wave_solution = build_2d_solution(cs_lines)
-    # Step 6.5: calculate wavelength solution for each point
-    wave_img = make_wave(thar, wave_solution)
+    wave_solution = build_2d_solution(cs_lines, plot=plot)
+    wave_img = make_wave(thar, wave_solution, plot=plot)
 
-    #repeat steps 3-6 as necessay
-
-    # TODO: DEBUG
-    plt.imshow(wave_img, aspect="auto")
-    plt.show()
-
-    return wave_solution  # wavelength solution
+    return wave_img  # wavelength solution image
 
 
 if __name__ == "__main__":
@@ -248,28 +294,30 @@ if __name__ == "__main__":
 
     # solution_2d = [version_number, number of columns, number of orders, base order, None, None, None,
     # number of cross terms, degree of column polynomial, degree of order polynomial, *fit_coeff]
-    solution_2d = reference["solution_2d"]
-    coeff = solution_2d[10:]
-    solution_2d = {
-        "version": solution_2d[0],
-        "ncol": int(solution_2d[1]),
-        "nord": int(solution_2d[2]),
-        "obase": int(solution_2d[3]),
-        "oincr": int(reference["oincr"]),
-        "ncross": int(solution_2d[7]),
-        "coldeg": int(solution_2d[8]),
-        "orddeg": int(solution_2d[9]),
-    }
-    # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_?", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
+    # solution_2d = reference["solution_2d"]
+    # coeff = solution_2d[10:]
+    # solution_2d = {
+    #     "version": solution_2d[0],
+    #     "ncol": int(solution_2d[1]),
+    #     "nord": int(solution_2d[2]),
+    #     "obase": int(solution_2d[3]),
+    #     "oincr": int(reference["oincr"]),
+    #     "ncross": int(solution_2d[7]),
+    #     "coldeg": int(solution_2d[8]),
+    #     "orddeg": int(solution_2d[9]),
+    # }
+    # base order, redundant with solution_2d entry
+    # obase = reference["obase"]
+    # increase between orders (usually 1)
+    # oincr = reference["oincr"]
+
+    # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_Middle", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
     # cs_lines = 'WLC', 'WLL', 'POSC', 'POSM', 'XFIRST', 'XLAST', 'APPROX', 'WIDTH', 'FLAG', 'HEIGHT', 'ORDER'
     cs_lines = reference["cs_lines"]
-    # base order, redundant with solution_2d entry
-    obase = reference["obase"]
-    # increase between orders (usually 1)
-    oincr = reference["oincr"]
+
     # list of orders, bad orders marked with 1, normal orders 0
     bad_order = reference["bad_order"]
 
-    solution = wavecal(thar, head, solution_2d, cs_lines)
+    solution = wavecal(thar, cs_lines, plot=True)
 
     print(solution)
