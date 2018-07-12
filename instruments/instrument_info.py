@@ -1,5 +1,6 @@
 import importlib
 
+
 def load_instrument(instrument):
     """ load the instrument module """
 
@@ -10,15 +11,24 @@ def load_instrument(instrument):
 
     return instrument
 
+
 def get_instrument_info(instrument):
     instrument = load_instrument(instrument)
     return instrument.load_info()
+
 
 def sort_files(files, target, instrument, mode, **kwargs):
     instrument = load_instrument(instrument)
     return instrument.sort_files(files, target, mode, **kwargs)
 
+
 def modeinfo(header, instrument, mode, **kwargs):
     instrument = load_instrument(instrument)
     header = instrument.add_header_info(header, mode, **kwargs)
     return header
+
+
+def get_wavecal_filename(header, instrument, mode, **kwargs):
+    instrument = load_instrument(instrument)
+    return instrument.get_wavecal_filename(header, mode, **kwargs)
+

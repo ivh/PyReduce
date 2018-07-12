@@ -1,6 +1,7 @@
 import numpy as np
 from astropy.io import fits
 
+
 def find_first_index(arr, value):
     """ find the first element equal to value in the array arr """
     try:
@@ -57,7 +58,9 @@ class instrument:
             This needs to exist for every instrument
         """
 
-        raise NotImplementedError("Instrument info must be defined for each instrument seperately")
+        raise NotImplementedError(
+            "Instrument info must be defined for each instrument seperately"
+        )
 
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
@@ -136,3 +139,12 @@ class instrument:
         speclist = files[ob == target]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
+
+    def get_wavecal_filename(self, header, mode, **kwargs):
+        info = self.load_info()
+        specifier = header.get(info.get("wavecal_specifier", ""), "")
+
+        fname = "./wavecal/{instrument}_{mode}_{specifier}.sav".format(
+            instrument=instrument.lower(), mode=mode, specifier=specifier
+        )
+        return fname

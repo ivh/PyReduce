@@ -8,7 +8,7 @@ from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
 from util import save_fits
-
+from instruments import instrument_info
 
 import matplotlib.pyplot as plt
 
@@ -280,36 +280,9 @@ if __name__ == "__main__":
     thar = fits.open(thar_file)
     head = thar[0].header
     thar = thar[1].data["SPEC"][0]
-
-    specifier = int(head["ESO INS GRAT2 WLEN"])
-
-    reference = (
-        "./wavecal/{instrument}_{mode}_{specifier}nm_2D.sav"
-    )  # ESO INS GRAT2 WLEN
-    reference = reference.format(
-        instrument=instrument.lower(), mode=mode, specifier=specifier
-    )
-
+    
+    reference = instrument_info.get_wavecal_filename(instrument, head, mode)
     reference = readsav(reference)
-
-    # solution_2d = [version_number, number of columns, number of orders, base order, None, None, None,
-    # number of cross terms, degree of column polynomial, degree of order polynomial, *fit_coeff]
-    # solution_2d = reference["solution_2d"]
-    # coeff = solution_2d[10:]
-    # solution_2d = {
-    #     "version": solution_2d[0],
-    #     "ncol": int(solution_2d[1]),
-    #     "nord": int(solution_2d[2]),
-    #     "obase": int(solution_2d[3]),
-    #     "oincr": int(reference["oincr"]),
-    #     "ncross": int(solution_2d[7]),
-    #     "coldeg": int(solution_2d[8]),
-    #     "orddeg": int(solution_2d[9]),
-    # }
-    # base order, redundant with solution_2d entry
-    # obase = reference["obase"]
-    # increase between orders (usually 1)
-    # oincr = reference["oincr"]
 
     # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_Middle", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
     # cs_lines = 'WLC', 'WLL', 'POSC', 'POSM', 'XFIRST', 'XLAST', 'APPROX', 'WIDTH', 'FLAG', 'HEIGHT', 'ORDER'

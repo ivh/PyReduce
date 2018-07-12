@@ -48,6 +48,7 @@ class UVES(instrument):
             "longitude": "HIERARCH ESO TEL GEOLON",
             "latitude": "HIERARCH ESO TEL GEOLAT",
             "altitude": "HIERARCH ESO TEL GEOELEV",
+            "wavecal_specifier": "ESO INS GRAT2 WLEN",
             # Ids for file sorting
             "target": "OBJECT",
             "observation_type": "ESO DPR TYPE",
@@ -132,3 +133,13 @@ class UVES(instrument):
         speclist = files[(ty == info["id_spec"]) & (ob == target) & (mo == mode_id)]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
+
+    def get_wavecal_filename(self, header, mode, **kwargs):
+        """ Get the filename of the wavelength calibration config file """
+        info = self.load_info()
+        specifier = int(header[info["wavecal_specifier"]])
+
+        fname = "./wavecal/{instrument}_{mode}_{specifier}nm_2D.sav".format(
+            instrument=instrument.lower(), mode=mode, specifier=specifier
+        )
+        return fname
