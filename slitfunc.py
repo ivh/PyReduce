@@ -33,7 +33,7 @@ def slitfunc(
 ):
     """ Python implementation of the C slitfunction decomposition algorithm of Nikolai, mainly for testing """
     im = np.ma.getdata(img)
-    mask = np.ma.getmask(img)
+    mask = np.ma.getmaskarray(img)
     mask = (~mask).astype(int)
 
     nrows, ncols = img.shape
@@ -177,5 +177,5 @@ def slitfunc(
     unc = np.sum(tmp * tmp, axis=0)
     unc = np.sqrt(unc * nrows)
 
-    img.mask = ~mask.astype(bool)
+    img = np.ma.masked_array(img, mask = ~mask.astype(bool))
     return sp, sf, model, unc

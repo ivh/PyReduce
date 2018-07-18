@@ -57,7 +57,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     #old_points = np.linspace(0, ny-1, nrows, endpoint=True)
     #sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
     
-    mask = ~np.ma.getmask(img)
+    mask = ~np.ma.getmaskarray(img)
     mask = np.ascontiguousarray(mask, dtype=c_int)
     cmask = ffi.cast("int *", mask.ctypes.data)
 
