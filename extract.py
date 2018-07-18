@@ -7,9 +7,9 @@ import logging
 import pickle
 
 from make_scatter import make_scatter
-#from slitfunc import slitfunc
+from slitfunc import slitfunc
 
-from slitfunc_wrapper import slitfunc, slitfunc_curved
+#from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
 
@@ -39,7 +39,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
     ny_os = len(slitf)
     os = (ny_os - 1) / (ny + 1)
 
-    mask = np.ma.getmask(img)
+    mask = np.ma.getmaskarray(img)
     idx = np.indices(img.shape)
 
     di = img.data / np.sum(img)
@@ -82,9 +82,10 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
+        offset = 0.5 + ycen[0]
         slitfu, = AX3.plot(
-            np.linspace(0, di.shape[0] + 1, len(df)), df, "-k", lw=3
-        ) #TODO which limits for the x axis?
+            np.linspace(-(1 + offset), di.shape[0]+offset, len(df)), df, "-k", lw=3
+        )  # TODO which limits for the x axis?
 
         masked, = AX3.plot(ibad, ybad, "+g")
         masked2, = AX2.plot(jbad, xbad, "+g")
@@ -188,6 +189,27 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
     # plt.show()
 
 
+def make_bins(swath_width, xlow, xhigh, ycen, ncol):
+    if swath_width is None:
+        i = np.unique(ycen.astype(int))  # Points of row crossing
+        ni = len(i)  # This is how many times this order crosses to the next row
+        if len(i) > 1:  # Curved order crosses rows
+            i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
+            nbin = np.clip(
+                int(np.round(ncol / i)) // 3, 3, 20
+            )  # number of swaths along the order
+        else:  # Perfectly aligned orders
+            nbin = np.clip(ncol // 400, 3, None)  # Still follow the changes in PSF
+        nbin = nbin * (xhigh - xlow) // ncol  # Adjust for the true order length
+    else:
+        nbin = np.clip(int(np.round((xhigh - xlow) / swath_width)), 1, None)
+
+    bins = np.linspace(xlow, xhigh, 2 * nbin + 1)  # boundaries of bins
+    bins_start = np.floor(bins[:-2]).astype(int)  # beginning of each bin
+    bins_end = np.ceil(bins[2:]).astype(int)  # end of each bin
+
+    return nbin, bins_start, bins_end
+
 def extract_spectrum(
     img,
     ycen,
@@ -221,11 +243,10 @@ def extract_spectrum(
         raise NotImplementedError("Curved extraction not supported yet")
 
     nrow, ncol = img.shape
-    noise = readn / gain
-    irow = np.arange(nrow)
-    ycene = ycen[xlow:xhigh]
+    nslitf = osample * (ylow + yhigh + 2) + 1
     nysf = yhigh + ylow + 1
-    yslitf = -ylow, yhigh
+
+    noise = readn / gain
 
     spec = np.zeros(ncol)
     sunc = np.zeros(ncol)
@@ -234,30 +255,11 @@ def extract_spectrum(
         np.all(scatter_below == 0) and np.all(scatter_above == 0)
     )
 
-    if swath_width is None:
-        i = np.unique(ycen.astype(int))  # Points of row crossing
-        ni = len(i)  # This is how many times this order crosses to the next row
-        if len(i) > 1:  # Curved order crosses rows
-            i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
-            nbin = np.clip(
-                int(np.round(ncol / i)) // 3, 3, 20
-            )  # number of swaths along the order
-        else:  # Perfectly aligned orders
-            nbin = np.clip(ncol // 400, 3, None)  # Still follow the changes in PSF
-        nbin = nbin * (xhigh - xlow) // ncol  # Adjust for the true order length
-    else:
-        nbin = np.clip(int(np.round((xhigh - xlow) / swath_width)), 1, None)
-
-    nslitf = osample * (ylow + yhigh + 2) + 1
+    nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
     slitf = np.zeros((2 * nbin, nslitf))
 
-    # Define order boundary
-    yc = ycen.astype(int)
-    ymin = ycen - ylow
-    ymax = ycen + yhigh
-
-    # Calculate boundaries of distinct slitf regions
-    # Here is the layout to understand the lines below
+    # Here is the layout for the bins:
+    # Bins overlap roughly half-half, i.e. the second half of bin1 is the same as the first half of bin2
     #
     #        1st swath    3rd swath    5th swath      ...
     #     /============|============|============|============|============|
@@ -275,37 +277,32 @@ def extract_spectrum(
     #             *   +
     #            *     +++++++ 0
 
-    bins = np.linspace(xlow, xhigh, 2 * nbin + 1)  # boundaries of bins
-    ibeg_half = np.ceil(bins[:-2]).astype(int)  # beginning of each bin
-    iend_half = np.floor(bins[2:]).astype(int)  # end of each bin
-
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
     for ihalf in range(0, 2 * nbin - 1):  # loop through swaths
-        ib = ibeg_half[ihalf]  # left column
-        ie = iend_half[ihalf] + 1  # right column
+        ib = bins_start[ihalf]  # left column
+        ie = bins_end[ihalf]  # right column
         nc = ie - ib  # number of columns in swath
-        logging.debug("Extractiing Swath %i, Columns: %i - %i", ihalf, ib, ie)
+        logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ib, ie)
 
         # Weight for combining overlapping regions
         weight = np.ones(nc)
-        if ihalf > 0:
+        if ihalf != 0:
             weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
-        oweight = 1 - weight
 
         # Cut out swath from image
-        index = make_index(yc - ylow, yc + yhigh, ib, ie)
-        sf = img[index]
+        index = make_index(ycen.astype(int) - ylow, ycen.astype(int) + yhigh, ib, ie)
+        swath_img = img[index]
 
         # Telluric
         if telluric:
             tel_lim = (
                 telluric if telluric > 5 and telluric < nysf / 2 else min(5, nysf / 3)
             )
-            tel = np.sum(sf, axis=0)
+            tel = np.sum(swath_img, axis=0)
             itel = np.arange(nysf)
             itel = itel[np.abs(itel - nysf / 2) >= tel_lim]
-            tel = sf[itel, :]
+            tel = swath_img[itel, :]
             sc = np.zeros(nc)
 
             for itel in range(nc):
@@ -317,7 +314,7 @@ def extract_spectrum(
 
         if not no_scatter:
             # y indices
-            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] - yslitf[0]])
+            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] + ylow])
             dy_scatter = (index_y.T - yscatter_below[None, ib:ie]) / (
                 yscatter_above[None, ib:ie] - yscatter_below[None, ib:ie]
             )
@@ -328,24 +325,13 @@ def extract_spectrum(
             scatter = 0
 
         # Do Slitfunction extraction
-        sf -= scatter + tell
-        sf = np.clip(sf, 0, None)
+        swath_img -= scatter + tell
+        swath_img = np.clip(swath_img, 0, None)
 
         # offset from the central line
-        y_offset = ycen[ib:ie] - yc[ib:ie]
-        # if use_2d:
-        #     sp, sfsm, model, unc = slitfunc_curved(
-        #         sf,
-        #         y_offset,
-        #         tilt,
-        #         lambda_sp=lambda_sp,
-        #         lambda_sl=lambda_sf,
-        #         osample=osample,
-        #     )
-        #     delta_x = None  # TODO get this from slitfunc_curved
-        # else:
-        sp, sfsm, model, unc = slitfunc(
-            sf, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
+        y_offset = ycen[ib:ie] - ycen.astype(int)[ib:ie]
+        swath_spec, swath_slitf, swath_model, swath_unc = slitfunc(
+            swath_img, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
         )
 
         if normalize:
@@ -354,25 +340,25 @@ def extract_spectrum(
             # and with 1 elsewhere
             scale = 1
 
-            ii = np.where(model > threshold / gain)
+            ii = np.where(swath_model > threshold / gain)
             sss = np.ones((nysf, nc))
-            ddd = np.copy(model)
-            sss[ii] = sf[ii] / model[ii]
+            ddd = np.copy(swath_model)
+            sss[ii] = swath_img[ii] / swath_model[ii]
 
-            if ihalf > 0:
-                overlap = iend_half[ihalf - 1] - ibeg_half[ihalf] + 1
+            if ihalf != 0:
+                overlap = bins_end[ihalf - 1] - bins_start[ihalf] + 1
                 sss[ii] /= scale
-                sp *= scale
+                swath_spec *= scale
             else:
                 nc_old = nc
                 sss_old = np.zeros((nysf, nc))
                 ddd_old = np.zeros((nysf, nc))
-                overlap = ibeg_half[1] - ibeg_half[0]
+                overlap = bins_start[1] - bins_start[0]
 
             # Combine new and old sections
             ncc = overlap
 
-            index = make_index(yc + yslitf[0], yc + yslitf[1], ib, ib + ncc)
+            index = make_index(yc - ylow, yc + yhigh, ib, ib + ncc)
             im_norm[index] = (
                 sss_old[:, -ncc:] * oweight[:ncc] + sss[:, :ncc] * weight[:ncc]
             )
@@ -382,7 +368,7 @@ def extract_spectrum(
 
             if ihalf == 2 * nbin - 2:
                 # TODO check
-                index = make_index(yc + yslitf[0], yc + yslitf[1], ib + ncc, ib + nc)
+                index = make_index(yc - ylow, yc + yhigh, ib + ncc, ib + nc)
                 im_norm[index] = sss[:, ncc:nc]
                 im_ordr[index] = ddd[:, ncc:nc]
 
@@ -391,35 +377,20 @@ def extract_spectrum(
             ddd_old = np.copy(ddd)
 
         # Combine overlaping regions
-        # TODO
-        # if use_2d:
-        #     if ihalf > 0 and ihalf < 2 * nbin - 2:
-        #         spec[ib + delta_x : ie - delta_x] = (
-        #             spec[ib + delta_x : ie - delta_x] * oweight[delta_x : nc - delta_x]
-        #             + sp[delta_x:-delta_x] * weight[delta_x:-delta_x]
-        #         )
-        #     elif ihalf == 0:
-        #         spec[ib : ie - delta_x] = sp[:-delta_x]
-        #     elif ihalf == 2 * nbin - 2:
-        #         spec[ib + delta_x : ie] = (
-        #             spec[ib + delta_x : ie] * oweight[delta_x:-1]
-        #             + sp[delta_x:-1] * weight[delta_x:-1]
-        #         )
-        # else:
-
-        spec[ib:ie] = spec[ib:ie] * oweight + sp * weight
-        sunc[ib:ie] = sunc[ib:ie] * oweight + unc * weight
+        spec[ib:ie] = spec[ib:ie] * (1-weight) + swath_spec * weight
+        sunc[ib:ie] = sunc[ib:ie] * (1-weight) + swath_unc * weight
+        slitf[ihalf] = swath_slitf
 
         if plot:
-            plot_slitfunction(sf, sp, sfsm, model, y_offset, ord_num, ib, ie, osample)
+            plot_slitfunction(swath_img, swath_spec, swath_slitf, swath_model, y_offset, ord_num, ib, ie, osample)
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
 
     # TODO what to return ?
     slitf = np.mean(slitf, axis=0)
-    model = spec[:, None] * slitf[None, :]
-    return spec, slitf, model, sunc
+    swath_model = spec[None, :] * slitf[:, None]
+    return spec, slitf, swath_model, sunc
 
 
 def get_y_scale(order, order_below, order_above, ix, cole, extraction_width, nrow):
