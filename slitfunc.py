@@ -63,9 +63,8 @@ def slitfunc(
     d1 = np.where(iy2 == 0, step, np.where(iy1 == 0, 0, ycen % step))
     d2 = step - d1
 
-    # TODO Which offset to pick here?
-    iy1 = iy1[:, None] + osample * np.arange(nrows)[None, :]  # + osample
-    iy2 = iy2[:, None] + osample * np.arange(nrows)[None, :]  # + osample
+    iy1 = iy1[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
+    iy2 = iy2[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
 
     for x in range(ncols):
         omega[iy[:, None] == iy1[None, x, :], x] = d1[x]

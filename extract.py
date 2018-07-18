@@ -27,7 +27,7 @@ def getspecvar(img):
 
 def getslitvar(img, xoff, osample=1):
     x = np.indices(img.shape)[0]
-    x = x - xoff[None, :]
+    x = x - xoff[None, :] + 1
     return x.flatten() * osample, img.flat
 
 
