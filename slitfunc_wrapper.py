@@ -129,7 +129,8 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
-    y_lower_lim = int(min(ycen))  # TODO
+    y_lower_lim = nrows//2 - np.min(ycen).astype(int) #TODO
+    y_lower_lim = int(y_lower_lim)
 
     # Inital guess for slit function and spectrum
     # Just sum up the image along one side and normalize
@@ -201,13 +202,38 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from scipy.io import readsav
+    from scipy.signal import gaussian
 
-    sav = readsav("./Test/test.dat")
-    img = sav["im"]
-    ycen = sav["ycen"]
-    shear = np.zeros(img.shape[1])
+    spec = 10 + 2 * np.sin(np.linspace(0, 40*np.pi, 100)) #np.linspace(5, 20, num=40)
+    slitf = gaussian(40, 2)[:, None] + 1
+    img = spec[None, :] * slitf
+    #    img[5, 10] = 100
+    #ycen = np.linspace(-2, +3, 50)
+    ycen = np.zeros(50)
 
-    sp, sl, model, unc = slitfunc(img, ycen, osample=1)
+    # sav = readsav("./Test/test.dat")
+    # img = sav["im"]
+    # ycen = sav["ycen"]
+
+    shear = np.full(50, 0.2)
+    # for i in range(img.shape[1]):
+    #     img[:, i] = np.roll(img[:, i], 2-i//8)
+    for i in range(img.shape[0]):
+        img[i] = np.roll(img[i], -i//5)
+    img = img[10:-10, :50]
+
+    sp, sl, model, unc = slitfunc_curved(img, ycen, shear)
+
+    plt.subplot(211)
+    plt.imshow(img)
+    plt.title("Observation")
+
+    plt.subplot(212)
+    plt.imshow(model, vmin=8)
+    plt.title("Model")
+    plt.show()
+
+
 
     plt.subplot(211)
     plt.plot(sp)
