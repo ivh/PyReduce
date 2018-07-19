@@ -5,29 +5,6 @@ import sparse
 
 from util import make_index
 
-# TODO remove profiler
-from line_profiler import LineProfiler
-
-
-def do_profile(follow=[]):
-    def inner(func):
-        def profiled_func(*args, **kwargs):
-            try:
-                profiler = LineProfiler()
-                profiler.add_function(func)
-                for f in follow:
-                    profiler.add_function(f)
-                profiler.enable_by_count()
-                return func(*args, **kwargs)
-            finally:
-                profiler.print_stats()
-
-        return profiled_func
-
-    return inner
-
-
-#@do_profile(follow=[])
 def slitfunc(
     img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1, threshold=1e-5, max_iterations=20
 ):
@@ -40,6 +17,7 @@ def slitfunc(
     ny = osample * (nrows + 1) + 1
     nd = 2 * osample + 1
     step = 1 / osample
+    ycen = -ycen #For some reason this is flipped compared to the C version
 
     sp = np.sum(img, axis=0).data / (img.size - np.ma.count_masked(img))
     sf = np.zeros(ny)
@@ -178,3 +156,39 @@ def slitfunc(
 
     img = np.ma.masked_array(img, mask = ~mask.astype(bool))
     return sp, sf, model, unc
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from scipy.io import readsav
+    from scipy.signal import gaussian
+
+    spec = 10 + 2 * np.sin(np.linspace(0, 40*np.pi, 100)) #np.linspace(5, 20, num=40)
+    slitf = gaussian(40, 2)[:, None] + 1
+    img = spec[None, :] * slitf
+    ycen = np.linspace(-2, 3, 50)
+
+    for i in range(img.shape[1]):
+        img[:, i] = np.roll(img[:, i], -i//8)
+    img = img[10:-10, :50]
+
+    sp, sl, model, unc = slitfunc(img, ycen)
+
+    plt.subplot(211)
+    plt.imshow(img)
+    plt.title("Observation")
+
+    plt.subplot(212)
+    plt.imshow(model, vmin=8)
+    plt.title("Model")
+    plt.show()
+
+
+
+    plt.subplot(211)
+    plt.plot(sp)
+    plt.title("Spectrum")
+
+    plt.subplot(212)
+    plt.plot(sl)
+    plt.title("Slitfunction")
+    plt.show()
