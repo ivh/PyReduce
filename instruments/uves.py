@@ -140,6 +140,6 @@ class UVES(instrument):
         specifier = int(header[info["wavecal_specifier"]])
 
         fname = "./wavecal/{instrument}_{mode}_{specifier}nm_2D.sav".format(
-            instrument=instrument.lower(), mode=mode, specifier=specifier
+            instrument=info["instrument"].lower(), mode=mode, specifier=specifier
         )
         return fname
