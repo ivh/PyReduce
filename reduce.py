@@ -32,14 +32,23 @@ from instruments import instrument_info
 from trace import mark_orders  # TODO: trace is a standard library name
 from getxwd import getxwd
 from wavelength_calibration import wavecal
+from continuum import splice_orders
 
 # TODO turn dicts into numpy structured array
+# TODO use masked array instead of column_range ?
 
 
 def main(
     instrument="UVES",
     target="HD132205",
-    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science"),
+    steps=(
+        # "bias", 
+        # "flat",
+        # "orders",
+        # "norm_flat",
+        # "wavecal",
+        # "science",
+        "continuum"),
 ):
     """
     Main entry point for REDUCE scripts,
@@ -308,7 +317,7 @@ def run_steps(
             thead["obase"] = (order_range[0], "base order number")
 
             # Create wavelength calibration fit
-            reference = instrument_info.get_wavecal_filename(instrument, thead, mode)
+            reference = instrument_info.get_wavecal_filename(thead, instrument, mode)
             reference = readsav(reference)
             cs_lines = reference["cs_lines"]
             wave = wavecal(
@@ -381,6 +390,18 @@ def run_steps(
             nameout = swap_extension(f, ".ech", path=output_dir)
             save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef, wave=wave)
             logging.info("science file: %s", os.path.basename(nameout))
+    else:
+        f = f_spec[-1]
+        nameout = swap_extension(f, ".ech", path=output_dir)
+        science = fits.open(nameout)[1]
+        spec = science.data["SPEC"][0]
+        sigma = science.data["SIG"][0]
+
+    if "continuum" in steps or steps == "all":
+        logging.info("Continuum normalization")
+        for f in f_spec:
+            splice_orders(spec, wave, blzcoef, sigma, column_range=column_range)
+
 
     logging.debug("--------------------------------")
 
