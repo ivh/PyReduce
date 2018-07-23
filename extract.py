@@ -654,7 +654,7 @@ def extract(
     if order_range is None:
         order_range = (0, nord - 1)
     if column_range is None:
-        column_range = np.tile([0, ncol], (nord, 0))
+        column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
 
@@ -701,6 +701,10 @@ def extract(
         spectrum, slitfunction, uncertainties = arc_extraction(
             img, orders, extraction_width, column_range, **kwargs
         )
+
+    #TODO remove "extra" orders at boundary
+    spectrum = spectrum[:-2]
+    uncertainties = uncertainties[:-2]
 
     if normalize:
         return im_norm, im_ordr, spectrum  # spectrum = blaze

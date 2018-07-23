@@ -177,7 +177,7 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
         # TODO pick good settings
         vec = thar[iord, thar[iord] > 0]
         vec -= np.min(vec)
-        peak_idx = signal.find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3)
+        peak_idx = signal.find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3).astype(int)
         pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
 
         for i, line in enumerate(cs_lines):
