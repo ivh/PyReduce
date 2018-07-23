@@ -556,76 +556,23 @@ int slit_func_curved(int ncols,        /* Swath width in pixels                 
     {
       for (x = 0; x < ncols; x++)
       {
-        n = 0;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
+        for (n = 0; n < 4; n++){
+          ww = xi[x][iy][n].w;
+          if (ww > 0)
           {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
+            xx = xi[x][iy][n].x;
+            yy = xi[x][iy][n].y;
+            if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
             {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              l_Aij[iy + ny * (jy - iy + 2 * osample)] += sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
+              for (m = 0; m < m_zeta[xx][yy]; m++)
+              {
+                xxx = zeta[xx][yy][m].x;
+                jy = zeta[xx][yy][m].iy;
+                www = zeta[xx][yy][m].w;
+                l_Aij[iy + ny * (jy - iy + 2 * osample)] += sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
+              }
+              l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
             }
-            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
-          }
-        }
-        n = 1;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              l_Aij[iy + ny * (jy - iy + 2 * osample)] += sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
-            }
-            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
-          }
-        }
-        n = 2;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              l_Aij[iy + ny * (jy - iy + 2 * osample)] += sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
-            }
-            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
-          }
-        }
-        n = 3;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              l_Aij[iy + ny * (jy - iy + 2 * osample)] += sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
-            }
-            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
           }
         }
       }
@@ -680,76 +627,23 @@ int slit_func_curved(int ncols,        /* Swath width in pixels                 
     {
       for (iy = 0; iy < ny; iy++)
       {
-        n = 0;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
+        for (n=0; n < 4; n++){
+          ww = xi[x][iy][n].w;
+          if (ww > 0)
           {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
+            xx = xi[x][iy][n].x;
+            yy = xi[x][iy][n].y;
+            if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
             {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] * sL[iy] * www * ww * mask[yy * ncols + xx];
+              for (m = 0; m < m_zeta[xx][yy]; m++)
+              {
+                xxx = zeta[xx][yy][m].x;
+                jy = zeta[xx][yy][m].iy;
+                www = zeta[xx][yy][m].w;
+                p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] * sL[iy] * www * ww * mask[yy * ncols + xx];
+              }
+              p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
             }
-            p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
-          }
-        }
-        n = 1;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] * sL[iy] * www * ww * mask[yy * ncols + xx];
-            }
-            p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
-          }
-        }
-        n = 2;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] * sL[iy] * www * ww * mask[yy * ncols + xx];
-            }
-            p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
-          }
-        }
-        n = 3;
-        ww = xi[x][iy][n].w;
-        if (ww > 0)
-        {
-          xx = xi[x][iy][n].x;
-          yy = xi[x][iy][n].y;
-          if (m_zeta[xx][yy] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-          {
-            for (m = 0; m < m_zeta[xx][yy]; m++)
-            {
-              xxx = zeta[xx][yy][m].x;
-              jy = zeta[xx][yy][m].iy;
-              www = zeta[xx][yy][m].w;
-              p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] * sL[iy] * www * ww * mask[yy * ncols + xx];
-            }
-            p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
           }
         }
       }
