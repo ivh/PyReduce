@@ -102,7 +102,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc
 
 
-def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
+def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -189,7 +189,7 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sl=0.1):
         y_lower_lim,
         osample,
         lambda_sp,
-        lambda_sl,
+        lambda_sf,
         csp,
         csl,
         cmodel,

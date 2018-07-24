@@ -57,23 +57,23 @@ def normalize_flat(img, head, orders, threshold=90000, column_range=None, **kwar
     try:
         logging.warning("Loading background from data file, change this")
         _f = open("background.dat", "rb")
-        scatter, yscatter = pickle.load(_f)
+        xscatter, yscatter = pickle.load(_f)
     except FileNotFoundError:
-        scatter, yscatter = make_scatter(
+        xscatter, yscatter = make_scatter(
             img, orders, column_range=column_range, subtract=True, **kwargs
         )
         _f = open("background.dat", "wb")
-        pickle.dump((scatter, yscatter), _f)
+        pickle.dump((xscatter, yscatter), _f)
 
     im_norm, im_ordr, blaze = extract(
         img,
         head,
         orders,
-        normalize=True,
-        scatter=scatter,
+        xscatter=xscatter,
         yscatter=yscatter,
         threshold=threshold,
         column_range=column_range,
+        extraction_type="normalize",
         **kwargs
     )
 

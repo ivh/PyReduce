@@ -7,9 +7,10 @@ import logging
 import pickle
 
 from make_scatter import make_scatter
-from slitfunc import slitfunc
 
-#from slitfunc_wrapper import slitfunc, slitfunc_curved
+# from slitfunc import slitfunc
+
+from slitfunc_wrapper import slitfunc, slitfunc_curved
 from util import make_index
 
 
@@ -84,7 +85,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
         slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
         offset = 0.5 + ycen[0]
         slitfu, = AX3.plot(
-            np.linspace(-(1 + offset), di.shape[0]+offset, len(df)), df, "-k", lw=3
+            np.linspace(-(1 + offset), di.shape[0] + offset, len(df)), df, "-k", lw=3
         )  # TODO which limits for the x axis?
 
         masked, = AX3.plot(ibad, ybad, "+g")
@@ -191,7 +192,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
 
 def make_bins(swath_width, xlow, xhigh, ycen, ncol):
     if swath_width is None:
-        i = np.unique(ycen.astype(int))  # Points of row crossing
+        i = np.unique(ycen_int)  # Points of row crossing
         ni = len(i)  # This is how many times this order crosses to the next row
         if len(i) > 1:  # Curved order crosses rows
             i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
@@ -210,6 +211,7 @@ def make_bins(swath_width, xlow, xhigh, ycen, ncol):
 
     return nbin, bins_start, bins_end
 
+
 def extract_spectrum(
     img,
     ycen,
@@ -223,15 +225,11 @@ def extract_spectrum(
     lambda_sp=0,
     osample=1,
     swath_width=None,
-    no_scatter=False,
     telluric=False,
     normalize=False,
-    scatter_below=0,
-    scatter_above=0,
-    yscatter_below=0,
-    yscatter_above=0,
+    scatter=None,  # below, above, ybelow, yabove
     threshold=0,
-    use_2d=False,
+    shear=None,
     plot=False,
     ord_num=0,
     im_norm=None,
@@ -239,21 +237,16 @@ def extract_spectrum(
     **kwargs
 ):
 
-    if use_2d:
-        raise NotImplementedError("Curved extraction not supported yet")
-
     nrow, ncol = img.shape
     nslitf = osample * (ylow + yhigh + 2) + 1
     nysf = yhigh + ylow + 1
+
+    ycen_int = ycen.astype(int)
 
     noise = readn / gain
 
     spec = np.zeros(ncol)
     sunc = np.zeros(ncol)
-
-    no_scatter = no_scatter or (
-        np.all(scatter_below == 0) and np.all(scatter_above == 0)
-    )
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
     slitf = np.zeros((2 * nbin, nslitf))
@@ -286,12 +279,13 @@ def extract_spectrum(
         logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ib, ie)
 
         # Weight for combining overlapping regions
+        # TODO combine swaths after all swaths are calculated ?
         weight = np.ones(nc)
         if ihalf != 0:
             weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
 
         # Cut out swath from image
-        index = make_index(ycen.astype(int) - ylow, ycen.astype(int) + yhigh, ib, ie)
+        index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ie)
         swath_img = img[index]
 
         # Telluric
@@ -312,27 +306,42 @@ def extract_spectrum(
         else:
             tell = 0
 
-        if not no_scatter:
-            # y indices
-            index_y = np.array([np.arange(k, nysf + k) for k in yc[ib:ie] + ylow])
-            dy_scatter = (index_y.T - yscatter_below[None, ib:ie]) / (
-                yscatter_above[None, ib:ie] - yscatter_below[None, ib:ie]
+        if scatter is not None:
+            # scatter = (below, above, ybelow, yabove)
+            index_y = np.array([np.arange(k, nysf + k) for k in ycen_int[ib:ie] + ylow])
+            dy_scatter = (index_y.T - scatter[2][None, ib:ie]) / (
+                scatter[3][None, ib:ie] - scatter[2][None, ib:ie]
             )
-            scatter = (
-                scatter_above[None, ib:ie] - scatter_below[None, ib:ie]
-            ) * dy_scatter + scatter_below[None, ib:ie]
+            value_scatter = (
+                scatter[1][None, ib:ie] - scatter[0][None, ib:ie]
+            ) * dy_scatter + scatter[0][None, ib:ie]
         else:
-            scatter = 0
+            value_scatter = 0
 
         # Do Slitfunction extraction
-        swath_img -= scatter + tell
+        swath_img -= value_scatter + tell
         swath_img = np.clip(swath_img, 0, None)
 
         # offset from the central line
-        y_offset = ycen[ib:ie] - ycen.astype(int)[ib:ie]
-        swath_spec, swath_slitf, swath_model, swath_unc = slitfunc(
-            swath_img, y_offset, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
-        )
+        y_offset = ycen[ib:ie] - ycen_int[ib:ie]
+
+        if shear is None:
+            swath_spec, swath_slitf, swath_model, swath_unc = slitfunc(
+                swath_img,
+                y_offset,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+            )
+        else:
+            swath_spec, swath_slitf, swath_model, swath_unc = slitfunc_curved(
+                swath_img,
+                y_offset,
+                shear,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+            )
 
         if normalize:
             # In case we do FF normalization replace the original image by the
@@ -358,17 +367,17 @@ def extract_spectrum(
             # Combine new and old sections
             ncc = overlap
 
-            index = make_index(yc - ylow, yc + yhigh, ib, ib + ncc)
+            index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ib + ncc)
             im_norm[index] = (
-                sss_old[:, -ncc:] * oweight[:ncc] + sss[:, :ncc] * weight[:ncc]
+                sss_old[:, -ncc:] * (1 - weight[:ncc]) + sss[:, :ncc] * weight[:ncc]
             )
             im_ordr[index] = (
-                ddd_old[:, -ncc:] * oweight[:ncc] + ddd[:, :ncc] * weight[:ncc]
+                ddd_old[:, -ncc:] * (1 - weight[:ncc]) + ddd[:, :ncc] * weight[:ncc]
             )
 
             if ihalf == 2 * nbin - 2:
                 # TODO check
-                index = make_index(yc - ylow, yc + yhigh, ib + ncc, ib + nc)
+                index = make_index(ycen_int - ylow, ycen_int + yhigh, ib + ncc, ib + nc)
                 im_norm[index] = sss[:, ncc:nc]
                 im_ordr[index] = ddd[:, ncc:nc]
 
@@ -376,13 +385,23 @@ def extract_spectrum(
             sss_old = np.copy(sss)
             ddd_old = np.copy(ddd)
 
-        # Combine overlaping regions
-        spec[ib:ie] = spec[ib:ie] * (1-weight) + swath_spec * weight
-        sunc[ib:ie] = sunc[ib:ie] * (1-weight) + swath_unc * weight
+        # Combine overlaping regions            
+        spec[ib:ie] = spec[ib:ie] * (1 - weight) + swath_spec * weight
+        sunc[ib:ie] = sunc[ib:ie] * (1 - weight) + swath_unc * weight
         slitf[ihalf] = swath_slitf
 
         if plot:
-            plot_slitfunction(swath_img, swath_spec, swath_slitf, swath_model, y_offset, ord_num, ib, ie, osample)
+            plot_slitfunction(
+                swath_img,
+                swath_spec,
+                swath_slitf,
+                swath_model,
+                y_offset,
+                ord_num,
+                ib,
+                ie,
+                osample,
+            )
 
     # TODO ????? is that really correct
     sunc = np.sqrt(sunc + spec)
@@ -418,14 +437,7 @@ def get_y_scale(order, order_below, order_above, ix, cole, extraction_width, nro
 
 
 def optimal_extraction(
-    img,
-    orders,
-    extraction_width,
-    column_range,
-    scatter=None,
-    yscatter=None,
-    polarization=False,
-    **kwargs
+    img, orders, extraction_width, column_range, scatter=None, **kwargs
 ):
     logging.info("Using optimal extraction to produce spectrum")
 
@@ -437,27 +449,10 @@ def optimal_extraction(
     uncertainties = np.zeros((nord, ncol))
     ix = np.arange(ncol)
 
-    if scatter is None:
-        scatter = np.zeros(nord)
-        yscatter = np.zeros(nord)
-
     # TODO each order is independant so extract in parallel
     for i, onum in enumerate(range(1, nord - 1)):  # loop through orders
         # Background must be subtracted for slit function logic to work but kept
         # as part of the FF signal during normalization
-
-        if polarization:
-            # skip inter-polarization gaps
-            oo = ((onum - 1) // 2) * 2 + 1
-            scatter_below = scatter[oo - 1]
-            yscatter_below = yscatter[oo - 1]
-            scatter_above = scatter[oo + 1]
-            yscatter_above = yscatter[oo + 1]
-        else:
-            scatter_below = scatter[onum - 1]
-            yscatter_below = yscatter[onum - 1]
-            scatter_above = scatter[onum]
-            yscatter_above = yscatter[onum]
 
         if nord < 10 or onum % 5 == 0:
             logging.info("Extracting relative order %i out of %i" % (onum, nord - 2))
@@ -483,10 +478,7 @@ def optimal_extraction(
             y_upper_lim,
             x_left_lim,
             x_right_lim,
-            scatter_below=scatter_below,
-            scatter_above=scatter_above,
-            yscatter_below=yscatter_below,
-            yscatter_above=yscatter_above,
+            scatter=scatter[i],
             ord_num=onum - 1,
             **kwargs
         )
@@ -575,7 +567,9 @@ def fix_column_range(img, orders, extraction_width, column_range):
         y_top = np.polyval(coeff_top, ixx)  # high edge of arc
         # shrink column range so that only valid columns are included, this assumes
         column_range[i] = np.clip(
-            column_range[i, 0] + np.where((y_bot > 0) & (y_top < nrow - 1))[0][[0, -1]],
+            column_range[i, 0]
+            + np.where((y_bot > 0) & (y_top < nrow - 1))[0][[0, -1]]
+            + [0, 1],
             None,
             column_range[i, 1],
         )
@@ -631,9 +625,10 @@ def extract(
     head,
     orders,
     column_range=None,
-    extraction_width=0.5,
     order_range=None,
-    thar=False,
+    extraction_width=0.5,
+    extraction_type="optimal",
+    polarization=False,
     **kwargs
 ):
     # TODO which parameters should be passed here?
@@ -642,12 +637,6 @@ def extract(
     kwargs["gain"] = head["e_gain"]
     kwargs["dark"] = head["e_drk"]
     kwargs["readn"] = head["e_readn"]
-
-    normalize = kwargs.get("normalize", False)
-
-    # TODO use curved extraction
-    shear = kwargs.get("tilt")
-    kwargs["use_2D"] = shear is not None
 
     nrow, ncol = img.shape
     nord, opower = orders.shape
@@ -677,36 +666,62 @@ def extract(
     )
     column_range = fix_column_range(img, orders, extraction_width, column_range)
 
-    # TODO
-    # Prepare normalized flat field image if necessary
-    # These will be passed and "returned" by reference
-    # I dont like it, but it works for now
-    if normalize:
-        im_norm = np.ones_like(img)
-        im_ordr = np.ones_like(img)
-    else:
-        im_norm = im_ordr = None
+    scatter = [None for _ in range(nord)]
+    xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
+    if xscatter is not None and yscatter is not None:
+        scatter = np.zeros((nord, 4, ncol))
+        for onum in range(1, nord - 1):
+            if polarization:
+                # skip inter-polarization gaps
+                oo = ((onum - 1) // 2) * 2 + 1
+                scatter[onum - 1, 0] = xscatter[oo - 1]
+                scatter[onum - 1, 1] = xscatter[oo + 1]
+                scatter[onum - 1, 2] = yscatter[oo - 1]
+                scatter[onum - 1, 3] = yscatter[oo + 1]
+            else:
+                scatter[onum - 1, 0] = xscatter[onum - 1]
+                scatter[onum - 1, 1] = xscatter[onum]
+                scatter[onum - 1, 2] = yscatter[onum - 1]
+                scatter[onum - 1, 3] = yscatter[onum]
 
-    if not thar:  # the "normal" case, except for wavelength calibration files
+    if (
+        extraction_type == "optimal"
+    ):  # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
             orders,
             extraction_width,
             column_range,
+            scatter=scatter,
+            **kwargs
+        )
+    elif extraction_type == "normalize":
+        # TODO
+        # Prepare normalized flat field image if necessary
+        # These will be passed and "returned" by reference
+        # I dont like it, but it works for now
+        im_norm = np.ones_like(img)
+        im_ordr = np.ones_like(img)
+
+        spectrum, slitfunction, uncertainties = optimal_extraction(
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            scatter=scatter,
+            normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,
             **kwargs
         )
-    else:
+        return im_norm, im_ordr, spectrum[:-2] #Spectrum = blaze
+    elif extraction_type == "arc":
         spectrum, slitfunction, uncertainties = arc_extraction(
             img, orders, extraction_width, column_range, **kwargs
         )
 
-    #TODO remove "extra" orders at boundary
+    # TODO remove "extra" orders at boundary
     spectrum = spectrum[:-2]
     uncertainties = uncertainties[:-2]
-
-    if normalize:
-        return im_norm, im_ordr, spectrum  # spectrum = blaze
 
     return spectrum, uncertainties

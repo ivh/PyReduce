@@ -45,7 +45,7 @@ def main(
         # "bias", 
         # "flat",
         # "orders",
-        # "norm_flat",
+        "norm_flat",
         # "wavecal",
         # "science",
         "continuum"),
@@ -307,7 +307,7 @@ def run_steps(
                 thar,
                 thead,
                 orders,
-                thar=True,  # Thats the important difference to science extraction, TODO split it into two different functions?
+                extraction_type= "arc",
                 extraction_width=extraction_width,
                 order_range=order_range,
                 column_range=column_range,
