@@ -137,6 +137,8 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
     cycen_offset = ffi.cast("int *", ycen_offset.ctypes.data)
 
+    if np.isscalar(shear):
+        shear = np.full(ncols, shear, dtype=c_double)
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
     cshear = ffi.cast("double *", shear.ctypes.data)
 

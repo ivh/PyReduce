@@ -264,8 +264,10 @@ def run_steps(
 
         flat, blzcoef = normalize_flat(
             flat,
-            fhead,
             orders,
+            gain = fhead["e_gain"],
+            readnoise = fhead["e_readn"],
+            dark = fhead["e_drk"],
             column_range=column_range,
             extraction_width=extraction_width,
             order_range=order_range,
@@ -305,8 +307,10 @@ def run_steps(
             # Extract wavecal spectrum
             thar, _ = extract(
                 thar,
-                thead,
                 orders,
+                gain = thead["e_gain"],
+                readnoise = thead["e_readn"],
+                dark = thead["e_drk"],
                 extraction_type= "arc",
                 extraction_width=extraction_width,
                 order_range=order_range,
@@ -354,8 +358,10 @@ def run_steps(
             # Optimally extract science spectrum
             spec, sigma = extract(
                 im,
-                head,
                 orders,
+                gain = head["e_gain"],
+                readnoise = head["e_readn"],
+                dark = head["e_drk"],
                 extraction_width=extraction_width,
                 column_range=column_range,
                 order_range=order_range,

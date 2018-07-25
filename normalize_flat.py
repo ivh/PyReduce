@@ -6,7 +6,7 @@ from make_scatter import make_scatter
 from extract import extend_orders, fix_column_range, optimal_extraction, extract
 
 
-def normalize_flat(img, head, orders, threshold=90000, column_range=None, **kwargs):
+def normalize_flat(img, orders, threshold=90000, column_range=None, **kwargs):
     """
     Use slit functions to normalize an echelle image of a flat field lamp.
     Inputs:
@@ -67,7 +67,6 @@ def normalize_flat(img, head, orders, threshold=90000, column_range=None, **kwar
 
     im_norm, im_ordr, blaze = extract(
         img,
-        head,
         orders,
         xscatter=xscatter,
         yscatter=yscatter,
