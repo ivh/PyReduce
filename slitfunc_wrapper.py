@@ -38,39 +38,27 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     sp, sl, model, unc
         spectrum, slitfunction, model, spectrum uncertainties
     """
-    original = img
 
     # Get dimensions
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
     # Inital guess for slit function and spectrum
-    # Just sum up the image along one side and normalize
-    #sl = np.sum(img, axis=1)
-    #sl = sl / np.sum(sl)
+    sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img))
+    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
+    csp = ffi.cast("double *", sp.ctypes.data)
 
-    sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img)) 
-    #if lambda_sp != 0:
-    #    sp = gaussian_filter1d(sp, lambda_sp)
-
-    # Stretch sl by oversampling factor
-    #old_points = np.linspace(0, ny-1, nrows, endpoint=True)
-    #sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
-    
     mask = ~np.ma.getmaskarray(img)
-    mask = np.ascontiguousarray(mask, dtype=c_int)
+    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
     cmask = ffi.cast("int *", mask.ctypes.data)
 
     sl = np.zeros(ny, dtype=c_double)
     csl = ffi.cast("double *", sl.ctypes.data)
 
-    sp = np.ascontiguousarray(sp, dtype=c_double)
-    csp = ffi.cast("double *", sp.ctypes.data)
-
-    img = np.ascontiguousarray(img, dtype=c_double)
+    img = np.require(np.ma.getdata(img), dtype=c_double, requirements=["C", "A", "W", "O"])
     cimg = ffi.cast("double *", img.ctypes.data)
 
-    ycen = np.ascontiguousarray(ycen, dtype=c_double)
+    ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     cycen = ffi.cast("double *", ycen.ctypes.data)
 
     model = np.zeros((nrows, ncols), dtype=c_double)
@@ -93,13 +81,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         cmodel,
         cunc,
     )
+    mask = ~mask.astype(bool)
 
-    if np.ma.is_masked(original):
-        original.mask = ~mask.astype(bool)
-    else:
-        original = np.ma.masked_array(original, ~mask.astype(bool))
-
-    return sp, sl, model, unc
+    return sp, sl, model, unc, mask
 
 
 def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
@@ -129,47 +113,31 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
-    y_lower_lim = nrows//2 - np.min(ycen).astype(int) #TODO
+    y_lower_lim = nrows // 2 - np.min(ycen).astype(int)  # TODO
     y_lower_lim = int(y_lower_lim)
 
-    # Inital guess for slit function and spectrum
-    # Just sum up the image along one side and normalize
-    # TODO: rotate image before summation?
-    sl = np.sum(img, axis=1)
-    sl = sl / np.sum(sl)  # slit function
-
-    sp = np.sum(img * sl[:, None], axis=0)
-    sp = sp / np.sum(sp) * np.sum(img)
-
-    # Stretch sl by oversampling factor
-    old_points = np.linspace(0, (nrows + 1) * osample, nrows, endpoint=True)
-    sl = interp1d(old_points, sl, kind=2)(np.arange(ny))
-
-    sl = sl.astype(c_double)
+    sl = np.zeros(ny, dtype=c_double)
     csl = ffi.cast("double *", sl.ctypes.data)
 
-    sp = sp.astype(c_double)
+    # Inital guess for spectrum
+    sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img))
+    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
     csp = ffi.cast("double *", sp.ctypes.data)
 
-    if np.ma.is_masked(img):
-        mask = (~img.mask).astype(c_int).flatten()
-        mask = np.ascontiguousarray(mask)
-        cmask = ffi.cast("int *", mask.ctypes.data)
-    else:
-        mask = np.ones(nrows * ncols, dtype=c_int)
-        cmask = ffi.cast("int *", mask.ctypes.data)
+    mask = ~np.ma.getmaskarray(img)
+    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
+    cmask = ffi.cast("int *", mask.ctypes.data)
 
-    img = img.flatten().astype(c_double)
-    img = np.ascontiguousarray(img)
+    img = np.require(np.ma.getdata(img), dtype=c_double, requirements=["C", "A", "W", "O"])
     cimg = ffi.cast("double *", img.ctypes.data)
 
-    ycen = ycen.astype(c_double)
+    ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     cycen = ffi.cast("double *", ycen.ctypes.data)
 
-    ycen_offset = np.copy(ycen).astype(c_int)
+    ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
     cycen_offset = ffi.cast("int *", ycen_offset.ctypes.data)
 
-    shear = shear.astype(c_double)
+    shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
     cshear = ffi.cast("double *", shear.ctypes.data)
 
     model = np.zeros((nrows, ncols), dtype=c_double)
@@ -195,8 +163,9 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
         cmodel,
         cunc,
     )
+    mask = ~mask.astype(bool)
 
-    return sp, sl, model, unc
+    return sp, sl, model, unc, mask
 
 
 if __name__ == "__main__":
@@ -204,11 +173,11 @@ if __name__ == "__main__":
     from scipy.io import readsav
     from scipy.signal import gaussian
 
-    spec = 10 + 2 * np.sin(np.linspace(0, 40*np.pi, 100)) #np.linspace(5, 20, num=40)
-    slitf = gaussian(40, 2)[:, None] + 1
+    spec = 10 + 2 * np.sin(
+        np.linspace(0, 40 * np.pi, 100)
+    )
+    slitf = gaussian(40, 2)[:, None]
     img = spec[None, :] * slitf
-    #    img[5, 10] = 100
-    #ycen = np.linspace(-2, +3, 50)
     ycen = np.zeros(50)
 
     # sav = readsav("./Test/test.dat")
@@ -219,21 +188,19 @@ if __name__ == "__main__":
     # for i in range(img.shape[1]):
     #     img[:, i] = np.roll(img[:, i], 2-i//8)
     for i in range(img.shape[0]):
-        img[i] = np.roll(img[i], -i//5)
+        img[i] = np.roll(img[i], -i // 5)
     img = img[10:-10, :50]
 
-    sp, sl, model, unc = slitfunc_curved(img, ycen, shear)
+    sp, sl, model, unc, mask = slitfunc_curved(img, ycen, shear)
 
     plt.subplot(211)
     plt.imshow(img)
     plt.title("Observation")
 
     plt.subplot(212)
-    plt.imshow(model, vmin=8)
+    plt.imshow(model)
     plt.title("Model")
     plt.show()
-
-
 
     plt.subplot(211)
     plt.plot(sp)
