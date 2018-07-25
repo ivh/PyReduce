@@ -32,7 +32,7 @@ def getslitvar(img, xoff, osample=1):
     return x.flatten() * osample, img.flat
 
 
-def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample):
+def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample, mask):
 
     ny, nx = img.shape
     ny_orig = ny
@@ -40,7 +40,6 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
     ny_os = len(slitf)
     os = (ny_os - 1) / (ny + 1)
 
-    mask = np.ma.getmaskarray(img)
     idx = np.indices(img.shape)
 
     di = img.data / np.sum(img)
@@ -55,7 +54,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
     ybad = np.full(max_bad_pixels, np.nan)
     ibad = np.zeros(max_bad_pixels)
     jbad = np.zeros(max_bad_pixels)
-    n = np.ma.count_masked(img)
+    n = np.nonzero(mask)[0].size
     xbad[:n] = (di / np.nansum(di, axis=1)[:, None])[mask][:max_bad_pixels]
     ybad[:n] = (di[mask] * nx)[:max_bad_pixels]
     ibad[:n] = idx[0][mask][:max_bad_pixels]
@@ -192,7 +191,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample)
 
 def make_bins(swath_width, xlow, xhigh, ycen, ncol):
     if swath_width is None:
-        i = np.unique(ycen_int)  # Points of row crossing
+        i = np.unique(ycen.astype(int))  # Points of row crossing
         ni = len(i)  # This is how many times this order crosses to the next row
         if len(i) > 1:  # Curved order crosses rows
             i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
@@ -210,7 +209,6 @@ def make_bins(swath_width, xlow, xhigh, ycen, ncol):
     bins_end = np.ceil(bins[2:]).astype(int)  # end of each bin
 
     return nbin, bins_start, bins_end
-
 
 def extract_spectrum(
     img,
@@ -251,6 +249,12 @@ def extract_spectrum(
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
     slitf = np.zeros((2 * nbin, nslitf))
 
+    swath_spec = [None for _ in range(2 * nbin - 1)]
+    swath_unc = [None for _ in range(2 * nbin - 1)]
+    if normalize:
+        norm_img = [None for _ in range(2*nbin-1)]
+        norm_model = [None for _ in range(2*nbin-1)]
+
     # Here is the layout for the bins:
     # Bins overlap roughly half-half, i.e. the second half of bin1 is the same as the first half of bin2
     #
@@ -277,12 +281,6 @@ def extract_spectrum(
         ie = bins_end[ihalf]  # right column
         nc = ie - ib  # number of columns in swath
         logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ib, ie)
-
-        # Weight for combining overlapping regions
-        # TODO combine swaths after all swaths are calculated ?
-        weight = np.ones(nc)
-        if ihalf != 0:
-            weight[: nc // 2 + 1] = np.arange(nc // 2 + 1) / nc * 2
 
         # Cut out swath from image
         index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ie)
@@ -326,7 +324,9 @@ def extract_spectrum(
         y_offset = ycen[ib:ie] - ycen_int[ib:ie]
 
         if shear is None:
-            swath_spec, swath_slitf, swath_model, swath_unc = slitfunc(
+            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+                ihalf
+            ], mask = slitfunc(
                 swath_img,
                 y_offset,
                 lambda_sp=lambda_sp,
@@ -334,7 +334,9 @@ def extract_spectrum(
                 osample=osample,
             )
         else:
-            swath_spec, swath_slitf, swath_model, swath_unc = slitfunc_curved(
+            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+                ihalf
+            ], mask = slitfunc_curved(
                 swath_img,
                 y_offset,
                 shear,
@@ -344,72 +346,69 @@ def extract_spectrum(
             )
 
         if normalize:
-            # In case we do FF normalization replace the original image by the
-            # ratio of sf/sfbin where number of counts is larger than threshold
-            # and with 1 elsewhere
-            scale = 1
-
-            ii = np.where(swath_model > threshold / gain)
-            sss = np.ones((nysf, nc))
-            ddd = np.copy(swath_model)
-            sss[ii] = swath_img[ii] / swath_model[ii]
-
-            if ihalf != 0:
-                overlap = bins_end[ihalf - 1] - bins_start[ihalf] + 1
-                sss[ii] /= scale
-                swath_spec *= scale
-            else:
-                nc_old = nc
-                sss_old = np.zeros((nysf, nc))
-                ddd_old = np.zeros((nysf, nc))
-                overlap = bins_start[1] - bins_start[0]
-
-            # Combine new and old sections
-            ncc = overlap
-
-            index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ib + ncc)
-            im_norm[index] = (
-                sss_old[:, -ncc:] * (1 - weight[:ncc]) + sss[:, :ncc] * weight[:ncc]
-            )
-            im_ordr[index] = (
-                ddd_old[:, -ncc:] * (1 - weight[:ncc]) + ddd[:, :ncc] * weight[:ncc]
-            )
-
-            if ihalf == 2 * nbin - 2:
-                # TODO check
-                index = make_index(ycen_int - ylow, ycen_int + yhigh, ib + ncc, ib + nc)
-                im_norm[index] = sss[:, ncc:nc]
-                im_ordr[index] = ddd[:, ncc:nc]
-
-            nc_old = nc
-            sss_old = np.copy(sss)
-            ddd_old = np.copy(ddd)
-
-        # Combine overlaping regions            
-        spec[ib:ie] = spec[ib:ie] * (1 - weight) + swath_spec * weight
-        sunc[ib:ie] = sunc[ib:ie] * (1 - weight) + swath_unc * weight
-        slitf[ihalf] = swath_slitf
+            # Save image and model for later
+            norm_img[ihalf] = np.where(swath_model > threshold / gain, swath_img / swath_model, 1)
+            norm_model[ihalf] = swath_model
 
         if plot:
-            plot_slitfunction(
-                swath_img,
-                swath_spec,
-                swath_slitf,
-                swath_model,
-                y_offset,
-                ord_num,
-                ib,
-                ie,
-                osample,
-            )
+            if not np.all(np.isnan(swath_img)):
+                plot_slitfunction(
+                    swath_img,
+                    swath_spec[ihalf],
+                    slitf[ihalf],
+                    swath_model,
+                    y_offset,
+                    ord_num,
+                    ib,
+                    ie,
+                    osample,
+                    mask,
+                )
 
-    # TODO ????? is that really correct
-    sunc = np.sqrt(sunc + spec)
+    # Weight for combining overlapping regions
+    weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nbin * 2 - 1)]
+    for i, j in zip(range(0, nbin * 2 - 2), range(1, nbin * 2 - 1)):
+        nc = bins_end[i] - bins_start[i]
 
-    # TODO what to return ?
+        overlap_start = bins_start[j] - bins_start[i]
+        overlap = nc - overlap_start
+
+        weight[i][overlap_start:] = np.linspace(1, 0, overlap)
+        weight[j][:overlap] = np.linspace(0, 1, overlap)
+
+    #Check weigths
+    total_weight = np.zeros(ncol)
+    for i in range(nbin * 2-1):
+        ib, ie = bins_start[i], bins_end[i]
+        total_weight[ib:ie] += weight[i]
+    
+    if not np.all(total_weight[xlow:xhigh] == 1):
+        raise Exception("Weights are wrong")
+
+    if shear is not None:
+        y = yhigh if shear[0] < 0 else ylow
+        shear_margin = int(shear[0] * y) + 1
+        weight[0][:shear_margin] = 0
+        y = ylow if shear[-1] < 0 else yhigh
+        shear_margin = int(shear[-1] * y) + 1
+        weight[-1][-shear_margin:] = 0
+
+    # Apply weights
+    for i in range(nbin * 2 - 1):
+        ib = bins_start[i]
+        ie = bins_end[i]
+
+        spec[ib:ie] += swath_spec[i] * weight[i]
+        sunc[ib:ie] += swath_unc[i] * weight[i]
+
+        if normalize:
+            index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ie)
+            im_norm[index] += norm_img[i] * weight[i]
+            im_ordr[index] += norm_model[i] * weight[i]
+
     slitf = np.mean(slitf, axis=0)
-    swath_model = spec[None, :] * slitf[:, None]
-    return spec, slitf, swath_model, sunc
+    model = spec[None, :] * slitf[:, None]
+    return spec, slitf, model, sunc
 
 
 def get_y_scale(order, order_below, order_above, ix, cole, extraction_width, nrow):
@@ -688,20 +687,15 @@ def extract(
         extraction_type == "optimal"
     ):  # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
-            img,
-            orders,
-            extraction_width,
-            column_range,
-            scatter=scatter,
-            **kwargs
+            img, orders, extraction_width, column_range, scatter=scatter, **kwargs
         )
     elif extraction_type == "normalize":
         # TODO
         # Prepare normalized flat field image if necessary
         # These will be passed and "returned" by reference
         # I dont like it, but it works for now
-        im_norm = np.ones_like(img)
-        im_ordr = np.ones_like(img)
+        im_norm = np.zeros_like(img)
+        im_ordr = np.zeros_like(img)
 
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
@@ -714,7 +708,7 @@ def extract(
             im_ordr=im_ordr,
             **kwargs
         )
-        return im_norm, im_ordr, spectrum[:-2] #Spectrum = blaze
+        return im_norm, im_ordr, spectrum[:-2]  # Spectrum = blaze
     elif extraction_type == "arc":
         spectrum, slitfunction, uncertainties = arc_extraction(
             img, orders, extraction_width, column_range, **kwargs
