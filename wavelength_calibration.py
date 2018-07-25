@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
+import logging
 
 from scipy.io import readsav
 from scipy.optimize import curve_fit
@@ -154,6 +155,14 @@ def make_wave(thar, wave_solution, plot=False):
     wave_img = polyval2d(x, y, wave_solution)
 
     if plot:
+        plt.subplot(211)
+        plt.xlabel("Wavelength")
+        plt.ylabel("Thar spectrum")
+        plt.legend(loc="best")
+        for i in range(thar.shape[0]):
+            plt.plot(wave_img[i], thar[i], label="Order %i" % i)
+
+        plt.subplot(212)
         plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))
         cbar = plt.colorbar()
         plt.xlabel("Column")
@@ -245,6 +254,7 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
     # be careful not to apply offset twice
     cs_lines.xfirst += offset[1]
     cs_lines.xlast += offset[1]
+    cs_lines.posm += offset[1]
     cs_lines.order += offset[0]
 
     for j in range(3):
@@ -258,6 +268,8 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
         wave_img = make_wave(thar, wave_solution)
 
         cs_lines = auto_id(thar, wave_img, cs_lines)
+
+    logging.info("Number of lines used for wavelength calibration: %i", len(cs_lines[cs_lines.flag.astype(bool)]))
 
     # Step 6: build final 2d solution
     wave_solution = build_2d_solution(cs_lines, plot=plot)
@@ -281,7 +293,7 @@ if __name__ == "__main__":
     head = thar[0].header
     thar = thar[1].data["SPEC"][0]
     
-    reference = instrument_info.get_wavecal_filename(instrument, head, mode)
+    reference = instrument_info.get_wavecal_filename(head, instrument, mode)
     reference = readsav(reference)
 
     # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_Middle", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
@@ -291,6 +303,14 @@ if __name__ == "__main__":
     # list of orders, bad orders marked with 1, normal orders 0
     bad_order = reference["bad_order"]
 
-    solution = wavecal(thar, cs_lines, plot=True)
+    solution = wavecal(thar, cs_lines, plot=False)
+
+    for i in range(thar.shape[0]):
+        plt.plot(solution[i], thar[i], label="Order %i" % i)
+    
+    for line in cs_lines:
+        plt.axvline(x = line.wll, ymax=line.height)
+
+    plt.show()
 
     print(solution)

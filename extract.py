@@ -334,7 +334,7 @@ def extract_spectrum(
         swath_img = np.clip(swath_img, 0, None)
 
         # offset from the central line
-        y_offset = ycen[ib:ie] - ycen_int[ib:ie]
+        y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
         if shear is None:
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
@@ -374,8 +374,8 @@ def extract_spectrum(
                     swath_model,
                     y_offset,
                     ord_num,
-                    ib,
-                    ie,
+                    ibeg,
+                    iend,
                     osample,
                     mask,
                 )
@@ -411,13 +411,16 @@ def extract_spectrum(
         if shear_margin != 0:
             weight[-1][-shear_margin:] = 0
 
+    if ord_num == 20:
+        print("blub")
+
     # Apply weights
-    for i, (ib, ie) in enumerate(zip(bins_start, bins_end)):
-        spec[ib:ie] += swath_spec[i] * weight[i]
-        sunc[ib:ie] += swath_unc[i] * weight[i]
+    for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+        spec[ibeg:iend] += swath_spec[i] * weight[i]
+        sunc[ibeg:iend] += swath_unc[i] * weight[i]
 
         if normalize:
-            index = make_index(ycen_int - ylow, ycen_int + yhigh, ib, ie)
+            index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
@@ -743,6 +746,8 @@ def extract(
             im_ordr=im_ordr,
             **kwargs
         )
+        im_norm[im_norm == 0] = 1
+        im_ordr[im_ordr == 0] = 1
         return im_norm, im_ordr, blaze
     elif extraction_type == "arc":
         # Simpler extraction, just summing along the arc of the order
