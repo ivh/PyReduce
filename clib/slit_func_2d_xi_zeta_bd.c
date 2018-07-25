@@ -500,7 +500,7 @@ int slit_func_curved(int ncols,        /* Swath width in pixels                 
   ny = osample * (nrows + 1) + 1;/* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
 
   double *sP_old = malloc(ncols * sizeof(double));
-  double *l_Aij = malloc(ny * ny * sizeof(double));
+  double *l_Aij = malloc(ny * (4*osample+1) * sizeof(double));
   double *p_Aij = malloc(ncols * 5 * sizeof(double));
   double *l_bj = malloc(ny * sizeof(double));
   double *p_bj = malloc(ncols * sizeof(double));
@@ -545,8 +545,8 @@ int slit_func_curved(int ncols,        /* Swath width in pixels                 
     for (iy = 0; iy < ny; iy++)
     {
       l_bj[iy] = 0.e0; /* Clean RHS                */
-      for (jy = 0; jy <= 4 * osample; jy++)
-        l_Aij[jy + ny * jy] = 0.e0; /* Clean matrix row         */
+      for (jy = 0; jy < 4 * osample + 1; jy++)
+        l_Aij[iy + ny * jy] = 0.e0; /* Clean matrix row         */
     }
 
     /* Fill in SLE arrays for slit function */
