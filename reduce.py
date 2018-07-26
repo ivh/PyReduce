@@ -259,7 +259,7 @@ def run_steps(
 
     if "norm_flat" in steps or steps == "all":
         logging.info("Normalizing flat field")
-        extraction_width = 0.5
+        extraction_width = 0.2
         order_range = (0, len(orders) - 1)
 
         flat, blzcoef = normalize_flat(
@@ -275,8 +275,11 @@ def run_steps(
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=config.get("plot", False),
+            plot=True, #config.get("plot", False),
         )
+
+        plt.imshow(blzcoef, aspect="auto")
+        plt.show()
 
         # Save data
         with open(blaze_file, "wb") as file:
@@ -290,6 +293,52 @@ def run_steps(
 
         with open(blaze_file, "rb") as file:
             blzcoef = pickle.load(file)
+
+    # ==========================================================================
+    # Prepare for science spectra extraction
+
+    if "science" in steps or steps == "all":
+        logging.info("Extracting science spectra")
+        for f in f_spec:
+            im, head = load_fits(
+                f, instrument, mode, extension, mask=mask, dtype=np.float32
+            )
+            # Correct for bias and flat field
+            im -= bias
+            im /= flat
+
+            # Set extraction width
+            extraction_width = 25
+            order_range = (0, len(orders) - 1)
+
+            # Optimally extract science spectrum
+            spec, sigma = extract(
+                im,
+                orders,
+                gain = head["e_gain"],
+                readnoise = head["e_readn"],
+                dark = head["e_drk"],
+                extraction_width=extraction_width,
+                column_range=column_range,
+                order_range=order_range,
+                lambda_sf=config.get("science_lambda_sf", 0.1),
+                lambda_sp=config.get("science_lambda_sp", 0),
+                osample=config.get("science_osample", 1),
+                swath_width=config.get("science_swath_width", 300),
+                plot=config.get("plot", False),
+            )
+            head["obase"] = (order_range[0], " base order number")
+
+            # save spectrum to disk
+            nameout = swap_extension(f, ".science.ech", path=output_dir)
+            save_fits(nameout, head, spec=spec, sig=sigma)
+    else:
+        f = f_spec[-1]
+        nameout = swap_extension(f, ".science.ech", path=output_dir)
+        science = fits.open(nameout)
+        head = science[0].header
+        spec = science[1].data["SPEC"][0]
+        sigma = science[1].data["SIG"][0]
 
     # ==========================================================================
     # Prepare wavelength calibration
@@ -338,77 +387,19 @@ def run_steps(
         thar = fits.open(fname)
         wave = thar[1].data["WAVE"][0]
 
-    # ==========================================================================
-    # Prepare for science spectra extraction
-
-    if "science" in steps or steps == "all":
-        logging.info("Extracting science spectra")
-        for f in f_spec:
-            im, head = load_fits(
-                f, instrument, mode, extension, mask=mask, dtype=np.float32
-            )
-            # Correct for bias and flat field
-            im -= bias
-            im /= flat
-
-            # Set extraction width
-            extraction_width = 25
-            order_range = (0, len(orders) - 1)
-
-            # Optimally extract science spectrum
-            spec, sigma = extract(
-                im,
-                orders,
-                gain = head["e_gain"],
-                readnoise = head["e_readn"],
-                dark = head["e_drk"],
-                extraction_width=extraction_width,
-                column_range=column_range,
-                order_range=order_range,
-                lambda_sf=config.get("science_lambda_sf", 0.1),
-                lambda_sp=config.get("science_lambda_sp", 0),
-                osample=config.get("science_osample", 1),
-                swath_width=config.get("science_swath_width", 300),
-                plot=config.get("plot", False),
-            )
-            head["obase"] = (order_range[0], " base order number")
-
-            # Calculate Continuum and Error
-            # cont = np.full_like(sigma, 1.)
-
-            # TODO do we even want this to happen?
-            # convert uncertainty to relative error
-            # Temp copy for calculation
-            # sunc = np.copy(sigma)
-            # sunc /= np.clip(spec, 1., None)
-            # s = spec / np.clip(blzcoef, 0.001, None)
-
-            # # fit simple continuum
-            # for i in range(len(orders)):
-            #     c = top(s[i][s[i] != 0], 1, eps=0.0002, poly=True)
-            #     s[i][s[i] != 0] = s[i][s[i] != 0] / c
-            #     c = spec[i][s[i] != 0] / s[i][s[i] != 0]
-            #     cont[i][s[i] != 0] = np.copy(c)
-
-            # sigma *= cont  # Scale Error with Continuum
-
-            # save spectrum to disk
-            nameout = swap_extension(f, ".ech", path=output_dir)
-            save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef, wave=wave)
-            logging.info("science file: %s", os.path.basename(nameout))
-    else:
-        f = f_spec[-1]
-        nameout = swap_extension(f, ".ech", path=output_dir)
-        science = fits.open(nameout)[1]
-        spec = science.data["SPEC"][0]
-        sigma = science.data["SIG"][0]
 
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
-            splice_orders(spec, wave, blzcoef, sigma, column_range=column_range)
+            #column_range[:, 0] += 200
+            order_range = [1, spec.shape[0]]
+            splice_orders(spec, wave, blzcoef, sigma, column_range=column_range, orders=np.arange(order_range[0], order_range[1]), scaling=True)
 
 
+    # Combine science with wavecal and contin
+    nameout = swap_extension(f, ".ech", path=output_dir)
+    save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef, wave=wave)
+    logging.info("science file: %s", os.path.basename(nameout))
     logging.debug("--------------------------------")
 
 
