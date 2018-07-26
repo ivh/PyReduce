@@ -48,22 +48,7 @@ def normalize_flat(img, orders, threshold=90000, column_range=None, **kwargs):
         )
         # TODO ask for confirmation
 
-    nrow, ncol = img.shape
-    nord, opower = orders.shape
-
-    if column_range is None:
-        column_range = np.tile([0, ncol], (nord, 0))
-
-    try:
-        logging.warning("Loading background from data file, change this")
-        _f = open("background.dat", "rb")
-        xscatter, yscatter = pickle.load(_f)
-    except FileNotFoundError:
-        xscatter, yscatter = make_scatter(
-            img, orders, column_range=column_range, subtract=True, **kwargs
-        )
-        _f = open("background.dat", "wb")
-        pickle.dump((xscatter, yscatter), _f)
+    xscatter, yscatter = make_scatter(img, orders, **kwargs)
 
     im_norm, im_ordr, blaze = extract(
         img,

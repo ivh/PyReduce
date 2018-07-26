@@ -2,10 +2,14 @@ import os
 import argparse
 
 import numpy as np
+import itertools
 from scipy.ndimage.filters import median_filter
 from scipy.linalg import solve_banded, solve
 from scipy.optimize import curve_fit
 from astropy.io import fits
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 
 # from modeinfo_uves import modeinfo_uves as modeinfo
 from clipnflip import clipnflip
@@ -242,6 +246,42 @@ def gaussbroad(x, y, hwhm):
     sout = sout[npad : npad + nw]  # trim to original data / length
     return sout  # return broadened spectrum.
 
+
+def polyfit2d(x, y, z, order=1, plot=False):
+    # Create combinations of degree of x and y
+    # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
+    idx = [[i, j] for i, j in itertools.product(range(order + 1), repeat=2)]
+    # Calculate elements 1, x, y, x*y, x**2, y**2, ...
+    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
+    z = z.flatten()
+
+    # Do least squares fit
+    C, _, _, _ = np.linalg.lstsq(A, z)
+
+    # Reorder coefficients into numpy compatible 2d array
+    coeff = np.zeros((order + 1, order + 1))
+    for k, (i, j) in enumerate(idx):
+        coeff[i, j] = C[k]
+
+    if plot:
+        # regular grid covering the domain of the data
+        choice = np.random.choice(x.size, size=500, replace=False)
+        x, y, z = x[choice], y[choice], z[choice]
+        X, Y = np.meshgrid(
+            np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
+        )
+        Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+        ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+        ax.scatter(x, y, z, c="r", s=50)
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.axis("equal")
+        ax.axis("tight")
+        plt.show()
+    return coeff
 
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
