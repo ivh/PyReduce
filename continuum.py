@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from scipy.ndimage.filters import median_filter
 from itertools import chain
 
-import awlib.bezier as bezier
-from util import top
+import bezier
+from util import top, middle
 
 
 def splice_orders(
@@ -15,12 +15,6 @@ def splice_orders(
         column_range = np.tile([0, ncol], (nord, 1))
     if orders is None:
         orders = np.arange(nord)
-
-    # TODO: remove
-    spec = spec[:-2]
-    blaze = blaze[:-2]
-    sigma = sigma[:-2]
-    orders = orders[:-2]
 
     nord = len(orders)
     order_scales = np.ones(nord)
@@ -33,19 +27,21 @@ def splice_orders(
     if debug:
         plt.subplot(211)
         plt.title("Before")
-        plt.plot(data.wave.flat, (data.spec / data.blaze).flat)
+        for i in range(nord):
+            ib, ie = column_range[i]
+            plt.plot(data.wave[i, ib:ie], data.spec[i, ib:ie] / data.blaze[i, ib:ie])
 
     blaze = np.clip(blaze, 1, None)
 
-    for iord in range(nord):
-        i0, i1 = column_range[iord]
+    for iord1 in range(nord):
+        i0, i1 = column_range[iord1]
         if scaling:
-            scale = np.median(spec[iord, i0:i1]) / np.median(
-                median_filter(blaze[iord, i0:i1], 5)
+            scale = np.median(spec[iord1, i0:i1]) / np.median(
+                median_filter(blaze[iord1, i0:i1], 5)
             )
         else:
             scale = 1
-        blaze[iord, i0:i1] = median_filter(blaze[iord, i0:i1], 5) * scale
+        blaze[iord1, i0:i1] = median_filter(blaze[iord1, i0:i1], 5) * scale
 
     # Order with largest signal, everything is scaled relative to this order
     iord0 = np.argmax(
@@ -53,14 +49,14 @@ def splice_orders(
     )
 
     # Loop from iord0 outwards, first to the top, then to the bottom
-    tmp0 = chain(range(iord0, nord - 1), range(iord0, 0, -1))
-    tmp1 = chain(range(iord0 + 1, nord), range(iord0 - 1, -1, -1))
+    tmp0 = chain(range(iord0, 0, -1), range(iord0, nord - 1))
+    tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
 
-    for iord0, iord in zip(tmp0, tmp1):
+    for iord0, iord1 in zip(tmp0, tmp1):
         beg0, end0 = column_range[iord0]
-        beg1, end1 = column_range[iord]
+        beg1, end1 = column_range[iord1]
         d0 = data[iord0, beg0:end0]
-        d1 = data[iord, beg1:end1]
+        d1 = data[iord1, beg1:end1]
 
         # Calculate Overlap
         i0 = np.where((d0.wave >= np.min(d1.wave)) & (d0.wave <= np.max(d1.wave)))
@@ -77,26 +73,27 @@ def splice_orders(
             tmpU1 = bezier.interpolate(d0.wave, d0.sigma, d1.wave[i1])
 
             if scaling:
-                scl0 = np.sum(d0.spec[i0] / d0.blaze[i0]) / np.sum(tmpS0 / tmpB0)
-                scl1 = np.sum(d1.spec[i1] / d1.blaze[i1]) / np.sum(tmpS1 / tmpB1)
+                scl0 = np.nansum(d0.spec[i0] / d0.blaze[i0]) / np.nansum(tmpS0 / tmpB0)
+                scl1 = np.nansum(d1.spec[i1] / d1.blaze[i1]) / np.nansum(tmpS1 / tmpB1)
                 scale = np.sqrt(scl0 / scl1)
-                d1.spec *= scale
-                tmpS0 *= scale
-                order_scales[iord] = scale
+                order_scales[iord1] = scale
+            else:
+                scale = 1
 
+            #TODO change weights to something better
             wgt0 = np.linspace(0, 1, i0[0].size)
             wgt1 = 1 - wgt0
 
-            d0.spec[i0] = d0.spec[i0] * wgt0 + tmpS0 * wgt1
+            d0.spec[i0] = d0.spec[i0] * wgt0 * scale + tmpS0 * wgt1 * scale
             d0.blaze[i0] = d0.blaze[i0] * wgt0 + tmpB0 * wgt1
-            d0.sigma[i0] = d0.sigma[i0] * wgt0 + tmpU0 * wgt1
+            d0.sigma[i0] = np.sqrt(d0.sigma[i0]**2 * wgt0 + tmpU0**2 * wgt1)
 
             wgt0 = np.linspace(0, 1, i1[0].size)
             wgt1 = 1 - wgt0
 
             d1.spec[i1] = d1.spec[i1] * wgt0 + tmpS1 * wgt1
             d1.blaze[i1] = d1.blaze[i1] * wgt0 + tmpB1 * wgt1
-            d1.sigma[i1] = d1.sigma[i1] * wgt0 + tmpU1 * wgt1
+            d1.sigma[i1] = np.sqrt(d1.sigma[i1]**2 * wgt0 + tmpU1**2 * wgt1)
         else:  # Orders dont overlap
             scale0 = top(d0.spec / d0.blaze, 1, poly=True)
             d0.blaze *= scale0
@@ -115,16 +112,31 @@ def splice_orders(
                 np.polyval(scale1, xx) ** 2
             )
             d1.spec *= scale
-            order_scales[iord] = scale
+            order_scales[iord1] = scale
 
     # TODO: flatten data into one large spectrum
     # Problem: orders overlap
 
+    mask = np.ones(data.shape, dtype=bool)
+    for i in range(nord):
+        ib, ie = column_range[i]
+        mask[i, ib:ie] = False
+
+    data = np.ma.masked_array(data, mask=mask)
+    #data = np.sort(data.flatten(), order="wave")
+
+
     if debug:
         plt.subplot(212)
         plt.title("After")
-        plt.plot(data.wave.flat, (data.spec / data.blaze).flat)
+        for i in range(nord):
+            ib, ie = column_range[i]
+            plt.plot(data["wave"][i], data["spec"][i] / data["blaze"][i])
+        
+        #plt.plot(data["wave"].flatten(), (data["spec"] / data["blaze"]).flatten())
         plt.show()
+
+
 
     return data.wave, data.spec, data.blaze, data.sigma
 
