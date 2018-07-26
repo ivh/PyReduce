@@ -437,6 +437,8 @@ def get_y_scale(order, order_below, order_above, ix, xrange, extraction_width, n
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
+    if max(ymin) > nrow:
+        ymin = ymin - max(ymin) + nrow - 1  # helps at edge
 
     ymax = ycen + extraction_width[1]
     ymax = np.ceil(ymax)
@@ -558,28 +560,41 @@ def arc_extraction(
     return spectrum, 0, uncertainties
 
 
-def fix_column_range(img, orders, extraction_width, column_range):
+def fix_column_range(img, orders, extraction_width, column_range, no_clip=False):
     nrow, ncol = img.shape
     ix = np.arange(ncol)
-    # Fix column_range of each order
-    for i in range(1, len(orders) - 1):
-        order = orders[i]
-
+    # Loop over non extension orders
+    for i, order in zip(range(1, len(orders)-1), orders[1:-1]):
+        # Shift order trace up/down by extraction_width
         coeff_bot, coeff_top = np.copy(order), np.copy(order)
         coeff_bot[-1] -= extraction_width[i, 0]
         coeff_top[-1] += extraction_width[i, 1]
 
-        ixx = ix[column_range[i, 0] : column_range[i, 1]]
-        y_bot = np.polyval(coeff_bot, ixx)  # low edge of arc
-        y_top = np.polyval(coeff_top, ixx)  # high edge of arc
-        # shrink column range so that only valid columns are included, this assumes
-        column_range[i] = np.clip(
-            column_range[i, 0]
-            + np.where((y_bot > 0) & (y_top < nrow - 1))[0][[0, -1]]
-            + [0, 1],
-            None,
-            column_range[i, 1],
-        )
+        y_bot = np.polyval(coeff_bot, ix)  # low edge of arc
+        y_top = np.polyval(coeff_top, ix)  # high edge of arc
+
+        # find regions of pixels inside the image
+        # then use the region that most closely resembles the existing column range (from order tracing)
+        # but clip it to the existing column range (order tracing polynomials are not well defined outside the original range)
+        points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
+        regions = np.where(np.diff(points_in_image) != 1)[0]
+        regions = [(r, r + 1) for r in regions]
+        regions = [points_in_image[0], *points_in_image[regions], points_in_image[-1]]
+        regions = [(regions[i], regions[i + 1]) for i in range(0, len(regions), 2)]
+        overlap = [
+            min(reg[1], column_range[i, 1]) - max(reg[0], column_range[i, 0])
+            for reg in regions
+        ]
+        iregion = np.argmax(overlap)
+        if not no_clip:
+            column_range[i] = np.clip(
+                regions[iregion], column_range[i, 0], column_range[i, 1]
+            )
+        else:
+            column_range[i] = regions[iregion]
+
+    column_range[0] = column_range[1]
+    column_range[-1] = column_range[-2]
 
     return column_range
 
@@ -692,6 +707,8 @@ def extract(
     extraction_width = extraction_width[order_range[0] : order_range[1] + 1]
 
     # Extend orders and related properties
+
+
     orders = extend_orders(orders, nrow)
     extraction_width = np.array(
         [extraction_width[0], *extraction_width, extraction_width[-1]]
@@ -716,8 +733,8 @@ def extract(
                 scatter[onum - 1, 1] = xscatter[oo + 1]
                 scatter[onum - 1, 2] = yscatter[oo - 1]
                 scatter[onum - 1, 3] = yscatter[oo + 1]
-            else:
-                scatter[onum - 1, 0] = xscatter[onum - 1]
+            else: # below, above, ybelow, yabove
+                scatter[onum - 1, 0] = xscatter[onum - 1] 
                 scatter[onum - 1, 1] = xscatter[onum]
                 scatter[onum - 1, 2] = yscatter[onum - 1]
                 scatter[onum - 1, 3] = yscatter[onum]
