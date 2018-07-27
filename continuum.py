@@ -1,37 +1,50 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.ndimage.filters import median_filter
 from itertools import chain
 
-from util import top, middle, bezier_interp
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.ndimage.filters import median_filter
+
+from util import bezier_interp, top
 
 
-#
+def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=False):
+    """
+    Splice orders together so that they form a continous spectrum
+    This is achieved by linearly combining the overlaping regions
 
-def splice_orders(
-    spec, wave, cont, sigm, orders=None, column_range=None, scaling=False, debug=True
-):
+    Parameters
+    ----------
+    spec : array[nord, ncol]
+        Spectrum to splice, with seperate orders
+    wave : array[nord, ncol]
+        Wavelength solution for each point
+    cont : array[nord, ncol]
+        Continuum, blaze function will do fine as well
+    sigm : array[nord, ncol]
+        Errors on the spectrum
+    column_range : array[nord, 2], optional
+        range of each order that is to be used  (default: use whole range)
+    scaling : bool, optional
+        If true, the spectrum/continuum will be scaled to 1 (default: False)
+    plot : bool, optional
+        If true, will plot the spliced spectrum (default: False)
+
+    Raises
+    ------
+    NotImplementedError
+        If neighbouring orders dont overlap
+
+    Returns
+    -------
+    spec, wave, cont, sigm : array[nord, ncol]
+        spliced spectrum
+    """
+
     nord, ncol = spec.shape  # Number of sp. orders, Order length in pixels
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 1))
-    if orders is None:
-        orders = np.arange(nord)
 
-    nord = len(orders)
-    order_scales = np.ones(nord)
-
-
-
-    # Reorganize input arrays, to make everything simpler
-    # Memory addresses stay the same throughout the function, so any changes will also be in data
-    # data = np.rec.fromarrays([spec, wave, cont, sigma], names="spec,wave,cont,sigma")
-    # data = data[orders]
-    spec = spec[orders]
-    wave = wave[orders]
-    cont = cont[orders]
-    sigm = sigm[orders]
-    column_range = column_range[orders]
-
+    # by using masked arrays we can stop worrying about column ranges
     mask = np.full(spec.shape, True)
     for iord in range(len(column_range)):
         mask[iord, column_range[iord, 0] : column_range[iord, 1]] = False
@@ -41,21 +54,17 @@ def splice_orders(
     cont = np.ma.masked_array(cont, mask=mask)
     sigm = np.ma.masked_array(sigm, mask=mask)
 
-
-    # Scale everything to roughly the same size, around spec/blaze = 1
     if scaling:
-        scale = np.ma.median(spec, axis=1) / np.ma.median(cont, axis=1)
-    else:
-        scale = np.array([1])
-    cont = median_filter(cont, 5) * scale[:, None]
-    cont.mask = mask #median filter changes the mask, but we want it to stay the same still
+        # Scale everything to roughly the same size, around spec/blaze = 1
+        scale = np.ma.median(spec / cont, axis=1)
+        cont *= scale[:, None]
 
-    if debug:
+    if plot:
         plt.subplot(211)
         plt.title("Before")
         for i in range(spec.shape[0]):
             plt.plot(wave[i], spec[i] / cont[i])
-
+        plt.ylim([0, 2])
 
     # Order with largest signal, everything is scaled relative to this order
     iord0 = np.argmax(np.ma.median(spec / cont, axis=1))
@@ -65,7 +74,7 @@ def splice_orders(
     tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
 
     for iord0, iord1 in zip(tmp0, tmp1):
-        # get data for current order
+        # Get data for current order
         # Note that those are just references to parts of the original data
         # any changes will also affect spec, wave, cont, and sigm
         s0, s1 = spec[iord0], spec[iord1]
@@ -126,12 +135,7 @@ def splice_orders(
             s1 *= scale
             order_scales[iord1] = scale
 
-    # TODO: flatten data into one large spectrum
-    # Problem: orders overlap
-
-    # data = np.sort(data.flatten(), order="wave")
-
-    if debug:
+    if plot:
         plt.subplot(212)
         plt.title("After")
         for i in range(nord):
@@ -143,5 +147,21 @@ def splice_orders(
     return wave, spec, cont, sigm
 
 
-if __name__ == "__main__":
+def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
+    # TODO
+    par = [10, 5e5, 1e-4, 5e6, 1e-4, 1]
+
+    spec /= cont
+    cont_B = 1
+    weight = np.full(spec.shape[1], 1.)
+
+    for i in range(iterations):
+        for j in range(par[0]):
+            spec = top(spec, par[1], eps=par[2], WEIGHT=weight, LAM2=par[3])
+        spec = top(spec, par[1], eps=par[4], WEIGHT=weight, LAM2=par[3]) * cont_B
+
+        cont_B = spec * par[5]
+        # cont_B = middle(cont_B, 1.)
+        cont[:] = cont_B
+
     pass

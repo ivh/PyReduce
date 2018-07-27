@@ -45,7 +45,7 @@ def main(
         # "bias",
         # "flat",
         # "orders",
-        "norm_flat",
+        # "norm_flat",
         # "wavecal",
         # "science",
         "continuum",
@@ -247,7 +247,7 @@ def run_steps(
             plot=config.get("plot", False),
         )
 
-        # Save image format description
+        # Save results
         with open(order_file, "wb") as file:
             pickle.dump((orders, column_range), file)
     else:
@@ -263,7 +263,7 @@ def run_steps(
         extraction_width = 0.2
         order_range = (0, len(orders) - 1)
 
-        flat, blzcoef = normalize_flat(
+        flat, blaze = normalize_flat(
             flat,
             orders,
             gain=fhead["e_gain"],
@@ -280,12 +280,12 @@ def run_steps(
             plot=True,  # config.get("plot", False),
         )
 
-        plt.imshow(blzcoef, aspect="auto")
+        plt.imshow(blaze, aspect="auto")
         plt.show()
 
         # Save data
         with open(blaze_file, "wb") as file:
-            pickle.dump(blzcoef, file)
+            pickle.dump(blaze, file)
         fits.writeto(norm_flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
         logging.info("Loading normalized flat field")
@@ -294,7 +294,7 @@ def run_steps(
         flat = np.ma.masked_array(flat, mask=mask)
 
         with open(blaze_file, "rb") as file:
-            blzcoef = pickle.load(file)
+            blaze = pickle.load(file)
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -392,21 +392,22 @@ def run_steps(
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
-            # column_range[:, 0] += 200
-            order_range = [1, spec.shape[0]]
+            #TODO fix column range
+            #column_range[:, 0] += 100
+            #column_range[:, 1] -= 100
             splice_orders(
                 spec,
                 wave,
-                blzcoef,
+                blaze,
                 sigma,
                 column_range=column_range,
-                orders=np.arange(order_range[0], order_range[1]),
                 scaling=True,
+                plot=True,
             )
 
     # Combine science with wavecal and contin
     nameout = swap_extension(f, ".ech", path=output_dir)
-    save_fits(nameout, head, spec=spec, sig=sigma, cont=blzcoef, wave=wave)
+    save_fits(nameout, head, spec=spec, sig=sigma, cont=blaze, wave=wave)
     logging.info("science file: %s", os.path.basename(nameout))
     logging.debug("--------------------------------")
 

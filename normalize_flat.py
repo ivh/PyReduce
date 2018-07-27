@@ -1,25 +1,37 @@
 import numpy as np
 import logging
-import pickle
 
 from make_scatter import make_scatter
-from extract import extend_orders, fix_column_range, optimal_extraction, extract
+from extract import extract
 
 
-def normalize_flat(img, orders, threshold=90000, **kwargs):
+def normalize_flat(img, orders, threshold=0.5, **kwargs):
     """
     Use slit functions to normalize an echelle image of a flat field lamp.
+
     Inputs:
-     im (array(ncol,nrow)) image from which orc and back were determined and
-       from which spectrum is to be extracted.
-     orc (array(orcdeg,nord)) polynomial coefficients (from FORDS) that describe
-       the location of complete orders on the image.
-     dxw float scalar, fractional width of the order to be normalized
-    
+    ---------
+    img : array[nrow, ncol]
+        image from which the orders were determined and from which the blaze spectrum is to be extracted.
+    orders : array[nord, order_degree]
+        polynomial coefficients that describe the location of complete orders on the image.
+    threshold : float, optional
+        minimum pixel value to consider for the normalized flat field.
+        If threshold <= 1, then it is used as a fraction of the maximum image value (default: 0.5)
+    scatter_degree : int, optional
+        degree of the background scatter fit (see make_scatter for details)
+    **kwargs: dict, optional
+        keywords to be passed to the extraction algorithm (see extract.extract for details)
+
     Outputs:
-     blzcof (array(blzdeg,nord)) coefficients of (perhaps broken) polynomial
-       fit to extracted spectrum of flat lamp.
+    ---------
+    im_norm : array[nrow, ncol]
+        normalized flat field image
+    blaze : array[nord, ncol]
+        blaze function for each order
+    
     History:
+    ---------
     05-Jun-1999 JAV, Adapted from getspec.pro
     26-Jan-2000 NP, removed common ham_aux, replaced with data from
                inst_setup structure available in ham.common
@@ -35,7 +47,12 @@ def normalize_flat(img, orders, threshold=90000, **kwargs):
                 in normalization.
     25-Feb-2008 NP, Return swath boundaries if requested by the caller
     04-Mar-2008 NP, return uncertainties in the blaze functions
+    00-JUL-2018 AW, port to Python
     """
+
+    # if threshold is smaller than 1, assume percentage value is given
+    if threshold <= 1:
+        threshold *= np.max(img)
 
     percent_above_threshold = np.count_nonzero(img > threshold) / img.size
     if percent_above_threshold < 0.1:
@@ -46,6 +63,7 @@ def normalize_flat(img, orders, threshold=90000, **kwargs):
         )
         # TODO ask for confirmation
 
+    # Get background scatter
     xscatter, yscatter = make_scatter(img, orders, **kwargs)
 
     im_norm, im_ordr, blaze = extract(
