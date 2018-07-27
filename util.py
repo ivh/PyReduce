@@ -6,6 +6,7 @@ from itertools import product
 from scipy.ndimage.filters import median_filter
 from scipy.linalg import solve_banded, solve
 from scipy.optimize import curve_fit
+import scipy.interpolate
 from astropy.io import fits
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -293,6 +294,15 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         plt.show()
     return coeff
 
+
+def bezier_interp(x_old, y_old, x_new):
+    # Handle masked arrays
+    if np.ma.is_masked(x_old):
+        x_old = np.ma.compressed(x_old)
+        y_old = np.ma.compressed(y_old)
+    knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
+    y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
+    return y_new
 
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
