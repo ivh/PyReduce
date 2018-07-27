@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from make_scatter import make_scatter
+from estimate_background_scatter import estimate_background_scatter
 from extract import extract
 
 

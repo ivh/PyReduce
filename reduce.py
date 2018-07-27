@@ -32,7 +32,7 @@ from instruments import instrument_info
 from trace import mark_orders  # TODO: trace is a standard library name
 from getxwd import getxwd
 from wavelength_calibration import wavecal
-from continuum import splice_orders
+from continuum_normalization import splice_orders
 
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ?
@@ -244,7 +244,7 @@ def run_steps(
             noise=config.get("orders_noise", 8),
             opower=config.get("orders_opower", 4),
             manual=config.get("orders_manual", True),
-            plot=config.get("plot", False),
+            plot=config.get("plot", True),
         )
 
         # Save results
@@ -260,7 +260,6 @@ def run_steps(
 
     if "norm_flat" in steps or steps == "all":
         logging.info("Normalizing flat field")
-        extraction_width = 0.2
         order_range = (0, len(orders) - 1)
 
         flat, blaze = normalize_flat(
@@ -270,18 +269,15 @@ def run_steps(
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
             column_range=column_range,
-            extraction_width=extraction_width,
             order_range=order_range,
+            extraction_width=config.get("normflat_extraction_width", 0.2),
             degree=config.get("normflat_scatter_degree", 4),
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=True,  # config.get("plot", False),
+            plot=config.get("plot", True),
         )
-
-        plt.imshow(blaze, aspect="auto")
-        plt.show()
 
         # Save data
         with open(blaze_file, "wb") as file:
@@ -309,8 +305,6 @@ def run_steps(
             im -= bias
             im /= flat
 
-            # Set extraction width
-            extraction_width = 25
             order_range = (0, len(orders) - 1)
 
             # Optimally extract science spectrum
@@ -320,14 +314,14 @@ def run_steps(
                 gain=head["e_gain"],
                 readnoise=head["e_readn"],
                 dark=head["e_drk"],
-                extraction_width=extraction_width,
                 column_range=column_range,
                 order_range=order_range,
+                extraction_width=config.get("science_extraction_width", 25),
                 lambda_sf=config.get("science_lambda_sf", 0.1),
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=config.get("plot", False),
+                plot=config.get("plot", True),
             )
             head["obase"] = (order_range[0], " base order number")
 
@@ -347,12 +341,13 @@ def run_steps(
 
     if "wavecal" in steps or steps == "all":
         logging.info("Creating wavelength calibration")
+        # TODO: in practice there may be several wavelength files, but only one will be used, how to decide which one?
+        # TODO: Which calibration file to use, might depend on the science file (e.g. UVES center wavelength setting)
+        # TODO: Use a dictionary of wavelengths? With some identifier as key
         for f in f_wave:
             # Load wavecal image
             thar, thead = load_fits(f, instrument, mode, extension, mask=mask)
 
-            # Determine extraction width, blaze center column, and base order
-            extraction_width = 0.25
             order_range = (0, len(orders) - 1)
 
             # Extract wavecal spectrum
@@ -363,11 +358,11 @@ def run_steps(
                 readnoise=thead["e_readn"],
                 dark=thead["e_drk"],
                 extraction_type="arc",
-                extraction_width=extraction_width,
                 order_range=order_range,
                 column_range=column_range,
+                extraction_width=config.get("wavecal_extraction_width", 0.25),
                 osample=config.get("wavecal_osample", 1),
-                plot=config.get("plot", False),
+                plot=config.get("plot", True),
             )
             thead["obase"] = (order_range[0], "base order number")
 
@@ -378,7 +373,7 @@ def run_steps(
             wave = wavecal(
                 thar,
                 cs_lines,
-                plot=config.get("plot", False),
+                plot=config.get("plot", True),
                 manual=config.get("wavecal_manual", False),
             )
 
@@ -392,20 +387,18 @@ def run_steps(
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
-            #TODO fix column range
-            #column_range[:, 0] += 100
-            #column_range[:, 1] -= 100
-            splice_orders(
+            logging.info("Splicing orders")
+            spec, wave, blaze, sigma = splice_orders(
                 spec,
                 wave,
                 blaze,
                 sigma,
                 column_range=column_range,
                 scaling=True,
-                plot=True,
+                plot=config.get("plot", True),
             )
 
-    # Combine science with wavecal and contin
+    # Combine science with wavecal and continuum
     nameout = swap_extension(f, ".ech", path=output_dir)
     save_fits(nameout, head, spec=spec, sig=sigma, cont=blaze, wave=wave)
     logging.info("science file: %s", os.path.basename(nameout))

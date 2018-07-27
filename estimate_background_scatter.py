@@ -6,7 +6,7 @@ import extract
 from util import polyfit2d
 
 
-def make_scatter(img, orders, column_range, extraction_width, scatter_degree=4, plot=False, **kwargs):
+def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False, **kwargs):
     nrow, ncol = img.shape
     nord, _ = orders.shape
 

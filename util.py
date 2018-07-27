@@ -32,6 +32,9 @@ def parse_args():
     parser.add_argument(
         "-s", "--science", action="store_true", help="Extract science spectrum"
     )
+    parser.add_argument(
+        "-c", "--continuum", action="store_true", help="Normalize continuum"
+    )
 
     parser.add_argument("instrument", type=str, help="instrument used")
     parser.add_argument("target", type=str, help="target star")
@@ -47,12 +50,13 @@ def parse_args():
         "norm_flat": args.norm_flat,
         "wavecal": args.wavecal,
         "science": args.science,
+        "continuum": args.continuum,
     }
     steps_to_take = [k for k, v in steps_to_take.items() if v]
 
     # if no steps are specified use all
     if len(steps_to_take) == 0:
-        steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
+        steps_to_take = "all"
 
     return {"instrument": instrument, "target": target, "steps": steps_to_take}
 
