@@ -6,7 +6,7 @@ import extract
 from util import polyfit2d
 
 
-def make_scatter(img, orders, column_range, extraction_width, order=2, plot=False, **kwargs):
+def make_scatter(img, orders, column_range, extraction_width, scatter_degree=4, plot=False, **kwargs):
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
@@ -49,7 +49,7 @@ def make_scatter(img, orders, column_range, extraction_width, order=2, plot=Fals
     y = np.concatenate(y_inbetween).astype(int)
     z = img[y, x].flatten()
 
-    coeff = polyfit2d(x, y, z, order=order, plot=plot)
+    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
 
     # Calculate scatter at interorder positions
     x = np.arange(ncol)
@@ -61,6 +61,8 @@ def make_scatter(img, orders, column_range, extraction_width, order=2, plot=Fals
     if plot:
         plt.subplot(211)
         plt.imshow(img, vmax=np.max(back))
+        for i in range(x.shape[0]):
+            plt.plot(x[i], y[i])
         plt.subplot(212)
         plt.imshow(back, aspect="auto")
         plt.show()

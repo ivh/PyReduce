@@ -42,13 +42,14 @@ def main(
     instrument="UVES",
     target="HD132205",
     steps=(
-        # "bias", 
+        # "bias",
         # "flat",
         # "orders",
         "norm_flat",
         # "wavecal",
         # "science",
-        "continuum"),
+        "continuum",
+    ),
 ):
     """
     Main entry point for REDUCE scripts,
@@ -265,17 +266,18 @@ def run_steps(
         flat, blzcoef = normalize_flat(
             flat,
             orders,
-            gain = fhead["e_gain"],
-            readnoise = fhead["e_readn"],
-            dark = fhead["e_drk"],
+            gain=fhead["e_gain"],
+            readnoise=fhead["e_readn"],
+            dark=fhead["e_drk"],
             column_range=column_range,
             extraction_width=extraction_width,
             order_range=order_range,
+            degree=config.get("normflat_scatter_degree", 4),
             threshold=config.get("normflat_threshold", 10000),
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=True, #config.get("plot", False),
+            plot=True,  # config.get("plot", False),
         )
 
         plt.imshow(blzcoef, aspect="auto")
@@ -315,9 +317,9 @@ def run_steps(
             spec, sigma = extract(
                 im,
                 orders,
-                gain = head["e_gain"],
-                readnoise = head["e_readn"],
-                dark = head["e_drk"],
+                gain=head["e_gain"],
+                readnoise=head["e_readn"],
+                dark=head["e_drk"],
                 extraction_width=extraction_width,
                 column_range=column_range,
                 order_range=order_range,
@@ -357,10 +359,10 @@ def run_steps(
             thar, _ = extract(
                 thar,
                 orders,
-                gain = thead["e_gain"],
-                readnoise = thead["e_readn"],
-                dark = thead["e_drk"],
-                extraction_type= "arc",
+                gain=thead["e_gain"],
+                readnoise=thead["e_readn"],
+                dark=thead["e_drk"],
+                extraction_type="arc",
                 extraction_width=extraction_width,
                 order_range=order_range,
                 column_range=column_range,
@@ -387,14 +389,20 @@ def run_steps(
         thar = fits.open(fname)
         wave = thar[1].data["WAVE"][0]
 
-
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
-            #column_range[:, 0] += 200
+            # column_range[:, 0] += 200
             order_range = [1, spec.shape[0]]
-            splice_orders(spec, wave, blzcoef, sigma, column_range=column_range, orders=np.arange(order_range[0], order_range[1]), scaling=True)
-
+            splice_orders(
+                spec,
+                wave,
+                blzcoef,
+                sigma,
+                column_range=column_range,
+                orders=np.arange(order_range[0], order_range[1]),
+                scaling=True,
+            )
 
     # Combine science with wavecal and contin
     nameout = swap_extension(f, ".ech", path=output_dir)

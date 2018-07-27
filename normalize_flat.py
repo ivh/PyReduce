@@ -6,7 +6,7 @@ from make_scatter import make_scatter
 from extract import extend_orders, fix_column_range, optimal_extraction, extract
 
 
-def normalize_flat(img, orders, threshold=90000, column_range=None, **kwargs):
+def normalize_flat(img, orders, threshold=90000, **kwargs):
     """
     Use slit functions to normalize an echelle image of a flat field lamp.
     Inputs:
@@ -37,8 +37,6 @@ def normalize_flat(img, orders, threshold=90000, column_range=None, **kwargs):
     04-Mar-2008 NP, return uncertainties in the blaze functions
     """
 
-    # TODO plots
-
     percent_above_threshold = np.count_nonzero(img > threshold) / img.size
     if percent_above_threshold < 0.1:
         logging.warning(
@@ -56,7 +54,6 @@ def normalize_flat(img, orders, threshold=90000, column_range=None, **kwargs):
         xscatter=xscatter,
         yscatter=yscatter,
         threshold=threshold,
-        column_range=column_range,
         extraction_type="normalize",
         **kwargs
     )

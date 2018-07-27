@@ -453,7 +453,7 @@ def get_y_scale(order, order_below, order_above, ix, xrange, extraction_width, n
 
 
 def optimal_extraction(
-    img, orders, extraction_width, column_range, scatter=None, **kwargs
+    img, orders, extraction_width, column_range, scatter, **kwargs
 ):
     logging.info("Using optimal extraction to produce spectrum")
 
@@ -491,6 +491,10 @@ def optimal_extraction(
             ord_num=onum - 1,
             **kwargs
         )
+
+    if kwargs.get("plot", False):
+        plt.ioff()
+        plt.close()
 
     return spectrum, slitfunction, uncertainties
 
@@ -699,12 +703,19 @@ def extract(
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
+    scatter = [None for _ in range(nord+1)]
+    xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
 
     # Limit orders (and related properties) to orders in range
     nord = order_range[1] - order_range[0] + 1
     orders = orders[order_range[0] : order_range[1] + 1]
     column_range = column_range[order_range[0] : order_range[1] + 1]
     extraction_width = extraction_width[order_range[0] : order_range[1] + 1]
+    scatter = scatter[order_range[0] : order_range[1] + 2]
+    if xscatter is not None:
+        xscatter = xscatter[order_range[0] : order_range[1] + 2]
+    if yscatter is not None:
+        yscatter = yscatter[order_range[0] : order_range[1] + 2]
 
     # Extend orders and related properties
 
@@ -721,11 +732,10 @@ def extract(
     )
     column_range = fix_column_range(img, orders, extraction_width, column_range)
 
-    scatter = [None for _ in range(nord)]
-    xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
+
     if xscatter is not None and yscatter is not None:
         scatter = np.zeros((nord, 4, ncol))
-        for onum in range(1, nord - 1):
+        for onum in range(1, nord+1):
             if polarization:
                 # skip inter-polarization gaps
                 oo = ((onum - 1) // 2) * 2 + 1

@@ -2,7 +2,7 @@ import os
 import argparse
 
 import numpy as np
-import itertools
+from itertools import product
 from scipy.ndimage.filters import median_filter
 from scipy.linalg import solve_banded, solve
 from scipy.optimize import curve_fit
@@ -53,7 +53,7 @@ def parse_args():
     if len(steps_to_take) == 0:
         steps_to_take = ["bias", "flat", "orders", "norm_flat", "wavecal", "science"]
 
-    return {"instrument":instrument, "target":target, "steps":steps_to_take}
+    return {"instrument": instrument, "target": target, "steps": steps_to_take}
 
 
 def start_logging(log_file="log.log"):
@@ -247,19 +247,29 @@ def gaussbroad(x, y, hwhm):
     return sout  # return broadened spectrum.
 
 
-def polyfit2d(x, y, z, order=1, plot=False):
+def polyfit2d(x, y, z, degree=1, plot=False):
     # Create combinations of degree of x and y
     # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
-    idx = [[i, j] for i, j in itertools.product(range(order + 1), repeat=2)]
+    if np.isscalar(degree):
+        idx = [[i, j] for i, j in product(range(degree + 1), repeat=2)]
+        coeff = np.zeros((degree + 1, degree + 1))
+    else:
+        idx = [[i, j] for i, j in product(range(degree[0] + 1), range(degree[1] + 1))]
+        coeff = np.zeros((degree[0] + 1, degree[1] + 1))
+        degree = max(degree)
+
+    # We only want the combinations with maximum order COMBINED power
+    idx = np.array(idx)
+    idx = idx[idx[:, 0] + idx[:, 1] <= degree]
+
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
     A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
     z = z.flatten()
 
     # Do least squares fit
-    C, _, _, _ = np.linalg.lstsq(A, z)
+    C, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
 
     # Reorder coefficients into numpy compatible 2d array
-    coeff = np.zeros((order + 1, order + 1))
     for k, (i, j) in enumerate(idx):
         coeff[i, j] = C[k]
 
@@ -282,6 +292,7 @@ def polyfit2d(x, y, z, order=1, plot=False):
         ax.axis("tight")
         plt.show()
     return coeff
+
 
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
