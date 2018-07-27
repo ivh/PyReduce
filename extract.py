@@ -411,9 +411,6 @@ def extract_spectrum(
         if shear_margin != 0:
             weight[-1][-shear_margin:] = 0
 
-    if ord_num == 20:
-        print("blub")
-
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
         spec[ibeg:iend] += swath_spec[i] * weight[i]
