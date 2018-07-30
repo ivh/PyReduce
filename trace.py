@@ -182,7 +182,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
     plt.title("Clusters")
 
-    for i, order in orders.items():
+    for i, order in enumerate(orders):
         x = np.arange(*order_range[i], 1)
         y = np.polyval(order, x)
         plt.plot(x, y)

@@ -6,7 +6,7 @@ import astropy.io.fits as fits
 import logging
 import pickle
 
-from make_scatter import make_scatter
+from estimate_background_scatter import estimate_background_scatter
 
 # from slitfunc import slitfunc
 

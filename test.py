@@ -1,4 +1,5 @@
 import numpy as np
+import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 
 from skimage import transform as tf
@@ -50,6 +51,20 @@ def test_extract_spectrum():
     plt.show()
     pass
 
+def compare_idl_python():
+    fname_idl = "./Test/UVES/HD132205/reduced/UVES.2010-04-02T09_28_05.650.fits.sp.ech"
+    fname_py = "./Test/UVES/HD132205/reduced/2010-04-02/Reduced_middle/UVES.2010-04-02T09_28_05.650.ech"
+
+    idl = fits.open(fname_idl)[1].data[0]
+    py = fits.open(fname_py)[1].data[0]
+
+    for i in range(20):
+        plt.plot(idl["spec"][i] - py["spec"][i+1] , label="IDL - Python")
+        #plt.plot(py["spec"][i+1], label="Python")
+        plt.legend(loc="best")
+        plt.show()
+
 
 if __name__ == "__main__":
-    test_extract_spectrum()
+    #test_extract_spectrum()
+    compare_idl_python()

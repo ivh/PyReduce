@@ -19,7 +19,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
         minimum pixel value to consider for the normalized flat field.
         If threshold <= 1, then it is used as a fraction of the maximum image value (default: 0.5)
     scatter_degree : int, optional
-        degree of the background scatter fit (see make_scatter for details)
+        degree of the background scatter fit (see estimate_background_scatter for details)
     **kwargs: dict, optional
         keywords to be passed to the extraction algorithm (see extract.extract for details)
 
@@ -64,7 +64,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
         # TODO ask for confirmation
 
     # Get background scatter
-    xscatter, yscatter = make_scatter(img, orders, **kwargs)
+    xscatter, yscatter = estimate_background_scatter(img, orders, **kwargs)
 
     im_norm, im_ordr, blaze = extract(
         img,

@@ -35,19 +35,19 @@ from wavelength_calibration import wavecal
 from continuum_normalization import splice_orders
 
 # TODO turn dicts into numpy structured array
-# TODO use masked array instead of column_range ?
+# TODO use masked array instead of column_range ? or use a mask instead of column range
 
 
 def main(
     instrument="UVES",
     target="HD132205",
     steps=(
-        # "bias",
-        # "flat",
-        # "orders",
-        # "norm_flat",
-        # "wavecal",
-        # "science",
+        "bias",
+        "flat",
+        "orders",
+        "norm_flat",
+        "wavecal",
+        "science",
         "continuum",
     ),
 ):
@@ -399,10 +399,11 @@ def run_steps(
             )
 
     # Combine science with wavecal and continuum
-    nameout = swap_extension(f, ".ech", path=output_dir)
-    save_fits(nameout, head, spec=spec, sig=sigma, cont=blaze, wave=wave)
-    logging.info("science file: %s", os.path.basename(nameout))
-    logging.debug("--------------------------------")
+    for f in f_spec:
+        nameout = swap_extension(f, ".ech", path=output_dir)
+        save_fits(nameout, head, spec=spec, sig=sigma, cont=blaze, wave=wave, column_range=column_range)
+        logging.info("science file: %s", os.path.basename(nameout))
+        logging.debug("--------------------------------")
 
 
 if __name__ == "__main__":
