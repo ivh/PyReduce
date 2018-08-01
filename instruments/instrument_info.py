@@ -1,13 +1,18 @@
 import importlib
 
+from . import uves, harps
 
 def load_instrument(instrument):
     """ load the instrument module """
 
-    fname = "instruments.%s" % instrument.lower()
-    lib = importlib.import_module(fname)
-    instrument = getattr(lib, instrument.upper())
+    instruments = {"uves": uves.UVES, "harps": harps.HARPS}
+    instrument = instruments[instrument.lower()]
     instrument = instrument()
+
+    # fname = "instruments.%s" % instrument.lower()
+    # lib = importlib.import_module(fname)
+    # instrument = getattr(lib, instrument.upper())
+    # instrument = instrument()
 
     return instrument
 
@@ -17,9 +22,9 @@ def get_instrument_info(instrument):
     return instrument.load_info()
 
 
-def sort_files(files, target, instrument, mode, **kwargs):
+def sort_files(files, target, night, instrument, mode, **kwargs):
     instrument = load_instrument(instrument)
-    return instrument.sort_files(files, target, mode, **kwargs)
+    return instrument.sort_files(files, target, night, mode, **kwargs)
 
 
 def modeinfo(header, instrument, mode, **kwargs):

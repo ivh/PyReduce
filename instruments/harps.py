@@ -6,7 +6,10 @@ Mostly reading data from the header
 import numpy as np
 from astropy.io import fits
 
-from .common import instrument, getter
+from datetime import datetime
+from dateutil import parser
+
+from .common import instrument, getter, observation_date_to_night
 
 
 class HARPS(instrument):
@@ -22,7 +25,8 @@ class HARPS(instrument):
         # i.e. share the same mode identifier, but have different extensions
         info = {
             # General information
-            "instrument": "HARPS",
+            "instrument": "INSTRUME",
+            "date": "DATE-OBS",
             "modes": ["blue", "red"],
             "extension": [1, 2],
             # Header info for reduction
@@ -82,7 +86,7 @@ class HARPS(instrument):
 
         return header
 
-    def sort_files(self, files, target, mode, fiber="AB", **kwargs):
+    def sort_files(self, files, target, night, mode, fiber="AB", **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -98,20 +102,37 @@ class HARPS(instrument):
         """
         info = self.load_info()
         target = target.upper()
+        instrument = "UVES".casefold()
+        night = parser.parse(night).date()
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
         i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
+        mode_id = info["modes_id"][i].casefold()
 
         ob = np.zeros(len(files), dtype="U20")
         ty = np.zeros(len(files), dtype="U20")
+        mo = np.zeros(len(files), dtype="U20")
+        nights = np.zeros(len(files), dtype=datetime)
+        instr = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
             ob[i] = h[info["target"]]
             ty[i] = h[info["observation_type"]]
+            # The mode descriptor has different names in different files, so try different ids
+            mo[i] = h.get(
+                info["instrument_mode"],
+                h.get(info["instrument_mode_alternative"], "")[:3],
+            )
+            nights[i] = parser.parse(h[info["date"]])
+            instr[i] = h[info["instrument"]]
+
             # Fix naming
+            nights[i] = observation_date_to_night(nights[i])
             ob[i] = ob[i].replace("-", "")
+            mo[i] = mo[i].casefold()
+            instr[i] = instr[i].casefold()
 
         if fiber == "AB":
             id_orddef = info["id_flat"]
@@ -124,12 +145,13 @@ class HARPS(instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
+        selection = (instr == instrument) & (nights == night) & (mo == mode_id)
         # TODO allow several names for the target?
-        biaslist = files[(ty == info["id_bias"])]
-        flatlist = files[(ty == info["id_flat"])]
-        wavelist = files[(ob == info["id_wave"])]
-        orderlist = files[(ob == id_orddef)]
-        speclist = files[(ty == info["id_spec"]) & (ob == target)]
+        biaslist =  files[(ty == info["id_bias"]) & selection]
+        flatlist =  files[(ty == info["id_flat"]) & selection]
+        wavelist =  files[(ob == info["id_wave"]) & selection]
+        orderlist = files[(ob == id_orddef) & selection]
+        speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
 

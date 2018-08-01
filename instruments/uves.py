@@ -6,7 +6,10 @@ Mostly reading data from the header
 import numpy as np
 from astropy.io import fits
 
-from .common import instrument, getter
+from datetime import datetime
+from dateutil import parser
+
+from .common import instrument, getter, observation_date_to_night
 
 
 class UVES(instrument):
@@ -22,7 +25,8 @@ class UVES(instrument):
         # i.e. share the same mode identifier, but have different extensions
         info = {
             # General information
-            "instrument": "UVES",
+            "instrument": "INSTRUME",
+            "date": "DATE-OBS",
             "modes": ["blue", "middle", "red"],
             "modes_id": ["blue", "red", "red"],
             "extension": [0, 2, 1],
@@ -85,7 +89,7 @@ class UVES(instrument):
 
         return header
 
-    def sort_files(self, files, target, mode, **kwargs):
+    def sort_files(self, files, target, night, mode, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -101,6 +105,8 @@ class UVES(instrument):
         """
         info = self.load_info()
         target = target.upper()
+        instrument = "UVES".casefold()
+        night = parser.parse(night).date()
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
@@ -110,6 +116,8 @@ class UVES(instrument):
         ob = np.zeros(len(files), dtype="U20")
         ty = np.zeros(len(files), dtype="U20")
         mo = np.zeros(len(files), dtype="U20")
+        nights = np.zeros(len(files), dtype=datetime)
+        instr = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
@@ -120,17 +128,22 @@ class UVES(instrument):
                 info["instrument_mode"],
                 h.get(info["instrument_mode_alternative"], "")[:3],
             )
+            nights[i] = parser.parse(h[info["date"]])
+            instr[i] = h[info["instrument"]]
 
             # Fix naming
+            nights[i] = observation_date_to_night(nights[i])
             ob[i] = ob[i].replace("-", "")
             mo[i] = mo[i].casefold()
+            instr[i] = instr[i].casefold()
 
+        selection = (instr == instrument) & (nights == night) & (mo == mode_id)
         # TODO allow several names for the target?
-        biaslist = files[(ty == info["id_bias"]) & (mo == mode_id)]
-        flatlist = files[(ty == info["id_flat"]) & (mo == mode_id)]
-        wavelist = files[(ob == info["id_wave"]) & (mo == mode_id)]
-        orderlist = files[(ob == info["id_orders"]) & (mo == mode_id)]
-        speclist = files[(ty == info["id_spec"]) & (ob == target) & (mo == mode_id)]
+        biaslist =  files[(ty == info["id_bias"]) & selection]
+        flatlist =  files[(ty == info["id_flat"]) & selection]
+        wavelist =  files[(ob == info["id_wave"]) & selection]
+        orderlist = files[(ob == info["id_orders"]) & selection]
+        speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
 
