@@ -733,7 +733,7 @@ int slit_func_curved(int ncols,        /* Swath width in pixels                 
           mask[y * ncols + x] = 1;
       }
     }
-    printf("iter=%d, dev=%g\n", iter, dev);
+    // printf("iter=%d, dev=%g\n", iter, dev);
 
     /* Compute the change in the spectrum */
 

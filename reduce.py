@@ -42,13 +42,13 @@ def main(
     instrument="UVES",
     target="HD132205",
     steps=(
-        "bias",
-        "flat",
-        "orders",
+        # "bias",
+        # "flat",
+        # "orders",
         "norm_flat",
-        "wavecal",
+        # "wavecal",
         "science",
-        "continuum",
+        # "continuum",
     ),
 ):
     """
@@ -187,7 +187,7 @@ def run_steps(
     files = np.array(files)
 
     f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
-        files, target, instrument, mode, **config
+        files, target, night, instrument, mode, **config
     )
     logging.debug("Bias files:\n%s", str(f_bias))
     logging.debug("Flat files:\n%s", str(f_flat))
@@ -255,6 +255,10 @@ def run_steps(
         with open(order_file, "rb") as file:
             orders, column_range = pickle.load(file)
 
+    # DEBUG
+    np.savetxt("orders.txt", orders)
+    np.savetxt("column_range.txt", column_range)
+
     # ==========================================================================
     # = Construct normalized flat field.
 
@@ -276,7 +280,7 @@ def run_steps(
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=config.get("plot", True),
+            plot=False, #config.get("plot", True),
         )
 
         # Save data
@@ -291,6 +295,9 @@ def run_steps(
 
         with open(blaze_file, "rb") as file:
             blaze = pickle.load(file)
+
+    # TODO: DEBUG
+    np.savetxt("blaze.txt", blaze)
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -321,7 +328,7 @@ def run_steps(
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=config.get("plot", True),
+                plot=False, #config.get("plot", True),
             )
             head["obase"] = (order_range[0], " base order number")
 
@@ -418,3 +425,7 @@ if __name__ == "__main__":
     main(**args)
     finish = time.time()
     print("Execution time: %f s" % (finish - start))
+
+    import Test.test
+
+    Test.test.compare_idl_python()

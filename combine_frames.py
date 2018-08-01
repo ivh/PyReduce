@@ -6,6 +6,7 @@ Used to create master bias and master flat
 
 import datetime
 import os
+from dateutil import parser
 
 import logging
 import astropy.io.fits as fits
@@ -15,6 +16,7 @@ from scipy.ndimage.filters import median_filter
 
 
 from clipnflip import clipnflip
+from instruments.instrument_info import get_instrument_info
 from util import load_fits, gaussbroad, gaussfit
 
 
@@ -132,7 +134,7 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
     return corrected_signal, nbad
 
 
-def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=50, **kwargs):
+def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=50, dtype=np.float32, **kwargs):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
     similar images.
@@ -218,8 +220,6 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
     """
 
     DEBUG_NROWS = 100  # print status update every DEBUG_NROWS rows (if debug is True)
-    debug = kwargs.get("debug", False)
-    dtype = kwargs.get("dtype", np.float32)
 
     # summarize file info
     logging.info("Files:")
@@ -228,19 +228,17 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
 
     # Only one image
     if len(files) < 2:
-        result, head = load_fits(files[0], instrument, mode, extension, **kwargs)
-        result = result.astype(dtype)
+        result, head = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(files[0], instrument, mode, extension, **kwargs)
+        bias1, head1 = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
         exp1 = head1["exptime"]
 
-        bias2, head2 = load_fits(files[0], instrument, mode, extension, **kwargs)
+        bias2, head2 = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
         exp2, readnoise = head2["exptime"], head2["e_readn"]
 
         result = bias2 + bias1
-        result = result.astype(dtype)
         head = head2
 
         total_exposure_time = exp1 + exp2
@@ -253,7 +251,7 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(f, instrument, mode, extension, header_only=True, **kwargs)
+            load_fits(f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs)
             for f in files
         ]
         head = heads[0]
@@ -284,8 +282,8 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
         total_exposure_time = sum([h["exptime"] for h in heads])
 
         # Scaling for image data
-        bscale = [h["bscale"] for h in heads]
-        bzero = [h["bzero"] for h in heads]
+        bscale = [h.get("bscale", 1) for h in heads]
+        bzero = [h.get("bzero", 0) for h in heads]
 
         result = np.zeros((n_rows, n_columns), dtype=dtype)  # the combined image
         n_fixed = 0  # number of fixed pixels
@@ -300,7 +298,7 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
         # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:
             # idx gives the index for accessing the data in the image, which is rotated depending on the orientation
-            # We can not just rotate the whole image, as that requires reading of the whole image
+            # We could just rotate the whole image, but that requires reading the whole image at once
             index = lambda row, x_left, x_right: (slice(x_left, x_right), row)
             # Exchange the borders of the image
             x_low, x_high, y_low, y_high = y_low, y_high, x_low, x_high
@@ -333,6 +331,7 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
                 # load current row
                 idx = index(row, x_left, x_right)
                 for i in range(len(files)):
+                    # TODO: does memmap not work with compressed files?
                     buffer[i, :] = data[i].data[idx] * bscale[i] + bzero[i]
 
                 # Calculate probabilities
@@ -395,7 +394,7 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, **kwargs):
+def combine_flat(files, instrument, mode, extension=1, bias=0, **kwargs):
     """
     Combine several flat files into one master flat
 
@@ -424,8 +423,7 @@ def combine_flat(files, instrument, mode, extension=1, **kwargs):
 
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark. We have to scale it by the number of Flats
-    bias = kwargs.get("bias", 0)
-    flat = flat - bias * len(files)  # subtract bias, if passed
+    flat -= bias * len(files)  # subtract bias, if passed
     return flat, fhead
 
 
@@ -457,12 +455,20 @@ def combine_bias(files, instrument, mode, extension=1, **kwargs):
     debug = kwargs.get("debug", False)
 
     n = len(files)
-    # TODO split bias into before and after observation sets
-    # necessary to maintain proper dimensionality, if there is just one element
     if n == 1:
-        files = np.array([files, files])
+        # if there is just one element compare it with itself, not really useful, but it works
+        list1 = list2 = files
         n = 2
-    list1, list2 = files[: n // 2], files[n // 2 :]
+    else:
+        # TODO split bias into before and after observation sets, if possible
+        try:
+            kw = get_instrument_info(instrument)["date"]
+            times = [parser.parse(fits.open(f)[0].header[kw]) for f in files]
+            files = files[np.argsort(times)]
+        except KeyError:
+            logging.info("Could not sort files by observation time")
+        list1, list2 = files[: n // 2], files[n // 2 :]
+
 
     # Lists of images.
     n1 = len(list1)
@@ -472,11 +478,10 @@ def combine_bias(files, instrument, mode, extension=1, **kwargs):
     bias1, _ = combine_frames(list1, instrument, mode, extension, **kwargs)
     bias1 /= n1
 
-    bias2, head2 = combine_frames(list2, instrument, mode, extension, **kwargs)
+    bias2, head = combine_frames(list2, instrument, mode, extension, **kwargs)
     bias2 /= n2
 
     # Make sure we know the gain.
-    head = head2
     gain = head.get("e_gain*", (1,))[0]
 
     # Construct normalized sum.

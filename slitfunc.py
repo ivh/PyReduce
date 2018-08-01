@@ -35,14 +35,14 @@ def slitfunc(
     # Populate omega
 
     iy = np.arange(ny)
-    iy2 = (1 - ycen) * osample
-    iy1 = iy2 - osample
+    iy2 = (2 - ycen) * osample
+    iy1 = iy2 - 2 * osample
 
     d1 = np.where(iy2 == 0, step, np.where(iy1 == 0, 0, ycen % step))
     d2 = step - d1
 
-    iy1 = iy1[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
-    iy2 = iy2[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
+    iy1 = iy1[:, None] + osample * np.arange(0, nrows, 1)[None, :]
+    iy2 = iy2[:, None] + osample * np.arange(0, nrows, 1)[None, :]
 
     for x in range(ncols):
         omega[iy[:, None] == iy1[None, x, :], x] = d1[x]
@@ -154,8 +154,8 @@ def slitfunc(
     unc = np.sum(tmp * tmp, axis=0)
     unc = np.sqrt(unc * nrows)
 
-    img = np.ma.masked_array(img, mask = ~mask.astype(bool))
-    return sp, sf, model, unc
+    mask = ~mask.astype(bool)
+    return sp, sf, model, unc, mask
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

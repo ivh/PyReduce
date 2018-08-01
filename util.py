@@ -1,5 +1,7 @@
 import os
 import argparse
+import pickle
+import json
 
 import numpy as np
 from itertools import product
@@ -109,6 +111,8 @@ def load_fits(fname, instrument, mode, extension, **kwargs):
 
     data = np.ma.masked_array(data, mask=kwargs.get("mask"))
 
+    hdu.close()
+
     return data, header
 
 
@@ -160,6 +164,12 @@ def interpolate_masked(masked):
     return interpol
 
 
+def cutout_image(img, ymin, ymax, xmin, xmax):
+    cutout = np.zeros((ymax[0]-ymin[0]+1, xmax-xmin), dtype=img.dtype)
+    for i, x in enumerate(range(xmin, xmax)):
+        cutout[:, i] = img[ymin[x]:ymax[x]+1, x]
+    return cutout
+
 def make_index(ymin, ymax, xmin, xmax, zero=0):
     # TODO
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
@@ -168,17 +178,10 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     if zero:
         zero = xmin
 
-    index_x = np.array(
-        [np.arange(ymin[col], ymax[col] + 1) for col in range(xmin - zero, xmax - zero)]
-    )
-    index_y = np.array(
-        [
-            np.full(ymax[col] - ymin[col] + 1, col)
-            for col in range(xmin - zero, xmax - zero)
-        ]
-    )
-    # Tranpose makes it so that the image orientation stays the same
-    index = (index_x.T, index_y.T + zero)
+    index_x = np.array([np.arange(ymin[col], ymax[col]+1) for col in range(xmin-zero, xmax-zero)])
+    index_y = np.array([np.full(ymax[col]-ymin[col]+1, col) for col in range(xmin-zero, xmax-zero)])
+    index = index_x.T, index_y.T + zero
+
     return index
 
 
@@ -307,6 +310,7 @@ def bezier_interp(x_old, y_old, x_new):
     knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new
+
 
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """

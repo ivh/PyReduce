@@ -10,6 +10,11 @@ def find_first_index(arr, value):
         raise Exception("Value %s not found" % value)
 
 
+def observation_date_to_night(observation_date):
+    if observation_date.hour < 6:
+        observation_date.day -= 1
+    return observation_date.date()
+
 class getter:
     """ gets data from a header (dict) """
 
@@ -104,7 +109,7 @@ class instrument:
 
         return header
 
-    def sort_files(self, files, target, mode, **kwargs):
+    def sort_files(self, files, target, night, mode, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec

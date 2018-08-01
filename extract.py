@@ -8,10 +8,10 @@ import pickle
 
 from estimate_background_scatter import estimate_background_scatter
 
-# from slitfunc import slitfunc
+#from slitfunc import slitfunc
 
 from slitfunc_wrapper import slitfunc, slitfunc_curved
-from util import make_index
+from util import make_index, cutout_image
 
 
 def getflatimg(img, axis=0):
@@ -275,7 +275,7 @@ def extract_spectrum(
     nslitf = osample * (ylow + yhigh + 2) + 1
     height = yhigh + ylow + 1
 
-    ycen_int = ycen.astype(int)
+    ycen_int = np.floor(ycen).astype(int)
 
     noise = readnoise / gain
 
@@ -320,6 +320,8 @@ def extract_spectrum(
         index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
         swath_img = img[index]
 
+        # swath_img = cutout_image(img, ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
+
         # Corrections
         telluric_correction = calc_telluric_correction(telluric, swath_img)
         if scatter is not None:
@@ -334,7 +336,7 @@ def extract_spectrum(
         swath_img = np.clip(swath_img, 0, None)
 
         # offset from the central line
-        y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
+        y_offset =  ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
         if shear is None:
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
@@ -426,21 +428,20 @@ def extract_spectrum(
     return spec, slitf, model, sunc
 
 
-def get_y_scale(order, order_below, order_above, ix, xrange, extraction_width, nrow):
-    ycen = np.polyval(order, ix)  # row at order center
-    ycen = ycen[xrange[0] : xrange[1]]
+def get_y_scale(ycen, order, xrange, extraction_width, nrow):
+    ycen = ycen[xrange[0]:xrange[1]]
 
     ymin = ycen - extraction_width[0]
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
-    if max(ymin) > nrow:
+    if max(ymin) >= nrow:
         ymin = ymin - max(ymin) + nrow - 1  # helps at edge
 
     ymax = ycen + extraction_width[1]
     ymax = np.ceil(ymax)
-    if max(ymax) > nrow:
-        ymax = ymax - max(ymax) + nrow - 1  # helps at edge
+    if max(ymax) >= nrow:
+        ymax = ymax - max(ymax) + nrow - 1 # helps at edge
 
     # Define a fixed height area containing one spectral order
     y_lower_lim = int(np.min(ycen - ymin))  # Pixels below center line
@@ -469,11 +470,8 @@ def optimal_extraction(
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
-        yrange = get_y_scale(
+        yrange = get_y_scale(ycen,
             orders[onum],
-            orders[onum - 1],  # order below
-            orders[onum + 1],  # order above
-            ix,
             column_range[onum],
             extraction_width[onum],
             nrow,
@@ -493,6 +491,7 @@ def optimal_extraction(
         plt.ioff()
         plt.close()
 
+    slitfunction = np.array(slitfunction)
     return spectrum, slitfunction, uncertainties
 
 
@@ -594,6 +593,8 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
         else:
             column_range[i] = regions[iregion]
 
+        column_range[i, 1] += 1
+
     column_range[0] = column_range[1]
     column_range[-1] = column_range[-2]
 
@@ -604,7 +605,6 @@ def extend_orders(orders, nrow):
     """ Extrapolate extra orders above and below the existing ones """
     nord, ncoef = orders.shape
 
-    # TODO same as in extract
     if nord > 1:
         order_low = 2 * orders[0] - orders[1]
         order_high = 2 * orders[-1] - orders[-2]
@@ -612,8 +612,7 @@ def extend_orders(orders, nrow):
         order_low = [0 for _ in range(ncoef)]
         order_high = [0 for _ in range(ncoef - 1)] + [nrow]
 
-    orcend = np.array([order_low, *orders, order_high])
-    return orcend
+    return np.array([order_low, *orders, order_high])
 
 
 def fix_extraction_width(extraction_width, orders, column_range, ncol):
