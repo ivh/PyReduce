@@ -7,13 +7,17 @@ from scipy.io import readsav
 from scipy.signal import gaussian
 from skimage import transform as tf
 
+from clib.build_extract import build
+build(verbose=True)
+
 import extract
 import util
+from slitfunc_wrapper import slitfunc
 
 
 class TestExtractMethods(unittest.TestCase):
     def create_data(
-        self, width, height, spec="linear", slitf="gaussian", noise=0, shear=0, ycen=None
+        self, width, height, spec="linear", slitf="gaussian", noise=0, shear=0, ycen=None, oversample=10,
     ):
         if spec == "linear":
             spec = 5 + np.linspace(0, 5, width)
@@ -21,15 +25,24 @@ class TestExtractMethods(unittest.TestCase):
             spec = 5 + np.sin(np.linspace(0, 20 * np.pi, width))
 
         if slitf == "gaussian":
-            slitf = gaussian(height, height / 8)
+            slitf = gaussian(height * oversample, height / 8 * oversample)
 
-        img = spec[None, :] * slitf[:, None] + noise * np.random.randn(height, width)
+        img = spec[None, :] * slitf[:, None] #+ noise * np.random.randn(height, width)
 
         afine_tf = tf.AffineTransform(shear=-shear)
         img = tf.warp(img, inverse_map=afine_tf)
 
         if ycen is not None:
-            img = tf.rotate(img, -10, resize=True)
+            big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
+            big_height += oversample - (big_height % oversample)
+            big_img = np.zeros((big_height, width))
+            index = util.make_index((oversample*ycen).astype(int) - height//2 * oversample, (ycen * oversample).astype(int) + height//2 * oversample - 1, 0, width)
+            big_img[index] = img
+
+            img = big_img[::oversample]
+            for i in range(1, oversample):
+                img += big_img[i::oversample]
+            img /= oversample
 
         return img, spec, slitf
 
@@ -116,17 +129,71 @@ class TestExtractMethods(unittest.TestCase):
     #     self.assertTrue(np.allclose(sunc_curved, sunc_vert))
 
     def test_extract_offset_order(self):
-        img, spec, slitf = self.create_data(1000, 50, spec="linear", ycen=True)
-        orders = np.array([[177/img.shape[1], 22]])
-        ycen = np.polyval(orders[0], np.arange(img.shape[1]))
+        # The shear counters the rotation
+        width, height = 1000, 50
+        orders = np.array([[177/width, 40]])
+        ycen = np.polyval(orders[0], np.arange(width))
+        img, spec, slitf = self.create_data(width, height, spec="linear", ycen=ycen)
 
         #spec_out, sunc = extract.extract(img, orders, plot=True, swath_width=100)
-        spec_out, _, _, _  = extract.extract_spectrum(img, ycen, (25, 25), (300, 700), swath_width=100, plot=True)
+        xrange = (300, 700)
+        spec_out, _, _, _  = extract.extract_spectrum(img, ycen, (height//2, height//2), xrange , swath_width=100, plot=False, osample=10)
 
-        plt.ioff()
-        plt.close()
-
-        plt.plot(spec/np.max(spec), label="In")
-        plt.plot(spec_out/np.max(spec_out), label="Out")
-        plt.legend()
+        m = np.diff(spec_out[xrange[0]:xrange[1]])
+        tmp = spec_out[xrange[0]: xrange[1]] / spec[xrange[0]: xrange[1]]
+        
+        plt.plot(spec)
+        plt.plot(spec_out)
         plt.show()
+
+        self.assertTrue(np.allclose(m, m[0], atol=0.02)) # constant linear increase
+        self.assertTrue(np.allclose(tmp, tmp[0], atol=0.01)) # shape same as input shape
+
+        
+    def test_idl_data(self):
+        fname = "./Test/test2_after.dat"
+        sav = readsav(fname)
+
+        fname = "./Test/test3.dat"
+        sav2 = readsav(fname)
+
+        orders = sav2["orcend"]
+        onum = sav2["onum"]
+        order = orders[onum, ::-1]
+        ycen2 = np.polyval(order, np.arange(4096, dtype="float64"))
+
+        ibeg, iend = sav["ib"], sav["ie"]
+        img = sav["im"]
+        swath_img = sav["sf"]
+        ycen = sav["ycen"] 
+        yc = sav["yc"]
+        yoffset = ycen[ibeg:iend+1] - yc[ibeg:iend+1]
+        ylow, yhigh = sav["y_lower_lim"], sav["y_upper_lim"]
+        yoffset2 = (ycen2 - np.floor(ycen2))[ibeg:iend+1]
+
+        index = util.make_index(ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend+1)
+        swath_img2 = img[index]
+
+        lambda_sf = sav["lambda_sf"]
+        lambda_sp = sav["lambda_sp"]
+        osample = sav["osample"]
+
+        #self.assertTrue(np.allclose(swath_img, swath_img2))
+        #self.assertTrue(np.allclose(yoffset, yoffset2))
+
+
+        spec, slitf, model, unc, mask = slitfunc(swath_img2, yoffset2, lambda_sp=lambda_sp * 1e-6, lambda_sf=lambda_sf, osample=osample)
+
+        plt.subplot(311)
+        plt.imshow(swath_img, aspect="auto")
+        plt.subplot(312)
+        plt.plot(spec)
+        plt.plot(sav["sp"])
+        plt.xlim([0, swath_img.shape[1]])
+        plt.subplot(313)
+        plt.plot(spec/sav["sp"])
+        #plt.plot(np.sum(swath_img, axis=0) / np.sum(swath_img2, axis=0))
+        plt.xlim([0, swath_img.shape[1]])        
+        plt.show()
+
+        extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))
