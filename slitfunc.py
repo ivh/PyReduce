@@ -17,12 +17,11 @@ def slitfunc(
     ny = osample * (nrows + 1) + 1
     nd = 2 * osample + 1
     step = 1 / osample
-    ycen = -ycen #For some reason this is flipped compared to the C version
 
-    sp = np.sum(img, axis=0).data / (img.size - np.ma.count_masked(img))
-    sf = np.zeros(ny)
-    model = np.zeros_like(im)
-    unc = np.zeros(ncols)
+    sp = np.sum(im, axis=0) #/ (img.size - np.ma.count_masked(img))
+    #sf = np.zeros(ny)
+    #model = np.zeros_like(im)
+    #unc = np.zeros(ncols)
 
     E = np.zeros(ncols)
     # sp_old = np.zeros(ncols)
@@ -35,14 +34,14 @@ def slitfunc(
     # Populate omega
 
     iy = np.arange(ny)
-    iy2 = (2 - ycen) * osample
-    iy1 = iy2 - 2 * osample
+    iy2 = np.floor((1 - ycen) * osample).astype(int) - 1
+    iy1 = iy2 - osample
 
     d1 = np.where(iy2 == 0, step, np.where(iy1 == 0, 0, ycen % step))
     d2 = step - d1
 
-    iy1 = iy1[:, None] + osample * np.arange(0, nrows, 1)[None, :]
-    iy2 = iy2[:, None] + osample * np.arange(0, nrows, 1)[None, :]
+    iy1 = iy1[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
+    iy2 = iy2[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
 
     for x in range(ncols):
         omega[iy[:, None] == iy1[None, x, :], x] = d1[x]
@@ -105,28 +104,25 @@ def slitfunc(
         Adiag[1, :] = np.sum(tmp * tmp * mask, axis=0)
         E = np.sum(tmp * im * mask, axis=0)
 
+        sp_old = sp
         if lambda_sp > 0.:
-            sp_old = np.copy(sp)
-            norm = np.sum(sp) / ncols
+            lamb = lambda_sp * np.sum(sp) / ncols
 
-            lamb = lambda_sp * norm
             Adiag[0, 1:] -= lamb
 
             Adiag[1, 0] += lamb
             Adiag[1, 1:-1] += 2 * lamb
             Adiag[1, -1] += lamb
-
+            
             Adiag[2, :-1] -= lamb
 
             sp = solve_banded((1, 1), Adiag, E)
-            # sp = np.copy(E)
         else:
-            sp_old = np.copy(sp)
             sp = E / Adiag[1]
 
         # Compute the model */
         # tmp = np.sum(omega * sf[:, None, None], axis=0)
-        model[:] = tmp * sp[None, :]
+        model = tmp * sp[None, :]
 
         # Compare model and data */
         tmp = (model - im) * mask
