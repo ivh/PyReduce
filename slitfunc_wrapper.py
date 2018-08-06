@@ -2,6 +2,7 @@ import numpy as np
 import logging
 from scipy.interpolate import interp1d
 from scipy.ndimage.filters import median_filter, gaussian_filter1d
+import matplotlib.pyplot as plt
 
 # TODO DEBUG
 # import clib.build_extract
@@ -9,7 +10,7 @@ from scipy.ndimage.filters import median_filter, gaussian_filter1d
 
 import clib._slitfunc_bd.lib as slitfunclib
 import clib._slitfunc_2d.lib as slitfunc_2dlib
-from clib._cluster import ffi
+from clib._slitfunc_bd import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
@@ -44,42 +45,35 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     ny = osample * (nrows + 1) + 1
 
     # Inital guess for slit function and spectrum
-    sp = np.sum(img, axis=0) / (img.size - np.ma.count_masked(img))
-    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
-    csp = ffi.cast("double *", sp.ctypes.data)
-
-    mask = ~np.ma.getmaskarray(img)
-    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
-    cmask = ffi.cast("int *", mask.ctypes.data)
+    sp = np.ma.sum(img, axis=0)
+    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])  
 
     sl = np.zeros(ny, dtype=c_double)
-    csl = ffi.cast("double *", sl.ctypes.data)
+    
+    mask = ~np.ma.getmaskarray(img)
+    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
 
-    img = np.require(np.ma.getdata(img), dtype=c_double, requirements=["C", "A", "W", "O"])
-    cimg = ffi.cast("double *", img.ctypes.data)
+    img = np.ma.getdata(img)
+    img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
-    cycen = ffi.cast("double *", ycen.ctypes.data)
-
     model = np.zeros((nrows, ncols), dtype=c_double)
-    cmodel = ffi.cast("double *", model.ctypes.data)
-
     unc = np.zeros(ncols, dtype=c_double)
-    cunc = ffi.cast("double *", unc.ctypes.data)
+    
 
     slitfunclib.slit_func_vert(
-        ncols,
-        nrows,
-        cimg,
-        cmask,
-        cycen,
-        osample,
-        lambda_sp,
-        lambda_sf,
-        csp,
-        csl,
-        cmodel,
-        cunc,
+        ffi.cast("int", ncols),
+        ffi.cast("int", nrows),
+        ffi.cast("double *", img.ctypes.data),
+        ffi.cast("int *", mask.ctypes.data),
+        ffi.cast("double *", ycen.ctypes.data),
+        ffi.cast("int", osample),
+        ffi.cast("double", lambda_sp),
+        ffi.cast("double", lambda_sf),
+        ffi.cast("double *", sp.ctypes.data),
+        ffi.cast("double *", sl.ctypes.data),
+        ffi.cast("double *", model.ctypes.data),
+        ffi.cast("double *", unc.ctypes.data),
     )
     mask = ~mask.astype(bool)
 
