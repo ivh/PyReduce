@@ -8,7 +8,7 @@ from scipy import signal
 from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
-from util import save_fits
+import echelle
 from instruments import instrument_info
 
 import matplotlib.pyplot as plt
@@ -275,7 +275,7 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
     wave_solution = build_2d_solution(cs_lines, plot=plot)
     wave_img = make_wave(thar, wave_solution, plot=plot)
 
-    return wave_img  # wavelength solution image
+    return wave_solution  # wavelength solution image
 
 
 if __name__ == "__main__":

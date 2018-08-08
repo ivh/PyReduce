@@ -19,15 +19,8 @@ from scipy.io import readsav
 from combine_frames import combine_bias, combine_flat
 from extract import extract
 from normalize_flat import normalize_flat
-from util import (
-    find_first_index,
-    load_fits,
-    save_fits,
-    swap_extension,
-    top,
-    parse_args,
-    start_logging,
-)
+import util
+import echelle
 from instruments import instrument_info
 from trace import mark_orders  # TODO: trace is a standard library name
 from getxwd import getxwd
@@ -45,9 +38,9 @@ def main(
         # "bias",
         # "flat",
         # "orders",
-        "norm_flat",
+        # "norm_flat",
         # "wavecal",
-        "science",
+        # "science",
         # "continuum",
     ),
 ):
@@ -75,7 +68,7 @@ def main(
     output_dir = "./Test/{instrument}/{target}/reduced/{night}/Reduced_{mode}"
 
     log_file = "%s.log" % target
-    start_logging(log_file)
+    util.start_logging(log_file)
 
     # config: paramters for the current reduction
     # info: constant, instrument specific parameters
@@ -147,14 +140,14 @@ def run_steps(
         fixed instrument specific values, usually header keywords for gain, readnoise, etc.
     steps : {tuple(str), "all"}, optional
         which steps of the reduction process to perform
-        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
+        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"
         alternatively set steps to "all", which is equivalent to setting all steps
         Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
     mask_dir : str, optional
         directory containing the masks, defaults to predefined REDUCE masks
     """
 
-    imode = find_first_index(info["modes"], mode)
+    imode = util.find_first_index(info["modes"], mode)
 
     # read configuration settings
     extension = info["extension"][imode]
@@ -198,7 +191,7 @@ def run_steps(
     # ==========================================================================
     # Read mask
     # the mask is not stored with the data files (it is not supported by astropy)
-    mask, _ = load_fits(mask_file, instrument, mode, extension=0)
+    mask, _ = util.load_fits(mask_file, instrument, mode, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
     # ==========================================================================
@@ -235,7 +228,7 @@ def run_steps(
     if "orders" in steps or steps == "all":
         logging.info("Tracing orders")
 
-        order_img, _ = load_fits(f_order[0], instrument, mode, extension, mask=mask)
+        order_img, _ = util.load_fits(f_order[0], instrument, mode, extension, mask=mask)
 
         orders, column_range = mark_orders(
             order_img,
@@ -254,10 +247,6 @@ def run_steps(
         logging.info("Loading order tracing data")
         with open(order_file, "rb") as file:
             orders, column_range = pickle.load(file)
-
-    # DEBUG
-    np.savetxt("orders.txt", orders)
-    np.savetxt("column_range.txt", column_range)
 
     # ==========================================================================
     # = Construct normalized flat field.
@@ -296,16 +285,13 @@ def run_steps(
         with open(blaze_file, "rb") as file:
             blaze = pickle.load(file)
 
-    # TODO: DEBUG
-    np.savetxt("blaze.txt", blaze)
-
     # ==========================================================================
     # Prepare for science spectra extraction
 
     if "science" in steps or steps == "all":
         logging.info("Extracting science spectra")
         for f in f_spec:
-            im, head = load_fits(
+            im, head = util.load_fits(
                 f, instrument, mode, extension, mask=mask, dtype=np.float32
             )
             # Correct for bias and flat field
@@ -333,15 +319,15 @@ def run_steps(
             head["obase"] = (order_range[0], " base order number")
 
             # save spectrum to disk
-            nameout = swap_extension(f, ".science.ech", path=output_dir)
-            save_fits(nameout, head, spec=spec, sig=sigma)
+            nameout = util.swap_extension(f, ".science.ech", path=output_dir)
+            echelle.save(nameout, head, spec=spec, sig=sigma)
     else:
         f = f_spec[-1]
-        nameout = swap_extension(f, ".science.ech", path=output_dir)
-        science = fits.open(nameout)
-        head = science[0].header
-        spec = science[1].data["SPEC"][0]
-        sigma = science[1].data["SIG"][0]
+        fname = util.swap_extension(f, ".science.ech", path=output_dir)
+        science = echelle.read(fname, raw=True)
+        head = science.head
+        spec = science.spec
+        sigma = science.sig
 
     # ==========================================================================
     # Prepare wavelength calibration
@@ -353,7 +339,7 @@ def run_steps(
         # TODO: Use a dictionary of wavelengths? With some identifier as key
         for f in f_wave:
             # Load wavecal image
-            thar, thead = load_fits(f, instrument, mode, extension, mask=mask)
+            thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
 
             order_range = (0, len(orders) - 1)
 
@@ -374,6 +360,7 @@ def run_steps(
             thead["obase"] = (order_range[0], "base order number")
 
             # Create wavelength calibration fit
+            # TODO just save the coefficients?
             reference = instrument_info.get_wavecal_filename(thead, instrument, mode)
             reference = readsav(reference)
             cs_lines = reference["cs_lines"]
@@ -384,12 +371,12 @@ def run_steps(
                 manual=config.get("wavecal_manual", False),
             )
 
-            nameout = swap_extension(f, ".thar.ech", output_dir)
-            save_fits(nameout, thead, spec=thar, wave=wave)
+            nameout = util.swap_extension(f, ".thar.ech", output_dir)
+            echelle.save(nameout, thead, spec=thar, wave=wave)
     else:
-        fname = swap_extension(f_wave[-1], ".thar.ech", output_dir)
-        thar = fits.open(fname)
-        wave = thar[1].data["WAVE"][0]
+        fname = util.swap_extension(f_wave[-1], ".thar.ech", output_dir)
+        thar = echelle.read(fname, raw=True)
+        wave = thar.wave
 
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
@@ -407,8 +394,8 @@ def run_steps(
 
     # Combine science with wavecal and continuum
     for f in f_spec:
-        nameout = swap_extension(f, ".ech", path=output_dir)
-        save_fits(nameout, head, spec=spec, sig=sigma, cont=blaze, wave=wave, column_range=column_range)
+        fname = util.swap_extension(f, ".ech", path=output_dir)
+        echelle.save(fname, head, spec=spec, sig=sigma, cont=blaze, wave=wave, columns=column_range)
         logging.info("science file: %s", os.path.basename(nameout))
         logging.debug("--------------------------------")
 
@@ -416,7 +403,7 @@ def run_steps(
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         # Command Line arguments passed
-        args = parse_args()
+        args = util.parse_args()
     else:
         # Use "default" values set in main function
         args = {}
@@ -425,7 +412,3 @@ if __name__ == "__main__":
     main(**args)
     finish = time.time()
     print("Execution time: %f s" % (finish - start))
-
-    import Test.test
-
-    Test.test.compare_idl_python()
