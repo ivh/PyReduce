@@ -52,13 +52,13 @@ def main(
     instrument="UVES",
     target="HD132205",
     steps=(
-        # "bias",
-        # "flat",
-        # "orders",
-        # "norm_flat",
+        #"bias",
+        #"flat",
+        #"orders",
+        #"norm_flat",
+        #"science",
         "wavecal",
-        # "science",
-        # "continuum",
+        #"continuum",
     ),
 ):
     """

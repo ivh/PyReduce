@@ -346,7 +346,7 @@ def extract_spectrum(
     lambda_sp=0,
     osample=1,
     swath_width=None,
-    telluric=False,
+    telluric=None,
     scatter=None,
     normalize=False,
     threshold=0,
@@ -667,7 +667,7 @@ def optimal_extraction(img, orders, extraction_width, column_range, scatter, **k
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
         yrange = get_y_scale(
-            ycen, orders[onum], column_range[onum], extraction_width[onum], nrow
+            ycen, column_range[onum], extraction_width[onum], nrow
         )
 
         spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(

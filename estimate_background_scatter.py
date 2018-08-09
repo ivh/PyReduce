@@ -24,7 +24,7 @@ import extract
 from util import polyfit2d
 
 
-def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False):
+def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False, **kwargs):
     """Estimate the background by fitting a 2d polynomial to interorder data
 
     Parameters

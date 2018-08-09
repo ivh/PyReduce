@@ -172,7 +172,7 @@ def build_2d_solution(cs_lines, plot=False):
     """
 
     # Only use flagged data
-    mask = ~cs_lines.flag.astype(bool)
+    mask = ~cs_lines.flag.astype(bool) # 0 = True, 1 = False
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask]
@@ -404,7 +404,7 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
 
     logging.info(
         "Number of lines used for wavelength calibration: %i",
-        len(cs_lines[cs_lines.flag.astype(bool)]),
+        len(cs_lines[~cs_lines.flag.astype(bool)]),
     )
 
     # Step 6: build final 2d solution
