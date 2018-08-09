@@ -1,3 +1,7 @@
+"""
+Module that normalizes the Flat field image to 1
+"""
+
 import numpy as np
 import logging
 
@@ -9,7 +13,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
     """
     Use slit functions to normalize an echelle image of a flat field lamp.
 
-    Inputs:
+    Parameters:
     ---------
     img : array[nrow, ncol]
         image from which the orders were determined and from which the blaze spectrum is to be extracted.
@@ -23,13 +27,13 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
     **kwargs: dict, optional
         keywords to be passed to the extraction algorithm (see extract.extract for details)
 
-    Outputs:
+    Returns:
     ---------
     im_norm : array[nrow, ncol]
         normalized flat field image
     blaze : array[nord, ncol]
         blaze function for each order
-    
+
     History:
     ---------
     05-Jun-1999 JAV, Adapted from getspec.pro

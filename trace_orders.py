@@ -1,7 +1,14 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from itertools import combinations
+"""
+Find clusters of pixels with signal
+And combine them into continous orders
+"""
+
 import logging
+from itertools import combinations
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 from cwrappers import find_clusters
 
 
@@ -29,8 +36,12 @@ def merge_clusters(
 
     Returns
     -------
-    [type]
-        [description]
+    x : dict(int: array)
+        x coordinates of clusters, key=cluster id
+    y : dict(int: array)
+        y coordinates of clusters, key=cluster id
+    n_clusters : int
+        number of identified clusters
     """
 
     n_row, n_col = shape
@@ -147,20 +158,20 @@ def merge_clusters(
 
 def fit_polynomials_to_clusters(x, y, clusters, degree):
     """Fits a polynomial of degree opower to points x, y in cluster clusters
-    
+
     Parameters
     ----------
-    x : dict[int, array]
+    x : dict(int: array)
         x coordinates seperated by cluster
-    y : dict[int, array]
+    y : dict(int: array)
         y coordinates seperated by cluster
-    clusters : list[int]
+    clusters : list(int)
         cluster labels, equivalent to x.keys() or y.keys()
     degree : int
         degree of polynomial fit
     Returns
     -------
-    dict[int, array(opower+1)]
+    orders : dict(int, array[degree+1])
         coefficients of polynomial fit for each cluster
     """
 
@@ -169,6 +180,8 @@ def fit_polynomials_to_clusters(x, y, clusters, degree):
 
 
 def plot_orders(im, x, y, clusters, orders, order_range):
+    """ Plot orders and image """
+
     cluster_img = np.zeros_like(im)
     for c in clusters:
         cluster_img[x[c], y[c]] = c
@@ -192,6 +205,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
 
 
 def plot_order(i, j, x, y, x_poly, y_poly, shape):
+    """ Plot a single order """
     plt.clf()
     plt.plot(x_poly, y_poly[i], "r")
     plt.plot(x_poly, y_poly[j], "g")
@@ -205,10 +219,33 @@ def plot_order(i, j, x, y, x_poly, y_poly, shape):
     plt.show()
 
 
-# TODO: implement the correct default value for the parameters
 def mark_orders(
     im, min_cluster=500, filter_size=120, noise=8, opower=4, plot=False, manual=True
 ):
+    """ Identify and trace orders
+
+    Parameters
+    ----------
+    im : array[nrow, ncol]
+        order definition image
+    min_cluster : int, optional
+        minimum cluster size in pixels (default: 500)
+    filter_size : int, optional
+        size of the running filter (default: 120)
+    noise : float, optional
+        noise to filter out (default: 8)
+    opower : int, optional
+        polynomial degree of the order fit (default: 4)
+    plot : bool, optional
+        wether to plot the final order fits (default: False)
+    manual : bool, optional
+        wether to manually select clusters to merge (strongly recommended) (default: True)
+
+    Returns
+    -------
+    orders : array[nord, opower+1]
+        order tracing coefficients (in numpy order, i.e. largest exponent first)
+    """
 
     # Getting x and y coordinates of all pixels sticking above the filtered image
     x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)

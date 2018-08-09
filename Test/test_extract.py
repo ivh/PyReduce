@@ -8,16 +8,25 @@ from scipy.signal import gaussian
 from skimage import transform as tf
 
 from clib.build_extract import build
+
 build(verbose=True)
 
 import extract
 import util
-from slitfunc_wrapper import slitfunc
+from cwrappers import slitfunc
 
 
 class TestExtractMethods(unittest.TestCase):
     def create_data(
-        self, width, height, spec="linear", slitf="gaussian", noise=0, shear=0, ycen=None, oversample=10,
+        self,
+        width,
+        height,
+        spec="linear",
+        slitf="gaussian",
+        noise=0,
+        shear=0,
+        ycen=None,
+        oversample=1,
     ):
         if spec == "linear":
             spec = 5 + np.linspace(0, 5, width)
@@ -27,22 +36,32 @@ class TestExtractMethods(unittest.TestCase):
         if slitf == "gaussian":
             slitf = gaussian(height * oversample, height / 8 * oversample)
 
-        img = spec[None, :] * slitf[:, None] #+ noise * np.random.randn(height, width)
+        if ycen is None:
+            ycen = np.zeros(width)
+
+        img = spec[None, :] * slitf[:, None] 
+        img += noise * np.random.randn(*img.shape)
 
         afine_tf = tf.AffineTransform(shear=-shear)
         img = tf.warp(img, inverse_map=afine_tf)
 
-        if ycen is not None:
-            big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
-            big_height += oversample - (big_height % oversample)
-            big_img = np.zeros((big_height, width))
-            index = util.make_index((oversample*ycen).astype(int) - height//2 * oversample, (ycen * oversample).astype(int) + height//2 * oversample - 1, 0, width)
-            big_img[index] = img
+        # apply order curvature
+        big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
+        big_height += oversample - (big_height % oversample)
+        big_img = np.zeros((big_height, width))
+        index = util.make_index(
+            (oversample * ycen).astype(int) - height // 2 * oversample,
+            (ycen * oversample).astype(int) + height // 2 * oversample - 1,
+            0,
+            width,
+        )
+        big_img[index] = img
 
-            img = big_img[::oversample]
-            for i in range(1, oversample):
-                img += big_img[i::oversample]
-            img /= oversample
+        # downsample oversampling
+        img = big_img[::oversample]
+        for i in range(1, oversample):
+            img += big_img[i::oversample]
+        img /= oversample
 
         return img, spec, slitf
 
@@ -128,28 +147,44 @@ class TestExtractMethods(unittest.TestCase):
     #     self.assertTrue(np.allclose(spec_curved, spec_vert))
     #     self.assertTrue(np.allclose(sunc_curved, sunc_vert))
 
-    def test_extract_offset_order(self):
-        # The shear counters the rotation
-        width, height = 1000, 50
-        orders = np.array([[177/width, 40]])
-        ycen = np.polyval(orders[0], np.arange(width))
-        img, spec, slitf = self.create_data(width, height, spec="linear", ycen=ycen)
+    # def test_extract_offset_order(self):
+    #     # The shear counters the rotation
+    #     width, height = 1000, 50
+    #     orders = np.array([[177 / width, 40]])
+    #     ycen = np.polyval(orders[0], np.arange(width))
+    #     img, spec, slitf = self.create_data(width, height, spec="linear", ycen=ycen, oversample=10)
 
-        #spec_out, sunc = extract.extract(img, orders, plot=True, swath_width=100)
-        xrange = (300, 700)
-        spec_out, _, _, _  = extract.extract_spectrum(img, ycen, (height//2, height//2), xrange , swath_width=100, plot=False, osample=10)
+    #     # spec_out, sunc = extract.extract(img, orders, plot=True, swath_width=100)
+    #     xrange = (300, 700)
+    #     spec_out, _, _, _ = extract.extract_spectrum(
+    #         img,
+    #         ycen,
+    #         (height // 2, height // 2),
+    #         xrange,
+    #         swath_width=100,
+    #         plot=False,
+    #         osample=1,
+    #     )
 
-        m = np.diff(spec_out[xrange[0]:xrange[1]])
-        tmp = spec_out[xrange[0]: xrange[1]] / spec[xrange[0]: xrange[1]]
-        
-        plt.plot(spec)
-        plt.plot(spec_out)
-        plt.show()
+    #     m = np.diff(spec_out[xrange[0] : xrange[1]])
+    #     tmp = spec_out[xrange[0] : xrange[1]] / spec[xrange[0] : xrange[1]]
 
-        self.assertTrue(np.allclose(m, m[0], atol=0.02)) # constant linear increase
-        self.assertTrue(np.allclose(tmp, tmp[0], atol=0.01)) # shape same as input shape
+    #     tmp2 = np.linspace(spec_out[xrange[0]], spec_out[xrange[1]-1], num=xrange[1] - xrange[0])
+    #     tmp2 /= spec_out[xrange[0]:xrange[1]]
 
-        
+    #     plt.plot(m)
+    #     plt.show()
+
+    #     #plt.plot(np.arange(xrange[0], xrange[1]), tmp2)
+    #     plt.plot(spec)
+    #     plt.plot(spec_out, '-+')
+    #     plt.show()
+
+    #     self.assertTrue(np.allclose(m, np.median(m), atol=0.02))  # constant linear increase
+    #     self.assertTrue(
+    #         np.allclose(tmp, tmp[0], atol=0.01)
+    #     )  # shape same as input shape
+
     def test_idl_data(self):
         fname = "./Test/test2_after.dat"
         sav = readsav(fname)
@@ -165,24 +200,45 @@ class TestExtractMethods(unittest.TestCase):
         ibeg, iend = sav["ib"], sav["ie"]
         img = sav["im"]
         swath_img = sav["sf"]
-        ycen = sav["ycen"] 
+        ycen = sav["ycen"]
         yc = sav["yc"]
-        yoffset = ycen[ibeg:iend+1] - yc[ibeg:iend+1]
+        yoffset = ycen[ibeg : iend + 1] - yc[ibeg : iend + 1]
         ylow, yhigh = sav["y_lower_lim"], sav["y_upper_lim"]
-        yoffset2 = (ycen2 - np.floor(ycen2))[ibeg:iend+1]
+        yoffset2 = (ycen2 - np.floor(ycen2))[ibeg : iend + 1]
 
-        index = util.make_index(ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend+1)
+        index = util.make_index(
+            ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend + 1
+        )
         swath_img2 = img[index]
 
         lambda_sf = sav["lambda_sf"]
         lambda_sp = sav["lambda_sp"]
         osample = sav["osample"]
 
-        #self.assertTrue(np.allclose(swath_img, swath_img2))
-        #self.assertTrue(np.allclose(yoffset, yoffset2))
+        # self.assertTrue(np.allclose(swath_img, swath_img2))
+        # self.assertTrue(np.allclose(yoffset, yoffset2))
 
+        spec, slitf, model, unc, mask = slitfunc(
+            swath_img2,
+            yoffset2,
+            lambda_sp=lambda_sp,
+            lambda_sf=lambda_sf,
+            osample=osample,
+        )
 
-        spec, slitf, model, unc, mask = slitfunc(swath_img2, yoffset2, lambda_sp=lambda_sp * 1e-6, lambda_sf=lambda_sf, osample=osample)
+        spec2 = np.sum(swath_img2, axis=0)
+
+        plt.subplot(311)
+        plt.imshow(sav["sf"], aspect="auto")
+        plt.plot(yoffset + 8)
+        plt.subplot(312)
+        plt.plot(sav["sfsm"] - slitf)
+        #plt.imshow(model, aspect="auto")
+        #plt.plot(yoffset2 + 8)
+        plt.subplot(313)
+        #plt.plot(sav["sfsm"] - slitf)
+        plt.imshow(sav["sfbin"] - model, aspect="auto", vmin=0)
+        plt.show()
 
         plt.subplot(311)
         plt.imshow(swath_img, aspect="auto")
@@ -191,9 +247,9 @@ class TestExtractMethods(unittest.TestCase):
         plt.plot(sav["sp"])
         plt.xlim([0, swath_img.shape[1]])
         plt.subplot(313)
-        plt.plot(spec/sav["sp"])
-        #plt.plot(np.sum(swath_img, axis=0) / np.sum(swath_img2, axis=0))
-        plt.xlim([0, swath_img.shape[1]])        
+        plt.plot(spec / sav["sp"])
+        # plt.plot(np.sum(swath_img, axis=0) / np.sum(swath_img2, axis=0))
+        plt.xlim([0, swath_img.shape[1]])
         plt.show()
 
         extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))

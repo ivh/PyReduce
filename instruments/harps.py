@@ -1,5 +1,5 @@
 """
-Handles instrument specific info for the UVES spectrograph
+Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
@@ -157,7 +157,6 @@ class HARPS(instrument):
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
-        info = self.load_info()
         fname = "./wavecal/{instrument}_{mode}_2D.sav".format(
             instrument=instrument.lower(), mode=mode
         )

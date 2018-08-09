@@ -1,9 +1,16 @@
+"""
+Python implementation of the slitfunction
+
+No guarantee that it will work, so use the C function instead
+"""
+
 import numpy as np
 import logging
 from scipy.linalg import solve_banded
 import sparse
 
 from util import make_index
+
 
 def slitfunc(
     img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1, threshold=1e-5, max_iterations=20
@@ -18,10 +25,10 @@ def slitfunc(
     nd = 2 * osample + 1
     step = 1 / osample
 
-    sp = np.sum(im, axis=0) #/ (img.size - np.ma.count_masked(img))
-    #sf = np.zeros(ny)
-    #model = np.zeros_like(im)
-    #unc = np.zeros(ncols)
+    sp = np.sum(im, axis=0)  # / (img.size - np.ma.count_masked(img))
+    # sf = np.zeros(ny)
+    # model = np.zeros_like(im)
+    # unc = np.zeros(ncols)
 
     E = np.zeros(ncols)
     # sp_old = np.zeros(ncols)
@@ -34,14 +41,14 @@ def slitfunc(
     # Populate omega
 
     iy = np.arange(ny)
-    iy2 = np.floor((1 - ycen) * osample).astype(int) - 1
+    iy2 = np.floor((1 - ycen) * osample) - 1
     iy1 = iy2 - osample
 
     d1 = np.where(iy2 == 0, step, np.where(iy1 == 0, 0, ycen % step))
     d2 = step - d1
 
-    iy1 = iy1[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
-    iy2 = iy2[:, None] + osample * np.arange(1, nrows+1, 1)[None, :]
+    iy1 = iy1[:, None] + osample * np.arange(1, nrows + 1, 1)[None, :]
+    iy2 = iy2[:, None] + osample * np.arange(1, nrows + 1, 1)[None, :]
 
     for x in range(ncols):
         omega[iy[:, None] == iy1[None, x, :], x] = d1[x]
@@ -94,6 +101,7 @@ def slitfunc(
         Aij[osample - 1, 1:] -= lamb
 
         # Solve the system of equations */
+        # bj = bandsol(Aij, bj)
         bj = solve_banded((osample, osample), Aij, bj)
 
         # Normalize the slit function */
@@ -113,7 +121,7 @@ def slitfunc(
             Adiag[1, 0] += lamb
             Adiag[1, 1:-1] += 2 * lamb
             Adiag[1, -1] += lamb
-            
+
             Adiag[2, :-1] -= lamb
 
             sp = solve_banded((1, 1), Adiag, E)
@@ -153,21 +161,71 @@ def slitfunc(
     mask = ~mask.astype(bool)
     return sp, sf, model, unc, mask
 
+
+def bandsol(a, r):
+    """
+    bandsol solve a sparse system of linear equations with band-diagonal matrix.
+    Band is assumed to be symmetrix relative to the main diaginal.
+    Parameters are:
+            a is 2D array [n,nd] where n - is the number of equations and nd
+            is the width of the band (3 for tri-diagonal system).
+            nd must be an odd number. The main diagonal should be in a(*,nd/2)
+            The first lower subdiagonal should be in a(1:n-1,nd/2-1), the first
+            upper subdiagonal is in a(0:n-2,nd/2+1) etc. For example:
+                    / 0 0 X X X \
+                    | 0 X X X X |
+                    | X X X X X |
+                    | X X X X X |
+                A = | X X X X X |
+                    | X X X X X |
+                    | X X X X X |
+                    | X X X X 0 |
+                    \ X X X 0 0 /
+            r is the array of RHS of size n.
+    bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on degenerate
+    matrix.
+    """
+    nd, n = a.shape
+
+    # Forward sweep
+    for i in range(n - 1):
+        aa = a[nd // 2, i]
+        r[i] /= aa
+        a[:, i] /= aa
+        for j in range(1, min(nd // 2 + 1, n - i)):
+            aa = a[nd // 2 - j, i + j]
+            r[i + j] -= r[i] * aa
+            a[:-j, i + j] -= a[j:, i] * aa
+
+    # Backward sweep
+    r[n - 1] /= a[nd // 2, n - 1]
+    for i in range(n - 1, 0, -1):
+        for j in range(1, min(nd // 2, i) + 1):
+            r[i - j] -= r[i] * a[nd // 2 + j, i - j]
+        r[i - 1] /= a[nd // 2, i - 1]
+
+    r[0] /= a[nd // 2, 0]
+
+    return r
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from scipy.io import readsav
     from scipy.signal import gaussian
 
-    spec = 10 + 2 * np.sin(np.linspace(0, 40*np.pi, 100)) #np.linspace(5, 20, num=40)
+    spec = 10 + 2 * np.sin(
+        np.linspace(0, 40 * np.pi, 100)
+    )  # np.linspace(5, 20, num=40)
     slitf = gaussian(40, 2)[:, None] + 1
     img = spec[None, :] * slitf
     ycen = np.linspace(-2, 3, 50)
 
     for i in range(img.shape[1]):
-        img[:, i] = np.roll(img[:, i], -i//8)
+        img[:, i] = np.roll(img[:, i], -i // 8)
     img = img[10:-10, :50]
 
-    sp, sl, model, unc = slitfunc(img, ycen)
+    sp, sl, model, unc, mask = slitfunc(img, -ycen)
 
     plt.subplot(211)
     plt.imshow(img)
@@ -177,8 +235,6 @@ if __name__ == "__main__":
     plt.imshow(model, vmin=8)
     plt.title("Model")
     plt.show()
-
-
 
     plt.subplot(211)
     plt.plot(sp)

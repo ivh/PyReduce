@@ -5,19 +5,18 @@ Used to create master bias and master flat
 """
 
 import datetime
-import os
-from dateutil import parser
-
 import logging
+import os
+
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
+from dateutil import parser
 from scipy.ndimage.filters import median_filter
-
 
 from clipnflip import clipnflip
 from instruments.instrument_info import get_instrument_info
-from util import load_fits, gaussbroad, gaussfit
+from util import gaussbroad, gaussfit, load_fits
 
 
 def running_median(arr, size):

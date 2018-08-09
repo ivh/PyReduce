@@ -1,12 +1,55 @@
+"""
+Module that estimates the background scatter
+
+Authors
+-------
+Ansgar Wehrhahn (ansgar.wehrhahn@physics.uu.se)
+
+Version
+-------
+1.0 - 2d polynomial background scatter
+
+License
+-------
+....
+
+"""
+
+import logging
+
 import matplotlib.pyplot as plt
 import numpy as np
-import logging
 
 import extract
 from util import polyfit2d
 
 
-def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False, **kwargs):
+def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False):
+    """Estimate the background by fitting a 2d polynomial to interorder data
+
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        (flat) image data
+    orders : array[nord, degree]
+        order polynomial coefficients
+    column_range : array[nord, 2], optional
+        range of columns to use in each order (default: None == all columns)
+    extraction_width : float, array[nord, 2], optional
+        extraction width for each order, values below 1.5 are considered fractional, others as number of pixels (default: 0.1)
+    scatter_degree : int, optional
+        polynomial degree of the 2d fit for the background scatter (default: 4)
+    plot : bool, optional
+        wether to plot the fitted polynomial and the data or not (default: False)
+
+    Returns
+    -------
+    array[nord+1, ncol]
+        background scatter between orders
+    array[nord+1, ncol]
+        y positions of the interorder lines, the scatter values are taken from
+    """
+
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
@@ -50,6 +93,7 @@ def estimate_background_scatter(img, orders, column_range=None, extraction_width
     z = img[y, x].flatten()
 
     coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
+    logging.debug("Background scatter coefficients: %s", str(coeff))
 
     # Calculate scatter at interorder positions
     x = np.arange(ncol)

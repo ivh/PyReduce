@@ -1,3 +1,9 @@
+"""
+Unit test wrapper
+Just imporing the test packages and running this as a script does the trick
+"""
+
+
 import unittest
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt

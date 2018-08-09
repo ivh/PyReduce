@@ -1,13 +1,29 @@
 """
 REDUCE script for spectrograph data
+
+Authors
+-------
+Ansgar Wehrhahn  (ansgar.wehrhahn@physics.uu.se)
+Thomas Marquart  (thomas.marquart@physics.uu.se)
+Alexis Lavail    (alexis.lavail@physics.uu.se)
+Nikolai Piskunov (nikolai.piskunov@physics.uu.se)
+
+Version
+-------
+1.0 - Initial PyReduce
+
+License
+--------
+...
+
 """
 import glob
 import json
+import logging
 import os.path
 from os.path import join
 import pickle
 import sys
-import logging
 import time
 
 import astropy.io.fits as fits
@@ -15,17 +31,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
 
+import echelle
+import util
 # PyReduce subpackages
 from combine_frames import combine_bias, combine_flat
-from extract import extract
-from normalize_flat import normalize_flat
-import util
-import echelle
-from instruments import instrument_info
-from trace import mark_orders  # TODO: trace is a standard library name
-from getxwd import getxwd
-from wavelength_calibration import wavecal
 from continuum_normalization import splice_orders
+from extract import extract
+from instruments import instrument_info
+from normalize_flat import normalize_flat
+from trace_orders import mark_orders
+from wavelength_calibration import wavecal
+#from getxwd import getxwd
+
 
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ? or use a mask instead of column range
@@ -39,7 +56,7 @@ def main(
         # "flat",
         # "orders",
         # "norm_flat",
-        # "wavecal",
+        "wavecal",
         # "science",
         # "continuum",
     ),
@@ -67,7 +84,7 @@ def main(
     input_dir = "./Test/{instrument}/{target}/raw/{night}"
     output_dir = "./Test/{instrument}/{target}/reduced/{night}/Reduced_{mode}"
 
-    log_file = "%s.log" % target
+    log_file = "logs/%s.log" % target
     util.start_logging(log_file)
 
     # config: paramters for the current reduction

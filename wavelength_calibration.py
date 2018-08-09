@@ -1,3 +1,9 @@
+"""
+Wavelength Calibration
+by comparison to a reference spectrum
+Loosely bases on the IDL wavecal function
+"""
+
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 import logging
@@ -8,13 +14,17 @@ from scipy import signal
 from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
-import echelle
 from instruments import instrument_info
 
 import matplotlib.pyplot as plt
+import util
 
 
 class AlignmentPlot:
+    """
+    Makes a plot which can be clicked to align the two spectra, reference and observed
+    """
+
     def __init__(self, ax, thar, cs_lines, offset=[0, 0]):
         self.im = ax
         self.first = True
@@ -32,6 +42,7 @@ class AlignmentPlot:
         self.make_ref_image()
 
     def make_ref_image(self):
+        """ create and show the reference plot, with the two spectra """
         ref_image = np.zeros((self.nord * 2, self.ncol, 3))
         for iord in range(self.nord):
             idx = self.thar[iord] > 0.1
@@ -56,11 +67,13 @@ class AlignmentPlot:
         self.im.figure.canvas.draw()
 
     def connect(self):
+        """ connect the click event with the appropiate function """
         self.cidclick = self.im.figure.canvas.mpl_connect(
             "button_press_event", self.on_click
         )
 
     def on_click(self, event):
+        """ On click offset the reference by the distance between click positions """
         order = int(np.floor(event.ydata))
         spec = (
             "ref" if (event.ydata - order) > 0.5 else "thar"
@@ -87,6 +100,26 @@ class AlignmentPlot:
 
 
 def align(thar, cs_lines, manual=False, plot=False):
+    """Align the observation with the reference spectrum
+    Either automatically using cross correlation or manually (visually)
+
+    Parameters
+    ----------
+    thar : array[nrow, ncol]
+        observed wavelength calibration spectrum (e.g. ThAr=ThoriumArgon)
+    cs_lines : struct_array
+        reference line data
+    manual : bool, optional
+        wether to manually align the spectra (default: False)
+    plot : bool, optional
+        wether to plot the alignment (default: False)
+
+    Returns
+    -------
+    offset: tuple(int, int)
+        offset in order and column
+    """
+
     # Align using window like in IDL REDUCE
     if manual:
         _, ax = plt.subplots()
@@ -123,14 +156,30 @@ def align(thar, cs_lines, manual=False, plot=False):
 
 
 def build_2d_solution(cs_lines, plot=False):
+    """make a 2d polynomial fit to flagged lines
+    
+    Parameters
+    ----------
+    cs_lines : struc_array
+        line data
+    plot : bool, optional
+        wether to plot the solution (default: False)
+    
+    Returns
+    -------
+    coef : array[degree_x, degree_y]
+        2d polynomial coefficients
+    """
+
     # Only use flagged data
-    # TODO which fields to use for fit?
     mask = ~cs_lines.flag.astype(bool)
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask]
 
     # 2d polynomial fit with: x = column, y = order, z = wavelength
+    #coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
+
     degree_x, degree_y = 5, 5
     degree_x, degree_y = degree_x + 1, degree_y + 1  # Due to how np polyval2d workss
 
@@ -140,14 +189,33 @@ def build_2d_solution(cs_lines, plot=False):
         value = polyval2d(x[0], x[1], c)
         return value
 
-    popt, pcov = curve_fit(
+    coef, pcov = curve_fit(
         func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
     )
-    popt.shape = degree_x, degree_y
-    return popt
+    coef.shape = degree_x, degree_y
+    return coef
+
+    
 
 
 def make_wave(thar, wave_solution, plot=False):
+    """Expand polynomial wavelength solution into full image
+
+    Parameters
+    ----------
+    thar : array[nord, ncol]
+        observed wavelength spectrum
+    wave_solution : array[degree, degree]
+        polynomial coefficients of wavelength solution
+    plot : bool, optional
+        wether to plot the solution (default: False)
+
+    Returns
+    -------
+    wave_img : array[nord, ncol]
+        wavelength solution for each point in the spectrum
+    """
+
     nord, ncol = thar.shape
     x = np.arange(ncol)
     y = np.arange(nord)
@@ -175,6 +243,27 @@ def make_wave(thar, wave_solution, plot=False):
 
 
 def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
+    """Automatically identify peaks that are close to known lines 
+
+    Parameters
+    ----------
+    thar : array[nord, ncol]
+        observed spectrum
+    wave_img : array[nord, ncol]
+        wavelength solution image
+    cs_lines : struc_array
+        line data
+    threshold : int, optional
+        difference threshold between line positions in Angstrom, until which a line is considered identified (default: 1)
+    plot : bool, optional
+        wether to plot the new lines
+
+    Returns
+    -------
+    cs_line : struct_array
+        line data with new flags
+    """
+
     # TODO: auto ID based on wavelength solution or position on detector?
     # Set flags in cs_lines
     nord, ncol = thar.shape
@@ -186,7 +275,9 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
         # TODO pick good settings
         vec = thar[iord, thar[iord] > 0]
         vec -= np.min(vec)
-        peak_idx = signal.find_peaks_cwt(vec, np.arange(2, 5), min_snr=5, min_length=3).astype(int)
+        peak_idx = signal.find_peaks_cwt(
+            vec, np.arange(2, 5), min_snr=5, min_length=3
+        ).astype(int)
         pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
 
         for i, line in enumerate(cs_lines):
@@ -199,6 +290,28 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
 
 
 def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
+    """
+    Reject lines that are too far from the peaks
+    
+    Parameters
+    ----------
+    thar : array[nord, ncol]
+        observed wavelength spectrum
+    wave_solution : array[nord, ncol]
+        current wavelength solution
+    cs_lines : struct_array
+        line data
+    clip : int, optional
+        clipping threshold in m/s (default: 100)
+    plot : bool, optional
+        wether to plot the results (default: False)
+    
+    Returns
+    -------
+    cs_lines : struct_array
+        line data with new flags
+    """
+
     # Calculate residuals
     nord, ncol = thar.shape
     x = cs_lines.posm
@@ -241,6 +354,26 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
 
 
 def wavecal(thar, cs_lines, plot=True, manual=False):
+    """Wavelength calibration wrapper
+
+    Parameters
+    ----------
+    thar : array[nord, ncol]
+        observed wavelength spectrum
+    cs_lines : struct_array
+        line data
+    plot : bool, optional
+        wether to plot the final results (default: True)
+    manual : bool, optional
+        if True use manual alignment, otherwise automatic (default: False)
+
+    Returns
+    -------
+    wave_img : array[nord, ncol]
+        wavelength solution for each point in the spectrum
+    """
+
+
     # normalize images
     thar = np.ma.masked_array(thar, mask=thar == 0)
     thar -= np.min(thar)
@@ -269,13 +402,16 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
 
         cs_lines = auto_id(thar, wave_img, cs_lines)
 
-    logging.info("Number of lines used for wavelength calibration: %i", len(cs_lines[cs_lines.flag.astype(bool)]))
+    logging.info(
+        "Number of lines used for wavelength calibration: %i",
+        len(cs_lines[cs_lines.flag.astype(bool)]),
+    )
 
     # Step 6: build final 2d solution
     wave_solution = build_2d_solution(cs_lines, plot=plot)
     wave_img = make_wave(thar, wave_solution, plot=plot)
 
-    return wave_solution  # wavelength solution image
+    return wave_img  # wavelength solution image
 
 
 if __name__ == "__main__":
@@ -292,7 +428,7 @@ if __name__ == "__main__":
     thar = fits.open(thar_file)
     head = thar[0].header
     thar = thar[1].data["SPEC"][0]
-    
+
     reference = instrument_info.get_wavecal_filename(head, instrument, mode)
     reference = readsav(reference)
 
@@ -307,9 +443,9 @@ if __name__ == "__main__":
 
     for i in range(thar.shape[0]):
         plt.plot(solution[i], thar[i], label="Order %i" % i)
-    
+
     for line in cs_lines:
-        plt.axvline(x = line.wll, ymax=line.height)
+        plt.axvline(x=line.wll, ymax=line.height)
 
     plt.show()
 

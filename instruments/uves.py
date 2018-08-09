@@ -9,7 +9,7 @@ from astropy.io import fits
 from datetime import datetime
 from dateutil import parser
 
-from .common import instrument, getter, observation_date_to_night
+from instruments.common import instrument, getter, observation_date_to_night
 
 
 class UVES(instrument):
@@ -153,6 +153,6 @@ class UVES(instrument):
         specifier = int(header[info["wavecal_specifier"]])
 
         fname = "./wavecal/{instrument}_{mode}_{specifier}nm_2D.sav".format(
-            instrument=info["instrument"].lower(), mode=mode, specifier=specifier
+            instrument="uves", mode=mode, specifier=specifier
         )
         return fname

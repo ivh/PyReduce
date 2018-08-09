@@ -1,25 +1,55 @@
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import numpy as np
-from scipy.ndimage.filters import gaussian_filter1d, median_filter
-import astropy.io.fits as fits
+"""Module for extracting data from observations
+
+Authors
+-------
+
+Version
+-------
+
+License
+-------
+"""
+
 import logging
 import pickle
 
+import astropy.io.fits as fits
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.ndimage.filters import gaussian_filter1d, median_filter
+
+from cwrappers import slitfunc, slitfunc_curved
 from estimate_background_scatter import estimate_background_scatter
+from util import cutout_image, make_index
 
-#from slitfunc import slitfunc
-
-from slitfunc_wrapper import slitfunc, slitfunc_curved
-from util import make_index, cutout_image
+# TODO put the plotting somewhere else
 
 
 def getflatimg(img, axis=0):
+    """Flatten image and indices
+    
+    Parameters
+    ----------
+    img : array
+        image to flatten
+    axis : int, optional
+        axis to flatten along (default: 0)
+    
+    Returns
+    -------
+    index: array
+        flattened indices
+    img
+        flat image
+    """
+
     idx = np.indices(img.shape)[axis]
     return idx.flatten(), img.flat
 
 
 def getspecvar(img):
+    """ get the spectrum """
     ny, nx = img.shape
     nimg = img / np.nansum(img, axis=1)[:, None]
     x = np.indices(img.shape)[1]
@@ -27,13 +57,14 @@ def getspecvar(img):
 
 
 def getslitvar(img, xoff, osample=1):
+    """ get the slit function """
     x = np.indices(img.shape)[0]
     x = x - xoff[None, :] + 1
     return x.flatten() * osample, img.flat
 
 
 def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample, mask):
-
+    """ Plot (and update the plot of) the current swath with spectrum and slitfunction """
     ny, nx = img.shape
     ny_orig = ny
     size = img.size
@@ -190,6 +221,34 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample,
 
 
 def make_bins(swath_width, xlow, xhigh, ycen, ncol):
+    """Create bins for the swathes
+    Bins are roughly equally sized, have roughly length swath width (if given)
+    and overlap roughly half-half with each other
+
+    Parameters
+    ----------
+    swath_width : {int, None}
+        initial value for the swath_width, bins will have roughly that size, but exact value may change
+        if swath_width is None, determine a good value, from the data
+    xlow : int
+        lower bound for x values
+    xhigh : int
+        upper bound for x values
+    ycen : array[ncol]
+        center of the order trace
+    ncol : int
+        number of columns in the image
+
+    Returns
+    -------
+    nbin : int
+        number of bins
+    bins_start : array[nbin]
+        left(beginning) side of the bins
+    bins_end : array[nbin]
+        right(ending) side of the bins
+    """
+
     if swath_width is None:
         i = np.unique(ycen.astype(int))  # Points of row crossing
         ni = len(i)  # This is how many times this order crosses to the next row
@@ -212,9 +271,25 @@ def make_bins(swath_width, xlow, xhigh, ycen, ncol):
 
 
 def calc_telluric_correction(telluric, img):
-    if not telluric:
-        return 0
+    """ Calculate telluric correction
 
+    If set to specific integer larger than 1 is used as the
+    offset from the order center line. The sky is then estimated by computing
+    median signal between this offset and the upper/lower limit of the
+    extraction window.
+
+    Parameters
+    ----------
+    telluric : int
+        telluric correction parameter
+    img : array
+        image of the swath
+
+    Returns
+    -------
+    tell : array
+        telluric correction  
+    """
     width, height = img.shape
 
     tel_lim = telluric if telluric > 5 and telluric < height / 2 else min(5, height / 3)
@@ -231,8 +306,22 @@ def calc_telluric_correction(telluric, img):
 
 
 def calc_scatter_correction(scatter, ycen_low, height):
-    if scatter is None:
-        return 0
+    """ Calculate scatter correction
+
+    Parameters
+    ----------
+    scatter : array[4, ncol]
+        background scattered light, (below, above, ybelow, yabove)
+    ycen_low : array[ncol]
+        y center of the order
+    height : int
+        height of the extraction window (?)
+
+    Returns
+    -------
+    scatter_correction : array[ncol]
+        correction for scattered light
+    """
 
     # scatter = (below, above, ybelow, yabove)
     index_y = np.array([np.arange(k, height + k) for k in ycen_low])
@@ -258,8 +347,8 @@ def extract_spectrum(
     osample=1,
     swath_width=None,
     telluric=False,
+    scatter=None,
     normalize=False,
-    scatter=None,  # below, above, ybelow, yabove
     threshold=0,
     shear=None,
     plot=False,
@@ -268,6 +357,83 @@ def extract_spectrum(
     im_ordr=None,
     **kwargs
 ):
+    """
+    Extract the spectrum of a single order from an image
+
+    The order is split into several swathes of roughly swath_width length, which overlap half-half
+    For each swath a spectrum and slitfunction are extracted
+    overlapping sections are combined using linear weights (centrum is strongest, falling off to the edges)
+
+    Here is the layout for the bins:
+
+           1st swath    3rd swath    5th swath      ...
+        /============|============|============|============|============|
+
+                  2nd swath    4th swath    6th swath
+               |------------|------------|------------|------------|
+               |.....|
+               overlap
+
+               +     ******* 1
+                +   *
+                 + *
+                  *            weights (+) previous swath, (*) current swath
+                 * +
+                *   +
+               *     +++++++ 0
+
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        observation (or similar)
+    ycen : array[ncol]
+        order trace of the current order
+    yrange : tuple(int, int)
+        extraction width in pixles, below and above
+    xrange : tuple(int, int)
+        columns range to extract (low, high)
+    gain : float, optional
+        adu to electron, amplifier gain (default: 1)
+    readnoise : float, optional
+        read out noise factor (default: 0)
+    lambda_sf : float, optional
+        slit function smoothing parameter, usually very small (default: 0.1)
+    lambda_sp : int, optional
+        spectrum smoothing parameter, usually very small (default: 0)
+    osample : int, optional
+        oversampling factor, i.e. how many subpixels to create per pixel (default: 1, i.e. no oversampling)
+    swath_width : int, optional
+        swath width suggestion, actual width depends also on ncol, see make_bins (default: None, which will determine the width based on the order tracing)
+    telluric : {float, None}, optional
+        telluric correction factor (default: None, i.e. no telluric correction)
+    scatter : {array[4, ncol], None}, optional
+        background scatter (below, above, ybelow, yabove) (default: None, no correction)
+    normalize : bool, optional
+        wether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
+    threshold : int, optional
+        threshold for normalization (default: 0)
+    shear : array[ncol], optional
+        The shear (tilt) of the order, if given will use curved extraction instead of vertical extraction (default: None, i.e. no shear)
+    plot : bool, optional
+        wether to plot the progress, plotting will slow down the procedure significantly (default: False)
+    ord_num : int, optional
+        current order number, just for plotting (default: 0)
+    im_norm : array[nrow, ncol], optional
+        normalized image, only output if normalize is True (default: None)
+    im_ordr : array[nrow, ncol], optional
+        image of the order blaze, only output if normalize is True (default: None)
+    
+    Returns
+    -------
+    spec : array[ncol]
+        extracted spectrum
+    slitf : array[nslitf]
+        extracted slitfunction
+    model : array[ncol, nslitf]
+        model of the image, based on the spectrum and slitfunction
+    unc : array[ncol]
+        uncertainty on the spectrum
+    """
 
     nrow, ncol = img.shape
     ylow, yhigh = yrange
@@ -276,8 +442,6 @@ def extract_spectrum(
     height = yhigh + ylow + 1
 
     ycen_int = np.floor(ycen).astype(int)
-
-    noise = readnoise / gain
 
     spec = np.zeros(ncol)
     sunc = np.zeros(ncol)
@@ -290,25 +454,6 @@ def extract_spectrum(
     if normalize:
         norm_img = [None for _ in range(2 * nbin - 1)]
         norm_model = [None for _ in range(2 * nbin - 1)]
-
-    # Here is the layout for the bins:
-    # Bins overlap roughly half-half, i.e. the second half of bin1 is the same as the first half of bin2
-    #
-    #        1st swath    3rd swath    5th swath      ...
-    #     /============|============|============|============|============|
-    #
-    #               2nd swath    4th swath    6th swath
-    #            |------------|------------|------------|------------|
-    #            |.....|
-    #            overlap
-    #
-    #            +     ******* 1
-    #             +   *
-    #              + *
-    #               *            weights (+) previous swath, (*) current swath
-    #              * +
-    #             *   +
-    #            *     +++++++ 0
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
@@ -323,7 +468,11 @@ def extract_spectrum(
         # swath_img = cutout_image(img, ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
 
         # Corrections
-        telluric_correction = calc_telluric_correction(telluric, swath_img)
+        if telluric is not None:
+            telluric_correction = calc_telluric_correction(telluric, swath_img)
+        else:
+            telluric_correction = 0
+
         if scatter is not None:
             scatter_correction = calc_scatter_correction(
                 scatter[:, ibeg:iend], ycen_int[ibeg:iend] - ylow, height
@@ -336,7 +485,7 @@ def extract_spectrum(
         swath_img = np.clip(swath_img, 0, None)
 
         # offset from the central line
-        y_offset =  ycen[ibeg:iend] - ycen_int[ibeg:iend]
+        y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
         if shear is None:
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
@@ -424,12 +573,33 @@ def extract_spectrum(
             im_ordr[index] += norm_model[i] * weight[i]
 
     slitf = np.mean(slitf, axis=0)
+    sunc = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
+
     model = spec[None, :] * slitf[:, None]
     return spec, slitf, model, sunc
 
 
-def get_y_scale(ycen, order, xrange, extraction_width, nrow):
-    ycen = ycen[xrange[0]:xrange[1]]
+def get_y_scale(ycen, xrange, extraction_width, nrow):
+    """Calculate the y limits of the order
+    This is especially important at the edges
+
+    Parameters
+    ----------
+    ycen : array[ncol]
+        order trace
+    xrange : tuple(int, int)
+        column range
+    extraction_width : tuple(int, int)
+        extraction width in pixels below and above the order
+    nrow : int
+        number of rows in the image, defines upper edge
+
+    Returns
+    -------
+    y_low, y_high : int, int
+        lower and upper y bound for extraction
+    """
+    ycen = ycen[xrange[0] : xrange[1]]
 
     ymin = ycen - extraction_width[0]
     ymin = np.floor(ymin)
@@ -441,7 +611,7 @@ def get_y_scale(ycen, order, xrange, extraction_width, nrow):
     ymax = ycen + extraction_width[1]
     ymax = np.ceil(ymax)
     if max(ymax) >= nrow:
-        ymax = ymax - max(ymax) + nrow - 1 # helps at edge
+        ymax = ymax - max(ymax) + nrow - 1  # helps at edge
 
     # Define a fixed height area containing one spectral order
     y_lower_lim = int(np.min(ycen - ymin))  # Pixels below center line
@@ -450,9 +620,36 @@ def get_y_scale(ycen, order, xrange, extraction_width, nrow):
     return y_lower_lim, y_upper_lim
 
 
-def optimal_extraction(
-    img, orders, extraction_width, column_range, scatter, **kwargs
-):
+def optimal_extraction(img, orders, extraction_width, column_range, scatter, **kwargs):
+    """ Use optimal extraction to get spectra
+
+    This functions just loops over the orders, the actual work is done in extract_spectrum
+    
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        image to extract
+    orders : array[nord, degree]
+        order tracing coefficients
+    extraction_width : array[nord, 2]
+        extraction width in pixels
+    column_range : array[nord, 2]
+        column range to use
+    scatter : array[nord, 4, ncol]
+        background scatter (or None)
+    **kwargs
+        other parameters for the extraction (see extract_spectrum)
+
+    Returns
+    -------
+    spectrum : array[nord, ncol]
+        extracted spectrum
+    slitfunction : array[nord, nslitf]
+        recovered slitfunction
+    uncertainties: array[nord, ncol]
+        uncertainties on the spectrum
+    """
+
     logging.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
@@ -463,18 +660,14 @@ def optimal_extraction(
     uncertainties = np.zeros((nord - 2, ncol))
     ix = np.arange(ncol)
 
-    # TODO each order is independant so extract in parallel ? (not for normalization ?)
     for i, onum in enumerate(range(1, nord - 1)):
         if nord < 10 or onum % 5 == 0:
             logging.info("Extracting relative order %i out of %i" % (onum, nord - 2))
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
-        yrange = get_y_scale(ycen,
-            orders[onum],
-            column_range[onum],
-            extraction_width[onum],
-            nrow,
+        yrange = get_y_scale(
+            ycen, orders[onum], column_range[onum], extraction_width[onum], nrow
         )
 
         spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(
@@ -506,6 +699,36 @@ def arc_extraction(
     plot=False,
     **kwargs
 ):
+    """ Use "simple" arc extraction to get a spectrum
+    Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
+
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        image to extract
+    orders : array[nord, order]
+        order tracing coefficients
+    extraction_width : array[nord, 2]
+        extraction width in pixels
+    column_range : array[nord, 2]
+        column range to use
+    gain : float, optional
+        adu to electron, amplifier gain (default: 1)
+    readnoise : float, optional
+        read out noise (default: 0)
+    dark : float, optional
+        dark current noise (default: 0)
+    plot : bool, optional
+        wether to plot the results (default: False)
+
+    Returns
+    -------
+    spectrum : array[nord, ncol]
+        extracted spectrum
+    uncertainties : array[nord, ncol]
+        uncertainties on extracted spectrum
+    """
+
     logging.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
     nord, _ = orders.shape
@@ -557,14 +780,35 @@ def arc_extraction(
 
         plt.show()
 
-    return spectrum, 0, uncertainties
+    return spectrum, uncertainties
 
 
 def fix_column_range(img, orders, extraction_width, column_range, no_clip=False):
+    """ Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
+
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        image
+    orders : array[nord, degree]
+        order tracing coefficients
+    extraction_width : array[nord, 2]
+        extraction width in pixels, (below, above)
+    column_range : array[nord, 2]
+        current column range
+    no_clip : bool, optional
+        if False, new column range will be smaller or equal to current column range, otherwise it can also be larger (default: False)
+
+    Returns
+    -------
+    column_range : array[nord, 2]
+        updated column range
+    """
+
     nrow, ncol = img.shape
     ix = np.arange(ncol)
     # Loop over non extension orders
-    for i, order in zip(range(1, len(orders)-1), orders[1:-1]):
+    for i, order in zip(range(1, len(orders) - 1), orders[1:-1]):
         # Shift order trace up/down by extraction_width
         coeff_bot, coeff_top = np.copy(order), np.copy(order)
         coeff_bot[-1] -= extraction_width[i, 0]
@@ -602,7 +846,21 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
 
 
 def extend_orders(orders, nrow):
-    """ Extrapolate extra orders above and below the existing ones """
+    """Extrapolate extra orders above and below the existing ones
+    
+    Parameters
+    ----------
+    orders : array[nord, degree]
+        order tracing coefficients
+    nrow : int
+        number of rows in the image
+    
+    Returns
+    -------
+    orders : array[nord + 2, degree]
+        extended orders
+    """
+
     nord, ncoef = orders.shape
 
     if nord > 1:
@@ -616,7 +874,25 @@ def extend_orders(orders, nrow):
 
 
 def fix_extraction_width(extraction_width, orders, column_range, ncol):
-    """ convert fractional extraction width to pixel range """
+    """Convert fractional extraction width to pixel range
+    
+    Parameters
+    ----------
+    extraction_width : array[nord, 2]
+        current extraction width, in pixels or fractions (for values below 1.5)
+    orders : array[nord, degree]
+        order tracing coefficients
+    column_range : array[nord, 2]
+        column range to use
+    ncol : int
+        number of columns in image
+
+    Returns
+    -------
+    extraction_width : array[nord, 2]
+        updated extraction width in pixels
+    """
+
     if np.all(extraction_width > 1.5):
         # already in pixel scale
         extraction_width = extraction_width.astype(int)
@@ -657,11 +933,11 @@ def extract(
     
     Parameters
     ----------
-    img : array[nrow][ncol](float)
+    img : array[nrow, ncol](float)
         observation to extract
     orders : array[nord, degree](float)
         polynomial coefficients of the order tracing
-    column_range : array[nord][2](int), optional
+    column_range : array[nord, 2](int), optional
         range of pixels to use for each order (default: use all)
     order_range : array[2](int), optional
         range of orders to extract, orders have to be consecutive (default: use all)
@@ -699,7 +975,7 @@ def extract(
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
-    scatter = [None for _ in range(nord+1)]
+    scatter = [None for _ in range(nord + 1)]
     xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
 
     # Limit orders (and related properties) to orders in range
@@ -715,7 +991,6 @@ def extract(
 
     # Extend orders and related properties
 
-
     orders = extend_orders(orders, nrow)
     extraction_width = np.array(
         [extraction_width[0], *extraction_width, extraction_width[-1]]
@@ -728,10 +1003,9 @@ def extract(
     )
     column_range = fix_column_range(img, orders, extraction_width, column_range)
 
-
     if xscatter is not None and yscatter is not None:
         scatter = np.zeros((nord, 4, ncol))
-        for onum in range(1, nord+1):
+        for onum in range(1, nord + 1):
             if polarization:
                 # skip inter-polarization gaps
                 oo = ((onum - 1) // 2) * 2 + 1
@@ -739,8 +1013,8 @@ def extract(
                 scatter[onum - 1, 1] = xscatter[oo + 1]
                 scatter[onum - 1, 2] = yscatter[oo - 1]
                 scatter[onum - 1, 3] = yscatter[oo + 1]
-            else: # below, above, ybelow, yabove
-                scatter[onum - 1, 0] = xscatter[onum - 1] 
+            else:  # below, above, ybelow, yabove
+                scatter[onum - 1, 0] = xscatter[onum - 1]
                 scatter[onum - 1, 1] = xscatter[onum]
                 scatter[onum - 1, 2] = yscatter[onum - 1]
                 scatter[onum - 1, 3] = yscatter[onum]
@@ -774,7 +1048,7 @@ def extract(
         return im_norm, im_ordr, blaze
     elif extraction_type == "arc":
         # Simpler extraction, just summing along the arc of the order
-        spectrum, slitfunction, uncertainties = arc_extraction(
+        spectrum, uncertainties = arc_extraction(
             img, orders, extraction_width, column_range, **kwargs
         )
 

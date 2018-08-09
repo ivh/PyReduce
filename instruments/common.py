@@ -1,4 +1,9 @@
+"""
+Abstract parent module for all other instruments
+Contains some general functionality, which may be overridden by the children of course
+"""
 import numpy as np
+import datetime
 from astropy.io import fits
 
 
@@ -11,12 +16,28 @@ def find_first_index(arr, value):
 
 
 def observation_date_to_night(observation_date):
+    """Convert an observation timestamp into the date of the observation night
+    Nights start at 12am and end at 12 am the next day
+
+    Parameters
+    ----------
+    observation_date : datetime
+        timestamp of the observation
+
+    Returns
+    -------
+    night : datetime.date
+        night of the observation
+    """
+    oneday = datetime.timedelta(days=1)
+
     if observation_date.hour < 6:
-        observation_date.day -= 1
+        observation_date -= oneday
     return observation_date.date()
 
+
 class getter:
-    """ gets data from a header (dict) """
+    """Get data from a header/dict, based on the given mode, and applies replacements"""
 
     def __init__(self, header, info, mode):
         self.header = header
@@ -32,6 +53,21 @@ class getter:
         return self.get(key, alt)
 
     def get(self, key, alt=None):
+        """Get data
+
+        Parameters
+        ----------
+        key : str
+            key of the data in the header
+        alt : obj, optional
+            alternative value, if key does not exist (default: None)
+
+        Returns
+        -------
+        value : obj
+            value found in header (or alternatively alt)
+        """
+
         value = self.info[key]
         if isinstance(value, list):
             value = value[self.index]
@@ -51,7 +87,7 @@ class instrument:
         """
         Load static instrument information
         Either as fits header keywords or static values
-        
+
         Returns
         ------
         info : dict(str:object)
@@ -60,7 +96,7 @@ class instrument:
         Raises
         ------
         NotImplementedError
-            This needs to exist for every instrument
+            This function needs to exist for every instrument
         """
 
         raise NotImplementedError(
@@ -68,7 +104,21 @@ class instrument:
         )
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header
+
+        Parameters
+        ----------
+        header : fits.header, dict
+            header to read/write info from/to
+        mode : str
+            instrument mode
+
+        Returns
+        -------
+        header : fits.header, dict
+            header with added information
+        """
+
         info = self.load_info()
         get = getter(header, info, mode)
 
@@ -146,6 +196,21 @@ class instrument:
         return biaslist, flatlist, wavelist, orderlist, speclist
 
     def get_wavecal_filename(self, header, mode, **kwargs):
+        """Get the filename of the pre-existing wavelength solution for the current setting
+
+        Parameters
+        ----------
+        header : fits.header, dict
+            header of the wavelength calibration file
+        mode : str
+            instrument mode
+
+        Returns
+        -------
+        filename : str
+            name of the wavelength solution file
+        """
+
         info = self.load_info()
         specifier = header.get(info.get("wavecal_specifier", ""), "")
 

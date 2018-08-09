@@ -1,8 +1,14 @@
+"""
+Find the continuum level
+
+Currently only splices orders together
+First guess of the continuum is provided by the flat field
+"""
+
 from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage.filters import median_filter
 
 from util import bezier_interp, top
 
@@ -116,8 +122,7 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
 
         else:  # Orders dont overlap
             raise NotImplementedError("Orders don't overlap, please test")
-            scale0 = top(s0 / c0, 1, poly=True)
-            c0 *= scale0
+            c0 *= top(s0 / c0, 1, poly=True)
             scale0 = top(s0 / c0, 1, poly=True)
             scale0 = np.polyfit(w0, scale0, 1)
 
@@ -126,14 +131,13 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
 
             xx = np.linspace(np.min(w0), np.max(w1), 100)
 
-            # TODO try this
+            # TODO test this
             # scale = np.sum(scale0[0] * scale1[0] * xx * xx + scale0[0] * scale1[1] * xx + scale1[0] * scale0[1] * xx + scale1[1] * scale0[1])
             scale = scale0[::-1, None] * scale1[None, ::-1]
             scale = np.sum(np.polynomial.polynomial.polyval2d(xx, xx, scale)) / np.sum(
                 np.polyval(scale1, xx) ** 2
             )
             s1 *= scale
-            order_scales[iord1] = scale
 
     if plot:
         plt.subplot(212)

@@ -1,22 +1,24 @@
-import os
+"""
+Collection of various useful and/or reoccuring functions across PyReduce
+"""
+
 import argparse
-
-import numpy as np
+import logging
+import os
 from itertools import product
-from scipy.ndimage.filters import median_filter
-from scipy.linalg import solve_banded, solve
-from scipy.optimize import curve_fit
-import scipy.interpolate
-from astropy.io import fits
+
 import matplotlib.pyplot as plt
+import numpy as np
+from astropy.io import fits
 from mpl_toolkits.mplot3d import Axes3D
+import scipy.constants
+import scipy.interpolate
+from scipy.linalg import solve, solve_banded
+from scipy.ndimage.filters import median_filter
+from scipy.optimize import curve_fit
 
-
-# from modeinfo_uves import modeinfo_uves as modeinfo
 from clipnflip import clipnflip
 from instruments.instrument_info import modeinfo
-
-import logging
 
 
 def parse_args():
@@ -62,6 +64,14 @@ def parse_args():
 
 
 def start_logging(log_file="log.log"):
+    """Start logging to log file and command line
+
+    Parameters
+    ----------
+    log_file : str, optional
+        name of the logging file (default: "log.log")
+    """
+
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
@@ -85,54 +95,61 @@ def start_logging(log_file="log.log"):
     logging.debug("----------------------")
 
 
-def load_fits(fname, instrument, mode, extension, **kwargs):
+def load_fits(
+    fname, instrument, mode, extension, mask=None, header_only=False, dtype=None
+):
     """
     load fits file, REDUCE style
-    
+
     primary and extension header are combined
     modeinfo is applied to header
     data is clipnflipped
     mask is applied
+
+    Parameters
+    ----------
+    fname : str
+        filename
+    instrument : str
+        name of the instrument
+    mode : str
+        instrument mode
+    extension : int
+        data extension of the FITS file to load
+    mask : array, optional
+        mask to add to the data
+    header_only : bool, optional
+        only load the header, not the data
+    dtype : str, optional
+        numpy datatype to convert the read data to
+
+    Returns
+    --------
+    data : masked_array
+        FITS data, clipped and flipped, and with mask
+    header : fits.header
+        FITS header (Primary and Extension + Modeinfo)
+
+    ONLY the header is returned if header_only is True 
     """
     hdu = fits.open(fname)
     header = hdu[extension].header
     header.extend(hdu[0].header, strip=False)
     header = modeinfo(header, instrument, mode)
 
-    if kwargs.get("header_only", False):
+    if header_only:
+        hdu.close()
         return header
 
     data = clipnflip(hdu[extension].data, header)
 
-    if kwargs.get("dtype") is not None:
-        data = data.astype(kwargs["dtype"])
+    if dtype is not None:
+        data = data.astype(dtype)
 
-    data = np.ma.masked_array(data, mask=kwargs.get("mask"))
+    data = np.ma.masked_array(data, mask=mask)
 
     hdu.close()
-
     return data, header
-
-
-def save_fits(fname, header, **kwargs):
-    """
-    Save fits with binary table in first extension
-    Keywords describe data columns
-    """
-    primary = fits.PrimaryHDU(header=header)
-
-    columns = []
-    for key, value in kwargs.items():
-        arr = value.flatten()[None, :].astype(np.float32)  # TODO good enough?
-        dtype = "E"
-        form = "%i%s" % (value.size, dtype)
-        dim = str(value.shape[::-1])
-        columns += [fits.Column(name=key.upper(), array=arr, format=form, dim=dim)]
-
-    table = fits.BinTableHDU.from_columns(columns)
-
-    hdulist = fits.HDUList(hdus=[primary, table])
-    hdulist.writeto(fname, overwrite=True)
 
 
 def swap_extension(fname, ext, path=None):
@@ -156,6 +173,19 @@ def find_first_index(arr, value):
 
 
 def interpolate_masked(masked):
+    """ Interpolate masked values, from non masked values
+
+    Parameters
+    ----------
+    masked : masked_array
+        masked array to interpolate on
+
+    Returns
+    -------
+    interpolated : array
+        interpolated non masked array
+    """
+
     mask = np.ma.getmaskarray(masked)
     idx = np.nonzero(~mask)[0]
     interpol = np.interp(np.arange(len(masked)), idx, masked[idx])
@@ -163,12 +193,57 @@ def interpolate_masked(masked):
 
 
 def cutout_image(img, ymin, ymax, xmin, xmax):
-    cutout = np.zeros((ymax[0]-ymin[0]+1, xmax-xmin), dtype=img.dtype)
+    """Cut a section of an image out
+
+    Parameters
+    ----------
+    img : array
+        image
+    ymin : array[ncol](int)
+        lower y value
+    ymax : array[ncol](int)
+        upper y value
+    xmin : int
+        lower x value
+    xmax : int
+        upper x value
+
+    Returns
+    -------
+    cutout : array[height, ncol]
+        selection of the image
+    """
+
+    cutout = np.zeros((ymax[0] - ymin[0] + 1, xmax - xmin), dtype=img.dtype)
     for i, x in enumerate(range(xmin, xmax)):
-        cutout[:, i] = img[ymin[x]:ymax[x]+1, x]
+        cutout[:, i] = img[ymin[x] : ymax[x] + 1, x]
     return cutout
 
+
 def make_index(ymin, ymax, xmin, xmax, zero=0):
+    """ Create an index (numpy style) that will select part of an image with changing position but fixed height
+
+    The user is responsible for making sure the height is constant, otherwise it will still work, but the subsection will not have the desired format
+
+    Parameters
+    ----------
+    ymin : array[ncol](int)
+        lower y border
+    ymax : array[ncol](int)
+        upper y border
+    xmin : int
+        leftmost column
+    xmax : int
+        rightmost colum
+    zero : bool, optional
+        if True count y array from 0 instead of xmin (default: False)
+
+    Returns
+    -------
+    index : tuple(array[height, width], array[height, width])
+        numpy index for the selection of a subsection of an image
+    """
+
     # TODO
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
     # in x: the rows between ymin and ymax
@@ -176,8 +251,15 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     if zero:
         zero = xmin
 
-    index_x = np.array([np.arange(ymin[col], ymax[col]+1) for col in range(xmin-zero, xmax-zero)])
-    index_y = np.array([np.full(ymax[col]-ymin[col]+1, col) for col in range(xmin-zero, xmax-zero)])
+    index_x = np.array(
+        [np.arange(ymin[col], ymax[col] + 1) for col in range(xmin - zero, xmax - zero)]
+    )
+    index_y = np.array(
+        [
+            np.full(ymax[col] - ymin[col] + 1, col)
+            for col in range(xmin - zero, xmax - zero)
+        ]
+    )
     index = index_x.T, index_y.T + zero
 
     return index
@@ -254,6 +336,27 @@ def gaussbroad(x, y, hwhm):
 
 
 def polyfit2d(x, y, z, degree=1, plot=False):
+    """A simple 2D plynomial fit to data x, y, z
+
+    Parameters
+    ----------
+    x : array[n]
+        x coordinates
+    y : array[n]
+        y coordinates
+    z : array[n]
+        data values
+    degree : int, optional
+        degree of the polynomial fit (default: 1)
+    plot : bool, optional
+        wether to plot the fitted surface and data (slow) (default: False)
+
+    Returns
+    -------
+    coeff : array[degree+1, degree+1]
+        the polynomial coefficients in numpy 2d format, i.e. coeff[i, j] for x**i * y**j
+    """
+
     # Create combinations of degree of x and y
     # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
     if np.isscalar(degree):
@@ -301,10 +404,36 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
 
 def bezier_interp(x_old, y_old, x_new):
+    """
+    Bezier interpolation, based on the scipy methods
+    
+    This mostly sanitizes the input by removing masked values and duplicate entries
+    Note that in case of duplicate entries (in x_old) the results are not well defined as only one of the entries is used and the other is discarded
+
+    Parameters
+    ----------
+    x_old : array[n]
+        old x values
+    y_old : array[n]
+        old y values
+    x_new : array[m]
+        new x values
+    
+    Returns
+    -------
+    y_new : array[m]
+        new y values
+    """
+
     # Handle masked arrays
     if np.ma.is_masked(x_old):
         x_old = np.ma.compressed(x_old)
         y_old = np.ma.compressed(y_old)
+
+    # avoid duplicate entries in x
+    x_old, index = np.unique(x_old, return_index=True)
+    y_old = y_old[index]
+
     knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new

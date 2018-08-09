@@ -141,12 +141,12 @@ int xi_zeta_tensors(int ncols,                                      /* Swath wid
      (no column shifts and discontinuities in ycen) there is pixel y that contains the
      central line yc. There are two options here (by construction of ycen that can be 0
      but cannot be 1): (1) yc is inside pixel y and (2) yc falls at the boundary between
-     pixels y and y-1. yc cannot be at the foundary of pixels y+1 and y because we would
+     pixels y and y-1. yc cannot be at the boundary of pixels y+1 and y because we would
      select y+1 to be pixel y in that case.
 
      Next we need to define starting and ending indices iy for sL subpixels that contribute
      to pixel y. I call them iy1 and iy2. For both cases we assume osample+1 subpixels covering
-     pixel y (wierd). So for case 1 iy1 will be (y-1)*osample and iy2 == y*osample. Special
+     pixel y (weird). So for case 1 iy1 will be (y-1)*osample and iy2 == y*osample. Special
      treatment of the boundary subpixels will compensate for introducing extra subpixel in
      case 1. In case 2 things are more logical: iy1=(yc-y)*osample+(y-1)*osample;
      iy2=(y+1-yc)*osample)+(y-1)*osample. ycen is yc-y making things simpler. Note also that
@@ -206,15 +206,15 @@ int xi_zeta_tensors(int ncols,                                      /* Swath wid
     dy = -(y_lower_lim * osample + floor(ycen[x] / step) + 0.5) * step; /* Define initial distance from ycen       */
                                                                         /* It is given by the center of the first  */
                                                                         /* subpixel falling into pixel y_lower_lim */
-                                                                        //    printf("x=%d, dy=%g, step=%g, iy1=%d, iy2=%d, ycen=%g\n", x, dy, step, iy1, iy2, ycen[x]);
+    //    printf("x=%d, dy=%g, step=%g, iy1=%d, iy2=%d, ycen=%g\n", x, dy, step, iy1, iy2, ycen[x]);
 
     /*
-   Now we go detector pixels x and y incrementing subpixels looking for their controibutions
-   to the current and adjacent pixels. Note that the curvature/tilt of the projected slit
-   image could be so large that subpixel iy may no contribute to column x at all. On the
-   other hand, subpixels around ycen by definition must contribute to pixel x,y. 
-   3rd index in xi refers corners of pixel xx,y: 0:LL, 1:LR, 2:UL, 3:UR.
-*/
+    Now we go detector pixels x and y incrementing subpixels looking for their contributions
+    to the current and adjacent pixels. Note that the curvature/tilt of the projected slit
+    image could be so large that subpixel iy may no contribute to column x at all. On the
+    other hand, subpixels around ycen by definition must contribute to pixel x,y. 
+    3rd index in xi refers to corners of pixel xx,y: 0:LL, 1:LR, 2:UL, 3:UR.
+    */
 
     for (y = 0; y < nrows; y++)
     {
