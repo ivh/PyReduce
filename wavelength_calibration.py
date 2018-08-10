@@ -226,9 +226,9 @@ def make_wave(thar, wave_solution, plot=False):
         plt.subplot(211)
         plt.xlabel("Wavelength")
         plt.ylabel("Thar spectrum")
-        plt.legend(loc="best")
         for i in range(thar.shape[0]):
             plt.plot(wave_img[i], thar[i], label="Order %i" % i)
+        plt.legend(loc="best")        
 
         plt.subplot(212)
         plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))
@@ -274,10 +274,9 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
     for iord in range(nord):
         # TODO pick good settings
         vec = thar[iord, thar[iord] > 0]
-        vec -= np.min(vec)
-        peak_idx = signal.find_peaks_cwt(
-            vec, np.arange(2, 5), min_snr=5, min_length=3
-        ).astype(int)
+        vec -= np.ma.min(vec)
+
+        peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec) * 10, distance=10)
         pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
 
         for i, line in enumerate(cs_lines):

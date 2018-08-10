@@ -17,8 +17,12 @@ from scipy.linalg import solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
-from clipnflip import clipnflip
-from instruments.instrument_info import modeinfo
+try:
+    from .clipnflip import clipnflip
+    from .instruments.instrument_info import modeinfo
+except ImportError:
+    from clipnflip import clipnflip
+    from instruments.instrument_info import modeinfo
 
 
 def parse_args():

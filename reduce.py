@@ -33,6 +33,7 @@ from scipy.io import readsav
 
 import echelle
 import util
+
 # PyReduce subpackages
 from combine_frames import combine_bias, combine_flat
 from continuum_normalization import splice_orders
@@ -41,24 +42,27 @@ from instruments import instrument_info
 from normalize_flat import normalize_flat
 from trace_orders import mark_orders
 from wavelength_calibration import wavecal
-#from getxwd import getxwd
+from make_shear import make_shear
+
+# from getxwd import getxwd
 
 
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ? or use a mask instead of column range
-
+# TODO figure out relative imports
+# TODO Naming of functions and modules
 
 def main(
     instrument="UVES",
     target="HD132205",
     steps=(
-        #"bias",
-        #"flat",
-        #"orders",
-        #"norm_flat",
-        #"science",
+        # "bias",
+        # "flat",
+        # "orders",
+        # "norm_flat",
         "wavecal",
-        #"continuum",
+        # "science",
+        # "continuum",
     ),
 ):
     """
@@ -245,7 +249,9 @@ def run_steps(
     if "orders" in steps or steps == "all":
         logging.info("Tracing orders")
 
-        order_img, _ = util.load_fits(f_order[0], instrument, mode, extension, mask=mask)
+        order_img, _ = util.load_fits(
+            f_order[0], instrument, mode, extension, mask=mask
+        )
 
         orders, column_range = mark_orders(
             order_img,
@@ -286,7 +292,7 @@ def run_steps(
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=False, #config.get("plot", True),
+            plot=False,  # config.get("plot", True),
         )
 
         # Save data
@@ -301,6 +307,65 @@ def run_steps(
 
         with open(blaze_file, "rb") as file:
             blaze = pickle.load(file)
+
+    # ==========================================================================
+    # Prepare wavelength calibration
+
+    if "wavecal" in steps or steps == "all":
+        logging.info("Creating wavelength calibration")
+        # TODO: in practice there may be several wavelength files, but only one will be used, how to decide which one?
+        # TODO: Which calibration file to use, might depend on the science file (e.g. UVES center wavelength setting)
+        # TODO: Use a dictionary of wavelengths? With some identifier as key
+        for f in f_wave:
+            # Load wavecal image
+            thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
+            orig = thar
+            order_range = (0, len(orders) - 1)
+
+            # Extract wavecal spectrum
+            thar, _ = extract(
+                thar,
+                orders,
+                gain=thead["e_gain"],
+                readnoise=thead["e_readn"],
+                dark=thead["e_drk"],
+                extraction_type="arc",
+                order_range=order_range,
+                column_range=column_range,
+                extraction_width=config.get("wavecal_extraction_width", 0.25),
+                osample=config.get("wavecal_osample", 1),
+                plot=config.get("plot", True),
+            )
+            thead["obase"] = (order_range[0], "base order number")
+
+            shear = make_shear(
+                thar,
+                orig,
+                orders,
+                extraction_width=config.get("wavecal_extraction_width", 0.25),
+                column_range=column_range,
+                plot=config.get("plot", True),
+            )
+
+            # Create wavelength calibration fit
+            # TODO just save the coefficients?
+            reference = instrument_info.get_wavecal_filename(thead, instrument, mode)
+            reference = readsav(reference)
+            cs_lines = reference["cs_lines"]
+            wave = wavecal(
+                thar,
+                cs_lines,
+                plot=config.get("plot", True),
+                manual=config.get("wavecal_manual", False),
+            )
+
+            nameout = util.swap_extension(f, ".thar.ech", output_dir)
+            echelle.save(nameout, thead, spec=thar, wave=wave, shear=shear)
+    else:
+        fname = util.swap_extension(f_wave[-1], ".thar.ech", output_dir)
+        thar = echelle.read(fname, raw=True)
+        wave = thar.wave
+        shear = thar.shear
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -321,6 +386,7 @@ def run_steps(
             spec, sigma = extract(
                 im,
                 orders,
+                shear=shear,
                 gain=head["e_gain"],
                 readnoise=head["e_readn"],
                 dark=head["e_drk"],
@@ -331,7 +397,7 @@ def run_steps(
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=False, #config.get("plot", True),
+                plot=False,  # config.get("plot", True),
             )
             head["obase"] = (order_range[0], " base order number")
 
@@ -345,55 +411,6 @@ def run_steps(
         head = science.head
         spec = science.spec
         sigma = science.sig
-
-    # ==========================================================================
-    # Prepare wavelength calibration
-
-    if "wavecal" in steps or steps == "all":
-        logging.info("Creating wavelength calibration")
-        # TODO: in practice there may be several wavelength files, but only one will be used, how to decide which one?
-        # TODO: Which calibration file to use, might depend on the science file (e.g. UVES center wavelength setting)
-        # TODO: Use a dictionary of wavelengths? With some identifier as key
-        for f in f_wave:
-            # Load wavecal image
-            thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
-
-            order_range = (0, len(orders) - 1)
-
-            # Extract wavecal spectrum
-            thar, _ = extract(
-                thar,
-                orders,
-                gain=thead["e_gain"],
-                readnoise=thead["e_readn"],
-                dark=thead["e_drk"],
-                extraction_type="arc",
-                order_range=order_range,
-                column_range=column_range,
-                extraction_width=config.get("wavecal_extraction_width", 0.25),
-                osample=config.get("wavecal_osample", 1),
-                plot=config.get("plot", True),
-            )
-            thead["obase"] = (order_range[0], "base order number")
-
-            # Create wavelength calibration fit
-            # TODO just save the coefficients?
-            reference = instrument_info.get_wavecal_filename(thead, instrument, mode)
-            reference = readsav(reference)
-            cs_lines = reference["cs_lines"]
-            wave = wavecal(
-                thar,
-                cs_lines,
-                plot=config.get("plot", True),
-                manual=config.get("wavecal_manual", False),
-            )
-
-            nameout = util.swap_extension(f, ".thar.ech", output_dir)
-            echelle.save(nameout, thead, spec=thar, wave=wave)
-    else:
-        fname = util.swap_extension(f_wave[-1], ".thar.ech", output_dir)
-        thar = echelle.read(fname, raw=True)
-        wave = thar.wave
 
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
@@ -412,7 +429,15 @@ def run_steps(
     # Combine science with wavecal and continuum
     for f in f_spec:
         fname = util.swap_extension(f, ".ech", path=output_dir)
-        echelle.save(fname, head, spec=spec, sig=sigma, cont=blaze, wave=wave, columns=column_range)
+        echelle.save(
+            fname,
+            head,
+            spec=spec,
+            sig=sigma,
+            cont=blaze,
+            wave=wave,
+            columns=column_range,
+        )
         logging.info("science file: %s", os.path.basename(nameout))
         logging.debug("--------------------------------")
 

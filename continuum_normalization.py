@@ -10,8 +10,10 @@ from itertools import chain
 import matplotlib.pyplot as plt
 import numpy as np
 
-from util import bezier_interp, top
-
+try:
+    from .util import bezier_interp, top
+except ImportError:
+    from util import bezier_interp, top
 
 def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=False):
     """
@@ -148,7 +150,7 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         plt.legend(loc="best")
         plt.show()
 
-    return wave, spec, cont, sigm
+    return spec, wave, cont, sigm
 
 
 def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
