@@ -17,12 +17,11 @@ from scipy.linalg import solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
-try:
-    from .clipnflip import clipnflip
-    from .instruments.instrument_info import modeinfo
-except ImportError:
-    from clipnflip import clipnflip
-    from instruments.instrument_info import modeinfo
+
+
+from PyReduce.clipnflip import clipnflip
+from PyReduce.instruments.instrument_info import modeinfo
+
 
 
 def parse_args():
@@ -339,7 +338,7 @@ def gaussbroad(x, y, hwhm):
     return sout  # return broadened spectrum.
 
 
-def polyfit2d(x, y, z, degree=1, plot=False):
+def polyfit2d(x, y, z, degree=1, plot=False, regularization=0):
     """A simple 2D plynomial fit to data x, y, z
 
     Parameters
@@ -377,10 +376,15 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
     A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
-    z = z.flatten()
+    b = z.flatten()
+
+    # if np.ma.is_masked(z):
+    #     mask = z.mask
+    #     b = z.compressed()
+    #     A = A[~mask, :]
 
     # Do least squares fit
-    C, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
+    C, *_ = np.linalg.lstsq(A, b, rcond=-1)
 
     # Reorder coefficients into numpy compatible 2d array
     for k, (i, j) in enumerate(idx):
