@@ -10,6 +10,7 @@ from itertools import product
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from astropy import time, coordinates as coord, units as u
 from mpl_toolkits.mplot3d import Axes3D
 import scipy.constants
 import scipy.interpolate
@@ -17,11 +18,8 @@ from scipy.linalg import solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
-
-
 from PyReduce.clipnflip import clipnflip
 from PyReduce.instruments.instrument_info import modeinfo
-
 
 
 def parse_args():
@@ -338,7 +336,7 @@ def gaussbroad(x, y, hwhm):
     return sout  # return broadened spectrum.
 
 
-def polyfit2d(x, y, z, degree=1, plot=False, regularization=0):
+def polyfit2d(x, y, z, degree=1, plot=False):
     """A simple 2D plynomial fit to data x, y, z
 
     Parameters
@@ -817,3 +815,61 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
         aa = solve(aaa, y)  # solve the linear system ax=b.
         aa.shape = nc, nr  # restore the shape of the result.
         return aaa
+
+
+def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric"):
+    """
+    calculates heliocentric Julian date, barycentric and heliocentric radial
+    velocity corrections, using astropy functions
+
+    Parameters
+    ---------
+    obs_long : float
+        Longitude of observatory (degrees, western direction is positive)
+    obs_lat : float
+        Latitude of observatory (degrees)
+    obs_alt : float
+        Altitude of observatory (meters)
+    ra2000 : float
+        Right ascension of object for epoch 2000.0 (hours)
+    dec2000 : float
+        Declination of object for epoch 2000.0 (degrees)
+    jd : float
+        Julian date for the middle of exposure
+    system : {"barycentric", "heliocentric"}, optional
+        reference system of the result, barycentric: around earth-sun gravity center, 
+        heliocentric: around sun, usually barycentric is preferred (default: "barycentric)
+
+    Returns
+    -------
+    correction : float
+        radial velocity correction due to barycentre offset
+    hjd : float
+        Heliocentric Julian date for middle of exposure
+    """
+
+    jd = 2400000. + jd
+    jd = time.Time(jd, format="jd")
+
+    ra = coord.Longitude(ra2000, unit=u.hour)
+    dec = coord.Latitude(dec2000, unit=u.degree)
+
+    observatory = coord.EarthLocation.from_geodetic(obs_long, obs_lat, height=obs_alt)
+    sky_location = coord.SkyCoord(
+        ra, dec, obstime=jd, location=observatory, radial_velocity=0 * u.km / u.s
+    )
+    times = time.Time(jd, location=observatory)
+
+
+    if system == "barycentric":
+        correction = sky_location.radial_velocity_correction().to(u.km / u.s).value
+        ltt = times.light_travel_time(sky_location)
+    elif system == "heliocentric":
+        correction = sky_location.radial_velocity_correction("heliocentric").to(u.km / u.s).value
+        ltt = times.light_travel_time(sky_location, "heliocentric")
+    else:
+        raise AttributeError("Could not parse system, values are: ('barycentric', 'heliocentric')")
+
+    times = (times.utc + ltt).value - 2400000
+
+    return correction, times
