@@ -9,18 +9,21 @@ from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from cwrappers import find_clusters
+from scipy.ndimage.filters import gaussian_filter
+from skimage import measure, filters, morphology
+
+from PyReduce.cwrappers import find_clusters
 
 
 def merge_clusters(
-    shape, orders, x, y, n_clusters, threshold=100, manual=False, plot=False
+    img, orders, x, y, n_clusters, threshold=100, manual=True, plot=False
 ):
     """Merge clusters that belong together
     
     Parameters
     ----------
-    shape : tuple(int, int)
-        shape of the image, (row, column)
+    img : array[nrow, ncol]
+        the image the order trace is based on
     orders : dict(int, array(float))
         coefficients of polynomial fits to clusters
     x : dict(int, array(int))
@@ -44,7 +47,7 @@ def merge_clusters(
         number of identified clusters
     """
 
-    n_row, n_col = shape
+    n_row, n_col = img.shape
 
     x_poly = np.arange(n_col, dtype=int)
     y_poly = {i: np.polyval(order, x_poly) for i, order in orders.items()}
@@ -69,8 +72,9 @@ def merge_clusters(
     # determine cluster limits
     cluster_limit = {i: (np.min(y[i]), np.max(y[i])) for i in n_clusters}
 
+    # TODO: Optimize this, quite slow for many clusters
     # for each pair of clusters
-    # merge = [[overlap, other cluster, overlap region limits[2]]]
+    # merge = [[cluster1, cluster2, overlap, overlap region limits[2]]]
     merge = []
     for i, j in combinations(n_clusters, 2):
         # Get cluster limits
@@ -107,41 +111,49 @@ def merge_clusters(
 
     merge = np.array(merge)
 
+    if len(merge) == 0:
+        # No merging necessary
+        return x, y, n_clusters
+
     # Cut small overlaps
     # TODO: convert overlap into percentage
     merge = merge[merge[:, 2] > threshold]
     # TODO fix merges, so that everycluster ends up in the right group
     # e.g. if more than 3 groups merge together, they should all end up in the same one
-    merge = merge[np.argsort(merge[:, 0])]
+    merge = merge[np.argsort(merge[:, 2])]
     delete = []
     if manual:
         plt.ion()
-    for before, after, overlap, _, _ in merge:
-        if plot or manual:
-            plot_order(before, after, x, y, x_poly, y_poly, shape)
+    for before, after, overlap, region0, region1 in merge:
+        if region1 - region0 > 0.9 * (
+            cluster_limit[before][1] - cluster_limit[before][0]
+        ) or region1 - region0 > 0.9 * (
+            cluster_limit[after][1] - cluster_limit[after][0]
+        ):
+            # merge automatically
+            answer = "y"
+        elif manual:
+            plot_order(before, after, x, y, x_poly, y_poly, img)
 
-        while True:
-            if manual:
-                answer = input("Merge? [y/n]")
-            else:
-                answer = "y"
+            while True:
+                if manual:
+                    answer = input("Merge? [y/n]")
+                if answer in "ynrg":
+                    break
+        else:
+            answer = "y"
 
-            if answer == "n":
-                break
-            elif answer == "y":
-                logging.info("Merging orders %i and %i", before, after)
-                y[after] = np.concatenate((y[after], y[before]))
-                x[after] = np.concatenate((x[after], x[before]))
-                delete += [before]
-                break
-            elif answer == "r":
-                delete += [before]
-                break
-            elif answer == "g":
-                delete += [after]
-                break
-            else:
-                print("Choose one")
+        if answer == "n":
+            pass
+        elif answer == "y":
+            logging.info("Merging orders %i and %i", before, after)
+            y[after] = np.concatenate((y[after], y[before]))
+            x[after] = np.concatenate((x[after], x[before]))
+            delete += [before]
+        elif answer == "r":
+            delete += [before]
+        elif answer == "g":
+            delete += [after]
 
     if manual:
         plt.close()
@@ -195,26 +207,34 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
     plt.title("Clusters")
 
-    for i, order in enumerate(orders):
-        x = np.arange(*order_range[i], 1)
-        y = np.polyval(order, x)
-        plt.plot(x, y)
+    if orders is not None:
+        for i, order in enumerate(orders):
+            x = np.arange(*order_range[i], 1)
+            y = np.polyval(order, x)
+            plt.plot(x, y)
 
     plt.ylim([0, im.shape[0]])
     plt.show()
 
 
-def plot_order(i, j, x, y, x_poly, y_poly, shape):
+def plot_order(i, j, x, y, x_poly, y_poly, img):
     """ Plot a single order """
     plt.clf()
+    plt.imshow(img)
     plt.plot(x_poly, y_poly[i], "r")
     plt.plot(x_poly, y_poly[j], "g")
     plt.plot(y[i], x[i], "r.")
     plt.plot(y[j], x[j], "g.")
 
-    n_row, n_col = shape
-    plt.xlim([0, n_col])
-    plt.ylim([0, n_row])
+    n_row, n_col = img.shape
+    xmin = min(np.min(x[i]), np.min(x[j])) - 50
+    xmax = max(np.max(x[i]), np.max(x[j])) + 50
+
+    ymin = min(np.min(y[i]), np.min(y[j])) - 50
+    ymax = max(np.max(y[i]), np.max(y[j])) + 50
+
+    plt.xlim([ymin, ymax])
+    plt.ylim([xmin, xmax])
 
     plt.show()
 
@@ -247,26 +267,50 @@ def mark_orders(
         order tracing coefficients (in numpy order, i.e. largest exponent first)
     """
 
-    # Getting x and y coordinates of all pixels sticking above the filtered image
-    x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)
-    # disregard borders of the image
-    clusters[(x == 0) | (y == 0) | (x == im.shape[1] - 1) | (y == im.shape[0] - 1)] = 0
-    if n_clusters == 0:
-        raise Exception("No clusters found")
 
-    # Reorganize x, y, clusters into a more convenient "pythonic" format
-    # x, y become dictionaries, with an entry for each order
-    # n is just a list of all orders (ignore cluster == 0)
+    # TODO: threshold method?
+    # TODO: removal of bad orders?
+
+    threshold = filters.threshold_yen(im)
+    mask = im > threshold
+    mask = morphology.closing(mask, morphology.square(3))
+    clusters, n_clusters = measure.label(mask, background=0, return_num=True)
+
+    # remove small clusters
+    for i in range(1, n_clusters + 1):
+        size = np.count_nonzero(clusters == i)
+        if size < min_cluster:
+            clusters[clusters == i] = 0
+            n_clusters -= 1
+
+    if plot:
+        plt.imshow(clusters, origin="lower")
+        plt.show()
+
+    # # Getting x and y coordinates of all pixels sticking above the filtered image
+    # x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)
+    # # disregard borders of the image
+    # clusters[(x == 0) | (y == 0) | (x == im.shape[1] - 1) | (y == im.shape[0] - 1)] = 0
+    # if n_clusters == 0:
+    #     raise Exception("No clusters found")
+
+    # # Reorganize x, y, clusters into a more convenient "pythonic" format
+    # # x, y become dictionaries, with an entry for each order
+    # # n is just a list of all orders (ignore cluster == 0)
     n = np.unique(clusters)
     n = n[n != 0]
-    x = {c: x[clusters == c] for c in n}
-    y = {c: y[clusters == c] for c in n}
+    x = {i: np.where(clusters == c)[0] for i, c in enumerate(n)}
+    y = {i: np.where(clusters == c)[1] for i, c in enumerate(n)}
+    n = np.arange(len(n))
+
+    if plot:
+        plot_orders(im, x, y, n, None, None)
 
     # fit polynomials
-    orders = fit_polynomials_to_clusters(x, y, n, opower)
+    orders = fit_polynomials_to_clusters(x, y, n, 2)
 
     # Merge clusters
-    x, y, n = merge_clusters(im.shape, orders, x, y, n, plot=plot, manual=manual)
+    x, y, n = merge_clusters(im, orders, x, y, n, plot=plot, manual=manual)
 
     orders = fit_polynomials_to_clusters(x, y, n, opower)
 
