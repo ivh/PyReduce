@@ -116,6 +116,7 @@ class UVES(instrument):
         ob = np.zeros(len(files), dtype="U20")
         ty = np.zeros(len(files), dtype="U20")
         mo = np.zeros(len(files), dtype="U20")
+        setting = np.zeros(len(files), dtype="U20")
         nights = np.zeros(len(files), dtype=datetime)
         instr = np.zeros(len(files), dtype="U20")
 
@@ -130,6 +131,7 @@ class UVES(instrument):
             )
             nights[i] = parser.parse(h[info["date"]])
             instr[i] = h[info["instrument"]]
+            setting[i] = h.get(info["wavecal_specifier"], "-")
 
             # Fix naming
             nights[i] = observation_date_to_night(nights[i])
@@ -139,11 +141,24 @@ class UVES(instrument):
 
         selection = (instr == instrument) & (nights == night) & (mo == mode_id)
         # TODO allow several names for the target?
-        biaslist =  files[(ty == info["id_bias"]) & selection]
-        flatlist =  files[(ty == info["id_flat"]) & selection]
-        wavelist =  files[(ob == info["id_wave"]) & selection]
-        orderlist = files[(ob == info["id_orders"]) & selection]
-        speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
+        bias =  files[(ty == info["id_bias"]) & selection]
+        # flatlist =  files[(ty == info["id_flat"]) & selection]
+        # wavelist =  files[(ob == info["id_wave"]) & selection]
+        # orderlist = files[(ob == info["id_orders"]) & selection]
+        # speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
+
+        biaslist, flatlist, wavelist, orderlist, speclist = {}, {}, {}, {}, {}
+
+        index = setting[(ty == info["id_spec"]) & (ob == target) & selection]
+        index = np.unique(index)
+        index = index[index != "-"]
+        for wavelength in index:
+            selection = (instr == instrument) & (nights == night) & (mo == mode_id) & (setting == wavelength)
+            biaslist[wavelength] = bias
+            flatlist[wavelength] = files[(ty == info["id_flat"]) & selection]
+            orderlist[wavelength] = files[(ty == info["id_orders"]) & selection]
+            wavelist[wavelength] = files[(ob == info["id_wave"]) & selection]
+            speclist[wavelength] = files[(ty == info["id_spec"]) & (ob == target) & selection]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
 

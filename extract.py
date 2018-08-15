@@ -19,9 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 
-from cwrappers import slitfunc, slitfunc_curved
-from estimate_background_scatter import estimate_background_scatter
-from util import cutout_image, make_index
+from PyReduce.cwrappers import slitfunc, slitfunc_curved
+from PyReduce import estimate_background_scatter
+from PyReduce.util import cutout_image, make_index
 
 # TODO put the plotting somewhere else
 
@@ -620,7 +620,9 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
     return y_lower_lim, y_upper_lim
 
 
-def optimal_extraction(img, orders, extraction_width, column_range, scatter, **kwargs):
+def optimal_extraction(
+    img, orders, extraction_width, column_range, scatter, shear, **kwargs
+):
     """ Use optimal extraction to get spectra
 
     This functions just loops over the orders, the actual work is done in extract_spectrum
@@ -666,9 +668,7 @@ def optimal_extraction(img, orders, extraction_width, column_range, scatter, **k
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
-        yrange = get_y_scale(
-            ycen, column_range[onum], extraction_width[onum], nrow
-        )
+        yrange = get_y_scale(ycen, column_range[onum], extraction_width[onum], nrow)
 
         spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(
             img,
@@ -676,6 +676,7 @@ def optimal_extraction(img, orders, extraction_width, column_range, scatter, **k
             yrange,
             column_range[onum],
             scatter=scatter[i],
+            shear=shear[i],
             ord_num=onum - 1,
             **kwargs
         )
@@ -766,7 +767,11 @@ def arc_extraction(
 
     if plot:
         plt.imshow(
-            output, vmin=0, vmax=np.mean(output) + 5 * np.std(output), origin="lower"
+            output,
+            vmin=0,
+            vmax=np.mean(output) + 5 * np.std(output),
+            origin="lower",
+            aspect="auto",
         )
 
         for i in range(nord - 2):
@@ -926,6 +931,7 @@ def extract(
     extraction_width=0.5,
     extraction_type="optimal",
     polarization=False,
+    shear=None,
     **kwargs
 ):
     """
@@ -969,6 +975,8 @@ def extract(
 
     nrow, ncol = img.shape
     nord, opower = orders.shape
+    if shear is None:
+        shear = np.zeros((nord, ncol))
     if order_range is None:
         order_range = (0, nord - 1)
     if column_range is None:
@@ -988,6 +996,7 @@ def extract(
         xscatter = xscatter[order_range[0] : order_range[1] + 2]
     if yscatter is not None:
         yscatter = yscatter[order_range[0] : order_range[1] + 2]
+    shear = shear[order_range[0] : order_range[1] + 1]
 
     # Extend orders and related properties
 
@@ -1022,7 +1031,13 @@ def extract(
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
-            img, orders, extraction_width, column_range, scatter=scatter, **kwargs
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            scatter=scatter,
+            shear=shear,
+            **kwargs
         )
     elif extraction_type == "normalize":
         # TODO
@@ -1038,6 +1053,7 @@ def extract(
             extraction_width,
             column_range,
             scatter=scatter,
+            shear=shear,
             normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,

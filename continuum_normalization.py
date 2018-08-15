@@ -106,7 +106,7 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
             tmpU1 = bezier_interp(w0, u0, w1[i1])
 
             # Weights depend on the direction of the orders
-            if iord0 > iord1:
+            if np.mean(i0) > np.mean(i1): #i0 is left of i1
                 wgt0 = np.linspace(1, 0, i0[0].size)
                 wgt1 = np.linspace(0, 1, i1[0].size)
             else:

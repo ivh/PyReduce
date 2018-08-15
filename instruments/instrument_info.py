@@ -26,8 +26,8 @@ def load_instrument(instrument):
     # instrument = instruments[instrument.lower()]
     # instrument = instrument()
 
-    fname = "instruments.%s" % instrument.lower()
-    lib = importlib.import_module(fname)
+    fname = ".instruments.%s" % instrument.lower()
+    lib = importlib.import_module(fname, package="PyReduce")
     instrument = getattr(lib, instrument.upper())
     instrument = instrument()
 

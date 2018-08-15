@@ -1,0 +1,32 @@
+{
+    "__instrument__": "HARPS",
+    
+    "polarim": false,
+    "plot": true,
+    "fiber": "A",
+    "use_median": false,
+    
+    "orders_opower": 4,
+    "orders_filter": 1000,
+    "orders_threshold": 200,
+    "orders_noise": 1,
+    "orders_manual": true,
+
+    "normflat_sf_smooth": 4,
+    "normflat_osample_norm_flat": 10,
+    "normflat_swath_width": 200,
+    "normflat_threshold": 10000,
+    
+    "wavecal_osample": 1,
+    "wavecal_extraction_width" : 2,
+    "wavecal_manual": false,
+    
+    "science_extraction_width" : 10,
+    "science_osample": 10,
+    "science_swath_width": 300,
+    "science_lambda_sf": 20,
+    "science_lambda_sp": 0.0,
+
+    "continuum_parameters_pass1" : [1, 1e5, 1e7, 1],
+    "continuum_parameters_pass2" : [10, 1e5, 1e7, 1]
+}

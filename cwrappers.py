@@ -7,11 +7,11 @@ import numpy as np
 import logging
 import matplotlib.pyplot as plt
 
-import clib._slitfunc_bd.lib as slitfunclib
-import clib._slitfunc_2d.lib as slitfunc_2dlib
-import clib._cluster.lib as clusterlib
+from .clib._slitfunc_bd import lib as slitfunclib
+from .clib._slitfunc_2d import lib as slitfunc_2dlib
+from .clib._cluster import lib as clusterlib
 
-from clib._cluster import ffi
+from .clib._cluster import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
@@ -50,7 +50,7 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     filter_size = int(filter_size)
     noise = float(noise)
 
-    mask = ~np.ma.getmaskarray(img)
+    mask = ~np.ma.getmaskarray(img).astype(int)
     mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
 
     img = np.ma.getdata(img)
@@ -61,14 +61,14 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
 
     # Find all pixels above the threshold
     n = clusterlib.locate_clusters(
-        nX,
-        nY,
-        filter_size,
+        ffi.cast("int", nX),
+        ffi.cast("int", nY),
+        ffi.cast("int", filter_size),
         ffi.cast("int *", img.ctypes.data),
-        nmax,
+        ffi.cast("int", nmax),
         ffi.cast("int *", x.ctypes.data),
         ffi.cast("int *", y.ctypes.data),
-        noise,
+        ffi.cast("float", noise),
         ffi.cast("int *", mask.ctypes.data),
     )
 
@@ -87,10 +87,10 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     nclus = clusterlib.cluster(
         ffi.cast("int *", x.ctypes.data),
         ffi.cast("int *", y.ctypes.data),
-        n,
-        nX,
-        nY,
-        min_cluster,
+        ffi.cast("int", n),
+        ffi.cast("int", nX),
+        ffi.cast("int", nY),
+        ffi.cast("int", min_cluster),
         ffi.cast("int *", clusters.ctypes.data),
     )
 
@@ -123,6 +123,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     """
 
     # Get dimensions
+    lambda_sf = float(lambda_sf)
+    lambda_sp = float(lambda_sp)
+    osample = int(osample)
 
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
@@ -185,6 +188,10 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     sp, sl, model, unc
         spectrum, slitfunction, model, spectrum uncertainties
     """
+
+    lambda_sf = float(lambda_sf)
+    lambda_sp = float(lambda_sp)
+    osample = int(osample)
 
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1

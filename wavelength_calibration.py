@@ -5,6 +5,7 @@ Loosely bases on the IDL wavecal function
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from numpy.polynomial.polynomial import polyval2d
 import logging
 
@@ -14,10 +15,8 @@ from scipy import signal
 from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
-from instruments import instrument_info
-
-import matplotlib.pyplot as plt
-import util
+from PyReduce.instruments import instrument_info
+from PyReduce import util
 
 
 class AlignmentPlot:
@@ -143,7 +142,8 @@ def align(thar, cs_lines, manual=False, plot=False):
             np.argmax(correlation), correlation.shape
         )
 
-        offset_order = 2 * offset_order - thar.shape[0] + min_order + 1
+        # TODO: what?
+        offset_order = 2 * (offset_order + 1) - thar.shape[0] + min_order
         offset_x = offset_x - thar.shape[1] / 2
         offset = int(offset_order), int(offset_x)
 
@@ -180,7 +180,7 @@ def build_2d_solution(cs_lines, plot=False):
     # 2d polynomial fit with: x = column, y = order, z = wavelength
     #coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
 
-    degree_x, degree_y = 5, 5
+    degree_x, degree_y = 6, 6
     degree_x, degree_y = degree_x + 1, degree_y + 1  # Due to how np polyval2d workss
 
     def func(x, *c):
@@ -194,9 +194,6 @@ def build_2d_solution(cs_lines, plot=False):
     )
     coef.shape = degree_x, degree_y
     return coef
-
-    
-
 
 def make_wave(thar, wave_solution, plot=False):
     """Expand polynomial wavelength solution into full image
@@ -352,7 +349,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     return cs_lines
 
 
-def wavecal(thar, cs_lines, plot=True, manual=False):
+def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
     """Wavelength calibration wrapper
 
     Parameters
@@ -379,6 +376,13 @@ def wavecal(thar, cs_lines, plot=True, manual=False):
     thar /= np.max(thar)
 
     cs_lines.height /= np.max(cs_lines.height)
+
+    # TODO: reverse orders?
+    max_order = np.max(cs_lines.order)
+    cs_lines.order = max_order - cs_lines.order
+
+    if polarim:
+        raise NotImplementedError("polarized orders not impemented yet")
 
     # Step 1: align thar and reference
     offset = align(thar, cs_lines, plot=plot, manual=manual)

@@ -31,18 +31,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
 
-import echelle
-import util
+import PyReduce.echelle as echelle
+import PyReduce.util as util
 
 # PyReduce subpackages
-from combine_frames import combine_bias, combine_flat
-from continuum_normalization import splice_orders
-from extract import extract
-from instruments import instrument_info
-from normalize_flat import normalize_flat
-from trace_orders import mark_orders
-from wavelength_calibration import wavecal
-from make_shear import make_shear
+from PyReduce.combine_frames import combine_bias, combine_flat
+from PyReduce.continuum_normalization import splice_orders
+from PyReduce.extract import extract
+from PyReduce.instruments import instrument_info
+from PyReduce.normalize_flat import normalize_flat
+from PyReduce.trace_orders import mark_orders
+from PyReduce.wavelength_calibration import wavecal
+from PyReduce.make_shear import make_shear
 
 # from getxwd import getxwd
 
@@ -51,18 +51,20 @@ from make_shear import make_shear
 # TODO use masked array instead of column_range ? or use a mask instead of column range
 # TODO figure out relative imports
 # TODO Naming of functions and modules
+# TODO License
+
 
 def main(
-    instrument="UVES",
-    target="HD132205",
+    instrument="HARPS",
+    target="WASP-21",
     steps=(
         # "bias",
         # "flat",
         # "orders",
         # "norm_flat",
-        "wavecal",
+        #"wavecal",
         # "science",
-        # "continuum",
+        #"continuum",
     ),
 ):
     """
@@ -85,8 +87,9 @@ def main(
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
     # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
-    input_dir = "./Test/{instrument}/{target}/raw/{night}"
-    output_dir = "./Test/{instrument}/{target}/reduced/{night}/Reduced_{mode}"
+    base_dir = "/DATA/ESO_Archive/"
+    input_dir = base_dir + "{instrument}/{target}/raw/{night}"
+    output_dir = base_dir + "{instrument}/{target}/reduced/{night}/Reduced_{mode}"
 
     log_file = "logs/%s.log" % target
     util.start_logging(log_file)
@@ -98,7 +101,7 @@ def main(
     info = instrument_info.get_instrument_info(instrument)
 
     # TODO: Test settings
-    config["plot"] = True
+    #config["plot"] = True
     config["manual"] = True
     modes = info["modes"][1:2]
 
@@ -114,21 +117,66 @@ def main(
         logging.info("Observation Date: %s", night)
         for mode in modes:
             logging.info("Instrument Mode: %s", mode)
-            run_steps(
-                input_dir,
-                output_dir,
-                target,
-                instrument,
-                mode,
-                night,
-                config,
-                info,
-                steps=steps,
+
+            input_dir_night = input_dir.format(
+                instrument=instrument, target=target, night=night, mode=mode
             )
+
+            # find input files and sort them by type
+            files = glob.glob(join(input_dir_night, "%s.*.fits" % instrument))
+            files += glob.glob(join(input_dir_night, "%s.*.fits.gz" % instrument))
+            files = np.array(files)
+
+            f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
+                files, "SW2309+1823", night, instrument, mode, **config
+            )
+            logging.debug("Bias files:\n%s", str(f_bias))
+            logging.debug("Flat files:\n%s", str(f_flat))
+            logging.debug("Wavecal files:\n%s", str(f_wave))
+            logging.debug("Orderdef files:\n%s", str(f_order))
+            logging.debug("Science files:\n%s", str(f_spec))
+
+            if isinstance(f_spec, dict):
+                for key, value in f_spec:
+                    run_steps(
+                        f_bias[key],
+                        f_flat[key],
+                        f_wave[key],
+                        f_order[key],
+                        f_spec[key],
+                        output_dir,
+                        target,
+                        instrument,
+                        mode,
+                        night,
+                        config,
+                        info,
+                        steps=steps,
+                    )
+            else:
+                run_steps(
+                    f_bias,
+                    f_flat,
+                    f_wave,
+                    f_order,
+                    f_spec,
+                    output_dir,
+                    target,
+                    instrument,
+                    mode,
+                    night,
+                    config,
+                    info,
+                    steps=steps,
+                )
 
 
 def run_steps(
-    input_dir,
+    f_bias,
+    f_flat,
+    f_wave,
+    f_order,
+    f_spec,
     output_dir,
     target,
     instrument,
@@ -175,9 +223,6 @@ def run_steps(
     prefix = "%s_%s" % (instrument.lower(), mode.lower())
 
     # define paths
-    input_dir = input_dir.format(
-        instrument=instrument, target=target, night=night, mode=mode
-    )
     output_dir = output_dir.format(
         instrument=instrument, target=target, night=night, mode=mode
     )
@@ -194,20 +239,6 @@ def run_steps(
     # create output folder structure if necessary
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
-    # find input files and sort them by type
-    files = glob.glob(join(input_dir, "%s.*.fits" % instrument))
-    files += glob.glob(join(input_dir, "%s.*.fits.gz" % instrument))
-    files = np.array(files)
-
-    f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
-        files, target, night, instrument, mode, **config
-    )
-    logging.debug("Bias files:\n%s", str(f_bias))
-    logging.debug("Flat files:\n%s", str(f_flat))
-    logging.debug("Wavecal files:\n%s", str(f_wave))
-    logging.debug("Orderdef files:\n%s", str(f_order))
-    logging.debug("Science files:\n%s", str(f_spec))
 
     # ==========================================================================
     # Read mask
@@ -292,7 +323,7 @@ def run_steps(
             lambda_sf=config.get("normflat_sf_smooth", 8),
             lambda_sp=config.get("normflat_sp_smooth", 0),
             swath_width=config.get("normflat_swath_width", None),
-            plot=False,  # config.get("plot", True),
+            plot=config.get("plot", True),
         )
 
         # Save data
@@ -307,6 +338,10 @@ def run_steps(
 
         with open(blaze_file, "rb") as file:
             blaze = pickle.load(file)
+
+    # Fix column ranges
+    for i in range(blaze.shape[0]):
+        column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
 
     # ==========================================================================
     # Prepare wavelength calibration
@@ -338,14 +373,16 @@ def run_steps(
             )
             thead["obase"] = (order_range[0], "base order number")
 
-            shear = make_shear(
-                thar,
-                orig,
-                orders,
-                extraction_width=config.get("wavecal_extraction_width", 0.25),
-                column_range=column_range,
-                plot=config.get("plot", True),
-            )
+            # TODO: where to put this?
+            # shear = make_shear(
+            #     thar,
+            #     orig,
+            #     orders,
+            #     extraction_width=config.get("wavecal_extraction_width", 0.25),
+            #     column_range=column_range,
+            #     plot=config.get("plot", True),
+            # )
+            shear = np.zeros_like(thar)
 
             # Create wavelength calibration fit
             # TODO just save the coefficients?
@@ -397,7 +434,7 @@ def run_steps(
                 lambda_sp=config.get("science_lambda_sp", 0),
                 osample=config.get("science_osample", 1),
                 swath_width=config.get("science_swath_width", 300),
-                plot=False,  # config.get("plot", True),
+                plot=config.get("plot", True),
             )
             head["obase"] = (order_range[0], " base order number")
 
@@ -415,6 +452,17 @@ def run_steps(
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
+            logging.info("Remove outliers")
+            for i in range(spec.shape[0]):
+                cr = column_range[i]
+                tmp = spec[i, cr[0] : cr[1]] / blaze[i, cr[0] : cr[1]]
+                selection = tmp < np.nanmedian(tmp) * 1.3
+                spec[i, cr[0] : cr[1]] = util.bezier_interp(
+                    wave[i, cr[0] : cr[1]][selection],
+                    spec[i, cr[0] : cr[1]][selection],
+                    wave[i, cr[0] : cr[1]],
+                )
+
             logging.info("Splicing orders")
             spec, wave, blaze, sigma = splice_orders(
                 spec,
@@ -428,7 +476,14 @@ def run_steps(
 
     # Combine science with wavecal and continuum
     for f in f_spec:
-        fname = util.swap_extension(f, ".ech", path=output_dir)
+        head["e_error_scale"] = "absolute"
+
+        rv_corr, bjd = util.helcorr(head["e_obslon"], head["e_obslat"], head["e_obsalt"], head["ra"], head["dec"], head["e_jd"])
+        head["barycorr"] = rv_corr
+        head["e_jd"] = bjd
+
+        fname = "{instrument}.{night}.ech".format(instrument=instrument.upper(), night=night)
+        fname = os.path.join(output_dir, fname)
         echelle.save(
             fname,
             head,
@@ -438,7 +493,7 @@ def run_steps(
             wave=wave,
             columns=column_range,
         )
-        logging.info("science file: %s", os.path.basename(nameout))
+        logging.info("science file: %s", os.path.basename(fname))
         logging.debug("--------------------------------")
 
 

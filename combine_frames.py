@@ -14,9 +14,9 @@ import numpy as np
 from dateutil import parser
 from scipy.ndimage.filters import median_filter
 
-from clipnflip import clipnflip
-from instruments.instrument_info import get_instrument_info
-from util import gaussbroad, gaussfit, load_fits
+from PyReduce.clipnflip import clipnflip as clipnflip
+from PyReduce.instruments.instrument_info import get_instrument_info
+from PyReduce.util import gaussbroad, gaussfit, load_fits
 
 
 def running_median(arr, size):

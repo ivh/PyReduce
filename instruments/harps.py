@@ -55,11 +55,14 @@ class HARPS(instrument):
             "target": "OBJECT",
             "observation_type": "ESO DPR TYPE",
             "id_bias": "BIAS,BIAS",
-            "id_flat": "FLAT,FLAT",
-            "id_wave": "WAVE,WAVE, THAR2",
+            "id_flat": "LAMP,LAMP,TUN",
+            "id_wave": "WAVE,WAVE,THAR2",
             "id_spec": "STAR,SKY,M",
             "id_fiber_a": "LAMP,DARK,TUN",
             "id_fiber_b": "DARK,LAMP,TUN",
+
+            "instrument_mode": "ESO INS MODE",
+            "instrument_mode_alternative": "ESO TPL NAME",
         }
         return info
 
@@ -68,21 +71,25 @@ class HARPS(instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
+        header["e_orient"] = 5
 
-        header["e_ra"] /= 15
-        header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
+        try:
+            header["e_ra"] /= 15
+            header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
 
-        pol_angle = header.get("eso ins ret25 pos")
-        if pol_angle is None:
-            pol_angle = header.get("eso ins ret50 pos")
+            pol_angle = header.get("eso ins ret25 pos")
             if pol_angle is None:
-                pol_angle = "no polarimeter"
+                pol_angle = header.get("eso ins ret50 pos")
+                if pol_angle is None:
+                    pol_angle = "no polarimeter"
+                else:
+                    pol_angle = "lin %i" % pol_angle
             else:
-                pol_angle = "lin %i" % pol_angle
-        else:
-            pol_angle = "cir %i" % pol_angle
+                pol_angle = "cir %i" % pol_angle
 
-        header["e_pol"] = (pol_angle, "polarization angle")
+            header["e_pol"] = (pol_angle, "polarization angle")
+        except:
+            pass
 
         return header
 
@@ -102,13 +109,13 @@ class HARPS(instrument):
         """
         info = self.load_info()
         target = target.upper()
-        instrument = "UVES".casefold()
+        instrument = "HARPS".casefold()
         night = parser.parse(night).date()
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
         i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
-        mode_id = info["modes_id"][i].casefold()
+        mode_id = info["modes"][i].casefold()
 
         ob = np.zeros(len(files), dtype="U20")
         ty = np.zeros(len(files), dtype="U20")
@@ -145,19 +152,19 @@ class HARPS(instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
-        selection = (instr == instrument) & (nights == night) & (mo == mode_id)
+        selection = (instr == instrument) & (nights == night)
         # TODO allow several names for the target?
         biaslist =  files[(ty == info["id_bias"]) & selection]
         flatlist =  files[(ty == info["id_flat"]) & selection]
         wavelist =  files[(ob == info["id_wave"]) & selection]
         orderlist = files[(ob == id_orddef) & selection]
-        speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
+        speclist = files[(ob == target) & selection]
 
         return biaslist, flatlist, wavelist, orderlist, speclist
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         fname = "./wavecal/{instrument}_{mode}_2D.sav".format(
-            instrument=instrument.lower(), mode=mode
+            instrument="harps", mode=mode
         )
         return fname

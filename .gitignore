@@ -13,3 +13,4 @@ reduce.cprof
 .ipynb_checkpoints
 Pipfile.lock
 *.txt
+masks/*

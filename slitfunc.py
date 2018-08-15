@@ -9,7 +9,7 @@ import logging
 from scipy.linalg import solve_banded
 import sparse
 
-from util import make_index
+from .util import make_index
 
 
 def slitfunc(

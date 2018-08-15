@@ -152,21 +152,6 @@ int locate_clusters(int nX, int nY, int filter, int * im, int nmax, int *x, int 
   int iX, iY, half, has_mask, n;
   float offset, box, nbox;
 
-  //if(argc<7) return -1;
-  //nX    =*(int *)argv[0];
-  //nY    =*(int *)argv[1];
-  //filter=*(int *)argv[2];
-  //im    = (int *)argv[3];
-  //nmax  =*(int *)argv[4];
-  //x     = (int *)argv[5];
-  //y     = (int *)argv[6];
-  //noise = (argc>7)?*(float *)argv[7]:1.;
-  //if(argc>8)
-  //{
-  //  mask  = (unsigned char *)argv[8];
-  //  has_mask=1;
-  //}
-  //else has_mask=0;
   has_mask=1;
 
   n=0;
@@ -254,16 +239,8 @@ int cluster(int *x, int *y, int n, int nX, int nY, int thres, int *index)
   int min_clr, max_clr, clrs[9], *uniq_clr, *translation;
 
 
-  //if(argc<7) return -1;
-  //x=(int *)argv[0];
-  //y=(int *)argv[1];
-  //n=*(int *)argv[2];
   if(n<=0) return -2;
-  //nX=*(int *)argv[3];
-  //nY=*(int *)argv[4];
   if(n>nX*nY) return -4;
-  //thres=*(int *)argv[5];
-  //index=(int *)argv[6];
 
   dummy =(int *)malloc(n*sizeof(int));
   dummy1=(int *)malloc(n*sizeof(int));

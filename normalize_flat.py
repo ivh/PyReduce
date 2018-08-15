@@ -5,8 +5,8 @@ Module that normalizes the Flat field image to 1
 import numpy as np
 import logging
 
-from estimate_background_scatter import estimate_background_scatter
-from extract import extract
+from PyReduce.estimate_background_scatter import estimate_background_scatter
+from PyReduce.extract import extract
 
 
 def normalize_flat(img, orders, threshold=0.5, **kwargs):

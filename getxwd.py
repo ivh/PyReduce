@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from util import gaussfit
+from .util import gaussfit
 
 
 def getxwd(im, orc, colrange=None, gauss=False, pixels=False, givepixels=None, debug=False, plotall=False, plotzoom=0, zoomwid=200):

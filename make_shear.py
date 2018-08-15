@@ -23,8 +23,8 @@ import numpy as np
 from scipy import signal
 from scipy.optimize import curve_fit
 
-from extract import fix_extraction_width
-from util import make_index
+from PyReduce.extract import fix_extraction_width
+from PyReduce.util import make_index
 
 
 def gaussfit(x, y):

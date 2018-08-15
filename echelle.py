@@ -171,6 +171,9 @@ def read(
             nord, ncol = data[column][0].shape
 
     if not raw:
+        if hasattr(ech, "spec"):
+            ech.orders = np.arange(nord)
+
         # Wavelength
         if hasattr(ech, "wave"):
             ech.wave = expand_polynomial(ncol, ech.wave)
@@ -187,23 +190,36 @@ def read(
             speed_of_light = scipy.constants.speed_of_light * 1e-3
             ech.wave *= 1 + velocity_correction / speed_of_light
 
+
+
         # Continuum
         if hasattr(ech, "cont"):
             ech.cont = expand_polynomial(ncol, ech.cont)
-
-            # Apply continuum normalization
-            if continuum_normalization:
-                if hasattr(ech, "spec"):
-                    ech.spec /= ech.cont
-                if hasattr(ech, "sig"):
-                    ech.sig /= ech.cont
 
         # Create Mask, based on column range
         if hasattr(ech, "columns"):
             ech.mask = np.full((nord, ncol), False)
             for iord in range(nord):
-                ech.mask[: ech.columns[iord, 0]] = True
-                ech.mask[ech.columns[iord, 1] :] = True
+                ech.mask[iord, : ech.columns[iord, 0]] = True
+                ech.mask[iord, ech.columns[iord, 1] :] = True
+
+            if hasattr(ech, "spec"):
+                ech.spec = np.ma.masked_array(ech.spec, mask=ech.mask)
+            if hasattr(ech, "sig"):
+                ech.sig = np.ma.masked_array(ech.sig, mask=ech.mask)
+            if hasattr(ech, "cont"):
+                ech.cont = np.ma.masked_array(ech.cont, mask=ech.mask)
+            if hasattr(ech, "wave"):
+                ech.wave = np.ma.masked_array(ech.wave, mask=ech.mask)
+
+        # Apply continuum normalization
+        if continuum_normalization and hasattr(ech, "cont"):
+            if hasattr(ech, "spec"):
+                ech.spec /= ech.cont
+            if hasattr(ech, "sig"):
+                ech.sig /= ech.cont
+
+
 
     return ech
 

@@ -20,8 +20,8 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
-import extract
-from util import polyfit2d
+from PyReduce import extract
+from PyReduce.util import polyfit2d
 
 
 def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False, **kwargs):
