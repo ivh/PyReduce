@@ -837,7 +837,7 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
     jd : float
         Julian date for the middle of exposure
     system : {"barycentric", "heliocentric"}, optional
-        reference system of the result, barycentric: around earth-sun gravity center, 
+        reference system of the result, barycentric: around earth-sun gravity center,
         heliocentric: around sun, usually barycentric is preferred (default: "barycentric)
 
     Returns
@@ -855,21 +855,22 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
     dec = coord.Latitude(dec2000, unit=u.degree)
 
     observatory = coord.EarthLocation.from_geodetic(obs_long, obs_lat, height=obs_alt)
-    sky_location = coord.SkyCoord(
-        ra, dec, obstime=jd, location=observatory, radial_velocity=0 * u.km / u.s
-    )
+    sky_location = coord.SkyCoord(ra, dec, obstime=jd, location=observatory)
     times = time.Time(jd, location=observatory)
-
 
     if system == "barycentric":
         correction = sky_location.radial_velocity_correction().to(u.km / u.s).value
         ltt = times.light_travel_time(sky_location)
     elif system == "heliocentric":
-        correction = sky_location.radial_velocity_correction("heliocentric").to(u.km / u.s).value
+        correction = (
+            sky_location.radial_velocity_correction("heliocentric").to(u.km / u.s).value
+        )
         ltt = times.light_travel_time(sky_location, "heliocentric")
     else:
-        raise AttributeError("Could not parse system, values are: ('barycentric', 'heliocentric')")
+        raise AttributeError(
+            "Could not parse system, values are: ('barycentric', 'heliocentric')"
+        )
 
     times = (times.utc + ltt).value - 2400000
 
-    return correction, times
+    return -correction, times

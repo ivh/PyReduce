@@ -179,6 +179,8 @@ def read(
             ech.wave = expand_polynomial(ncol, ech.wave)
 
             # Correct for radial velocity and barycentric correction
+            # + : away from observer
+            # - : towards observer 
             velocity_correction = 0
             if barycentric_correction:
                 velocity_correction += header.get("barycorr", 0)

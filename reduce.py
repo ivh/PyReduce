@@ -36,7 +36,7 @@ import PyReduce.util as util
 
 # PyReduce subpackages
 from PyReduce.combine_frames import combine_bias, combine_flat
-from PyReduce.continuum_normalization import splice_orders
+from PyReduce.continuum_normalization import splice_orders, continuum_normalize
 from PyReduce.extract import extract
 from PyReduce.instruments import instrument_info
 from PyReduce.normalize_flat import normalize_flat
@@ -62,9 +62,9 @@ def main(
         # "flat",
         # "orders",
         # "norm_flat",
-        #"wavecal",
+        # "wavecal",
         # "science",
-        #"continuum",
+        "continuum",
     ),
 ):
     """
@@ -320,8 +320,8 @@ def run_steps(
             extraction_width=config.get("normflat_extraction_width", 0.2),
             degree=config.get("normflat_scatter_degree", 4),
             threshold=config.get("normflat_threshold", 10000),
-            lambda_sf=config.get("normflat_sf_smooth", 8),
-            lambda_sp=config.get("normflat_sp_smooth", 0),
+            lambda_sf=config.get("normflat_lambda_sf", 8),
+            lambda_sp=config.get("normflat_lambda_sp", 0),
             swath_width=config.get("normflat_swath_width", None),
             plot=config.get("plot", True),
         )
@@ -473,6 +473,8 @@ def run_steps(
                 scaling=True,
                 plot=config.get("plot", True),
             )
+
+            spec = continuum_normalize(spec, wave, blaze, sigma)
 
     # Combine science with wavecal and continuum
     for f in f_spec:

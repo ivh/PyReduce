@@ -2,7 +2,7 @@
     "__instrument__": "HARPS",
     
     "polarim": false,
-    "plot": true,
+    "plot": false,
     "fiber": "A",
     "use_median": false,
     
@@ -12,8 +12,9 @@
     "orders_noise": 1,
     "orders_manual": true,
 
-    "normflat_sf_smooth": 4,
-    "normflat_osample_norm_flat": 10,
+    "normflat_lambda_sf": 4,
+    "normflat_lambda_sp": 20,
+    "normflat_osample": 10,
     "normflat_swath_width": 200,
     "normflat_threshold": 10000,
     

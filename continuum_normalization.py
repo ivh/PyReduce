@@ -10,10 +10,7 @@ from itertools import chain
 import matplotlib.pyplot as plt
 import numpy as np
 
-try:
-    from .util import bezier_interp, top
-except ImportError:
-    from util import bezier_interp, top
+from PyReduce import util
 
 def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=False):
     """
@@ -97,13 +94,13 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         # Orders overlap
         if i0[0].size > 0 and i1[0].size > 0:
             # Interpolate the overlapping region onto the wavelength grid of the other order
-            tmpS0 = bezier_interp(w1, s1, w0[i0])
-            tmpB0 = bezier_interp(w1, c1, w0[i0])
-            tmpU0 = bezier_interp(w1, u1, w0[i0])
+            tmpS0 = util.bezier_interp(w1, s1, w0[i0])
+            tmpB0 = util.bezier_interp(w1, c1, w0[i0])
+            tmpU0 = util.bezier_interp(w1, u1, w0[i0])
 
-            tmpS1 = bezier_interp(w0, s0, w1[i1])
-            tmpB1 = bezier_interp(w0, c0, w1[i1])
-            tmpU1 = bezier_interp(w0, u0, w1[i1])
+            tmpS1 = util.bezier_interp(w0, s0, w1[i1])
+            tmpB1 = util.bezier_interp(w0, c0, w1[i1])
+            tmpU1 = util.bezier_interp(w0, u0, w1[i1])
 
             # Weights depend on the direction of the orders
             if np.mean(i0) > np.mean(i1): #i0 is left of i1
@@ -124,11 +121,11 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
 
         else:  # Orders dont overlap
             raise NotImplementedError("Orders don't overlap, please test")
-            c0 *= top(s0 / c0, 1, poly=True)
-            scale0 = top(s0 / c0, 1, poly=True)
+            c0 *= util.top(s0 / c0, 1, poly=True)
+            scale0 = util.top(s0 / c0, 1, poly=True)
             scale0 = np.polyfit(w0, scale0, 1)
 
-            scale1 = top(s1 / c1, 1, poly=True)
+            scale1 = util.top(s1 / c1, 1, poly=True)
             scale1 = np.polyfit(w1, scale1, 1)
 
             xx = np.linspace(np.min(w0), np.max(w1), 100)
@@ -155,19 +152,22 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
 
 def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
     # TODO
-    par = [10, 5e5, 1e-4, 5e6, 1e-4, 1]
 
-    spec /= cont
-    cont_B = 1
-    weight = np.full(spec.shape[1], 1.)
+    nord, ncol = spec.shape
 
-    for i in range(iterations):
-        for j in range(par[0]):
-            spec = top(spec, par[1], eps=par[2], WEIGHT=weight, LAM2=par[3])
-        spec = top(spec, par[1], eps=par[4], WEIGHT=weight, LAM2=par[3]) * cont_B
+    for i in range(nord):
+        m = np.ma.median(spec[i])
 
-        cont_B = spec * par[5]
-        # cont_B = middle(cont_B, 1.)
-        cont[:] = cont_B
 
-    pass
+
+    if plot:
+        order = 0
+        plt.plot(wave[order], spec[order], label="spec")
+        plt.plot(wave[order], cont[order], label="cont")
+        plt.legend(loc="best")
+        plt.xlabel("Wavelength [A]")
+        plt.ylabel("Flux")
+        plt.show()
+
+
+    return spec
