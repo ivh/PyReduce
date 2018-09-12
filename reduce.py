@@ -55,8 +55,8 @@ from PyReduce.make_shear import make_shear
 
 
 def main(
-    instrument="HARPS",
-    target="WASP-21",
+    instrument="UVES",
+    target="HD132205",
     steps=(
         # "bias",
         # "flat",
@@ -87,7 +87,8 @@ def main(
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
     # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
-    base_dir = "/DATA/ESO_Archive/"
+    #base_dir = "/DATA/ESO_Archive/"
+    base_dir = "./Test/"
     input_dir = base_dir + "{instrument}/{target}/raw/{night}"
     output_dir = base_dir + "{instrument}/{target}/reduced/{night}/Reduced_{mode}"
 
@@ -101,9 +102,9 @@ def main(
     info = instrument_info.get_instrument_info(instrument)
 
     # TODO: Test settings
-    #config["plot"] = True
+    config["plot"] = True
     config["manual"] = True
-    modes = info["modes"][1:2]
+    modes = [info["modes"][1]]
 
     # Search the available days
     dates = input_dir.format(instrument=instrument, target=target, night="????-??-??")
@@ -128,7 +129,7 @@ def main(
             files = np.array(files)
 
             f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
-                files, "SW2309+1823", night, instrument, mode, **config
+                files, target, night, instrument, mode, **config
             )
             logging.debug("Bias files:\n%s", str(f_bias))
             logging.debug("Flat files:\n%s", str(f_flat))
@@ -137,7 +138,7 @@ def main(
             logging.debug("Science files:\n%s", str(f_spec))
 
             if isinstance(f_spec, dict):
-                for key, value in f_spec:
+                for key, value in f_spec.items():
                     run_steps(
                         f_bias[key],
                         f_flat[key],
@@ -452,16 +453,9 @@ def run_steps(
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
         for f in f_spec:
-            logging.info("Remove outliers")
+            # fix column ranges
             for i in range(spec.shape[0]):
-                cr = column_range[i]
-                tmp = spec[i, cr[0] : cr[1]] / blaze[i, cr[0] : cr[1]]
-                selection = tmp < np.nanmedian(tmp) * 1.3
-                spec[i, cr[0] : cr[1]] = util.bezier_interp(
-                    wave[i, cr[0] : cr[1]][selection],
-                    spec[i, cr[0] : cr[1]][selection],
-                    wave[i, cr[0] : cr[1]],
-                )
+                column_range[i] = np.where(spec[i] != 0)[0][[0, -1]] + [0, 1]
 
             logging.info("Splicing orders")
             spec, wave, blaze, sigma = splice_orders(
@@ -474,7 +468,7 @@ def run_steps(
                 plot=config.get("plot", True),
             )
 
-            spec = continuum_normalize(spec, wave, blaze, sigma)
+            #spec = continuum_normalize(spec, wave, blaze, sigma)
 
     # Combine science with wavecal and continuum
     for f in f_spec:

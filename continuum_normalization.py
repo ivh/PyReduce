@@ -65,7 +65,7 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         cont *= scale[:, None]
 
     if plot:
-        plt.subplot(211)
+        plt.subplot(311)
         plt.title("Before")
         for i in range(spec.shape[0]):
             plt.plot(wave[i], spec[i] / cont[i])
@@ -102,23 +102,17 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
             tmpB1 = util.bezier_interp(w0, c0, w1[i1])
             tmpU1 = util.bezier_interp(w0, u0, w1[i1])
 
-            # Weights depend on the direction of the orders
-            if np.mean(i0) > np.mean(i1): #i0 is left of i1
-                wgt0 = np.linspace(1, 0, i0[0].size)
-                wgt1 = np.linspace(0, 1, i1[0].size)
-            else:
-                wgt0 = np.linspace(0, 1, i0[0].size)
-                wgt1 = np.linspace(1, 0, i1[0].size)
+            # Combine the two orders weighted by the relative error
+            wgt0 = np.ma.vstack([c0[i0]/u0[i0], tmpB0/tmpU0])**2
+            wgt1 = np.ma.vstack([c1[i1]/u1[i1], tmpB1/tmpU1])**2
 
-            # Combine the two orders linearly to get get spliced spectrum
-            s0[i0] = s0[i0] * wgt0 + tmpS0 * (1 - wgt0)
-            c0[i0] = c0[i0] * wgt0 + tmpB0 * (1 - wgt0)
-            u0[i0] = np.sqrt(u0[i0] ** 2 * wgt0 + tmpU0 ** 2 * (1 - wgt0))
+            s0[i0], utmp = np.ma.average(np.ma.vstack([s0[i0], tmpS0]), axis=0, weights=wgt0, returned=True)
+            c0[i0] = np.ma.average([c0[i0], tmpB0], axis=0, weights=wgt0)
+            u0[i0] = c0[i0]/utmp**0.5
 
-            s1[i1] = s1[i1] * wgt1 + tmpS1 * (1 - wgt1)
-            c1[i1] = c1[i1] * wgt1 + tmpB1 * (1 - wgt1)
-            u1[i1] = np.sqrt(u1[i1] ** 2 * wgt1 + tmpU1 ** 2 * (1 - wgt1))
-
+            s1[i1], utmp = np.ma.average(np.ma.vstack([s1[i1], tmpS1]), axis=0, weights=wgt1, returned=True)
+            c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
+            u1[i1] = c1[i1]/utmp**0.5
         else:  # Orders dont overlap
             raise NotImplementedError("Orders don't overlap, please test")
             c0 *= util.top(s0 / c0, 1, poly=True)
@@ -139,12 +133,18 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
             s1 *= scale
 
     if plot:
-        plt.subplot(212)
+        plt.subplot(312)
         plt.title("After")
         for i in range(nord):
             plt.plot(wave[i], spec[i] / cont[i], label="order=%i" % i)
 
-        plt.legend(loc="best")
+        plt.subplot(313)
+        plt.title("Error")
+        for i in range(nord):
+            plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
+
+
+        #plt.legend(loc="best")
         plt.show()
 
     return spec, wave, cont, sigm
@@ -164,7 +164,7 @@ def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
         order = 0
         plt.plot(wave[order], spec[order], label="spec")
         plt.plot(wave[order], cont[order], label="cont")
-        plt.legend(loc="best")
+        #plt.legend(loc="best")
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
         plt.show()
