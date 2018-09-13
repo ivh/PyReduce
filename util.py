@@ -11,16 +11,51 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
-from mpl_toolkits.mplot3d import Axes3D
 import scipy.constants
 import scipy.interpolate
 from scipy.linalg import solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit
 
+try:
+    import git
+    hasGit = True
+except ImportError:
+    hasGit = False
+
+
 from PyReduce.clipnflip import clipnflip
 from PyReduce.instruments.instrument_info import modeinfo
 
+
+def checkGitRepo():
+    #TODO currently this runs everytime PyReduce is called
+    if not hasGit:
+        print("Install GitPython to check the git repository for updates")
+        return
+
+    remote_name = "github"
+    repo = git.Repo()
+    remote = repo.remotes[remote_name]
+    info = remote.fetch()
+    remote_commit = info[0].commit
+    current_commit = repo.commit()
+
+    if remote_commit.authored_date > current_commit.authored_date:
+        print("A newer commit is available from remote git %s", remote_name)
+        # while True:
+        #     install = input("Install it? [Y/n]")
+        #     if install.lower() in ["", "y", "yes", "1"]:
+        #         install = True
+        #         break
+        #     elif install.lower in ["n", "no", "0"]:
+        #         install = False
+        #         break
+
+        # if install:
+        #     print("Pulling newest commit")
+        #     remote.pull()
+        #     repo.status()
 
 def parse_args():
     """Parse command line arguments"""

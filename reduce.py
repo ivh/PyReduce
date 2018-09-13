@@ -17,6 +17,7 @@ License
 ...
 
 """
+
 import glob
 import json
 import logging
@@ -87,7 +88,7 @@ def main(
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
     # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
-    #base_dir = "/DATA/ESO_Archive/"
+    # base_dir = "/DATA/ESO_Archive/"
     base_dir = "./Test/"
     input_dir = base_dir + "{instrument}/{target}/raw/{night}"
     output_dir = base_dir + "{instrument}/{target}/reduced/{night}/Reduced_{mode}"
@@ -138,7 +139,7 @@ def main(
             logging.debug("Science files:\n%s", str(f_spec))
 
             if isinstance(f_spec, dict):
-                for key, value in f_spec.items():
+                for key, _ in f_spec.items():
                     run_steps(
                         f_bias[key],
                         f_flat[key],
@@ -349,9 +350,6 @@ def run_steps(
 
     if "wavecal" in steps or steps == "all":
         logging.info("Creating wavelength calibration")
-        # TODO: in practice there may be several wavelength files, but only one will be used, how to decide which one?
-        # TODO: Which calibration file to use, might depend on the science file (e.g. UVES center wavelength setting)
-        # TODO: Use a dictionary of wavelengths? With some identifier as key
         for f in f_wave:
             # Load wavecal image
             thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
