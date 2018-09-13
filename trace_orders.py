@@ -9,10 +9,11 @@ from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scipy.ndimage.filters import gaussian_filter
-from skimage import measure, filters, morphology
+from scipy.ndimage import morphology, label
+from scipy.ndimage.filters import gaussian_filter1d, median_filter
+from scipy.signal import peak_widths
 
-from PyReduce.cwrappers import find_clusters
+#from PyReduce.cwrappers import find_clusters
 
 
 def merge_clusters(
@@ -203,6 +204,12 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     plt.imshow(im, origin="lower")
     plt.title("Input")
 
+    if orders is not None:
+        for i, order in enumerate(orders):
+            x = np.arange(*order_range[i], 1)
+            y = np.polyval(order, x)
+            plt.plot(x, y)
+
     plt.subplot(122)
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
     plt.title("Clusters")
@@ -267,21 +274,42 @@ def mark_orders(
         order tracing coefficients (in numpy order, i.e. largest exponent first)
     """
 
+    # Convert to signed integer, to avoid underflow problems
+    im = im.view(np.int16)
+    # find width of orders, based on central column
+    col = im[:, im.shape[0] // 2]
+    col = median_filter(col, 5)
+    idx = np.argmax(col)
+    width = peak_widths(col, [idx])[0][0]
+    width = int(np.ceil(width))
+    if filter_size is None:
+        filter_size = width * 2
 
-    # TODO: threshold method?
-    # TODO: removal of bad orders?
+    # blur image along columns, and use the median + blurred + noise as threshold
+    blurred = gaussian_filter1d(im, filter_size, axis=0)
+    threshold = np.ma.median(im - blurred, axis=0)
+    mask = im > blurred + noise + np.abs(threshold)
+    # remove borders
+    mask[:width, :] = mask[-width:, :] = False
+    # remove masked areas with no clusters
+    mask = np.ma.filled(mask, fill_value=False)
+    # close gaps inbetween clusters
+    struct = np.full((5, 5), 1)
+    mask = morphology.binary_closing(mask, struct)
+    # remove small lonely clusters
+    struct = morphology.generate_binary_structure(2, 1)
+    mask = morphology.binary_erosion(mask,)
 
-    threshold = filters.threshold_yen(im)
-    mask = im > threshold
-    mask = morphology.closing(mask, morphology.square(3))
-    clusters, n_clusters = measure.label(mask, background=0, return_num=True)
+    # label clusters
+    clusters, n_clusters = label(mask)
 
     # remove small clusters
-    for i in range(1, n_clusters + 1):
-        size = np.count_nonzero(clusters == i)
-        if size < min_cluster:
-            clusters[clusters == i] = 0
-            n_clusters -= 1
+    sizes = np.bincount(clusters.ravel())
+    mask_sizes = sizes > min_cluster
+    mask_sizes[0] = 0
+    for i in np.arange(n_clusters + 1)[~mask_sizes]:
+        clusters[clusters == i] = 0
+        n_clusters -= 1
 
     if plot:
         plt.imshow(clusters, origin="lower")
@@ -303,18 +331,16 @@ def mark_orders(
     y = {i: np.where(clusters == c)[1] for i, c in enumerate(n)}
     n = np.arange(len(n))
 
-    if plot:
-        plot_orders(im, x, y, n, None, None)
+    # if plot:
+    #     plot_orders(im, x, y, n, None, None)
 
     # fit polynomials
     orders = fit_polynomials_to_clusters(x, y, n, 2)
 
-    # Merge clusters
+    # Merge clusters, if there are even any possible mergers left
     x, y, n = merge_clusters(im, orders, x, y, n, plot=plot, manual=manual)
 
     orders = fit_polynomials_to_clusters(x, y, n, opower)
-
-    # TODO: Discard bad clusters
 
     # sort orders from bottom to top, using mean coordinate
     # TODO: better metric for position?
