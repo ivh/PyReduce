@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 from itertools import product
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,21 +29,42 @@ from PyReduce.clipnflip import clipnflip
 from PyReduce.instruments.instrument_info import modeinfo
 
 
-def checkGitRepo():
+def read_config(fname="settings_pyreduce.json"):
+    this_dir = os.path.dirname(__file__)
+    fname = os.path.join(this_dir, fname)
+
+    if os.path.exists(fname):
+        with open(fname) as file:
+            settings = json.load(file)
+            return settings
+    else:
+        return None
+
+def checkGitRepo(remote_name="origin"):
     #TODO currently this runs everytime PyReduce is called
     if not hasGit:
         print("Install GitPython to check the git repository for updates")
         return
 
-    remote_name = "github"
-    repo = git.Repo()
-    remote = repo.remotes[remote_name]
-    info = remote.fetch()
-    remote_commit = info[0].commit
-    current_commit = repo.commit()
+    try:
+        repo = git.Repo()
+        #branch = repo.active_branch
+        if len(repo.remotes) == 0:
+            print("No remotes found in Git repository")
+            return
+        if len(repo.remotes) == 1:
+            remote = repo.remotes[0]
+            remote_name = remote.name
+        else:
+            remote = repo.remotes[remote_name]
+        info = remote.fetch()
+        remote_commit = info[0].commit
+        current_commit = repo.commit()
+    except Exception:
+        print("Couldn't read remote Git repository %s", remote_name)
 
     if remote_commit.authored_date > current_commit.authored_date:
-        print("A newer commit is available from remote git %s", remote_name)
+        print("A newer commit is available from remote Git %s", remote_name)
         # while True:
         #     install = input("Install it? [Y/n]")
         #     if install.lower() in ["", "y", "yes", "1"]:
