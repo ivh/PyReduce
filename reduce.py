@@ -87,9 +87,9 @@ def main(
         the observed star, as named in the folder structure/fits headers
     night : str, list[str]
         the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. *, ?), but then relies on the folder structure for restricting the nights
-    modes : str, list[str], None, optional
+    modes : str, list[str], dict[{instrument}:list], None, optional
         the instrument modes to use, if None will use all known modes for the current instrument. See instruments for possible options
-    steps : {tuple(str), "all"}, optional
+    steps : tuple(str), "all", optional
         which steps of the reduction process to perform
         the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
         alternatively set steps to "all", which is equivalent to setting all steps
@@ -100,7 +100,7 @@ def main(
         input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {mode} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     output_dir : str, optional
         output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {mode}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
-    configuration : dict, str, list[str], dict[str], optional
+    configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
     if isinstance(instrument, str):
@@ -146,15 +146,19 @@ def main(
 
         info = instruments.instrument_info.get_instrument_info(i)
 
-        if m_was_None:
-            modes = info["modes"]
+        if modes is None:
+            mode = info["modes"]
+        elif isinstance(modes, dict):
+            mode = modes[i]
+        else:
+            mode = modes
 
         for t in target:
             log_file = join(base_dir, "logs/%s.log" % t)
             util.start_logging(log_file)
 
             for n in night:
-                for m in modes:
+                for m in mode:
                     # find input files and sort them by type
                     files, nights = instruments.instrument_info.sort_files(
                         input_dir, t, n, i, m, **config
