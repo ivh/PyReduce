@@ -3,15 +3,19 @@ Wrapper for REDUCE C functions
    locate_cluster
 """
 
-import numpy as np
 import logging
+
+import numpy as np
 import matplotlib.pyplot as plt
 
-from .clib._slitfunc_bd import lib as slitfunclib
-from .clib._slitfunc_2d import lib as slitfunc_2dlib
-from .clib._cluster import lib as clusterlib
+try:
+    from .clib._slitfunc_bd import lib as slitfunclib
+    from .clib._slitfunc_2d import lib as slitfunc_2dlib
+    from .clib._cluster import lib as clusterlib
+    from .clib._slitfunc_bd import ffi
+except ImportError:
+    raise ImportError("Use setup.py to compile the C libraries")
 
-from .clib._cluster import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
@@ -80,7 +84,7 @@ def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
     sort = np.argsort(y)
     y = np.require(y[sort], dtype=c_int, requirements=["C", "A", "W", "O"])
     x = np.require(x[sort], dtype=c_int, requirements=["C", "A", "W", "O"])
-    
+
     clusters = np.zeros(n, dtype=c_int)
 
     # Group the pixels into clusters
