@@ -47,12 +47,15 @@ from PyReduce.make_shear import make_shear
 
 # from getxwd import getxwd
 
-
+# TODO Jupyter Notebook with example usage
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ? or use a mask instead of column range
 # TODO figure out relative imports
 # TODO Naming of functions and modules
 # TODO License
+
+# TODO order tracing: does it work well enough?
+# TODO wavelength calibration: automatic alignment parameters, use gaussian process to model wavelengths?
 
 
 def main(
@@ -63,9 +66,9 @@ def main(
         # "flat",
         # "orders",
         # "norm_flat",
-        # "wavecal",
+        "wavecal",
         # "science",
-        "continuum",
+        # "continuum",
     ),
 ):
     """
@@ -253,7 +256,12 @@ def run_steps(
     if "bias" in steps or steps == "all":
         logging.info("Creating master bias")
         bias, bhead = combine_bias(
-            f_bias, instrument, mode, mask=mask, extension=extension
+            f_bias,
+            instrument,
+            mode,
+            mask=mask,
+            extension=extension,
+            plot=config.get("plot", False),
         )
         fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
     else:
@@ -267,7 +275,13 @@ def run_steps(
     if "flat" in steps or steps == "all":
         logging.info("Creating master flat")
         flat, fhead = combine_flat(
-            f_flat, instrument, mode, mask=mask, extension=extension, bias=bias
+            f_flat,
+            instrument,
+            mode,
+            mask=mask,
+            extension=extension,
+            bias=bias,
+            plot=config.get("plot", False),
         )
         fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
@@ -466,17 +480,26 @@ def run_steps(
                 plot=config.get("plot", True),
             )
 
-            #spec = continuum_normalize(spec, wave, blaze, sigma)
+            # spec = continuum_normalize(spec, wave, blaze, sigma)
 
     # Combine science with wavecal and continuum
     for f in f_spec:
         head["e_error_scale"] = "absolute"
 
-        rv_corr, bjd = util.helcorr(head["e_obslon"], head["e_obslat"], head["e_obsalt"], head["ra"], head["dec"], head["e_jd"])
+        rv_corr, bjd = util.helcorr(
+            head["e_obslon"],
+            head["e_obslat"],
+            head["e_obsalt"],
+            head["ra"],
+            head["dec"],
+            head["e_jd"],
+        )
         head["barycorr"] = rv_corr
         head["e_jd"] = bjd
 
-        fname = "{instrument}.{night}.ech".format(instrument=instrument.upper(), night=night)
+        fname = "{instrument}.{night}.ech".format(
+            instrument=instrument.upper(), night=night
+        )
         fname = os.path.join(output_dir, fname)
         echelle.save(
             fname,

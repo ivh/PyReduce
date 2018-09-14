@@ -15,8 +15,8 @@ from scipy import signal
 from scipy.constants import speed_of_light
 import astropy.io.fits as fits
 
-from PyReduce.instruments import instrument_info
-from PyReduce import util
+from .instruments import instrument_info
+from . import util
 
 
 class AlignmentPlot:
@@ -143,7 +143,7 @@ def align(thar, cs_lines, manual=False, plot=False):
         )
 
         # TODO: what?
-        offset_order = 2 * (offset_order + 1) - thar.shape[0] + min_order
+        offset_order = 2 * (offset_order + 1) - thar.shape[0] + min_order - 1
         offset_x = offset_x - thar.shape[1] / 2
         offset = int(offset_order), int(offset_x)
 
@@ -157,14 +157,14 @@ def align(thar, cs_lines, manual=False, plot=False):
 
 def build_2d_solution(cs_lines, plot=False):
     """make a 2d polynomial fit to flagged lines
-    
+
     Parameters
     ----------
     cs_lines : struc_array
         line data
     plot : bool, optional
         wether to plot the solution (default: False)
-    
+
     Returns
     -------
     coef : array[degree_x, degree_y]
@@ -176,6 +176,7 @@ def build_2d_solution(cs_lines, plot=False):
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask]
+    m_width = cs_lines.width[mask]
 
     # 2d polynomial fit with: x = column, y = order, z = wavelength
     #coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
@@ -189,11 +190,36 @@ def build_2d_solution(cs_lines, plot=False):
         value = polyval2d(x[0], x[1], c)
         return value
 
+    #z = gaussian_process_fit(m_pix, m_ord, m_wave, m_width)
     coef, pcov = curve_fit(
         func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
     )
     coef.shape = degree_x, degree_y
     return coef
+
+def gaussian_process_fit(x, y, z, zerr):
+    import GPy
+
+    lenX, lenY = 4096, 22
+    X_new = np.arange(lenX)[:, None]
+    z_new = np.empty((lenY, lenX))
+
+    # fig, axes = plt.subplots(lenY, 1, sharex=True)
+    kernel = GPy.kern.RBF(1, lengthscale=1000)
+    for i, order in enumerate(np.unique(y)):
+        X = x[y == order, None]
+        Y = z[y == order, None]
+        model = GPy.models.GPRegression(X, Y, kernel)
+        model.optimize(messages=True)
+
+        tmp = model.predict(X_new)
+        z_new[i] = tmp[0][:, 0]
+        z_err_new = tmp[1][:, 0]
+
+        model.plot()
+        plt.show()
+
+    return z_new
 
 def make_wave(thar, wave_solution, plot=False):
     """Expand polynomial wavelength solution into full image
@@ -378,8 +404,8 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
     cs_lines.height /= np.max(cs_lines.height)
 
     # TODO: reverse orders?
-    max_order = np.max(cs_lines.order)
-    cs_lines.order = max_order - cs_lines.order
+    #max_order = np.max(cs_lines.order)
+    #cs_lines.order = max_order - cs_lines.order
 
     if polarim:
         raise NotImplementedError("polarized orders not impemented yet")

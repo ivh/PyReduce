@@ -19,9 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 
-from PyReduce.cwrappers import slitfunc, slitfunc_curved
-from PyReduce import estimate_background_scatter
-from PyReduce.util import cutout_image, make_index
+from .cwrappers import slitfunc, slitfunc_curved
+from . import estimate_background_scatter
+from .util import cutout_image, make_index
 
 # TODO put the plotting somewhere else
 

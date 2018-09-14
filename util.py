@@ -9,6 +9,7 @@ from itertools import product
 import json
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
@@ -25,8 +26,8 @@ except ImportError:
     hasGit = False
 
 
-from PyReduce.clipnflip import clipnflip
-from PyReduce.instruments.instrument_info import modeinfo
+from .clipnflip import clipnflip
+from .instruments.instrument_info import modeinfo
 
 
 def read_config(fname="settings_pyreduce.json"):
@@ -121,6 +122,16 @@ def parse_args():
     return {"instrument": instrument, "target": target, "steps": steps_to_take}
 
 
+def in_ipynb():
+    try:
+        cfg = get_ipython().config 
+        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+            return True
+        else:
+            return False
+    except NameError:
+        return False
+
 def start_logging(log_file="log.log"):
     """Start logging to log file and command line
 
@@ -134,10 +145,12 @@ def start_logging(log_file="log.log"):
     logger.setLevel(logging.DEBUG)
 
     # Command Line output
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
-    ch.setFormatter(ch_formatter)
+    if not in_ipynb():
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
+        ch.setFormatter(ch_formatter)
+        logger.addHandler(ch)
 
     # Log file settings
     file = logging.FileHandler(log_file)
@@ -145,7 +158,7 @@ def start_logging(log_file="log.log"):
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file.setFormatter(file_formatter)
 
-    logger.addHandler(ch)
+    
     logger.addHandler(file)
 
     logging.captureWarnings(True)
@@ -446,23 +459,24 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         coeff[i, j] = C[k]
 
     if plot:
+        pass
         # regular grid covering the domain of the data
-        choice = np.random.choice(x.size, size=500, replace=False)
-        x, y, z = x[choice], y[choice], z[choice]
-        X, Y = np.meshgrid(
-            np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
-        )
-        Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
-        fig = plt.figure()
-        ax = fig.gca(projection="3d")
-        ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
-        ax.scatter(x, y, z, c="r", s=50)
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        ax.set_zlabel("Z")
-        ax.axis("equal")
-        ax.axis("tight")
-        plt.show()
+        # choice = np.random.choice(x.size, size=500, replace=False)
+        # x, y, z = x[choice], y[choice], z[choice]
+        # X, Y = np.meshgrid(
+        #     np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
+        # )
+        # Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
+        # fig = plt.figure()
+        # ax = fig.gca(projection="3d")
+        # ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+        # ax.scatter(x, y, z, c="r", s=50)
+        # plt.xlabel("X")
+        # plt.ylabel("Y")
+        # ax.set_zlabel("Z")
+        # ax.axis("equal")
+        # ax.axis("tight")
+        # plt.show()
     return coeff
 
 

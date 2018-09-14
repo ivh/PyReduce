@@ -10,7 +10,7 @@ from itertools import chain
 import matplotlib.pyplot as plt
 import numpy as np
 
-from PyReduce import util
+from . import util
 
 def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=False):
     """
@@ -142,9 +142,6 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         plt.title("Error")
         for i in range(nord):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
-
-
-        #plt.legend(loc="best")
         plt.show()
 
     return spec, wave, cont, sigm

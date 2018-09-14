@@ -14,9 +14,9 @@ import numpy as np
 from dateutil import parser
 from scipy.ndimage.filters import median_filter
 
-from PyReduce.clipnflip import clipnflip as clipnflip
-from PyReduce.instruments.instrument_info import get_instrument_info
-from PyReduce.util import gaussbroad, gaussfit, load_fits
+from .clipnflip import clipnflip as clipnflip
+from .instruments.instrument_info import get_instrument_info
+from .util import gaussbroad, gaussfit, load_fits
 
 
 def running_median(arr, size):
@@ -393,7 +393,7 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, bias=0, **kwargs):
+def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwargs):
     """
     Combine several flat files into one master flat
 
@@ -423,10 +423,15 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, **kwargs):
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark. We have to scale it by the number of Flats
     flat -= bias * len(files)  # subtract bias, if passed
+    
+    if plot:
+        plt.imshow(flat)
+        plt.show()
+
     return flat, fhead
 
 
-def combine_bias(files, instrument, mode, extension=1, **kwargs):
+def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
     """
     Combine bias frames, determine read noise, reject bad pixels.
     Read noise calculation only valid if both lists yield similar noise.
@@ -550,6 +555,10 @@ def combine_bias(files, instrument, mode, extension=1, **kwargs):
         biasnoise = 1.
         nbad = 0
 
+    if plot:
+        plt.imshow(bias)
+        plt.show()
+    
     try:
         del head["tapelist"]
     except KeyError:
