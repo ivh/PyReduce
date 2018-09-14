@@ -251,7 +251,7 @@ def make_wave(thar, wave_solution, plot=False):
         plt.ylabel("Thar spectrum")
         for i in range(thar.shape[0]):
             plt.plot(wave_img[i], thar[i], label="Order %i" % i)
-        plt.legend(loc="best")        
+        #plt.legend(loc="best")        
 
         plt.subplot(212)
         plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))

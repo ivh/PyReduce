@@ -153,6 +153,9 @@ def start_logging(log_file="log.log"):
         logger.addHandler(ch)
 
     # Log file settings
+    log_dir = os.path.dirname(log_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     file = logging.FileHandler(log_file)
     file.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")

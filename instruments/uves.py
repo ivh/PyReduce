@@ -4,6 +4,7 @@ Handles instrument specific info for the UVES spectrograph
 Mostly reading data from the header
 """
 import numpy as np
+import glob
 from astropy.io import fits
 
 from datetime import datetime
@@ -89,7 +90,7 @@ class UVES(instrument):
 
         return header
 
-    def sort_files(self, files, target, night, mode, **kwargs):
+    def sort_files(self, input_dir, target, night, mode, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -106,7 +107,11 @@ class UVES(instrument):
         info = self.load_info()
         target = target.upper()
         instrument = "UVES".casefold()
-        night = parser.parse(night).date()
+
+        input_dir = input_dir.format(instrument="UVES", target=target, mode=mode, night=night)
+        files = glob.glob(input_dir + "/*.fits")
+        files += glob.glob(input_dir + "/*.fits.gz")
+        files = np.array(files)
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
@@ -139,28 +144,58 @@ class UVES(instrument):
             mo[i] = mo[i].casefold()
             instr[i] = instr[i].casefold()
 
-        selection = (instr == instrument) & (nights == night) & (mo == mode_id)
-        # TODO allow several names for the target?
-        bias =  files[(ty == info["id_bias"]) & selection]
-        # flatlist =  files[(ty == info["id_flat"]) & selection]
-        # wavelist =  files[(ob == info["id_wave"]) & selection]
-        # orderlist = files[(ob == info["id_orders"]) & selection]
-        # speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
+        # Try matching with nights
+        try:
+            night = parser.parse(night).date()
+            individual_nights = [night]
+        except ValueError:
+            individual_nights = np.unique(nights)
 
-        biaslist, flatlist, wavelist, orderlist, speclist = {}, {}, {}, {}, {}
+        files_per_night = []
+        nights_out = []
+        for ind_night in individual_nights:
+            selection = (ind_night == nights) & (instr == instrument) & (mo == mode_id)
+            # TODO allow several names for the target?
+            bias = files[(ty == info["id_bias"]) & selection]
+            # flatlist =  files[(ty == info["id_flat"]) & selection]
+            # wavelist =  files[(ob == info["id_wave"]) & selection]
+            # orderlist = files[(ob == info["id_orders"]) & selection]
+            # speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
 
-        index = setting[(ty == info["id_spec"]) & (ob == target) & selection]
-        index = np.unique(index)
-        index = index[index != "-"]
-        for wavelength in index:
-            selection = (instr == instrument) & (nights == night) & (mo == mode_id) & (setting == wavelength)
-            biaslist[wavelength] = bias
-            flatlist[wavelength] = files[(ty == info["id_flat"]) & selection]
-            orderlist[wavelength] = files[(ty == info["id_orders"]) & selection]
-            wavelist[wavelength] = files[(ob == info["id_wave"]) & selection]
-            speclist[wavelength] = files[(ty == info["id_spec"]) & (ob == target) & selection]
+            biaslist, flatlist, wavelist, orderlist, speclist = {}, {}, {}, {}, {}
 
-        return biaslist, flatlist, wavelist, orderlist, speclist
+            index = setting[(ty == info["id_spec"]) & (ob == target) & selection]
+            index = np.unique(index)
+            index = index[index != "-"]
+            for wavelength in index:
+                selection = (
+                    (instr == instrument)
+                    & (nights == ind_night)
+                    & (mo == mode_id)
+                    & (setting == wavelength)
+                )
+                biaslist[wavelength] = bias
+                flatlist[wavelength] = files[(ty == info["id_flat"]) & selection]
+                orderlist[wavelength] = files[(ty == info["id_orders"]) & selection]
+                wavelist[wavelength] = files[(ob == info["id_wave"]) & selection]
+                speclist[wavelength] = files[
+                    (ty == info["id_spec"]) & (ob == target) & selection
+                ]
+
+            files_this_night = {}
+            for key in speclist.keys():
+                files_this_night[key + "nm"] = {
+                    "bias": biaslist[key],
+                    "flat": flatlist[key],
+                    "order": orderlist[key],
+                    "wave": wavelist[key],
+                    "spec": speclist[key],
+                }
+            if len(files_this_night) > 0:
+                nights_out.append(ind_night)
+                files_per_night.append(files_this_night)
+
+        return files_per_night, nights_out
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

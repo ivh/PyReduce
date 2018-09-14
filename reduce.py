@@ -32,14 +32,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
 
-import PyReduce.echelle as echelle
-import PyReduce.util as util
+from PyReduce import util, echelle, instruments
 
 # PyReduce subpackages
 from PyReduce.combine_frames import combine_bias, combine_flat
 from PyReduce.continuum_normalization import splice_orders, continuum_normalize
 from PyReduce.extract import extract
-from PyReduce.instruments import instrument_info
 from PyReduce.normalize_flat import normalize_flat
 from PyReduce.trace_orders import mark_orders
 from PyReduce.wavelength_calibration import wavecal
@@ -61,15 +59,21 @@ from PyReduce.make_shear import make_shear
 def main(
     instrument="UVES",
     target="HD132205",
+    night="????-??-??",
+    modes="middle",
     steps=(
-        # "bias",
-        # "flat",
-        # "orders",
-        # "norm_flat",
+        "bias",
+        "flat",
+        "orders",
+        "norm_flat",
         "wavecal",
-        # "science",
-        # "continuum",
+        "science",
+        "continuum",
     ),
+    base_dir=None,
+    input_dir=None,
+    output_dir=None,
+    configuration=None,
 ):
     """
     Main entry point for REDUCE scripts,
@@ -77,121 +81,105 @@ def main(
 
     Finds input directories, and loops over observation nights and instrument modes
 
-    instrument : str
+    instrument : str, list[str]
         instrument used for the observation (e.g. UVES, HARPS)
-    target : str
+    target : str, list[str]
         the observed star, as named in the folder structure/fits headers
+    night : str, list[str]
+        the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. *, ?), but then relies on the folder structure for restricting the nights
+    modes : str, list[str], None, optional
+        the instrument modes to use, if None will use all known modes for the current instrument. See instruments for possible options
     steps : {tuple(str), "all"}, optional
         which steps of the reduction process to perform
         the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
         alternatively set steps to "all", which is equivalent to setting all steps
         Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
+    base_dir : str, optional
+        base data directory that Reduce should work in, is prefixxed on input_dir and output_dir (default: use settings_pyreduce.json)
+    input_dir : str, optional
+        input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {mode} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+    output_dir : str, optional
+        output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {mode}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+    configuration : dict, str, list[str], dict[str], optional
+        configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
+    if isinstance(instrument, str):
+        instrument = [instrument]
+    if isinstance(target, str):
+        target = [target]
+    if isinstance(night, str):
+        night = [night]
+    if isinstance(modes, str):
+        modes = [modes]
+
+    m_was_None = modes is None
 
     # some basic settings
     # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
     # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
-    # base_dir = "/DATA/ESO_Archive/"
-    base_dir = "./Test/"
-    input_dir = base_dir + "{instrument}/{target}/raw/{night}"
-    output_dir = base_dir + "{instrument}/{target}/reduced/{night}/Reduced_{mode}"
+    settings = util.read_config()
+    if base_dir is None:
+        base_dir = settings["reduce.base_dir"]
+    if input_dir is None:
+        input_dir = settings["reduce.input_dir"]
+    if output_dir is None:
+        output_dir = settings["reduce.output_dir"]
 
-    log_file = "logs/%s.log" % target
-    util.start_logging(log_file)
+    input_dir = join(base_dir, input_dir)
+    output_dir = join(base_dir, output_dir)
 
-    # config: paramters for the current reduction
-    # info: constant, instrument specific parameters
-    with open("settings_%s.json" % instrument.upper()) as f:
-        config = json.load(f)
-    info = instrument_info.get_instrument_info(instrument)
+    # Loop over everything
+    for j, i in enumerate(instrument):
+        # config: paramters for the current reduction
+        # info: constant, instrument specific parameters
+        if configuration is None:
+            config = "settings_%s.json" % i.upper()
+        elif isinstance(configuration, dict):
+            if i in configuration.keys():
+                config = configuration[i]
+        elif isinstance(configuration, list):
+            config = configuration[j]
 
-    # TODO: Test settings
-    config["plot"] = True
-    config["manual"] = True
-    modes = [info["modes"][1]]
+        if isinstance(config, str):
+            with open(config) as f:
+                config = json.load(f)
 
-    # Search the available days
-    dates = input_dir.format(instrument=instrument, target=target, night="????-??-??")
-    dates = glob.glob(dates)
-    dates = [r for r in dates if os.path.isdir(r)]
+        info = instruments.instrument_info.get_instrument_info(i)
 
-    logging.info("Instrument: %s", instrument)
-    logging.info("Target: %s", target)
-    for night in dates:
-        night = os.path.basename(night)
-        logging.info("Observation Date: %s", night)
-        for mode in modes:
-            logging.info("Instrument Mode: %s", mode)
+        if m_was_None:
+            modes = info["modes"]
 
-            input_dir_night = input_dir.format(
-                instrument=instrument, target=target, night=night, mode=mode
-            )
+        for t in target:
+            log_file = join(base_dir, "logs/%s.log" % t)
+            util.start_logging(log_file)
 
-            # find input files and sort them by type
-            files = glob.glob(join(input_dir_night, "%s.*.fits" % instrument))
-            files += glob.glob(join(input_dir_night, "%s.*.fits.gz" % instrument))
-            files = np.array(files)
-
-            f_bias, f_flat, f_wave, f_order, f_spec = instrument_info.sort_files(
-                files, target, night, instrument, mode, **config
-            )
-            logging.debug("Bias files:\n%s", str(f_bias))
-            logging.debug("Flat files:\n%s", str(f_flat))
-            logging.debug("Wavecal files:\n%s", str(f_wave))
-            logging.debug("Orderdef files:\n%s", str(f_order))
-            logging.debug("Science files:\n%s", str(f_spec))
-
-            if isinstance(f_spec, dict):
-                for key, _ in f_spec.items():
-                    run_steps(
-                        f_bias[key],
-                        f_flat[key],
-                        f_wave[key],
-                        f_order[key],
-                        f_spec[key],
-                        output_dir,
-                        target,
-                        instrument,
-                        mode,
-                        night,
-                        config,
-                        info,
-                        steps=steps,
+            for n in night:
+                for m in modes:
+                    # find input files and sort them by type
+                    files, nights = instruments.instrument_info.sort_files(
+                        input_dir, t, n, i, m, **config
                     )
-            else:
-                run_steps(
-                    f_bias,
-                    f_flat,
-                    f_wave,
-                    f_order,
-                    f_spec,
-                    output_dir,
-                    target,
-                    instrument,
-                    mode,
-                    night,
-                    config,
-                    info,
-                    steps=steps,
-                )
+                    for f, k in zip(files, nights):
+                        logging.info("Instrument: %s", i)
+                        logging.info("Target: %s", t)
+                        logging.info("Observation Date: %s", k)
+                        logging.info("Instrument Mode: %s", m)
+
+                        if not isinstance(f, dict):
+                            f = {1: f}
+                        for key, _ in f.items():
+                            logging.info("Group Identifier: %s", key)
+                            logging.debug("Bias files:\n%s", f[key]["bias"])
+                            logging.debug("Flat files:\n%s", f[key]["flat"])
+                            logging.debug("Wavecal files:\n%s", f[key]["wave"])
+                            logging.debug("Orderdef files:\n%s", f[key]["order"])
+                            logging.debug("Science files:\n%s", f[key]["spec"])
+                            run_steps(
+                                f[key], output_dir, t, i, m, k, config, steps=steps
+                            )
 
 
-def run_steps(
-    f_bias,
-    f_flat,
-    f_wave,
-    f_order,
-    f_spec,
-    output_dir,
-    target,
-    instrument,
-    mode,
-    night,
-    config,
-    info,
-    steps="all",
-    mask_dir="./masks",
-):
+def run_steps(files, output_dir, target, instrument, mode, night, config, steps="all"):
     """Reduce all observations from a single night and instrument mode
 
     Parameters
@@ -220,7 +208,7 @@ def run_steps(
     mask_dir : str, optional
         directory containing the masks, defaults to predefined REDUCE masks
     """
-
+    info = instruments.instrument_info.get_instrument_info(instrument)
     imode = util.find_first_index(info["modes"], mode)
 
     # read configuration settings
@@ -232,14 +220,17 @@ def run_steps(
         instrument=instrument, target=target, night=night, mode=mode
     )
 
-    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
-
     # define intermediary product files
     bias_file = join(output_dir, prefix + ".bias.fits")
     flat_file = join(output_dir, prefix + ".flat.fits")
     norm_flat_file = join(output_dir, prefix + ".flat_norm.fits")
     blaze_file = join(output_dir, prefix + ".ord_norm.sav")
     order_file = join(output_dir, prefix + ".ord_default.sav")
+
+    out_file = "{instrument}.{night}.ech".format(
+        instrument=instrument.upper(), night=night
+    )
+    out_file = os.path.join(output_dir, out_file)
 
     # create output folder structure if necessary
     if not os.path.exists(output_dir):
@@ -248,6 +239,10 @@ def run_steps(
     # ==========================================================================
     # Read mask
     # the mask is not stored with the data files (it is not supported by astropy)
+    mask_dir = os.path.dirname(__file__)
+    mask_dir = os.path.join(mask_dir, "masks")
+    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
+
     mask, _ = util.load_fits(mask_file, instrument, mode, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
@@ -256,7 +251,7 @@ def run_steps(
     if "bias" in steps or steps == "all":
         logging.info("Creating master bias")
         bias, bhead = combine_bias(
-            f_bias,
+            files["bias"],
             instrument,
             mode,
             mask=mask,
@@ -275,7 +270,7 @@ def run_steps(
     if "flat" in steps or steps == "all":
         logging.info("Creating master flat")
         flat, fhead = combine_flat(
-            f_flat,
+            files["flat"],
             instrument,
             mode,
             mask=mask,
@@ -297,7 +292,7 @@ def run_steps(
         logging.info("Tracing orders")
 
         order_img, _ = util.load_fits(
-            f_order[0], instrument, mode, extension, mask=mask
+            files["order"][0], instrument, mode, extension, mask=mask
         )
 
         orders, column_range = mark_orders(
@@ -364,7 +359,7 @@ def run_steps(
 
     if "wavecal" in steps or steps == "all":
         logging.info("Creating wavelength calibration")
-        for f in f_wave:
+        for f in files["wave"]:
             # Load wavecal image
             thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
             orig = thar
@@ -399,7 +394,9 @@ def run_steps(
 
             # Create wavelength calibration fit
             # TODO just save the coefficients?
-            reference = instrument_info.get_wavecal_filename(thead, instrument, mode)
+            reference = instruments.instrument_info.get_wavecal_filename(
+                thead, instrument, mode
+            )
             reference = readsav(reference)
             cs_lines = reference["cs_lines"]
             wave = wavecal(
@@ -412,7 +409,7 @@ def run_steps(
             nameout = util.swap_extension(f, ".thar.ech", output_dir)
             echelle.save(nameout, thead, spec=thar, wave=wave, shear=shear)
     else:
-        fname = util.swap_extension(f_wave[-1], ".thar.ech", output_dir)
+        fname = util.swap_extension(files["wave"][-1], ".thar.ech", output_dir)
         thar = echelle.read(fname, raw=True)
         wave = thar.wave
         shear = thar.shear
@@ -422,7 +419,7 @@ def run_steps(
 
     if "science" in steps or steps == "all":
         logging.info("Extracting science spectra")
-        for f in f_spec:
+        for f in files["spec"]:
             im, head = util.load_fits(
                 f, instrument, mode, extension, mask=mask, dtype=np.float32
             )
@@ -455,7 +452,7 @@ def run_steps(
             nameout = util.swap_extension(f, ".science.ech", path=output_dir)
             echelle.save(nameout, head, spec=spec, sig=sigma)
     else:
-        f = f_spec[-1]
+        f = files["spec"][-1]
         fname = util.swap_extension(f, ".science.ech", path=output_dir)
         science = echelle.read(fname, raw=True)
         head = science.head
@@ -464,7 +461,7 @@ def run_steps(
 
     if "continuum" in steps or steps == "all":
         logging.info("Continuum normalization")
-        for f in f_spec:
+        for f in files["spec"]:
             # fix column ranges
             for i in range(spec.shape[0]):
                 column_range[i] = np.where(spec[i] != 0)[0][[0, -1]] + [0, 1]
@@ -483,9 +480,10 @@ def run_steps(
             # spec = continuum_normalize(spec, wave, blaze, sigma)
 
     # Combine science with wavecal and continuum
-    for f in f_spec:
+    for f in files["spec"]:
         head["e_error_scale"] = "absolute"
 
+        # Add heliocentric correction
         rv_corr, bjd = util.helcorr(
             head["e_obslon"],
             head["e_obslat"],
@@ -494,15 +492,15 @@ def run_steps(
             head["dec"],
             head["e_jd"],
         )
+        
+        logging.debug("Heliocentric correction: %f km/s", rv_corr)
+        logging.debug("Heliocentric Julian Date: %s", str(bjd))
+
         head["barycorr"] = rv_corr
         head["e_jd"] = bjd
 
-        fname = "{instrument}.{night}.ech".format(
-            instrument=instrument.upper(), night=night
-        )
-        fname = os.path.join(output_dir, fname)
         echelle.save(
-            fname,
+            out_file,
             head,
             spec=spec,
             sig=sigma,
@@ -510,7 +508,7 @@ def run_steps(
             wave=wave,
             columns=column_range,
         )
-        logging.info("science file: %s", os.path.basename(fname))
+        logging.info("science file: %s", os.path.basename(out_file))
         logging.debug("--------------------------------")
 
 

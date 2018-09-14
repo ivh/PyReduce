@@ -1,4 +1,4 @@
-from . import util, combine_frames
+from . import util, reduce
 
 settings = util.read_config()
 git_remote = settings["git.remote"] if "git.remote" in settings.keys() else "origin"

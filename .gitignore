@@ -14,3 +14,8 @@ reduce.cprof
 Pipfile.lock
 *.txt
 masks/*
+examples/datasets/*
+examples/reduced/*
+examples/*.pro
+examples/uves_data.tar.gz
+examples/mask_uves_red.fits.gz

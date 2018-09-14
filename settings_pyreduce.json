@@ -1,3 +1,6 @@
 {
+    "reduce.base_dir": "./Test",
+    "reduce.input_dir": "{instrument}/{target}/raw/{night}",
+    "reduce.output_dir": "{instrument}/{target}/reduced/{night}/{mode}",
     "git.remote": "origin"
 }
