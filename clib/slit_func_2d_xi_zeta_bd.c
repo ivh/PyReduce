@@ -154,7 +154,7 @@ int xi_zeta_tensors(int ncols,                                      /* Swath wid
      incrementing them by osample. 
    */
 
-    iy2 = osample - floor(ycen[x] / step) - 1;
+    iy2 = osample - floor(ycen[x] / step);
     iy1 = iy2 - osample;
 
     /*
