@@ -56,7 +56,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
 
     # if threshold is smaller than 1, assume percentage value is given
     if threshold <= 1:
-        threshold *= np.max(img)
+        threshold = np.percentile(img.flatten(), threshold)
 
     percent_above_threshold = np.count_nonzero(img > threshold) / img.size
     if percent_above_threshold < 0.1:

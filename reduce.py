@@ -45,15 +45,12 @@ from PyReduce.make_shear import make_shear
 
 # from getxwd import getxwd
 
-# TODO Jupyter Notebook with example usage
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ? or use a mask instead of column range
-# TODO figure out relative imports
 # TODO Naming of functions and modules
 # TODO License
 
-# TODO order tracing: does it work well enough?
-# TODO wavelength calibration: automatic alignment parameters, use gaussian process to model wavelengths?
+# TODO wavelength calibration: automatic alignment parameters
 
 
 def main(
@@ -62,13 +59,13 @@ def main(
     night="????-??-??",
     modes="middle",
     steps=(
-        "bias",
-        "flat",
+        # "bias",
+        # "flat",
         "orders",
-        "norm_flat",
-        "wavecal",
-        "science",
-        "continuum",
+        # "norm_flat",
+        # "wavecal",
+        # "science",
+        # "continuum"
     ),
     base_dir=None,
     input_dir=None,
@@ -112,24 +109,16 @@ def main(
     if isinstance(modes, str):
         modes = [modes]
 
-    m_was_None = modes is None
-
-    # some basic settings
-    # Expected Folder Structure: base_dir/instrument/target/raw/night/*.fits.gz
-    # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
-    settings = util.read_config()
-    if base_dir is None:
-        base_dir = settings["reduce.base_dir"]
-    if input_dir is None:
-        input_dir = settings["reduce.input_dir"]
-    if output_dir is None:
-        output_dir = settings["reduce.output_dir"]
-
-    input_dir = join(base_dir, input_dir)
-    output_dir = join(base_dir, output_dir)
+    isNone = {
+        "modes": modes is None,
+        "base_dir": base_dir is None,
+        "input_dir": input_dir is None,
+        "output_dir": output_dir is None,
+    }
 
     # Loop over everything
     for j, i in enumerate(instrument):
+        # settings: default settings of PyReduce
         # config: paramters for the current reduction
         # info: constant, instrument specific parameters
         if configuration is None:
@@ -144,9 +133,29 @@ def main(
             with open(config) as f:
                 config = json.load(f)
 
+        settings = util.read_config()
+        nparam1 = len(settings)
+        settings.update(config)
+        nparam2 = len(settings)
+        if nparam2 > nparam1:
+            logging.warning("New parameter(s) in instrument config, Check spelling!")
+        
+        config = settings
+
+        # load default settings from settings_pyreduce.json
+        if isNone["base_dir"]:
+            base_dir = config["reduce.base_dir"]
+        if isNone["input_dir"]:
+            input_dir = config["reduce.input_dir"]
+        if isNone["output_dir"]:
+            output_dir = config["reduce.output_dir"]
+
+        input_dir = join(base_dir, input_dir)
+        output_dir = join(base_dir, output_dir)
+
         info = instruments.instrument_info.get_instrument_info(i)
 
-        if modes is None:
+        if isNone["modes"]:
             mode = info["modes"]
         elif isinstance(modes, dict):
             mode = modes[i]
@@ -260,7 +269,7 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             mode,
             mask=mask,
             extension=extension,
-            plot=config.get("plot", False),
+            plot=config["plot"],
         )
         fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
     else:
@@ -280,7 +289,7 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             mask=mask,
             extension=extension,
             bias=bias,
-            plot=config.get("plot", False),
+            plot=config["plot"],
         )
         fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
     else:
@@ -301,12 +310,13 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
 
         orders, column_range = mark_orders(
             order_img,
-            min_cluster=config.get("orders_threshold", 500),
-            filter_size=config.get("orders_filter", 120),
-            noise=config.get("orders_noise", 8),
-            opower=config.get("orders_opower", 4),
-            manual=config.get("orders_manual", True),
-            plot=config.get("plot", True),
+            min_cluster=config["orders.min_cluster"],
+            filter_size=config["orders.filter_size"],
+            noise=config["orders.noise"],
+            opower=config["orders.fit_degree"],
+            border_width=config["orders.border_width"],
+            manual=config["orders.manual"],
+            plot=config["plot"],
         )
 
         # Save results
@@ -332,13 +342,13 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             dark=fhead["e_drk"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=config.get("normflat_extraction_width", 0.2),
-            degree=config.get("normflat_scatter_degree", 4),
-            threshold=config.get("normflat_threshold", 10000),
-            lambda_sf=config.get("normflat_lambda_sf", 8),
-            lambda_sp=config.get("normflat_lambda_sp", 0),
-            swath_width=config.get("normflat_swath_width", None),
-            plot=config.get("plot", True),
+            extraction_width=config["normflat.extraction_width"],
+            degree=config["normflat.scatter_degree"],
+            threshold=config["normflat.threshold"],
+            lambda_sf=config["normflat.smooth_slitfunction"],
+            lambda_sp=config["normflat.smooth_spectrum"],
+            swath_width=config["normflat.swath_width"],
+            plot=config["plot"],
         )
 
         # Save data
@@ -379,9 +389,9 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
                 extraction_type="arc",
                 order_range=order_range,
                 column_range=column_range,
-                extraction_width=config.get("wavecal_extraction_width", 0.25),
-                osample=config.get("wavecal_osample", 1),
-                plot=config.get("plot", True),
+                extraction_width=config["wavecal.extraction_width"],
+                osample=config["wavecal.oversampling"],
+                plot=config["plot"],
             )
             thead["obase"] = (order_range[0], "base order number")
 
@@ -390,7 +400,7 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             #     thar,
             #     orig,
             #     orders,
-            #     extraction_width=config.get("wavecal_extraction_width", 0.25),
+            #     extraction_width=config.get("wavecal.extraction_width", 0.25),
             #     column_range=column_range,
             #     plot=config.get("plot", True),
             # )
@@ -404,10 +414,7 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             reference = readsav(reference)
             cs_lines = reference["cs_lines"]
             wave = wavecal(
-                thar,
-                cs_lines,
-                plot=config.get("plot", True),
-                manual=config.get("wavecal_manual", False),
+                thar, cs_lines, plot=config["plot"], manual=config["wavecal.manual"]
             )
 
             nameout = util.swap_extension(f, ".thar.ech", output_dir)
@@ -443,12 +450,12 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
                 dark=head["e_drk"],
                 column_range=column_range,
                 order_range=order_range,
-                extraction_width=config.get("science_extraction_width", 25),
-                lambda_sf=config.get("science_lambda_sf", 0.1),
-                lambda_sp=config.get("science_lambda_sp", 0),
-                osample=config.get("science_osample", 1),
-                swath_width=config.get("science_swath_width", 300),
-                plot=config.get("plot", True),
+                extraction_width=config["science.extraction_width"],
+                lambda_sf=config["science.smooth_slitfunction",],
+                lambda_sp=config["science.smooth_spectrum"],
+                osample=config["science.oversampling"],
+                swath_width=config["science.swath_width"],
+                plot=config["plot"],
             )
             head["obase"] = (order_range[0], " base order number")
 
@@ -478,7 +485,7 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
                 sigma,
                 column_range=column_range,
                 scaling=True,
-                plot=config.get("plot", True),
+                plot=config["plot"],
             )
 
             # spec = continuum_normalize(spec, wave, blaze, sigma)
@@ -496,12 +503,17 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             head["dec"],
             head["e_jd"],
         )
-        
+
         logging.debug("Heliocentric correction: %f km/s", rv_corr)
         logging.debug("Heliocentric Julian Date: %s", str(bjd))
 
         head["barycorr"] = rv_corr
         head["e_jd"] = bjd
+
+        if config["plot"]:
+            for i in range(spec.shape[0]):
+                plt.plot(wave[i], spec[i] / blaze[i])
+            plt.show()
 
         echelle.save(
             out_file,

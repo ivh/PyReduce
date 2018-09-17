@@ -11,7 +11,7 @@ import numpy as np
 
 from scipy.ndimage import morphology, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
-from scipy.signal import peak_widths
+from scipy.signal import peak_widths, find_peaks
 
 #from PyReduce.cwrappers import find_clusters
 
@@ -247,7 +247,7 @@ def plot_order(i, j, x, y, x_poly, y_poly, img):
 
 
 def mark_orders(
-    im, min_cluster=500, filter_size=120, noise=8, opower=4, plot=False, manual=True
+    im, min_cluster=500, filter_size=120, noise=8, opower=4, border_width=5, plot=False, manual=True
 ):
     """ Identify and trace orders
 
@@ -263,6 +263,8 @@ def mark_orders(
         noise to filter out (default: 8)
     opower : int, optional
         polynomial degree of the order fit (default: 4)
+    border_width : int, optional
+        number of pixels at the bottom and top borders of the image to ignore for order tracing (default: 5)
     plot : bool, optional
         wether to plot the final order fits (default: False)
     manual : bool, optional
@@ -276,21 +278,36 @@ def mark_orders(
 
     # Convert to signed integer, to avoid underflow problems
     im = im.view(np.int16)
-    # find width of orders, based on central column
-    col = im[:, im.shape[0] // 2]
-    col = median_filter(col, 5)
-    idx = np.argmax(col)
-    width = peak_widths(col, [idx])[0][0]
-    width = int(np.ceil(width))
+
     if filter_size is None:
-        filter_size = width * 2
+        col = im[:, im.shape[0] // 2]
+        col = median_filter(col, 5)
+        threshold = np.percentile(col, 90)
+        npeaks = find_peaks(col, height=threshold)[0].size
+        filter_size = im.shape[0] // npeaks
+
+    if border_width is None:
+        # find width of orders, based on central column
+        col = im[:, im.shape[0] // 2]
+        col = median_filter(col, 5)
+        idx = np.argmax(col)
+        width = peak_widths(col, [idx])[0][0]
+        border_width = int(np.ceil(width))
+
+    if min_cluster is None:
+        min_cluster = im.shape[1] // 4
 
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(im, filter_size, axis=0)
+
+    if noise is None:
+        tmp = np.abs(noise.flatten() - blurred.flatten())
+        noise = np.percentile(tmp, 5)
+
     threshold = np.ma.median(im - blurred, axis=0)
     mask = im > blurred + noise + np.abs(threshold)
     # remove borders
-    mask[:width, :] = mask[-width:, :] = False
+    mask[:border_width, :] = mask[-border_width:, :] = False
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters

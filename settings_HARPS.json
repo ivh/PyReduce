@@ -1,33 +1,31 @@
 {
     "__instrument__": "HARPS",
     
-    "polarim": false,
+    "polarimetry": false,
     "plot": false,
     "fiber": "A",
     "use_median": false,
     
-    "orders_opower": 4,
-    "orders_filter": 1000,
-    "orders_threshold": 200,
-    "orders_noise": 1,
-    "orders_manual": true,
+    "orders.fit_degree": 4,
+    "orders.filter_size": 1000,
+    "orders.min_cluster": 200,
+    "orders.noise": 1,
+    "orders.border_width" : 5,
+    "orders.manual": true,
 
-    "normflat_lambda_sf": 4,
-    "normflat_lambda_sp": 20,
-    "normflat_osample": 10,
-    "normflat_swath_width": 200,
-    "normflat_threshold": 10000,
+    "normflat.smooth_slitfunction": 4,
+    "normflat.smooth_spectrum": 20,
+    "normflat.oversampling": 10,
+    "normflat.swath_width": 200,
+    "normflat.threshold": 10000,
     
-    "wavecal_osample": 1,
-    "wavecal_extraction_width" : 2,
-    "wavecal_manual": false,
+    "wavecal.oversampling": 1,
+    "wavecal.extraction_width" : 2,
+    "wavecal.manual": false,
     
-    "science_extraction_width" : 10,
-    "science_osample": 10,
-    "science_swath_width": 300,
-    "science_lambda_sf": 20,
-    "science_lambda_sp": 0.0,
-
-    "continuum_parameters_pass1" : [1, 1e5, 1e7, 1],
-    "continuum_parameters_pass2" : [10, 1e5, 1e7, 1]
+    "science.extraction_width" : 10,
+    "science.oversampling": 10,
+    "science.swath_width": 300,
+    "science.smooth_slitfunction": 20,
+    "science.smooth_spectrum": 0.0
 }
