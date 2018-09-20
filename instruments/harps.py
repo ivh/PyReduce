@@ -3,13 +3,15 @@ Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
+import glob
+import logging
+from datetime import datetime
+
 import numpy as np
 from astropy.io import fits
-
-from datetime import datetime
 from dateutil import parser
 
-from .common import instrument, getter, observation_date_to_night
+from .common import getter, instrument, observation_date_to_night
 
 
 class HARPS(instrument):
@@ -24,6 +26,7 @@ class HARPS(instrument):
         # red and middle are in the same fits file, with different extensions,
         # i.e. share the same mode identifier, but have different extensions
         info = {
+            "__instrument__": "HARPS",
             # General information
             "instrument": "INSTRUME",
             "date": "DATE-OBS",
@@ -60,7 +63,6 @@ class HARPS(instrument):
             "id_spec": "STAR,SKY,M",
             "id_fiber_a": "LAMP,DARK,TUN",
             "id_fiber_b": "DARK,LAMP,TUN",
-
             "instrument_mode": "ESO INS MODE",
             "instrument_mode_alternative": "ESO TPL NAME",
         }
@@ -93,53 +95,35 @@ class HARPS(instrument):
 
         return header
 
-    def sort_files(self, files, target, night, mode, fiber="AB", **kwargs):
+    def sort_files(self, input_dir, target, night, mode, fiber="AB", **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
 
         Parameters
         ----------
-        files : list(str)
-            files to sort
+        input_dir : str
+            input directory containing the files to sort
+        target : str
+            name of the target as in the fits headers
+        night : str
+            observation night, possibly with wildcards
+        mode : str
+            instrument mode
         Returns
         -------
-        biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
-            lists of files, one per type
+        files_per_night : list[dict{str:dict{str:list[str]}}]
+            a list of file sets, one entry per night, where each night consists of a dictionary with one entry per setting,
+            each fileset has five lists of filenames: "bias", "flat", "order", "wave", "spec", organised in another dict
+        nights_out : list[datetime]
+            a list of observation times, same order as files_per_night
         """
+
+        # TODO allow several names for the target?
+
         info = self.load_info()
         target = target.upper()
-        instrument = "HARPS".casefold()
-        night = parser.parse(night).date()
-
-        # Load the mode identifier for the current mode from the header
-        # This could be anything really, e.g. the size of the data axis
-        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
-        mode_id = info["modes"][i].casefold()
-
-        ob = np.zeros(len(files), dtype="U20")
-        ty = np.zeros(len(files), dtype="U20")
-        mo = np.zeros(len(files), dtype="U20")
-        nights = np.zeros(len(files), dtype=datetime)
-        instr = np.zeros(len(files), dtype="U20")
-
-        for i, f in enumerate(files):
-            h = fits.open(f)[0].header
-            ob[i] = h[info["target"]]
-            ty[i] = h[info["observation_type"]]
-            # The mode descriptor has different names in different files, so try different ids
-            mo[i] = h.get(
-                info["instrument_mode"],
-                h.get(info["instrument_mode_alternative"], "")[:3],
-            )
-            nights[i] = parser.parse(h[info["date"]])
-            instr[i] = h[info["instrument"]]
-
-            # Fix naming
-            nights[i] = observation_date_to_night(nights[i])
-            ob[i] = ob[i].replace("-", "")
-            mo[i] = mo[i].casefold()
-            instr[i] = instr[i].casefold()
+        instrument = info["__instrument__"].casefold()
 
         if fiber == "AB":
             id_orddef = info["id_flat"]
@@ -152,15 +136,99 @@ class HARPS(instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
-        selection = (instr == instrument) & (nights == night)
-        # TODO allow several names for the target?
-        biaslist =  files[(ty == info["id_bias"]) & selection]
-        flatlist =  files[(ty == info["id_flat"]) & selection]
-        wavelist =  files[(ob == info["id_wave"]) & selection]
-        orderlist = files[(ob == id_orddef) & selection]
-        speclist = files[(ob == target) & selection]
+        # Try matching with nights
+        try:
+            night = parser.parse(night).date()
+            individual_nights = [night]
+        except ValueError:
+            # if the input night can't be parsed, use all nights
+            # Usually the case if wildcards are involved
+            individual_nights = "all"
 
-        return biaslist, flatlist, wavelist, orderlist, speclist
+        # find all fits files in the input dir(s)
+        input_dir = input_dir.format(
+            instrument=instrument.upper(), target=target, mode=mode, night=night
+        )
+        files = glob.glob(input_dir + "/*.fits")
+        files += glob.glob(input_dir + "/*.fits.gz")
+        files = np.array(files)
+
+        # Load the mode identifier for the current mode from the header
+        # This could be anything really, e.g. the size of the data axis
+        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
+        mode_id = info["modes_id"][i].casefold()
+
+        # Initialize arrays
+        # observed object
+        ob = np.zeros(len(files), dtype="U20")
+        # observation type, bias, flat, spec, etc.
+        ty = np.zeros(len(files), dtype="U20")
+        # instrument mode, e.g. red, blue
+        mo = np.zeros(len(files), dtype="U20")
+        # special setting identifier, e.g. wavelength setting
+        se = np.zeros(len(files), dtype="U20")
+        # observed night, parsed into a datetime object
+        ni = np.zeros(len(files), dtype=datetime)
+        # instrument, used for observation
+        it = np.zeros(len(files), dtype="U20")
+
+        for i, f in enumerate(files):
+            h = fits.open(f)[0].header
+            ob[i] = h.get(info["target"], "")
+            ty[i] = h.get(info["observation_type"], "")
+            # The mode descriptor has different names in different files, so try different ids
+            mo[i] = h.get(info["instrument_mode"])
+            if mo[i] is None:
+                mo[i] = h.get(info["instrument_mode_alternative"], "")[:3]
+            ni_tmp = h.get(info["date"], "")
+            it[i] = h.get(info["instrument"], "")
+            se[i] = "HARPS"
+
+            # Sanitize input
+            ni[i] = observation_date_to_night(ni_tmp)
+            ob[i] = ob[i].replace("-", "")
+            mo[i] = mo[i].casefold()
+            it[i] = it[i].casefold()
+            ty[i] = ty[i].casefold()
+
+        if isinstance(individual_nights, str) and individual_nights == "all":
+            individual_nights = np.unique(ni)
+            logging.info(
+                "Can't parse night %s, use all %i individual nights instead",
+                night,
+                len(individual_nights),
+            )
+
+        files_per_night = []
+        nights_out = []
+        for ind_night in individual_nights:
+            # Select files for this night, this instrument, this instrument mode
+            selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
+
+            # Find all unique setting keys for this night and target
+            # Only look at the settings of observation files
+            keys = se[(ty == info["id_spec"]) & (ob == target) & selection]
+            keys = np.unique(keys)
+
+            files_this_night = {}
+            for key in keys:
+                select = selection & (se == key)
+
+                # find all relevant files for this setting
+                # bias ignores the setting
+                files_this_night[key] = {
+                    "bias": files[(ty == info["id_bias"]) & selection],
+                    "flat": files[(ty == info["id_flat"]) & select],
+                    "order": files[(ty == id_orddef) & select],
+                    "wave": files[(ob == info["id_wave"]) & select],
+                    "spec": files[(ty == info["id_spec"]) & (ob == target) & select],
+                }
+
+            if len(keys) != 0:
+                nights_out.append(ind_night)
+                files_per_night.append(files_this_night)
+
+        return files_per_night, nights_out
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

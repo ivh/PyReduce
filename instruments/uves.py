@@ -3,14 +3,15 @@ Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
-import numpy as np
 import glob
-from astropy.io import fits
-
+import logging
 from datetime import datetime
+
+import numpy as np
+from astropy.io import fits
 from dateutil import parser
 
-from instruments.common import instrument, getter, observation_date_to_night
+from .common import getter, instrument, observation_date_to_night
 
 
 class UVES(instrument):
@@ -25,6 +26,7 @@ class UVES(instrument):
         # red and middle are in the same fits file, with different extensions,
         # i.e. share the same mode identifier, but have different extensions
         info = {
+            "__instrument__" : "UVES",
             # General information
             "instrument": "INSTRUME",
             "date": "DATE-OBS",
@@ -97,18 +99,42 @@ class UVES(instrument):
 
         Parameters
         ----------
-        files : list(str)
-            files to sort
+        input_dir : str
+            input directory containing the files to sort
+        target : str
+            name of the target as in the fits headers
+        night : str
+            observation night, possibly with wildcards
+        mode : str
+            instrument mode
         Returns
         -------
-        biaslist, flatlist, wavelist, orderlist, orderdef_fiber_a, orderdef_fiber_b, speclist
-            lists of files, one per type
+        files_per_night : list[dict{str:dict{str:list[str]}}] 
+            a list of file sets, one entry per night, where each night consists of a dictionary with one entry per setting,
+            each fileset has five lists of filenames: "bias", "flat", "order", "wave", "spec", organised in another dict
+        nights_out : list[datetime]
+            a list of observation times, same order as files_per_night
         """
+
+        # TODO allow several names for the target?
+
         info = self.load_info()
         target = target.upper()
-        instrument = "UVES".casefold()
+        instrument = info["__instrument__"].casefold()
 
-        input_dir = input_dir.format(instrument="UVES", target=target, mode=mode, night=night)
+        # Try matching with nights
+        try:
+            night = parser.parse(night).date()
+            individual_nights = [night]
+        except ValueError:
+            # if the input night can't be parsed, use all nights
+            # Usually the case if wildcards are involved
+            individual_nights = "all"
+
+        # find all fits files in the input dir(s)
+        input_dir = input_dir.format(
+            instrument=instrument.upper(), target=target, mode=mode, night=night
+        )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
         files = np.array(files)
@@ -118,80 +144,73 @@ class UVES(instrument):
         i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
         mode_id = info["modes_id"][i].casefold()
 
+        # Initialize arrays
+        # observed object
         ob = np.zeros(len(files), dtype="U20")
+        # observation type, bias, flat, spec, etc.
         ty = np.zeros(len(files), dtype="U20")
+        # instrument mode, e.g. red, blue
         mo = np.zeros(len(files), dtype="U20")
-        setting = np.zeros(len(files), dtype="U20")
-        nights = np.zeros(len(files), dtype=datetime)
-        instr = np.zeros(len(files), dtype="U20")
+        # special setting identifier, e.g. wavelength setting
+        se = np.zeros(len(files), dtype="U20")
+        # observed night, parsed into a datetime object
+        ni = np.zeros(len(files), dtype=datetime)
+        # instrument, used for observation
+        it = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
-            ob[i] = h[info["target"]]
-            ty[i] = h[info["observation_type"]]
+            ob[i] = h.get(info["target"], "")
+            ty[i] = h.get(info["observation_type"], "")
             # The mode descriptor has different names in different files, so try different ids
-            mo[i] = h.get(
-                info["instrument_mode"],
-                h.get(info["instrument_mode_alternative"], "")[:3],
-            )
-            nights[i] = parser.parse(h[info["date"]])
-            instr[i] = h[info["instrument"]]
-            setting[i] = h.get(info["wavecal_specifier"], "-")
+            mo[i] = h.get(info["instrument_mode"])
+            if mo[i] is None:
+                mo[i] = h.get(info["instrument_mode_alternative"], "")[:3]
+            ni_tmp = h.get(info["date"], "")
+            it[i] = h.get(info["instrument"], "")
+            se[i] = h.get(info["wavecal_specifier"], "")
 
-            # Fix naming
-            nights[i] = observation_date_to_night(nights[i])
+            # Sanitize input
+            ni[i] = observation_date_to_night(ni_tmp)
             ob[i] = ob[i].replace("-", "")
             mo[i] = mo[i].casefold()
-            instr[i] = instr[i].casefold()
+            it[i] = it[i].casefold()
+            ty[i] = ty[i].casefold()
 
-        # Try matching with nights
-        try:
-            night = parser.parse(night).date()
-            individual_nights = [night]
-        except ValueError:
-            individual_nights = np.unique(nights)
+        if isinstance(individual_nights, str) and individual_nights == "all":
+            individual_nights = np.unique(ni)
+            logging.info(
+                "Can't parse night %s, use all %i individual nights instead",
+                night,
+                len(individual_nights),
+            )
 
         files_per_night = []
         nights_out = []
         for ind_night in individual_nights:
-            selection = (ind_night == nights) & (instr == instrument) & (mo == mode_id)
-            # TODO allow several names for the target?
-            bias = files[(ty == info["id_bias"]) & selection]
-            # flatlist =  files[(ty == info["id_flat"]) & selection]
-            # wavelist =  files[(ob == info["id_wave"]) & selection]
-            # orderlist = files[(ob == info["id_orders"]) & selection]
-            # speclist = files[(ty == info["id_spec"]) & (ob == target) & selection]
+            # Select files for this night, this instrument, this instrument mode
+            selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
 
-            biaslist, flatlist, wavelist, orderlist, speclist = {}, {}, {}, {}, {}
-
-            index = setting[(ty == info["id_spec"]) & (ob == target) & selection]
-            index = np.unique(index)
-            index = index[index != "-"]
-            for wavelength in index:
-                selection = (
-                    (instr == instrument)
-                    & (nights == ind_night)
-                    & (mo == mode_id)
-                    & (setting == wavelength)
-                )
-                biaslist[wavelength] = bias
-                flatlist[wavelength] = files[(ty == info["id_flat"]) & selection]
-                orderlist[wavelength] = files[(ty == info["id_orders"]) & selection]
-                wavelist[wavelength] = files[(ob == info["id_wave"]) & selection]
-                speclist[wavelength] = files[
-                    (ty == info["id_spec"]) & (ob == target) & selection
-                ]
+            # Find all unique setting keys for this night and target
+            # Only look at the settings of observation files
+            keys = se[(ty == info["id_spec"]) & (ob == target) & selection]
+            keys = np.unique(keys)
 
             files_this_night = {}
-            for key in speclist.keys():
+            for key in keys:
+                select = selection & (se == key)
+
+                # find all relevant files for this setting
+                # bias ignores the setting
                 files_this_night[key + "nm"] = {
-                    "bias": biaslist[key],
-                    "flat": flatlist[key],
-                    "order": orderlist[key],
-                    "wave": wavelist[key],
-                    "spec": speclist[key],
+                    "bias": files[(ty == info["id_bias"]) & selection],
+                    "flat": files[(ty == info["id_flat"]) & select],
+                    "order": files[(ty == info["id_orders"]) & select],
+                    "wave": files[(ob == info["id_wave"]) & select],
+                    "spec": files[(ty == info["id_spec"]) & (ob == target) & select],
                 }
-            if len(files_this_night) > 0:
+
+            if len(keys) != 0:
                 nights_out.append(ind_night)
                 files_per_night.append(files_this_night)
 
