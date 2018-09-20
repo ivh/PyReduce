@@ -144,9 +144,17 @@ def start_logging(log_file="log.log"):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
+    # Remove existing File handles
+    hasStream = False
+    for h in list(logger.handlers):
+        if isinstance(h, logging.FileHandler):
+            logger.removeHandler(h)
+        if isinstance(h, logging.StreamHandler):
+            hasStream = True
+
     # Command Line output
     # only if not running in notebook
-    if not in_ipynb():
+    if not in_ipynb() and not hasStream:
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
         ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
