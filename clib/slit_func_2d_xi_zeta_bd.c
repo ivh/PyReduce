@@ -154,7 +154,7 @@ int xi_zeta_tensors(int ncols,                                      /* Swath wid
      incrementing them by osample. 
    */
 
-    iy2 = osample - floor(ycen[x] / step);
+    iy2 = osample - floor(ycen[x] / step) - 1;
     iy1 = iy2 - osample;
 
     /*
@@ -175,14 +175,11 @@ int xi_zeta_tensors(int ncols,                                      /* Swath wid
 
    */
 
-    if (iy2 == 0)
-      d1 = step; /* Case 1 */
-    else if (iy1 == 0)
-      d1 = 0.e0; /* Case 2 */
-    else
-      d1 = fmod(ycen[x], step); /* Case 3: This is very clever */
+    d1 = fmod(ycen[x], step);
+    if (d1 == 0)
+      d1 = step;
     d2 = step - d1;
-
+    
     /*
      The final hurdle for 2D slit decomposition is to construct two 3D reference tensors. We proceed
      similar to 1D case except that now each iy subpixel can be shifted left or right following
