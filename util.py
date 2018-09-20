@@ -145,6 +145,7 @@ def start_logging(log_file="log.log"):
     logger.setLevel(logging.DEBUG)
 
     # Command Line output
+    # only if not running in notebook
     if not in_ipynb():
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -160,8 +161,6 @@ def start_logging(log_file="log.log"):
     file.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file.setFormatter(file_formatter)
-
-    
     logger.addHandler(file)
 
     logging.captureWarnings(True)
