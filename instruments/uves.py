@@ -120,7 +120,7 @@ class UVES(instrument):
 
         info = self.load_info()
         target = target.upper()
-        instrument = info["__instrument__"].casefold()
+        instrument = info["__instrument__"].upper()
 
         # Try matching with nights
         try:
@@ -142,7 +142,7 @@ class UVES(instrument):
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
         i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
-        mode_id = info["modes_id"][i].casefold()
+        mode_id = info["modes_id"][i].upper()
 
         # Initialize arrays
         # observed object
@@ -173,9 +173,6 @@ class UVES(instrument):
             # Sanitize input
             ni[i] = observation_date_to_night(ni_tmp)
             ob[i] = ob[i].replace("-", "")
-            mo[i] = mo[i].casefold()
-            it[i] = it[i].casefold()
-            ty[i] = ty[i].casefold()
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
