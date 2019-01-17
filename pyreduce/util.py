@@ -21,6 +21,7 @@ from scipy.optimize import curve_fit
 
 try:
     import git
+
     hasGit = True
 except ImportError:
     hasGit = False
@@ -41,15 +42,16 @@ def read_config(fname="settings_pyreduce.json"):
     else:
         return None
 
+
 def checkGitRepo(remote_name="origin"):
-    #TODO currently this runs everytime PyReduce is called
+    # TODO currently this runs everytime PyReduce is called
     if not hasGit:
         print("Install GitPython to check the git repository for updates")
         return
 
     try:
         repo = git.Repo()
-        #branch = repo.active_branch
+        # branch = repo.active_branch
         if len(repo.remotes) == 0:
             print("No remotes found in Git repository")
             return
@@ -79,6 +81,7 @@ def checkGitRepo(remote_name="origin"):
         #     print("Pulling newest commit")
         #     remote.pull()
         #     repo.status()
+
 
 def parse_args():
     """Parse command line arguments"""
@@ -124,13 +127,14 @@ def parse_args():
 
 def in_ipynb():
     try:
-        cfg = get_ipython().config 
-        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+        cfg = get_ipython().config
+        if cfg["IPKernelApp"]["parent_appname"] == "ipython-notebook":
             return True
         else:
             return False
     except NameError:
         return False
+
 
 def start_logging(log_file="log.log"):
     """Start logging to log file and command line
@@ -493,7 +497,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 def bezier_interp(x_old, y_old, x_new):
     """
     Bezier interpolation, based on the scipy methods
-    
+
     This mostly sanitizes the input by removing masked values and duplicate entries
     Note that in case of duplicate entries (in x_old) the results are not well defined as only one of the entries is used and the other is discarded
 
@@ -505,7 +509,7 @@ def bezier_interp(x_old, y_old, x_new):
         old y values
     x_new : array[m]
         new x values
-    
+
     Returns
     -------
     y_new : array[m]

@@ -19,3 +19,9 @@ examples/reduced/*
 examples/*.pro
 examples/uves_data.tar.gz
 examples/mask_uves_red.fits.gz
+pyreduce/masks/*
+test/UVES/*
+pyreduce.egg-info/
+pyreduce/clib/_*
+.pytest_cache/*
+.gitignore

@@ -32,16 +32,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
 
-from PyReduce import util, echelle, instruments
+from . import util, echelle, instruments
 
 # PyReduce subpackages
-from PyReduce.combine_frames import combine_bias, combine_flat
-from PyReduce.continuum_normalization import splice_orders, continuum_normalize
-from PyReduce.extract import extract
-from PyReduce.normalize_flat import normalize_flat
-from PyReduce.trace_orders import mark_orders
-from PyReduce.wavelength_calibration import wavecal
-from PyReduce.make_shear import make_shear
+from .combine_frames import combine_bias, combine_flat
+from .continuum_normalization import splice_orders, continuum_normalize
+from .extract import extract
+from .normalize_flat import normalize_flat
+from .trace_orders import mark_orders
+from .wavelength_calibration import wavecal
+from .make_shear import make_shear
 
 # from getxwd import getxwd
 
@@ -61,11 +61,11 @@ def main(
     steps=(
         # "bias",
         # "flat",
-        "orders",
+        # "orders",
         # "norm_flat",
         # "wavecal",
         # "science",
-        # "continuum"
+        "continuum"
     ),
     base_dir=None,
     input_dir=None,
@@ -130,8 +130,13 @@ def main(
             config = configuration[j]
 
         if isinstance(config, str):
-            with open(config) as f:
-                config = json.load(f)
+            if os.path.isfile(config):
+                logging.info("Loading configuration for this from %s", config)
+                with open(config) as f:
+                    config = json.load(f)
+            else:
+                logging.warn("No configuration found at %s, using default values", config)
+                config = {}
 
         settings = util.read_config()
         nparam1 = len(settings)
@@ -139,7 +144,7 @@ def main(
         nparam2 = len(settings)
         if nparam2 > nparam1:
             logging.warning("New parameter(s) in instrument config, Check spelling!")
-        
+
         config = settings
 
         # load default settings from settings_pyreduce.json

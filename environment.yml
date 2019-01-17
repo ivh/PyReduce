@@ -1,0 +1,14 @@
+name: pyreduce
+channels:
+  - defaults
+  - astropy
+  - anaconda
+dependencies:
+  - numpy
+  - scipy
+  - astropy
+  - dateutil
+  - matplotlib
+  - Ipython
+  - jupyter
+  - pytest

@@ -17,10 +17,7 @@ def build(**kwargs):
         ffibuilder.set_source(
             "clib._cluster",
             f.read(),
-            # libraries=["c"],
-            # sources=[os.path.join(CWD, "cluster.c")],
-            # library_dirs=["."]
-            # include_dirs=[os.path.join()]
+            include_dirs=[CWD]
         )
     ffibuilder.compile(**kwargs)
 

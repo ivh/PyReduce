@@ -172,14 +172,14 @@ def build_2d_solution(cs_lines, plot=False):
     """
 
     # Only use flagged data
-    mask = ~cs_lines.flag.astype(bool) # 0 = True, 1 = False
+    mask = ~cs_lines.flag.astype(bool)  # 0 = True, 1 = False
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask]
     m_width = cs_lines.width[mask]
 
     # 2d polynomial fit with: x = column, y = order, z = wavelength
-    #coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
+    # coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
 
     degree_x, degree_y = 6, 6
     degree_x, degree_y = degree_x + 1, degree_y + 1  # Due to how np polyval2d workss
@@ -190,12 +190,13 @@ def build_2d_solution(cs_lines, plot=False):
         value = polyval2d(x[0], x[1], c)
         return value
 
-    #z = gaussian_process_fit(m_pix, m_ord, m_wave, m_width)
+    # z = gaussian_process_fit(m_pix, m_ord, m_wave, m_width)
     coef, pcov = curve_fit(
         func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
     )
     coef.shape = degree_x, degree_y
     return coef
+
 
 def gaussian_process_fit(x, y, z, zerr):
     import GPy
@@ -220,6 +221,7 @@ def gaussian_process_fit(x, y, z, zerr):
         plt.show()
 
     return z_new
+
 
 def make_wave(thar, wave_solution, plot=False):
     """Expand polynomial wavelength solution into full image
@@ -251,7 +253,7 @@ def make_wave(thar, wave_solution, plot=False):
         plt.ylabel("Thar spectrum")
         for i in range(thar.shape[0]):
             plt.plot(wave_img[i], thar[i], label="Order %i" % i)
-        #plt.legend(loc="best")        
+        # plt.legend(loc="best")
 
         plt.subplot(212)
         plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))
@@ -395,7 +397,6 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
         wavelength solution for each point in the spectrum
     """
 
-
     # normalize images
     thar = np.ma.masked_array(thar, mask=thar == 0)
     thar -= np.min(thar)
@@ -404,8 +405,8 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
     cs_lines.height /= np.max(cs_lines.height)
 
     # TODO: reverse orders?
-    #max_order = np.max(cs_lines.order)
-    #cs_lines.order = max_order - cs_lines.order
+    # max_order = np.max(cs_lines.order)
+    # cs_lines.order = max_order - cs_lines.order
 
     if polarim:
         raise NotImplementedError("polarized orders not impemented yet")
