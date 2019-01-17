@@ -18,7 +18,6 @@ License
 
 """
 
-import glob
 import json
 import logging
 import os.path
@@ -33,6 +32,7 @@ import numpy as np
 from scipy.io import readsav
 
 from . import echelle, instruments, util
+
 # PyReduce subpackages
 from .combine_frames import combine_bias, combine_flat
 from .continuum_normalization import continuum_normalize, splice_orders
@@ -57,15 +57,7 @@ def main(
     target="HD132205",
     night="????-??-??",
     modes="middle",
-    steps=(
-        # "bias",
-        # "flat",
-        # "orders",
-        # "norm_flat",
-        # "wavecal",
-        # "science",
-        "continuum"
-    ),
+    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"),
     base_dir=None,
     input_dir=None,
     output_dir=None,
@@ -77,6 +69,8 @@ def main(
 
     Finds input directories, and loops over observation nights and instrument modes
 
+    Parameters
+    ----------
     instrument : str, list[str]
         instrument used for the observation (e.g. UVES, HARPS)
     target : str, list[str]
@@ -127,6 +121,8 @@ def main(
                 config = configuration[i]
         elif isinstance(configuration, list):
             config = configuration[j]
+        elif isinstance(configuration, str):
+            config = configuration
 
         if isinstance(config, str):
             if os.path.isfile(config):
@@ -134,7 +130,7 @@ def main(
                 with open(config) as f:
                     config = json.load(f)
             else:
-                logging.warn(
+                logging.warning(
                     "No configuration found at %s, using default values", config
                 )
                 config = {}

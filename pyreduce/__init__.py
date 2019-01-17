@@ -1,4 +1,5 @@
-from . import reduce
+from . import reduce, datasets
+
 # from . import util, reduce
 
 # settings = util.read_config()

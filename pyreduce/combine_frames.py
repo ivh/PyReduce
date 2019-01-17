@@ -235,7 +235,9 @@ def combine_frames(
         logging.info("%i\t%s", i, fname)
 
     # Only one image
-    if len(files) < 2:
+    if len(files) == 0:
+        raise ValueError("No files defined")
+    elif len(files) == 1:
         result, head = load_fits(
             files[0], instrument, mode, extension, dtype=dtype, **kwargs
         )
@@ -424,7 +426,7 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
         fits extension to use (default: 1)
     bias: array(int, float), optional
         bias image to subtract from master flat (default: 0)
-    
+
     xr: 2-tuple(int), optional
         x range to use (default: None, i.e. whole image)
     yr: 2-tuple(int), optional
@@ -476,7 +478,9 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
     debug = kwargs.get("debug", False)
 
     n = len(files)
-    if n == 1:
+    if n == 0:
+        raise ValueError("No bias file found")
+    elif n == 1:
         # if there is just one element compare it with itself, not really useful, but it works
         list1 = list2 = files
         n = 2

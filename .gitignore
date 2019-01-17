@@ -25,3 +25,6 @@ pyreduce.egg-info/
 pyreduce/clib/_*
 .pytest_cache/*
 .gitignore
+test/datasets/*
+test/uves_data.tar.gz
+uves_data.tar.gz
