@@ -1,6 +1,9 @@
 import os
 from os.path import dirname, join
 
+import numpy as np
+from astropy.io import fits
+
 import json
 import pytest
 from pyreduce import datasets, util, instruments
@@ -77,11 +80,54 @@ def settings(config):
 
 
 @pytest.fixture
-def files(data, instrument, target, night, mode, settings):
-    input_dir = join(data, "datasets", target)
+def input_dir(data, target):
+    return join(data, "datasets", target)
+
+
+@pytest.fixture
+def output_dir(data, settings):
+    return join(data, settings["reduce.output_dir"])
+
+
+@pytest.fixture
+def files(input_dir, instrument, target, night, mode, settings):
     files, _ = instruments.instrument_info.sort_files(
         input_dir, target, night, instrument, mode, **settings
     )
     files = files[0][list(files[0].keys())[0]]
     return files
 
+
+@pytest.fixture
+def mask(instrument, mode):
+    mask_dir = os.path.dirname(__file__)
+    mask_dir = os.path.join(mask_dir, "../pyreduce", "masks")
+    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
+
+    mask, _ = util.load_fits(mask_file, instrument, mode, extension=0)
+    mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+    return mask
+
+
+@pytest.fixture
+def prefix(instrument, mode):
+    prefix = "%s_%s" % (instrument.lower(), mode.lower())
+    return prefix
+
+
+@pytest.fixture
+def flat(prefix, output_dir, mask):
+    flat_file = join(output_dir, f"{prefix}.flat.fits")
+    flat = fits.open(flat_file)[0]
+    flat, fhead = flat.data, flat.header
+    flat = np.ma.masked_array(flat, mask=mask)
+    return flat, fhead
+
+
+@pytest.fixture
+def bias(prefix, output_dir, mask):
+    bias_file = join(output_dir, f"{prefix}.bias.fits")
+    bias = fits.open(bias_file)[0]
+    bias, bhead = bias.data, bias.header
+    bias = np.ma.masked_array(bias, mask=mask)
+    return bias, bhead

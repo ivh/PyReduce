@@ -8,9 +8,15 @@ from pyreduce import instruments
 from pyreduce.combine_frames import combine_flat
 
 
-def test_flat(instrument, mode, files, extension):
+def test_flat(instrument, mode, files, extension, mask):
     flat, fhead = combine_flat(
-        files["flat"], instrument, mode, extension=extension, bias=0, window=50
+        files["flat"],
+        instrument,
+        mode,
+        extension=extension,
+        bias=0,
+        window=50,
+        mask=mask,
     )
 
     assert isinstance(flat, np.ma.masked_array)

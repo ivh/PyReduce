@@ -8,9 +8,9 @@ from pyreduce import instruments
 from pyreduce.combine_frames import combine_bias
 
 
-def test_bias(instrument, mode, files, extension):
+def test_bias(instrument, mode, files, extension, mask):
     bias, bhead = combine_bias(
-        files["bias"], instrument, mode, extension=extension, window=50
+        files["bias"], instrument, mode, extension=extension, window=50, mask=mask
     )
 
     assert isinstance(bias, np.ma.masked_array)
