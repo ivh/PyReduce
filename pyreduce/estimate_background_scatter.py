@@ -24,7 +24,15 @@ from . import extract
 from .util import polyfit2d
 
 
-def estimate_background_scatter(img, orders, column_range=None, extraction_width=0.1, scatter_degree=4, plot=False, **kwargs):
+def estimate_background_scatter(
+    img,
+    orders,
+    column_range=None,
+    extraction_width=0.1,
+    scatter_degree=4,
+    plot=False,
+    **kwargs
+):
     """Estimate the background by fitting a 2d polynomial to interorder data
 
     Parameters
@@ -98,7 +106,7 @@ def estimate_background_scatter(img, orders, column_range=None, extraction_width
     # Calculate scatter at interorder positions
     x = np.arange(ncol)
     y = np.array([np.polyval(order, x) for order in orders_inbetween])
-    x = x[None, :] * np.full(nord+1, 1)[:, None]
+    x = x[None, :] * np.full(nord + 1, 1)[:, None]
     back = np.polynomial.polynomial.polyval2d(x, y, coeff)
     yback = y
 

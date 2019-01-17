@@ -180,7 +180,7 @@ def read(
 
             # Correct for radial velocity and barycentric correction
             # + : away from observer
-            # - : towards observer 
+            # - : towards observer
             velocity_correction = 0
             if barycentric_correction:
                 velocity_correction += header.get("barycorr", 0)
@@ -191,8 +191,6 @@ def read(
 
             speed_of_light = scipy.constants.speed_of_light * 1e-3
             ech.wave *= 1 + velocity_correction / speed_of_light
-
-
 
         # Continuum
         if hasattr(ech, "cont"):
@@ -220,8 +218,6 @@ def read(
                 ech.spec /= ech.cont
             if hasattr(ech, "sig"):
                 ech.sig /= ech.cont
-
-
 
     return ech
 

@@ -3,6 +3,7 @@ Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
+import os.path
 import glob
 import logging
 from datetime import datetime
@@ -229,7 +230,7 @@ class HARPS(instrument):
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
-        fname = "./wavecal/{instrument}_{mode}_2D.sav".format(
-            instrument="harps", mode=mode
-        )
+        cwd = os.path.dirname(__file__)
+        fname = "{instrument}_{mode}_2D.sav".format(instrument="harps", mode=mode)
+        fname = os.path.join(cwd, "wavecal", fname)
         return fname

@@ -91,7 +91,9 @@ def make_shear(
 
     nord = orders.shape[0]
     nrow, ncol = original.shape
-    threshold = 10 #how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
+    threshold = (
+        10
+    )  # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
 
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width], [nord, 2])
@@ -123,7 +125,9 @@ def make_shear(
         # This should probably be the same as in the wavelength calibration
         vec = extracted[iord, cr[0] : cr[1]]
         vec -= np.ma.min(vec)
-        locmax, _ = signal.find_peaks(vec, height=np.ma.median(vec) * threshold, distance=10)
+        locmax, _ = signal.find_peaks(
+            vec, height=np.ma.median(vec) * threshold, distance=10
+        )
 
         # Remove peaks at the edge
         locmax = locmax[(locmax >= 10) & (locmax < len(vec) - 10)]

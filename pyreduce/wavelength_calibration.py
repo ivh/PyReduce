@@ -4,19 +4,19 @@ by comparison to a reference spectrum
 Loosely bases on the IDL wavecal function
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-from numpy.polynomial.polynomial import polyval2d
 import logging
 
-from scipy.io import readsav
-from scipy.optimize import curve_fit
+import astropy.io.fits as fits
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy.polynomial.polynomial import polyval2d
 from scipy import signal
 from scipy.constants import speed_of_light
-import astropy.io.fits as fits
+from scipy.io import readsav
+from scipy.optimize import curve_fit
 
-from .instruments import instrument_info
 from . import util
+from .instruments import instrument_info
 
 
 class AlignmentPlot:

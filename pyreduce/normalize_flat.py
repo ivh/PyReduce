@@ -2,8 +2,9 @@
 Module that normalizes the Flat field image to 1
 """
 
-import numpy as np
 import logging
+
+import numpy as np
 
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract

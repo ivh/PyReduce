@@ -133,7 +133,16 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
     return corrected_signal, nbad
 
 
-def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=50, dtype=np.float32, **kwargs):
+def combine_frames(
+    files,
+    instrument,
+    mode,
+    extension=1,
+    threshold=3.5,
+    window=50,
+    dtype=np.float32,
+    **kwargs
+):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
     similar images.
@@ -227,14 +236,20 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
 
     # Only one image
     if len(files) < 2:
-        result, head = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
+        result, head = load_fits(
+            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        )
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
+        bias1, head1 = load_fits(
+            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        )
         exp1 = head1["exptime"]
 
-        bias2, head2 = load_fits(files[0], instrument, mode, extension, dtype=dtype, **kwargs)
+        bias2, head2 = load_fits(
+            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        )
         exp2, readnoise = head2["exptime"], head2["e_readn"]
 
         result = bias2 + bias1
@@ -250,7 +265,9 @@ def combine_frames(files, instrument, mode, extension=1, threshold=3.5, window=5
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs)
+            load_fits(
+                f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs
+            )
             for f in files
         ]
         head = heads[0]
@@ -423,7 +440,7 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark. We have to scale it by the number of Flats
     flat -= bias * len(files)  # subtract bias, if passed
-    
+
     if plot:
         plt.imshow(flat)
         plt.show()
@@ -472,7 +489,6 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
         except KeyError:
             logging.info("Could not sort files by observation time")
         list1, list2 = files[: n // 2], files[n // 2 :]
-
 
     # Lists of images.
     n1 = len(list1)
@@ -558,7 +574,7 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
     if plot:
         plt.imshow(bias)
         plt.show()
-    
+
     try:
         del head["tapelist"]
     except KeyError:

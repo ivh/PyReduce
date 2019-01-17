@@ -3,6 +3,7 @@ Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
+import os.path
 import glob
 import logging
 from datetime import datetime
@@ -26,7 +27,7 @@ class UVES(instrument):
         # red and middle are in the same fits file, with different extensions,
         # i.e. share the same mode identifier, but have different extensions
         info = {
-            "__instrument__" : "UVES",
+            "__instrument__": "UVES",
             # General information
             "instrument": "INSTRUME",
             "date": "DATE-OBS",
@@ -186,7 +187,11 @@ class UVES(instrument):
         nights_out = []
         for ind_night in individual_nights:
             # Select files for this night, this instrument, this instrument mode
-            selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
+            selection = (
+                (ni == ind_night)
+                & (it == instrument)
+                & ((mo == mode_id) | (mo == "None"))
+            )
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
@@ -218,7 +223,9 @@ class UVES(instrument):
         info = self.load_info()
         specifier = int(header[info["wavecal_specifier"]])
 
-        fname = "./wavecal/{instrument}_{mode}_{specifier}nm_2D.sav".format(
+        cwd = os.path.dirname(__file__)
+        fname = "{instrument}_{mode}_{specifier}nm_2D.sav".format(
             instrument="uves", mode=mode, specifier=specifier
         )
+        fname = os.path.join(cwd, "wavecal", fname)
         return fname

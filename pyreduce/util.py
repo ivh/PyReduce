@@ -9,7 +9,6 @@ from itertools import product
 import json
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
@@ -33,7 +32,7 @@ from .instruments.instrument_info import modeinfo
 
 def read_config(fname="settings_pyreduce.json"):
     this_dir = os.path.dirname(__file__)
-    fname = os.path.join(this_dir, fname)
+    fname = os.path.join(this_dir, "settings", fname)
 
     if os.path.exists(fname):
         with open(fname) as file:

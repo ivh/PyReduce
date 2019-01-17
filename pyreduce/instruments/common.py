@@ -2,6 +2,7 @@
 Abstract parent module for all other instruments
 Contains some general functionality, which may be overridden by the children of course
 """
+import os.path
 import datetime
 import glob
 import logging
@@ -305,7 +306,9 @@ class instrument:
         info = self.load_info()
         specifier = header.get(info.get("wavecal_specifier", ""), "")
 
-        fname = "./wavecal/{instrument}_{mode}_{specifier}.sav".format(
+        cwd = os.path.dirname(__file__)
+        fname = "{instrument}_{mode}_{specifier}.sav".format(
             instrument=instrument.lower(), mode=mode, specifier=specifier
         )
+        fname = os.path.join(cwd, "wavecal", fname)
         return fname

@@ -2,11 +2,9 @@
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
-import os
 
-import PyReduce
-import PyReduce.examples.datasets as datasets
-
+import pyreduce
+import datasets
 
 
 # define parameters
@@ -25,7 +23,7 @@ base_dir = datasets.UVES_HD132205()
 input_dir = "datasets/{target}/"
 output_dir = "reduced/{target}/{night}/{mode}"
 
-PyReduce.reduce.main(
+pyreduce.reduce.main(
     instrument,
     target,
     night,

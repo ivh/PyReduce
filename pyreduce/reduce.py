@@ -22,26 +22,25 @@ import glob
 import json
 import logging
 import os.path
-from os.path import join
 import pickle
 import sys
 import time
+from os.path import join
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
 
-from . import util, echelle, instruments
-
+from . import echelle, instruments, util
 # PyReduce subpackages
 from .combine_frames import combine_bias, combine_flat
-from .continuum_normalization import splice_orders, continuum_normalize
+from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
+from .make_shear import make_shear
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import wavecal
-from .make_shear import make_shear
 
 # from getxwd import getxwd
 
@@ -135,7 +134,9 @@ def main(
                 with open(config) as f:
                     config = json.load(f)
             else:
-                logging.warn("No configuration found at %s, using default values", config)
+                logging.warn(
+                    "No configuration found at %s, using default values", config
+                )
                 config = {}
 
         settings = util.read_config()

@@ -13,7 +13,7 @@ from scipy.ndimage import morphology, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import peak_widths, find_peaks
 
-#from PyReduce.cwrappers import find_clusters
+# from PyReduce.cwrappers import find_clusters
 
 
 def merge_clusters(
@@ -247,7 +247,14 @@ def plot_order(i, j, x, y, x_poly, y_poly, img):
 
 
 def mark_orders(
-    im, min_cluster=500, filter_size=120, noise=8, opower=4, border_width=5, plot=False, manual=True
+    im,
+    min_cluster=500,
+    filter_size=120,
+    noise=8,
+    opower=4,
+    border_width=5,
+    plot=False,
+    manual=True,
 ):
     """ Identify and trace orders
 
@@ -315,7 +322,7 @@ def mark_orders(
     mask = morphology.binary_closing(mask, struct)
     # remove small lonely clusters
     struct = morphology.generate_binary_structure(2, 1)
-    mask = morphology.binary_erosion(mask,)
+    mask = morphology.binary_erosion(mask)
 
     # label clusters
     clusters, n_clusters = label(mask)

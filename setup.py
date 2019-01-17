@@ -2,7 +2,7 @@
 Setup Module
 Compiles the C functions
 """
-from setuptools import setup, find_packages
+from setuptools import setup
 
 from pyreduce.clib import build_cluster, build_extract
 

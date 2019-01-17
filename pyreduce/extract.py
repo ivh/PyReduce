@@ -11,31 +11,27 @@ License
 """
 
 import logging
-import pickle
 
-import astropy.io.fits as fits
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage.filters import gaussian_filter1d, median_filter
 
 from .cwrappers import slitfunc, slitfunc_curved
-from . import estimate_background_scatter
-from .util import cutout_image, make_index
+from .util import make_index
 
 # TODO put the plotting somewhere else
 
 
 def getflatimg(img, axis=0):
     """Flatten image and indices
-    
+
     Parameters
     ----------
     img : array
         image to flatten
     axis : int, optional
         axis to flatten along (default: 0)
-    
+
     Returns
     -------
     index: array
