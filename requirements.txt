@@ -1,8 +1,9 @@
 numpy
 scipy
 astropy
+matplotlib
 cffi
 python-dateutil
 requests
-matplotlib
+scikit-image
 pytest
