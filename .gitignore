@@ -28,3 +28,4 @@ pyreduce/clib/_*
 test/datasets/*
 test/uves_data.tar.gz
 uves_data.tar.gz
+datasets/**

@@ -4,7 +4,7 @@ Loads a sample UVES dataset, and runs the full extraction
 """
 
 import pyreduce
-import datasets
+from pyreduce import datasets
 
 
 # define parameters
@@ -12,7 +12,15 @@ instrument = "UVES"
 target = "HD132205"
 night = "2010-04-02"
 mode = "middle"
-steps = ("bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum")
+steps = (  # "bias",
+    # "flat",
+    # "orders",
+    #  "norm_flat",
+    # "wavecal",
+    "shear",
+    "science",
+    "continuum",
+)
 
 # some basic settings
 # Expected Folder Structure: base_dir/datasets/HD132205/*.fits.gz
@@ -20,7 +28,7 @@ steps = ("bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum
 
 # load dataset (and save the location)
 base_dir = datasets.UVES_HD132205()
-input_dir = "datasets/{target}/"
+input_dir = "{target}/"
 output_dir = "reduced/{target}/{night}/{mode}"
 
 pyreduce.reduce.main(
@@ -32,4 +40,5 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
+    order_range=(0, 1),
 )

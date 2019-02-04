@@ -12,7 +12,17 @@ import numpy as np
 
 from . import util
 
-def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=False):
+
+def splice_orders(
+    spec,
+    wave,
+    cont,
+    sigm,
+    column_range=None,
+    order_range=None,
+    scaling=True,
+    plot=False,
+):
     """
     Splice orders together so that they form a continous spectrum
     This is achieved by linearly combining the overlaping regions
@@ -29,6 +39,8 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         Errors on the spectrum
     column_range : array[nord, 2], optional
         range of each order that is to be used  (default: use whole range)
+    order_range : tuple(int, int), optional
+        range of orders to use for the splicing (default: use all orders)
     scaling : bool, optional
         If true, the spectrum/continuum will be scaled to 1 (default: False)
     plot : bool, optional
@@ -44,20 +56,23 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
     spec, wave, cont, sigm : array[nord, ncol]
         spliced spectrum
     """
-
     nord, ncol = spec.shape  # Number of sp. orders, Order length in pixels
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 1))
 
+    if order_range is None:
+        order_range = (0, nord - 1)
+
     # by using masked arrays we can stop worrying about column ranges
     mask = np.full(spec.shape, True)
-    for iord in range(len(column_range)):
-        mask[iord, column_range[iord, 0] : column_range[iord, 1]] = False
+    for iord in range(order_range[0], order_range[1] + 1):
+        cr = column_range[iord]
+        mask[iord, cr[0] : cr[1]] = False
 
-    spec = np.ma.masked_array(spec, mask=mask)
-    wave = np.ma.masked_array(wave, mask=mask)
-    cont = np.ma.masked_array(cont, mask=mask)
-    sigm = np.ma.masked_array(sigm, mask=mask)
+    spec = np.ma.masked_array(spec[order_range[0] : order_range[1] + 1, :], mask=mask)
+    wave = np.ma.masked_array(wave[order_range[0] : order_range[1] + 1, :], mask=mask)
+    cont = np.ma.masked_array(cont[order_range[0] : order_range[1] + 1, :], mask=mask)
+    sigm = np.ma.masked_array(sigm[order_range[0] : order_range[1] + 1, :], mask=mask)
 
     if scaling:
         # Scale everything to roughly the same size, around spec/blaze = 1
@@ -88,8 +103,8 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
         u0, u1 = sigm[iord0], sigm[iord1]
 
         # Calculate Overlap
-        i0 = np.where((w0 >= np.min(w1)) & (w0 <= np.max(w1)))
-        i1 = np.where((w1 >= np.min(w0)) & (w1 <= np.max(w0)))
+        i0 = np.where((w0 >= np.ma.min(w1)) & (w0 <= np.ma.max(w1)))
+        i1 = np.where((w1 >= np.ma.min(w0)) & (w1 <= np.ma.max(w0)))
 
         # Orders overlap
         if i0[0].size > 0 and i1[0].size > 0:
@@ -103,16 +118,20 @@ def splice_orders(spec, wave, cont, sigm, column_range=None, scaling=True, plot=
             tmpU1 = util.bezier_interp(w0, u0, w1[i1])
 
             # Combine the two orders weighted by the relative error
-            wgt0 = np.ma.vstack([c0[i0]/u0[i0], tmpB0/tmpU0])**2
-            wgt1 = np.ma.vstack([c1[i1]/u1[i1], tmpB1/tmpU1])**2
+            wgt0 = np.ma.vstack([c0[i0] / u0[i0], tmpB0 / tmpU0]) ** 2
+            wgt1 = np.ma.vstack([c1[i1] / u1[i1], tmpB1 / tmpU1]) ** 2
 
-            s0[i0], utmp = np.ma.average(np.ma.vstack([s0[i0], tmpS0]), axis=0, weights=wgt0, returned=True)
+            s0[i0], utmp = np.ma.average(
+                np.ma.vstack([s0[i0], tmpS0]), axis=0, weights=wgt0, returned=True
+            )
             c0[i0] = np.ma.average([c0[i0], tmpB0], axis=0, weights=wgt0)
-            u0[i0] = c0[i0]/utmp**0.5
+            u0[i0] = c0[i0] / utmp ** 0.5
 
-            s1[i1], utmp = np.ma.average(np.ma.vstack([s1[i1], tmpS1]), axis=0, weights=wgt1, returned=True)
+            s1[i1], utmp = np.ma.average(
+                np.ma.vstack([s1[i1], tmpS1]), axis=0, weights=wgt1, returned=True
+            )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
-            u1[i1] = c1[i1]/utmp**0.5
+            u1[i1] = c1[i1] / utmp ** 0.5
         else:  # Orders dont overlap
             raise NotImplementedError("Orders don't overlap, please test")
             c0 *= util.top(s0 / c0, 1, poly=True)
@@ -155,16 +174,13 @@ def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
     for i in range(nord):
         m = np.ma.median(spec[i])
 
-
-
     if plot:
         order = 0
         plt.plot(wave[order], spec[order], label="spec")
         plt.plot(wave[order], cont[order], label="cont")
-        #plt.legend(loc="best")
+        # plt.legend(loc="best")
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
         plt.show()
-
 
     return spec

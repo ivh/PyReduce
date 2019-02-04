@@ -51,7 +51,11 @@ class getter:
     def __init__(self, header, info, mode):
         self.header = header
         self.info = info
-        self.index = find_first_index(info["modes"], mode)
+        try:
+            self.index = find_first_index(info["modes"], mode)
+        except KeyError:
+            logging.warning("No instrument modes found in instrument info")
+            self.index = 0
 
         # Pick values for the given mode
         for k, v in self.info.items():
@@ -77,7 +81,7 @@ class getter:
             value found in header (or alternatively alt)
         """
 
-        value = self.info[key]
+        value = self.info.get(key, key)
         if isinstance(value, list):
             value = value[self.index]
         if isinstance(value, str):
@@ -131,15 +135,15 @@ class instrument:
         info = self.load_info()
         get = getter(header, info, mode)
 
-        header["e_orient"] = get("orientation")
+        header["e_orient"] = get("orientation", 0)
 
         naxis_x = get("naxis_x")
         naxis_y = get("naxis_y")
 
-        prescan_x = get("prescan_x")
-        overscan_x = get("overscan_x")
-        prescan_y = get("prescan_y")
-        overscan_y = get("overscan_y")
+        prescan_x = get("prescan_x", 0)
+        overscan_x = get("overscan_x", 0)
+        prescan_y = get("prescan_y", 0)
+        overscan_y = get("overscan_y", 0)
 
         header["e_xlo"] = prescan_x
         header["e_xhi"] = naxis_x - overscan_x
@@ -147,9 +151,9 @@ class instrument:
         header["e_ylo"] = prescan_y
         header["e_yhi"] = naxis_y - overscan_y
 
-        header["e_gain"] = get("gain")
-        header["e_readn"] = get("readnoise")
-        header["e_exptim"] = get("exposure_time")
+        header["e_gain"] = get("gain", 1)
+        header["e_readn"] = get("readnoise", 0)
+        header["e_exptim"] = get("exposure_time", 0)
 
         header["e_sky"] = get("sky", 0)
         header["e_drk"] = get("dark", 0)
@@ -310,5 +314,11 @@ class instrument:
         fname = "{instrument}_{mode}_{specifier}.sav".format(
             instrument=instrument.lower(), mode=mode, specifier=specifier
         )
-        fname = os.path.join(cwd, "wavecal", fname)
+        fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
+
+
+class COMMON(instrument):
+    def load_info(self):
+        return {"naxis_x": "NAXIS1", "naxis_y": "NAXIS2"}
+

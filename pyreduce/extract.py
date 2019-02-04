@@ -247,7 +247,7 @@ def make_bins(swath_width, xlow, xhigh, ycen, ncol):
 
     if swath_width is None:
         i = np.unique(ycen.astype(int))  # Points of row crossing
-        ni = len(i)  # This is how many times this order crosses to the next row
+        # ni = len(i)  # This is how many times this order crosses to the next row
         if len(i) > 1:  # Curved order crosses rows
             i = np.sum(i[1:] - i[:-1]) / (len(i) - 1)
             nbin = np.clip(
@@ -418,7 +418,7 @@ def extract_spectrum(
         normalized image, only output if normalize is True (default: None)
     im_ordr : array[nrow, ncol], optional
         image of the order blaze, only output if normalize is True (default: None)
-    
+
     Returns
     -------
     spec : array[ncol]
@@ -431,7 +431,7 @@ def extract_spectrum(
         uncertainty on the spectrum
     """
 
-    nrow, ncol = img.shape
+    _, ncol = img.shape
     ylow, yhigh = yrange
     xlow, xhigh = xrange
     nslitf = osample * (ylow + yhigh + 2) + 1
@@ -622,7 +622,7 @@ def optimal_extraction(
     """ Use optimal extraction to get spectra
 
     This functions just loops over the orders, the actual work is done in extract_spectrum
-    
+
     Parameters
     ----------
     img : array[nrow, ncol]
@@ -654,13 +654,21 @@ def optimal_extraction(
     nord = len(orders)
 
     spectrum = np.zeros((nord - 2, ncol))
-    slitfunction = [None for _ in range(nord - 2)]
     uncertainties = np.zeros((nord - 2, ncol))
+    slitfunction = [None for _ in range(nord - 2)]
+
+    # Add mask as defined by column ranges
+    mask = np.full((nord - 2, ncol), True)
+    for i, onum in enumerate(range(1, nord - 1)):
+        mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
+    spectrum = np.ma.array(spectrum, mask=mask)
+    uncertainties = np.ma.array(uncertainties, mask=mask)
+
     ix = np.arange(ncol)
 
     for i, onum in enumerate(range(1, nord - 1)):
         if nord < 10 or onum % 5 == 0:
-            logging.info("Extracting relative order %i out of %i" % (onum, nord - 2))
+            logging.info("Extracting relative order %i out of %i", onum, nord - 2)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
@@ -737,6 +745,14 @@ def arc_extraction(
 
     spectrum = np.zeros((nord - 2, ncol))
     uncertainties = np.zeros((nord - 2, ncol))
+
+    # Add mask as defined by column ranges
+    mask = np.full((nord - 2, ncol), True)
+    for i, onum in enumerate(range(1, nord - 1)):
+        mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
+    spectrum = np.ma.array(spectrum, mask=mask)
+    uncertainties = np.ma.array(uncertainties, mask=mask)
+
     x = np.arange(ncol)
 
     for i, onum in enumerate(range(1, nord - 1)):  # loop thru orders
@@ -932,7 +948,7 @@ def extract(
 ):
     """
     Extract the spectrum from an image
-    
+
     Parameters
     ----------
     img : array[nrow, ncol](float)
@@ -958,9 +974,9 @@ def extract(
         extracted spectrum for each order
     uncertainties : array[nord, ncol](float)
         uncertainties on the spectrum
-        
+
     if extraction_type == "normalize" instead return
-    
+
     im_norm : array[nrow, ncol](float)
         normalized image
     im_ordr : array[nrow, ncol](float)
@@ -970,7 +986,7 @@ def extract(
     """
 
     nrow, ncol = img.shape
-    nord, opower = orders.shape
+    nord, _ = orders.shape
     if shear is None:
         shear = np.zeros((nord, ncol))
     if order_range is None:

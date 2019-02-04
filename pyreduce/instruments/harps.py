@@ -232,5 +232,5 @@ class HARPS(instrument):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
         fname = "{instrument}_{mode}_2D.sav".format(instrument="harps", mode=mode)
-        fname = os.path.join(cwd, "wavecal", fname)
+        fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname

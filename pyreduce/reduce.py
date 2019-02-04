@@ -26,7 +26,7 @@ import sys
 import time
 from os.path import join
 
-import astropy.io.fits as fits
+from astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import readsav
@@ -62,6 +62,7 @@ def main(
     input_dir=None,
     output_dir=None,
     configuration=None,
+    order_range=None,
 ):
     """
     Main entry point for REDUCE scripts,
@@ -190,11 +191,29 @@ def main(
                             logging.debug("Orderdef files:\n%s", f[key]["order"])
                             logging.debug("Science files:\n%s", f[key]["spec"])
                             run_steps(
-                                f[key], output_dir, t, i, m, k, config, steps=steps
+                                f[key],
+                                output_dir,
+                                t,
+                                i,
+                                m,
+                                k,
+                                config,
+                                steps=steps,
+                                order_range=order_range,
                             )
 
 
-def run_steps(files, output_dir, target, instrument, mode, night, config, steps="all"):
+def run_steps(
+    files,
+    output_dir,
+    target,
+    instrument,
+    mode,
+    night,
+    config,
+    steps="all",
+    order_range=None,
+):
     """Reduce all observations from a single night and instrument mode
 
     Parameters
@@ -329,12 +348,14 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
         with open(order_file, "rb") as file:
             orders, column_range = pickle.load(file)
 
+    if order_range is None:
+        order_range = (0, len(orders) - 1)
+
     # ==========================================================================
     # = Construct normalized flat field.
 
     if "norm_flat" in steps or steps == "all":
         logging.info("Normalizing flat field")
-        order_range = (0, len(orders) - 1)
 
         flat, blaze = normalize_flat(
             flat,
@@ -379,7 +400,6 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             # Load wavecal image
             thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
             orig = thar
-            order_range = (0, len(orders) - 1)
 
             # Extract wavecal spectrum
             thar, _ = extract(
@@ -389,24 +409,12 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
                 readnoise=thead["e_readn"],
                 dark=thead["e_drk"],
                 extraction_type="arc",
-                order_range=order_range,
                 column_range=column_range,
                 extraction_width=config["wavecal.extraction_width"],
                 osample=config["wavecal.oversampling"],
                 plot=config["plot"],
             )
             thead["obase"] = (order_range[0], "base order number")
-
-            # TODO: where to put this?
-            # shear = make_shear(
-            #     thar,
-            #     orig,
-            #     orders,
-            #     extraction_width=config.get("wavecal.extraction_width", 0.25),
-            #     column_range=column_range,
-            #     plot=config.get("plot", True),
-            # )
-            shear = np.zeros_like(thar)
 
             # Create wavelength calibration fit
             # TODO just save the coefficients?
@@ -420,12 +428,42 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             )
 
             nameout = util.swap_extension(f, ".thar.ech", output_dir)
-            echelle.save(nameout, thead, spec=thar, wave=wave, shear=shear)
+            echelle.save(nameout, thead, spec=thar, wave=wave)
     else:
         fname = util.swap_extension(files["wave"][-1], ".thar.ech", output_dir)
         thar = echelle.read(fname, raw=True)
         wave = thar.wave
-        shear = thar.shear
+        thar = thar.spec
+
+    # ==========================================================================
+    # Extract shear of the slit curvature from wavelength calibration image
+
+    # TODO: where to put this?
+    if "shear" in steps or steps == "all":
+        logging.info("Determine shear of slit curvature")
+
+        # TODO: Pick best image / combine images ?
+        f = files["wave"][0]
+        orig, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
+        shear = make_shear(
+            thar,
+            orig,
+            orders,
+            extraction_width=config.get("wavecal.extraction_width", 0.25),
+            column_range=column_range,
+            plot=config.get("plot", True),
+        )
+
+        nameout = util.swap_extension(f, ".shear.ech", output_dir)
+        echelle.save(nameout, thead, shear=shear)
+    else:
+        fname = util.swap_extension(files["wave"][0], ".shear.ech", output_dir)
+        try:
+            shear = echelle.read(fname, raw=True)
+            shear = shear.shear
+        except FileNotFoundError:
+            logging.warning("No Shear file found at %s", fname)
+            shear = None
 
     # ==========================================================================
     # Prepare for science spectra extraction
@@ -439,8 +477,6 @@ def run_steps(files, output_dir, target, instrument, mode, night, config, steps=
             # Correct for bias and flat field
             im -= bias
             im /= flat
-
-            order_range = (0, len(orders) - 1)
 
             # Optimally extract science spectrum
             spec, sigma = extract(

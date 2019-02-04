@@ -35,7 +35,7 @@ def UVES_HD132205(local_dir="./"):
     with tarfile.open(filename) as file:
         file.extractall(path=target_dir)
 
-    return local_dir
+    return target_dir
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ and b) Flips: orients the image so that orders are roughly horizontal
 
 import numpy as np
 
+
 def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     """
     Process an image and associated FITS header already in memory as follows:
@@ -114,8 +115,10 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
 
         # Make sure trim region is a subset of actual image.
         sz = image.shape
-        if sz[1] < xhi < xlo < 0 or sz[0] < yhi < ylo < 0:
-            raise ValueError("Could not trim region")
+        if not (0 <= xlo < xhi <= sz[1] and 0 <= ylo < yhi <= sz[0]):
+            raise IndexError(
+                "Image Clipping Indices are not within the image (or in inverse order)"
+            )
 
         # Trim image to leave only the subimage containing valid image data.
         timage = image[ylo:yhi, xlo:xhi]  # trimmed image

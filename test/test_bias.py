@@ -44,3 +44,19 @@ def test_wrong_data_type():
 
     with pytest.raises(ValueError):
         combine_bias([None], "", "")
+
+
+def test_simple_input(tempfiles):
+    n = 2
+    files = tempfiles[:n]
+
+    for i in range(n):
+        data = np.full((100, 100), i, dtype=float)
+        fits.writeto(files[i], data)
+
+    bias, bhead = combine_bias(files, "common", None, extension=0)
+
+    assert isinstance(bias, np.ndarray)
+    assert bias.shape[0] == 100
+    assert bias.shape[1] == 100
+    assert np.all(bias == sum(range(n)) / n)

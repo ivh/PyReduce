@@ -25,6 +25,8 @@ def load_instrument(instrument):
     # instruments = {"uves": uves.UVES, "harps": harps.HARPS}
     # instrument = instruments[instrument.lower()]
     # instrument = instrument()
+    if instrument is None:
+        instrument = "common"
 
     fname = ".instruments.%s" % instrument.lower()
     lib = importlib.import_module(fname, package="pyreduce")

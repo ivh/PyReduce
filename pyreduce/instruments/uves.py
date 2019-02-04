@@ -227,5 +227,5 @@ class UVES(instrument):
         fname = "{instrument}_{mode}_{specifier}nm_2D.sav".format(
             instrument="uves", mode=mode, specifier=specifier
         )
-        fname = os.path.join(cwd, "wavecal", fname)
+        fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
