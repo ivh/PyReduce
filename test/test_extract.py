@@ -7,19 +7,21 @@ from scipy.io import readsav
 from scipy.signal import gaussian
 from skimage import transform as tf
 
-from pyreduce.clib.build_extract import build
+# from pyreduce.clib.build_extract import build
 
-build(verbose=True)
+# build()
 
 from pyreduce import extract
 from pyreduce import util
 from pyreduce.cwrappers import slitfunc
+
 
 @pytest.fixture
 def testdata1():
     folder = dirname(__file__)
     fname = "test.dat"
     return join(folder, fname)
+
 
 @pytest.fixture
 def testdata2():
@@ -40,7 +42,6 @@ def testdata2_after():
     folder = dirname(__file__)
     fname = "test2_after.dat"
     return join(folder, fname)
-
 
 
 def create_data(
@@ -65,7 +66,7 @@ def create_data(
     if ycen is None:
         ycen = np.zeros(width)
 
-    img = spec[None, :] * slitf[:, None] 
+    img = spec[None, :] * slitf[:, None]
     img += noise * np.random.randn(*img.shape)
 
     afine_tf = tf.AffineTransform(shear=-shear)
@@ -90,6 +91,7 @@ def create_data(
     img /= oversample
 
     return img, spec, slitf
+
 
 # def test_extend_orders(self):
 #     # Test normal case
@@ -211,6 +213,7 @@ def create_data(
 #         np.allclose(tmp, tmp[0], atol=0.01)
 #     )  # shape same as input shape
 
+
 def test_idl_data(testdata2_after, testdata3):
     sav = readsav(testdata2_after)
     sav2 = readsav(testdata3)
@@ -242,13 +245,9 @@ def test_idl_data(testdata2_after, testdata3):
     # self.assertTrue(np.allclose(yoffset, yoffset2))
 
     spec, slitf, model, unc, mask = slitfunc(
-        swath_img2,
-        yoffset2,
-        lambda_sp=lambda_sp,
-        lambda_sf=lambda_sf,
-        osample=osample,
+        swath_img2, yoffset2, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
     )
 
     spec2 = np.sum(swath_img2, axis=0)
-    
+
     extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))
