@@ -4,9 +4,13 @@ python:
 
 dist: xenial
 
+
 install:
   - pip install -r requirements.txt
   - pip install -e .
+
+before_script:
+  - python compile_clib.py
 
 script:
   - pytest
