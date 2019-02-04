@@ -12,7 +12,6 @@ reduce.cprof
 *.log
 .ipynb_checkpoints
 Pipfile.lock
-*.txt
 masks/*
 examples/datasets/*
 examples/reduced/*
