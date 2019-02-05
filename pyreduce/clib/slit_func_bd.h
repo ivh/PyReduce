@@ -3,7 +3,8 @@
 
 int slit_func_vert(int ncols,        /* Swath width in pixels                                 */
                    int nrows,        /* Extraction slit height in pixels                      */
-                   double *img,      /* Image to be decomposed                                */
+                   double *im,       /* Image to be decomposed                                */
+                   double *pix_unc,  /* Image Uncertianty to be decomposed                                */
                    int *mask,        /* Initial and final mask for the swath                  */
                    double *ycen,     /* Order centre line offset from pixel row boundary      */
                    int osample,      /* Subpixel ovsersampling factor                         */

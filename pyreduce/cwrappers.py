@@ -147,6 +147,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     img = np.ma.getdata(img)
     img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
 
+    pix_unc = np.zeros_like(img)
+    pix_unc = np.require(pix_unc, dtype=c_double, requirements=["C", "A", "W", "O"])
+
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
@@ -155,6 +158,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
         ffi.cast("double *", img.ctypes.data),
+        ffi.cast("double *", pix_unc.ctypes.data),
         ffi.cast("int *", mask.ctypes.data),
         ffi.cast("double *", ycen.ctypes.data),
         ffi.cast("int", osample),
@@ -216,6 +220,9 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     img = np.ma.getdata(img)
     img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
 
+    pix_unc = np.zeros_like(img)
+    pix_unc = np.require(pix_unc, dtype=c_double, requirements=["C", "A", "W", "O"])
+
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
 
@@ -230,6 +237,7 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
         ffi.cast("double *", img.ctypes.data),
+        ffi.cast("double *", pix_unc.ctypes.data),
         ffi.cast("int *", mask.ctypes.data),
         ffi.cast("double *", ycen.ctypes.data),
         ffi.cast("int *", ycen_offset.ctypes.data),
