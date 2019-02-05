@@ -1,5 +1,5 @@
 numpy==1.16.1
-scipy
+scipy==1.2.0
 astropy
 matplotlib
 cffi
