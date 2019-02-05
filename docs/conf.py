@@ -15,7 +15,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../.."))
+path = os.path.join(__file__, "../..")
+path = os.path.abspath(path)
+sys.path.insert(0, path)
 
 
 # -- Project information -----------------------------------------------------
