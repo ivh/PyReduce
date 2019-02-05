@@ -67,7 +67,6 @@ def main(
     """
     Main entry point for REDUCE scripts,
     default values can be changed as required if reduce is used as a script
-
     Finds input directories, and loops over observation nights and instrument modes
 
     Parameters
@@ -77,7 +76,7 @@ def main(
     target : str, list[str]
         the observed star, as named in the folder structure/fits headers
     night : str, list[str]
-        the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. *, ?), but then relies on the folder structure for restricting the nights
+        the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. \*, ?), but then relies on the folder structure for restricting the nights
     modes : str, list[str], dict[{instrument}:list], None, optional
         the instrument modes to use, if None will use all known modes for the current instrument. See instruments for possible options
     steps : tuple(str), "all", optional

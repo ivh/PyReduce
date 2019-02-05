@@ -11,7 +11,7 @@ Version
 
 License
 -------
-....
+TODO
 
 """
 
@@ -33,7 +33,8 @@ def estimate_background_scatter(
     plot=False,
     **kwargs
 ):
-    """Estimate the background by fitting a 2d polynomial to interorder data
+    """
+    Estimate the background by fitting a 2d polynomial to interorder data
 
     Parameters
     ----------

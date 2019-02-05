@@ -542,17 +542,24 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
     04-Nov-2000 N.Piskunov wrote.
     09-Nov-2011 NP added weights and 2nd derivative constraint as LAM2
 
-    syntax: bottom,f,{filter/order}[,iter=iter[,eps=eps
-    where f      is the function to fit,
-          filter is the smoothing parameter for the optimal filter.
-                 if poly is set, it is interpreted as the order
-                 of the smoothing polynomial,
-          iter   is the maximum number of iterations [def: 40]
-          eps    is convergence level [def: 0.001]
-          mn     minimum function values to be considered [def: min(f)]
-          mx     maximum function values to be considered [def: max(f)]
-          lam2   constraint on 2nd derivative
-          weight    vector of weights.
+    Parameters
+    ----------
+    f : Callable
+        Function to fit
+    filter : int
+        Smoothing parameter of the optimal filter (or polynomial degree of poly is True)
+    iter : int
+        maximum number of iterations [def: 40]
+    eps : float
+        convergence level [def: 0.001]
+    mn : float
+        minimum function values to be considered [def: min(f)]
+    mx : float
+        maximum function values to be considered [def: max(f)]
+    lam2 : float
+        constraint on 2nd derivative
+    weight : array(float)
+        vector of weights.
     """
 
     mn = kwargs.get("min", np.min(f))
@@ -629,18 +636,25 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
     the convergence criterion for the fit (eps)
     04-Nov-2000 N.Piskunov wrote.
     09-Nov-2011 NP added weights and 2nd derivative constraint as LAM2
-
-    syntax: middle,f,{filter/order}[,iter=iter[,eps=eps
-    where f      is the function to fit,
-          filter is the smoothing parameter for the optimal filter.
-                 if poly is set, it is interpreted as the order
-                 of the smoothing polynomial,
-          iter   is the maximum number of iterations [def: 40]
-          eps    is convergence level [def: 0.001]
-          mn     minimum function values to be considered [def: min(f)]
-          mx     maximum function values to be considered [def: max(f)]
-          lam2   constraint on 2nd derivative
-          wgt    vector of weights.
+    
+    Parameters
+    ----------
+    f : Callable
+        Function to fit
+    filter : int
+        Smoothing parameter of the optimal filter (or polynomial degree of poly is True)
+    iter : int
+        maximum number of iterations [def: 40]
+    eps : float
+        convergence level [def: 0.001]
+    mn : float
+        minimum function values to be considered [def: min(f)]
+    mx : float
+        maximum function values to be considered [def: max(f)]
+    lam2 : float
+        constraint on 2nd derivative
+    weight : array(float)
+        vector of weights.
     """
     mn = kwargs.get("min", np.min(f))
     mx = kwargs.get("max", np.max(f))
@@ -705,17 +719,24 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     04-Nov-2000 N.Piskunov wrote.
     09-Nov-2011 NP added weights and 2nd derivative constraint as LAM2
 
-    syntax: top,f,{filter/order}[,iter=iter[,eps=eps
-    where f      is the function to fit,
-          filter is the smoothing parameter for the optimal filter.
-                 if poly is set, it is interpreted as the order
-                 of the smoothing polynomial,
-          iter   is the maximum number of iterations [def: 40]
-          eps    is convergence level [def: 0.001]
-          mn     minimum function values to be considered [def: min(f)]
-          mx     maximum function values to be considered [def: max(f)]
-          lam2   constraint on 2nd derivative
-          wgt    vector of weights.
+    Parameters
+    ----------
+    f : Callable
+        Function to fit
+    filter : int
+        Smoothing parameter of the optimal filter (or polynomial degree of poly is True)
+    iter : int
+        maximum number of iterations [def: 40]
+    eps : float
+        convergence level [def: 0.001]
+    mn : float
+        minimum function values to be considered [def: min(f)]
+    mx : float
+        maximum function values to be considered [def: max(f)]
+    lam2 : float
+        constraint on 2nd derivative
+    weight : array(float)
+        vector of weights.
     """
     mn = kwargs.get("min", np.min(f))
     mx = kwargs.get("max", np.max(f))
@@ -774,18 +795,18 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
     Uses tridiag in 1D case and sprsin and linbcg in 2D case.
     Written by N.Piskunov 8-May-2000
 
-    optimal filtering routine:
-    syntax: r=opt_filter(f,xwidth[,ywidth[,weight=weight[,/double[,maxit=maxiter]]]])
-    where:  f      - 1d or 2d array of type i,f or d
-            xwidth - filter width (for 2d array width in x direction (1st index)
-            ywidth - (for 2d array only) filter width in y direction (2nd index)
-                     if ywidth is missing for 2d array, it set equal to xwidth
-            weight - an array of the same size(s) as f containing values between 0 and 1
-            double - perform calculations in double precision
-            maxiter- maximum number of iteration for filtering of 2d array
-            weight - weight for the function (values between 0 and 1)
-       opt_filter solves the optimization problem for r:
-            total(weight*(f - r)**2) + width*total((r(i) - r(i-1))**2) = min
+    Parameters
+    ----------
+    f : array
+        1d or 2d array
+    xwidth : int
+        filter width (for 2d array width in x direction (1st index)
+    ywidth : int 
+        (for 2d array only) filter width in y direction (2nd index) if ywidth is missing for 2d array, it set equal to xwidth
+    weight : array(float)
+        an array of the same size(s) as f containing values between 0 and 1
+    maxiter : int
+        maximum number of iteration for filtering of 2d array
     """
 
     if par < 1:

@@ -84,14 +84,6 @@ pyreduce.getxwd module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.idl\_lib module
-------------------------
-
-.. automodule:: pyreduce.idl_lib
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pyreduce.make\_shear module
 ---------------------------
 
@@ -116,13 +108,6 @@ pyreduce.reduce module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.slitfunc module
-------------------------
-
-.. automodule:: pyreduce.slitfunc
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 pyreduce.trace\_orders module
 -----------------------------

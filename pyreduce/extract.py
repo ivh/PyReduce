@@ -355,21 +355,21 @@ def extract_spectrum(
 ):
     """
     Extract the spectrum of a single order from an image
-
     The order is split into several swathes of roughly swath_width length, which overlap half-half
     For each swath a spectrum and slitfunction are extracted
     overlapping sections are combined using linear weights (centrum is strongest, falling off to the edges)
-
     Here is the layout for the bins:
+
+    ::
 
            1st swath    3rd swath    5th swath      ...
         /============|============|============|============|============|
-
+    
                   2nd swath    4th swath    6th swath
                |------------|------------|------------|------------|
                |.....|
                overlap
-
+    
                +     ******* 1
                 +   *
                  + *

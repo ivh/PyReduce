@@ -5,4 +5,3 @@ PyReduce
    :maxdepth: 4
 
    pyreduce
-   setup

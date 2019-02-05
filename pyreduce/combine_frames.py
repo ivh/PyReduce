@@ -72,6 +72,7 @@ def calculate_probability(buffer, window, method="sum"):
     method : {"sum", "median"}, optional
         which method to use to average the probabilities (default: "sum")
         "sum" is much faster, but "median" is more resistant to outliers
+
     Returns
     -------
     array(float)
@@ -109,6 +110,7 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
         gain of current amplifier
     threshold : float
         sigma threshold between observation and fit for bad pixels
+
     Returns
     -------
     array(int)
@@ -160,43 +162,43 @@ def combine_frames(
     Loop through the rows. Read next row from each file into a row buffer mBuff[nCol, nFil].
     Optionally correct the data for non-linearity.
 
-    calc_probability
-    ----------------
-    Go through the row creating "probability" vector. That is for column iCol take the median of
-    the part of the row mBuff[iCol-win:iCol+win,iFil] for each file and divide these medians by the
-    mean of them computed across the stack of files. In other words:
-    >>> filwt[iFil] = median(mBuff[iCol-win:iCol+win,iFil])
-    >>> norm_filwt = mean(filwt)
-    >>> prob[iCol,iFil] = (norm_filtwt>0)?filwt[iCol]/norm_filwt:filwt[iCol]
+    calc_probability::
 
-    This is done for all iCol in the range of [win:nCol-win-1]. It is then linearly extrapolated to
-    the win zones of both ends. E.g. for iCol in [0:win-1] range:
-    >>> prob[iCol,iFil]=2*prob[win,iFil]-prob[2*win-iCol,iFil]
+        Go through the row creating "probability" vector. That is for column iCol take the median of
+        the part of the row mBuff[iCol-win:iCol+win,iFil] for each file and divide these medians by the
+        mean of them computed across the stack of files. In other words:
+        >>> filwt[iFil] = median(mBuff[iCol-win:iCol+win,iFil])
+        >>> norm_filwt = mean(filwt)
+        >>> prob[iCol,iFil] = (norm_filtwt>0)?filwt[iCol]/norm_filwt:filwt[iCol]
 
-    For the other end ([nCol-win:nCol-1]) it is similar:
-    >>> prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
+        This is done for all iCol in the range of [win:nCol-win-1]. It is then linearly extrapolated to
+        the win zones of both ends. E.g. for iCol in [0:win-1] range:
+        >>> prob[iCol,iFil]=2*prob[win,iFil]-prob[2*win-iCol,iFil]
 
-    fix_bad_pixels
-    -----------------
-    Once the probailities are constructed we can do the fitting, measure scatter and detect outliers.
-    We ignore negative or zero probabilities as it should not happen. For each iCol with (some)
-    positive probabilities we compute tha ratios of the original data to the probabilities and get
-    the mean amplitude of these ratios after rejecting extreme values:
-    >>> ratio = mBuff[iCol,iFil]/prob[iCol,iFil]
-    >>> amp = (total(ratio)-min(ratio)-max(ratio))/(nFil-2)
-    >>> mFit[iCol,iFil] = amp*prob[iCol,iFil]
+        For the other end ([nCol-win:nCol-1]) it is similar:
+        >>> prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
 
-    Note that for iFil whereprob[iCol,iFil] is zero we simply set mFit to zero. The scatter (noise)
-    consists readout noise and shot noise of the model (fit) co-added in quadratures:
-    >>> sig=sqrt(rdnoise*rdnoise + abs(mFit[iCol,iFil]/gain))
+    fix_bad_pixels::
+        
+        Once the probailities are constructed we can do the fitting, measure scatter and detect outliers.
+        We ignore negative or zero probabilities as it should not happen. For each iCol with (some)
+        positive probabilities we compute tha ratios of the original data to the probabilities and get
+        the mean amplitude of these ratios after rejecting extreme values:
+        >>> ratio = mBuff[iCol,iFil]/prob[iCol,iFil]
+        >>> amp = (total(ratio)-min(ratio)-max(ratio))/(nFil-2)
+        >>> mFit[iCol,iFil] = amp*prob[iCol,iFil]
 
-    and the outliers are defined as:
-    >>> iBad=where(mBuff-mFit gt thresh*sig)
+        Note that for iFil whereprob[iCol,iFil] is zero we simply set mFit to zero. The scatter (noise)
+        consists readout noise and shot noise of the model (fit) co-added in quadratures:
+        >>> sig=sqrt(rdnoise*rdnoise + abs(mFit[iCol,iFil]/gain))
 
-    >>> Bad values are replaced from the fit:
-    >>> mBuff[iBad]=mFit[iBad]
+        and the outliers are defined as:
+        >>> iBad=where(mBuff-mFit gt thresh*sig)
 
-    and mBuff is summed across the file dimension to create an output row.
+        >>> Bad values are replaced from the fit:
+        >>> mBuff[iBad]=mFit[iBad]
+
+        and mBuff is summed across the file dimension to create an output row.
 
     Parameters
     ----------

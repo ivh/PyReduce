@@ -10,11 +10,11 @@ import numpy as np
 def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     """
     Process an image and associated FITS header already in memory as follows:
-    1) Trim image to desired subregion: newimage = image(xlo:xhi,ylo:yhi)
-    2) Transform to standard orientation (red at top, orders run left to right)
+    1. Trim image to desired subregion: newimage = image(xlo:xhi,ylo:yhi)
+    2. Transform to standard orientation (red at top, orders run left to right)
 
-    Input
-    ------
+    Parameters
+    -----------
     image : array[nrow, ncol]
         raw image to be processed.
     header : fits.header, dict
@@ -26,16 +26,17 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     orientation : int, optional
         number of counterclockwise 90 degrees rotation to apply to the image (default: data from header/instrument)
 
-    Output
+    Returns
     -------
     image : array[yrange, xrange]
         clipped and flipped image
 
-    Raise
-    ------
+    Raises
+    -------
     NotImplementedError
         nonlinear images are not supported yet
-
+    """
+    """
     History:
     --------
     2000-Aug-25 Valenti  Adapted from getimage.pro.

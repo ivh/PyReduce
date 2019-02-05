@@ -59,12 +59,12 @@ def make_shear(
     extracted, original, orders, extraction_width=0.5, column_range=None, plot=False
 ):
     """ Calculate the shear/tilt of the slit along each order
-    1: Determine strong spectral lines
-    2: For each line:
-        a: Determine center of line along a number of rows around the center
-        b: Fit line to the centers along the rows == shear at that position
-    3: Fit curve to the shears along the order (2nd degree polynomial)
-    4: Calculate slit for all points
+    Determine strong spectral lines
+    For each line:
+    - Determine center of line along a number of rows around the center
+    - Fit line to the centers along the rows == shear at that position
+    - Fit curve to the shears along the order (2nd degree polynomial)
+    - Calculate slit for all points
 
     Parameters
     ----------
