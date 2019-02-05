@@ -5,5 +5,5 @@ matplotlib==3.0.2
 cffi==1.11.5
 python-dateutil==2.8.0
 requests==2.21.0
-scikit-image
+scikit-image==0.14.2
 pytest
