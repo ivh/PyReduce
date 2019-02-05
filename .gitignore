@@ -26,3 +26,4 @@ uves_data.tar.gz
 datasets/**
 examples/uves_middle_600nm_2D.sav
 examples/uves_red_600nm_2D.sav
+docs/_build/*
