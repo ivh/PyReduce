@@ -510,7 +510,6 @@ def extract_spectrum(
         )
 
         if normalize:
-            np.seterr("raise")
             # Save image and model for later
             norm_img[ihalf] = np.where(
                 swath_model > threshold / gain, swath_img / swath_model, 1
