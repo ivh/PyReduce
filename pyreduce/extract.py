@@ -483,6 +483,7 @@ def extract_spectrum(
         # offset from the central line
         y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
+        # TODO why does vertical extraction give nan results sometimes?
         if shear is None:
             shear = 0
         #     # No shear given, use vertical extraction
@@ -496,7 +497,7 @@ def extract_spectrum(
         #         osample=osample,
         #     )
         # else:
-            # shear is given, use curved extraction
+        # shear is given, use curved extraction
         swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
             ihalf
         ], mask = slitfunc_curved(

@@ -65,7 +65,7 @@ def spec(request, width):
         return 5 + np.sin(np.linspace(0, 20 * np.pi, width))
 
 
-@pytest.fixture(params=["gaussian", "rectangular"])
+@pytest.fixture(params=["gaussian"])
 def slitf(request, height, oversample):
     name = request.param
 
@@ -85,7 +85,7 @@ def oversample(request):
     return request.param
 
 
-@pytest.fixture(params=[0, 1], ids=["noise=0", "noise=1"])
+@pytest.fixture(params=[0], ids=["noise=0"])
 def noise(request):
     return request.param
 
@@ -113,6 +113,8 @@ def sample_data(width, height, spec, slitf, oversample, noise, ycen, shear=0):
     img = spec[None, :] * slitf[:, None]
     img += noise * np.random.randn(*img.shape)
 
+    # TODO more sophisticated sample data creation
+
     # afine_tf = tf.AffineTransform(shear=-shear)
     # img = tf.warp(img, inverse_map=afine_tf)
 
@@ -137,79 +139,72 @@ def sample_data(width, height, spec, slitf, oversample, noise, ycen, shear=0):
     return img, spec, slitf
 
 
-# def test_extend_orders(self):
-#     # Test normal case
-#     orders = np.array([[0.1, 5], [0.1, 7]])
-#     extended = extract.extend_orders(orders, 10)
+def test_extend_orders():
+    # Test normal case
+    orders = np.array([[0.1, 5], [0.1, 7]])
+    extended = extract.extend_orders(orders, 10)
 
-#     self.assertTrue(np.array_equal(orders, extended[1:-1]))
-#     self.assertTrue(np.array_equal(extended[0], [0.1, 3]))
-#     self.assertTrue(np.array_equal(extended[-1], [0.1, 9]))
+    assert np.array_equal(orders, extended[1:-1])
+    assert np.array_equal(extended[0], [0.1, 3])
+    assert np.array_equal(extended[-1], [0.1, 9])
 
-#     # Test just one order
-#     orders = np.array([0.1, 5], ndmin=2)
-#     extended = extract.extend_orders(orders, 10)
+    # Test just one order
+    orders = np.array([0.1, 5], ndmin=2)
+    extended = extract.extend_orders(orders, 10)
 
-#     self.assertTrue(np.array_equal(orders, extended[1:-1]))
-#     self.assertTrue(np.array_equal(extended[0], [0, 0]))
-#     self.assertTrue(np.array_equal(extended[-1], [0, 10]))
-
-# def test_fix_column_range(self):
-#     img = np.zeros((50, 1000))
-#     orders = np.array([[0.2, 3], [0.2, 5], [0.2, 7], [0.2, 9]])
-#     ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
-#     cr = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
-
-#     fixed = extract.fix_column_range(img, orders, ew, cr)
-
-#     self.assertTrue(np.array_equal(fixed[1], [25, 175]))
-#     self.assertTrue(np.array_equal(fixed[2], [15, 165]))
-#     self.assertTrue(np.array_equal(fixed[0], fixed[1]))
-#     self.assertTrue(np.array_equal(fixed[-1], fixed[-1]))
-
-#     orders = np.array([[20],[20], [20]])
-#     ew = np.array([[10, 10], [10, 10], [10, 10]])
-#     cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
-
-#     fixed = extract.fix_column_range(img, orders, ew, np.copy(cr))
-#     self.assertTrue(np.array_equal(fixed, cr))
-
-# def test_arc_extraction(self):
-#     img, spec, slitf = self.create_data(1000, 50, spec="linear")
-#     orders = np.array([[49/2], [49/2], [49/2]])
-#     extraction_width = np.array([[10, 10], [10, 10], [10, 10]])
-#     column_range = np.array([[0, 1000], [0, 1000], [0, 1000]])
-#     column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
-
-#     spec_out, _, unc_out = extract.arc_extraction(
-#         img, orders, extraction_width, column_range
-#     )
-
-#     self.assertTrue(np.allclose(np.diff(spec_out / spec), 0))
-#     self.assertTrue(np.allclose(np.diff(unc_out / spec_out), 0, atol = 1e-4))
-
-# def test_optimal_extraction(self):
-#     img, spec_in, slitf_in = self.create_data(1000, 50, spec="linear")
-#     orders = np.array([[49/2], [49/2], [49/2], [49/2]])
-#     extraction_width = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
-#     column_range = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
-#     column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
-#     scatter = [None for _ in range(3)]
-
-#     spec_out, slitf_out, unc_out = extract.optimal_extraction(img, orders, extraction_width, column_range, scatter)
-
-#     # Test for linear increase
-#     self.assertTrue(np.allclose(np.diff(spec_out / spec_in), 0))
-#     self.assertTrue(np.allclose(np.diff(unc_out / spec_out), 0, atol = 1e-4))
-
-#     # Test slitfunction
-#     slitf_cmp = gaussian(slitf_out.shape[1], 50/8)
-#     slitf_cmp = np.interp(np.arange(0.5, 23.5, 1), np.arange(23), slitf_cmp)
-#     slitf_cmp = slitf_cmp[None, :] * np.max(slitf_out, axis=1)[:, None]
-#     self.assertTrue(np.allclose(slitf_out, slitf_cmp))
+    assert np.array_equal(orders, extended[1:-1])
+    assert np.array_equal(extended[0], [0, 0])
+    assert np.array_equal(extended[-1], [0, 10])
 
 
-def test_vertical_extraction(sample_data, orders, width, height, noise):
+def test_fix_column_range():
+    img = np.zeros((50, 1000))
+    orders = np.array([[0.2, 3], [0.2, 5], [0.2, 7], [0.2, 9]])
+    ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
+    cr = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
+
+    fixed = extract.fix_column_range(img, orders, ew, cr)
+
+    assert np.array_equal(fixed[1], [25, 175])
+    assert np.array_equal(fixed[2], [15, 165])
+    assert np.array_equal(fixed[0], fixed[1])
+    assert np.array_equal(fixed[-1], fixed[-1])
+
+    orders = np.array([[20], [20], [20]])
+    ew = np.array([[10, 10], [10, 10], [10, 10]])
+    cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
+
+    fixed = extract.fix_column_range(img, orders, ew, np.copy(cr))
+    assert np.array_equal(fixed, cr)
+
+
+def test_arc_extraction(sample_data, orders, width, noise, oversample):
+    img, spec, slitf = sample_data
+
+    orders = np.array([orders[0], orders[0], orders[0]])
+    extraction_width = np.array([[10, 10], [10, 10], [10, 10]])
+    column_range = np.array([[0, width], [0, width], [0, width]])
+    column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
+
+    spec_out, unc_out = extract.arc_extraction(
+        img, orders, extraction_width, column_range
+    )
+
+    assert isinstance(spec_out, np.ndarray)
+    assert spec_out.ndim == 2
+    assert spec_out.shape[0] == 1
+    assert spec_out.shape[1] == width
+
+    assert isinstance(unc_out, np.ndarray)
+    assert unc_out.ndim == 2
+    assert unc_out.shape[0] == 1
+    assert unc_out.shape[1] == width
+
+    assert np.abs(np.diff(spec_out / spec)).max() < noise * 10 + 1e-8
+    assert np.abs(np.diff(unc_out / spec_out)).max() < oversample / 5 + 1e-1
+
+
+def test_vertical_extraction(sample_data, orders, width, height, noise, oversample):
     img, spec, slitf = sample_data
 
     spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
@@ -227,10 +222,13 @@ def test_vertical_extraction(sample_data, orders, width, height, noise):
     assert isinstance(slitf_vert, np.ndarray)
     assert slitf_vert.ndim == 2
     assert slitf_vert.shape[0] == orders.shape[0]
-    # assert slitf_vert.shape[1] <= height
+    assert slitf_vert.shape[1] <= height * oversample
 
     assert not np.any(spec_vert == 0)
-    # assert np.allclose(np.diff(spec / spec_vert[0]), 0, atol=noise + 1e-8)
+    assert np.abs(np.diff(spec / spec_vert[0])).max() <= noise + 1e-1
+
+    assert not np.any(sunc_vert == 0)
+    assert np.abs(sunc_vert / spec_vert).max() <= noise * 1.1 * oversample + 1e-2
 
     # cut = (height - slitf_vert.shape[1]) / 2
     # cut = (int(np.floor(cut)), int(np.ceil(cut)))
@@ -240,90 +238,14 @@ def test_vertical_extraction(sample_data, orders, width, height, noise):
     # assert cutout / slitf == 1
 
 
-# def test_curved_equal_vertical_extraction(sample_data, orders, noise):
-#     img, spec, slitf = sample_data
-#     shear = 0
+def test_curved_equal_vertical_extraction(sample_data, orders, noise):
+    # Currently extract always uses the vertical extraction, making this kind of useless
+    img, spec, slitf = sample_data
+    shear = 0
 
-#     spec_curved, sunc_curved, slitf_curved = extract.extract(img, orders, shear=shear)
-#     spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
+    spec_curved, sunc_curved, slitf_curved = extract.extract(img, orders, shear=shear)
+    spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
 
-#     assert np.allclose(spec_curved, spec_vert)
-#     assert np.allclose(sunc_curved, sunc_vert)
-
-
-# def test_extract_offset_order(self):
-#     # The shear counters the rotation
-#     width, height = 1000, 50
-#     orders = np.array([[177 / width, 40]])
-#     ycen = np.polyval(orders[0], np.arange(width))
-#     img, spec, slitf = self.create_data(width, height, spec="linear", ycen=ycen, oversample=10)
-
-#     # spec_out, sunc = extract.extract(img, orders, plot=True, swath_width=100)
-#     xrange = (300, 700)
-#     spec_out, _, _, _ = extract.extract_spectrum(
-#         img,
-#         ycen,
-#         (height // 2, height // 2),
-#         xrange,
-#         swath_width=100,
-#         plot=False,
-#         osample=1,
-#     )
-
-#     m = np.diff(spec_out[xrange[0] : xrange[1]])
-#     tmp = spec_out[xrange[0] : xrange[1]] / spec[xrange[0] : xrange[1]]
-
-#     tmp2 = np.linspace(spec_out[xrange[0]], spec_out[xrange[1]-1], num=xrange[1] - xrange[0])
-#     tmp2 /= spec_out[xrange[0]:xrange[1]]
-
-#     plt.plot(m)
-#     plt.show()
-
-#     #plt.plot(np.arange(xrange[0], xrange[1]), tmp2)
-#     plt.plot(spec)
-#     plt.plot(spec_out, '-+')
-#     plt.show()
-
-#     self.assertTrue(np.allclose(m, np.median(m), atol=0.02))  # constant linear increase
-#     self.assertTrue(
-#         np.allclose(tmp, tmp[0], atol=0.01)
-#     )  # shape same as input shape
-
-
-# def test_idl_data(testdata2_after, testdata3):
-#     sav = readsav(testdata2_after)
-#     sav2 = readsav(testdata3)
-
-#     orders = sav2["orcend"]
-#     onum = sav2["onum"]
-#     order = orders[onum, ::-1]
-#     ycen2 = np.polyval(order, np.arange(4096, dtype="float64"))
-
-#     ibeg, iend = sav["ib"], sav["ie"]
-#     img = sav["im"]
-#     swath_img = sav["sf"]
-#     ycen = sav["ycen"]
-#     yc = sav["yc"]
-#     yoffset = ycen[ibeg : iend + 1] - yc[ibeg : iend + 1]
-#     ylow, yhigh = sav["y_lower_lim"], sav["y_upper_lim"]
-#     yoffset2 = (ycen2 - np.floor(ycen2))[ibeg : iend + 1]
-
-#     index = util.make_index(
-#         ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend + 1
-#     )
-#     swath_img2 = img[index]
-
-#     lambda_sf = sav["lambda_sf"]
-#     lambda_sp = sav["lambda_sp"]
-#     osample = sav["osample"]
-
-#     # self.assertTrue(np.allclose(swath_img, swath_img2))
-#     # self.assertTrue(np.allclose(yoffset, yoffset2))
-
-#     spec, slitf, model, unc, mask = slitfunc(
-#         swath_img2, yoffset2, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
-#     )
-
-#     spec2 = np.sum(swath_img2, axis=0)
-
-#     extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))
+    assert np.allclose(spec_curved, spec_vert)
+    assert np.allclose(sunc_curved, sunc_vert)
+    assert np.allclose(slitf_curved, slitf_vert)
