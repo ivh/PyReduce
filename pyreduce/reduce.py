@@ -402,7 +402,7 @@ def run_steps(
             orig = thar
 
             # Extract wavecal spectrum
-            thar, _ = extract(
+            thar, _, _ = extract(
                 thar,
                 orders,
                 gain=thead["e_gain"],
@@ -479,7 +479,7 @@ def run_steps(
             im /= flat
 
             # Optimally extract science spectrum
-            spec, sigma = extract(
+            spec, sigma, _ = extract(
                 im,
                 orders,
                 shear=shear,

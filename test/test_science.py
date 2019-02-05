@@ -35,7 +35,7 @@ def test_science(
     im /= flat
 
     # Optimally extract science spectrum
-    spec, sigma = extract(
+    spec, sigma, _ = extract(
         im,
         orders,
         gain=head["e_gain"],

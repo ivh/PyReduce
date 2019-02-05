@@ -484,28 +484,32 @@ def extract_spectrum(
         y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
         if shear is None:
-            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
-                ihalf
-            ], mask = slitfunc(
-                swath_img,
-                y_offset,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-            )
-        else:
-            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
-                ihalf
-            ], mask = slitfunc_curved(
-                swath_img,
-                y_offset,
-                shear,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-            )
+            shear = 0
+        #     # No shear given, use vertical extraction
+        #     swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+        #         ihalf
+        #     ], mask = slitfunc(
+        #         swath_img,
+        #         y_offset,
+        #         lambda_sp=lambda_sp,
+        #         lambda_sf=lambda_sf,
+        #         osample=osample,
+        #     )
+        # else:
+            # shear is given, use curved extraction
+        swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+            ihalf
+        ], mask = slitfunc_curved(
+            swath_img,
+            y_offset,
+            shear,
+            lambda_sp=lambda_sp,
+            lambda_sf=lambda_sf,
+            osample=osample,
+        )
 
         if normalize:
+            np.seterr("raise")
             # Save image and model for later
             norm_img[ihalf] = np.where(
                 swath_model > threshold / gain, swath_img / swath_model, 1
@@ -674,13 +678,15 @@ def optimal_extraction(
         ycen = np.polyval(orders[onum], ix)
         yrange = get_y_scale(ycen, column_range[onum], extraction_width[onum], nrow)
 
+        shear_order = shear[i] if shear is not None else None
+
         spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(
             img,
             ycen,
             yrange,
             column_range[onum],
             scatter=scatter[i],
-            shear=shear[i],
+            shear=shear_order,
             ord_num=onum - 1,
             **kwargs
         )
@@ -987,8 +993,8 @@ def extract(
 
     nrow, ncol = img.shape
     nord, _ = orders.shape
-    if shear is None:
-        shear = np.zeros((nord, ncol))
+    if np.isscalar(shear):
+        shear = np.full((nord, ncol), shear)
     if order_range is None:
         order_range = (0, nord - 1)
     if column_range is None:
@@ -1008,7 +1014,8 @@ def extract(
         xscatter = xscatter[order_range[0] : order_range[1] + 2]
     if yscatter is not None:
         yscatter = yscatter[order_range[0] : order_range[1] + 2]
-    shear = shear[order_range[0] : order_range[1] + 1]
+    if shear is not None:
+        shear = shear[order_range[0] : order_range[1] + 1]
 
     # Extend orders and related properties
 
@@ -1079,5 +1086,6 @@ def extract(
         spectrum, uncertainties = arc_extraction(
             img, orders, extraction_width, column_range, **kwargs
         )
+        slitfunction = None
 
-    return spectrum, uncertainties
+    return spectrum, uncertainties, slitfunction

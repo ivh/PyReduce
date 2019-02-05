@@ -16,7 +16,7 @@ def test_wavecal(files, instrument, mode, extension, mask, orders, settings):
     thead["obase"] = (0, "base order number")
 
     # Extract wavecal spectrum
-    thar, _ = extract(
+    thar, _, _ = extract(
         orig,
         orders,
         gain=thead["e_gain"],

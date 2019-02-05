@@ -3,6 +3,7 @@ import pytest
 from os.path import dirname, join
 import astropy.io.fits as fits
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.io import readsav
 from scipy.signal import gaussian
 from skimage import transform as tf
@@ -16,79 +17,122 @@ from pyreduce import util
 from pyreduce.cwrappers import slitfunc
 
 
-@pytest.fixture
-def testdata1():
-    folder = dirname(__file__)
-    fname = "test.dat"
-    return join(folder, fname)
+# @pytest.fixture
+# def testdata1():
+#     folder = dirname(__file__)
+#     fname = "test.dat"
+#     return join(folder, fname)
+
+
+# @pytest.fixture
+# def testdata2():
+#     folder = dirname(__file__)
+#     fname = "test2.dat"
+#     return join(folder, fname)
+
+
+# @pytest.fixture
+# def testdata3():
+#     folder = dirname(__file__)
+#     fname = "test3.dat"
+#     return join(folder, fname)
+
+
+# @pytest.fixture
+# def testdata2_after():
+#     folder = dirname(__file__)
+#     fname = "test2_after.dat"
+#     return join(folder, fname)
 
 
 @pytest.fixture
-def testdata2():
-    folder = dirname(__file__)
-    fname = "test2.dat"
-    return join(folder, fname)
+def width():
+    return 100
 
 
 @pytest.fixture
-def testdata3():
-    folder = dirname(__file__)
-    fname = "test3.dat"
-    return join(folder, fname)
+def height():
+    return 50
+
+
+@pytest.fixture(params=["linear", "sine"])
+def spec(request, width):
+    name = request.param
+
+    if name == "linear":
+        return 5 + np.linspace(0, 5, width)
+    if name == "sine":
+        return 5 + np.sin(np.linspace(0, 20 * np.pi, width))
+
+
+@pytest.fixture(params=["gaussian", "rectangular"])
+def slitf(request, height, oversample):
+    name = request.param
+
+    if name == "gaussian":
+        y = gaussian(height * oversample, height / 8 * oversample)
+        return y / np.sum(y)
+    if name == "rectangular":
+        x = np.arange(height * oversample)
+        y = np.where(
+            (x > height * oversample / 4) & (x < height * oversample * 3 / 4), 1, 0
+        )
+        return y / np.sum(y)
+
+
+@pytest.fixture(params=[1, 2, 10], ids=["os=1", "os=2", "os=10"])
+def oversample(request):
+    return request.param
+
+
+@pytest.fixture(params=[0, 1], ids=["noise=0", "noise=1"])
+def noise(request):
+    return request.param
+
+
+@pytest.fixture(params=["straight"], ids=["ycen=straight"])
+def ycen(request, width, height):
+    name = request.param
+    if name == "straight":
+        return np.full(width, (height - 1) / 2)
+
+    if name == "linear":
+        delta = 2
+        return np.linspace(height / 2 - delta / 2, height / 2 + delta / 2, num=width)
 
 
 @pytest.fixture
-def testdata2_after():
-    folder = dirname(__file__)
-    fname = "test2_after.dat"
-    return join(folder, fname)
+def orders(width, ycen):
+    fit = np.polyfit(np.arange(width), ycen, deg=5)
+    return np.atleast_2d(fit)
+    # return np.array([[(height - 1) / 2]])
 
 
-def create_data(
-    self,
-    width,
-    height,
-    spec="linear",
-    slitf="gaussian",
-    noise=0,
-    shear=0,
-    ycen=None,
-    oversample=1,
-):
-    if spec == "linear":
-        spec = 5 + np.linspace(0, 5, width)
-    elif spec == "sinus":
-        spec = 5 + np.sin(np.linspace(0, 20 * np.pi, width))
-
-    if slitf == "gaussian":
-        slitf = gaussian(height * oversample, height / 8 * oversample)
-
-    if ycen is None:
-        ycen = np.zeros(width)
-
+@pytest.fixture
+def sample_data(width, height, spec, slitf, oversample, noise, ycen, shear=0):
     img = spec[None, :] * slitf[:, None]
     img += noise * np.random.randn(*img.shape)
 
-    afine_tf = tf.AffineTransform(shear=-shear)
-    img = tf.warp(img, inverse_map=afine_tf)
+    # afine_tf = tf.AffineTransform(shear=-shear)
+    # img = tf.warp(img, inverse_map=afine_tf)
 
-    # apply order curvature
-    big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
-    big_height += oversample - (big_height % oversample)
-    big_img = np.zeros((big_height, width))
-    index = util.make_index(
-        (oversample * ycen).astype(int) - height // 2 * oversample,
-        (ycen * oversample).astype(int) + height // 2 * oversample - 1,
-        0,
-        width,
-    )
-    big_img[index] = img
+    # # apply order curvature
+    # big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
+    # big_height += oversample - (big_height % oversample)
+    # big_img = np.zeros((big_height, width))
+    # index = util.make_index(
+    #     (oversample * ycen).astype(int) - height // 2 * oversample,
+    #     (ycen * oversample).astype(int) + height // 2 * oversample - 1,
+    #     0,
+    #     width,
+    # )
+    # big_img[index] = img
 
-    # downsample oversampling
-    img = big_img[::oversample]
-    for i in range(1, oversample):
-        img += big_img[i::oversample]
-    img /= oversample
+    # # downsample oversampling
+    # img = big_img[::oversample]
+    # for i in range(1, oversample):
+    #     img += big_img[i::oversample]
+    # img /= oversample
 
     return img, spec, slitf
 
@@ -164,16 +208,48 @@ def create_data(
 #     slitf_cmp = slitf_cmp[None, :] * np.max(slitf_out, axis=1)[:, None]
 #     self.assertTrue(np.allclose(slitf_out, slitf_cmp))
 
-# def test_extract(self):
-#     img, spec, slitf = self.create_data(1000, 50, spec="sinus")
-#     orders = np.array([[49/2]])
+
+def test_vertical_extraction(sample_data, orders, width, height, noise):
+    img, spec, slitf = sample_data
+
+    spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
+
+    assert isinstance(spec_vert, np.ma.masked_array)
+    assert spec_vert.ndim == 2
+    assert spec_vert.shape[0] == orders.shape[0]
+    assert spec_vert.shape[1] == width
+
+    assert isinstance(sunc_vert, np.ma.masked_array)
+    assert sunc_vert.ndim == 2
+    assert sunc_vert.shape[0] == orders.shape[0]
+    assert sunc_vert.shape[1] == width
+
+    assert isinstance(slitf_vert, np.ndarray)
+    assert slitf_vert.ndim == 2
+    assert slitf_vert.shape[0] == orders.shape[0]
+    # assert slitf_vert.shape[1] <= height
+
+    assert not np.any(spec_vert == 0)
+    # assert np.allclose(np.diff(spec / spec_vert[0]), 0, atol=noise + 1e-8)
+
+    # cut = (height - slitf_vert.shape[1]) / 2
+    # cut = (int(np.floor(cut)), int(np.ceil(cut)))
+    # xnew = np.linspace(cut[0] + 0.5, cut[1] + 0.5, slitf_vert.shape[1])
+    # cutout = np.interp(xnew, np.arange(0, height), slitf)
+    # assert cutout.shape[0] == slitf_vert.shape[1]
+    # assert cutout / slitf == 1
+
+
+# def test_curved_equal_vertical_extraction(sample_data, orders, noise):
+#     img, spec, slitf = sample_data
 #     shear = 0
 
-#     spec_curved, sunc_curved = extract.extract(img, orders, shear=shear)
-#     spec_vert, sunc_vert = extract.extract(img, orders)
+#     spec_curved, sunc_curved, slitf_curved = extract.extract(img, orders, shear=shear)
+#     spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
 
-#     self.assertTrue(np.allclose(spec_curved, spec_vert))
-#     self.assertTrue(np.allclose(sunc_curved, sunc_vert))
+#     assert np.allclose(spec_curved, spec_vert)
+#     assert np.allclose(sunc_curved, sunc_vert)
+
 
 # def test_extract_offset_order(self):
 #     # The shear counters the rotation
@@ -214,40 +290,40 @@ def create_data(
 #     )  # shape same as input shape
 
 
-def test_idl_data(testdata2_after, testdata3):
-    sav = readsav(testdata2_after)
-    sav2 = readsav(testdata3)
+# def test_idl_data(testdata2_after, testdata3):
+#     sav = readsav(testdata2_after)
+#     sav2 = readsav(testdata3)
 
-    orders = sav2["orcend"]
-    onum = sav2["onum"]
-    order = orders[onum, ::-1]
-    ycen2 = np.polyval(order, np.arange(4096, dtype="float64"))
+#     orders = sav2["orcend"]
+#     onum = sav2["onum"]
+#     order = orders[onum, ::-1]
+#     ycen2 = np.polyval(order, np.arange(4096, dtype="float64"))
 
-    ibeg, iend = sav["ib"], sav["ie"]
-    img = sav["im"]
-    swath_img = sav["sf"]
-    ycen = sav["ycen"]
-    yc = sav["yc"]
-    yoffset = ycen[ibeg : iend + 1] - yc[ibeg : iend + 1]
-    ylow, yhigh = sav["y_lower_lim"], sav["y_upper_lim"]
-    yoffset2 = (ycen2 - np.floor(ycen2))[ibeg : iend + 1]
+#     ibeg, iend = sav["ib"], sav["ie"]
+#     img = sav["im"]
+#     swath_img = sav["sf"]
+#     ycen = sav["ycen"]
+#     yc = sav["yc"]
+#     yoffset = ycen[ibeg : iend + 1] - yc[ibeg : iend + 1]
+#     ylow, yhigh = sav["y_lower_lim"], sav["y_upper_lim"]
+#     yoffset2 = (ycen2 - np.floor(ycen2))[ibeg : iend + 1]
 
-    index = util.make_index(
-        ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend + 1
-    )
-    swath_img2 = img[index]
+#     index = util.make_index(
+#         ycen2.astype(int) - ylow, ycen2.astype(int) + yhigh, ibeg, iend + 1
+#     )
+#     swath_img2 = img[index]
 
-    lambda_sf = sav["lambda_sf"]
-    lambda_sp = sav["lambda_sp"]
-    osample = sav["osample"]
+#     lambda_sf = sav["lambda_sf"]
+#     lambda_sp = sav["lambda_sp"]
+#     osample = sav["osample"]
 
-    # self.assertTrue(np.allclose(swath_img, swath_img2))
-    # self.assertTrue(np.allclose(yoffset, yoffset2))
+#     # self.assertTrue(np.allclose(swath_img, swath_img2))
+#     # self.assertTrue(np.allclose(yoffset, yoffset2))
 
-    spec, slitf, model, unc, mask = slitfunc(
-        swath_img2, yoffset2, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
-    )
+#     spec, slitf, model, unc, mask = slitfunc(
+#         swath_img2, yoffset2, lambda_sp=lambda_sp, lambda_sf=lambda_sf, osample=osample
+#     )
 
-    spec2 = np.sum(swath_img2, axis=0)
+#     spec2 = np.sum(swath_img2, axis=0)
 
-    extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))
+#     extract.extract_spectrum(img, yoffset, (ylow, yhigh), (ibeg, iend))

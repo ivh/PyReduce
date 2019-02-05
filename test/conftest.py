@@ -612,7 +612,7 @@ def wave(files, instrument, mode, extension, mask, orders, settings, output_dir)
         thead["obase"] = (0, "base order number")
 
         # Extract wavecal spectrum
-        thar, _ = extract(
+        thar, _, _ = extract(
             orig,
             orders,
             gain=thead["e_gain"],
@@ -716,7 +716,7 @@ def spec(
         im /= flat
 
         # Optimally extract science spectrum
-        spec, sigma = extract(
+        spec, sigma, _ = extract(
             im,
             orders,
             gain=head["e_gain"],

@@ -41,7 +41,7 @@ def test_orders(instrument, mode, extension, files, settings, mask):
     )
 
     assert isinstance(orders, np.ndarray)
-    assert np.issubdtype(orders.dtype, np.float)
+    assert np.issubdtype(orders.dtype, np.floating)
     assert orders.shape[1] == settings["orders.fit_degree"] + 1
 
     assert isinstance(column_range, np.ndarray)
