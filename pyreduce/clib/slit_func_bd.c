@@ -104,23 +104,23 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
   double *sP_old = malloc(ncols * sizeof(double));               // double sP_old[ncols];
   double *Aij = malloc(ny * (2 * osample + 1) * sizeof(double)); // double Aij[ny*ny];
   double *bj = malloc(ny * sizeof(double));                      // double bj[ny];
-  // double Adiag[ncols*3];
-  double *Adiag = malloc(ncols * 3 * sizeof(double));
-  // double omega[ny][nrows][ncols];
-  double *omega = malloc(ny * nrows * ncols * sizeof(double));
-  // index as: [iy+(y*ny)+(x*ny*nrows)]
-  double *p_bj = malloc(ncols * sizeof(double));
+  double *Adiag = malloc(ncols * 3 * sizeof(double));            // double Adiag[ncols*3];
+  double *omega = malloc(ny * nrows * ncols * sizeof(double));   // double omega[ny][nrows][ncols];
+  double *p_bj = malloc(ncols * sizeof(double));                 // index as: [iy+(y*ny)+(x*ny*nrows)]
+
+  for (int k = 0; k < ncols * 3; k++)
+    Adiag[k] = 0; // Initialize to zero
 
   /*
-      Construct the omega tensor. Normally it has the dimensionality of
-      ny*nrows*ncols.
-      The tensor is mostly empty and can be easily compressed to ny*nx, but
-      this will complicate matrix operations at later stages. I will keep
-      it as it is for now.
-      Note, that omega is used in in the equations for sL, sP and for the model
-      but it does not involve the data, only the geometry. Thus it can be
-      pre-computed once.
-      */
+  Construct the omega tensor. Normally it has the dimensionality of
+  ny*nrows*ncols.
+  The tensor is mostly empty and can be easily compressed to ny*nx, but
+  this will complicate matrix operations at later stages. I will keep
+  it as it is for now.
+  Note, that omega is used in in the equations for sL, sP and for the model
+  but it does not involve the data, only the geometry. Thus it can be
+  pre-computed once.
+  */
   for (x = 0; x < ncols; x++)
   {
     iy2 = osample - floor(ycen[x] / step) - 1;
@@ -156,7 +156,6 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
   do
   {
     /* Compute slit function sL */
-
     /* Fill in SLE arrays */
     diag_tot = 0.e0;
     for (iy = 0; iy < ny; iy++)
@@ -343,6 +342,12 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
   for (x = 0; x < ncols; x++)
   {
     unc[x] = sqrt(unc[x] / p_bj[x] * nrows);
+  }
+
+  if (!(sP[0] == sP[0]))
+  {
+    printf("SOMETHING WENT WRONG STOP HERE!!!\n");
+    // raise(SIGINT);
   }
 
   free(E);
