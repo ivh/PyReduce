@@ -485,7 +485,6 @@ def extract_spectrum(
 
         # TODO why does vertical extraction give nan results sometimes?
         if shear is None:
-            # shear = 0
             # No shear given, use vertical extraction
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
                 ihalf
