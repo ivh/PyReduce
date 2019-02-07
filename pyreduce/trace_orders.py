@@ -308,7 +308,7 @@ def mark_orders(
     blurred = gaussian_filter1d(im, filter_size, axis=0)
 
     if noise is None:
-        tmp = np.abs(noise.flatten() - blurred.flatten())
+        tmp = np.abs(blurred.flatten())
         noise = np.percentile(tmp, 5)
 
     threshold = np.ma.median(im - blurred, axis=0)
