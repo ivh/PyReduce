@@ -364,12 +364,12 @@ def extract_spectrum(
 
            1st swath    3rd swath    5th swath      ...
         /============|============|============|============|============|
-    
+
                   2nd swath    4th swath    6th swath
                |------------|------------|------------|------------|
                |.....|
                overlap
-    
+
                +     ******* 1
                 +   *
                  + *
@@ -485,29 +485,29 @@ def extract_spectrum(
 
         # TODO why does vertical extraction give nan results sometimes?
         if shear is None:
-            shear = 0
-        #     # No shear given, use vertical extraction
-        #     swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
-        #         ihalf
-        #     ], mask = slitfunc(
-        #         swath_img,
-        #         y_offset,
-        #         lambda_sp=lambda_sp,
-        #         lambda_sf=lambda_sf,
-        #         osample=osample,
-        #     )
-        # else:
-        # shear is given, use curved extraction
-        swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
-            ihalf
-        ], mask = slitfunc_curved(
-            swath_img,
-            y_offset,
-            shear,
-            lambda_sp=lambda_sp,
-            lambda_sf=lambda_sf,
-            osample=osample,
-        )
+            # shear = 0
+            # No shear given, use vertical extraction
+            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+                ihalf
+            ], mask = slitfunc(
+                swath_img,
+                y_offset,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+            )
+        else:
+            # shear is given, use curved extraction
+            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+                ihalf
+            ], mask = slitfunc_curved(
+                swath_img,
+                y_offset,
+                shear,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+            )
 
         if normalize:
             # Save image and model for later
@@ -846,7 +846,11 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
         points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
         regions = np.where(np.diff(points_in_image) != 1)[0]
         regions = [(r, r + 1) for r in regions]
-        regions = [points_in_image[0], *points_in_image[regions], points_in_image[-1]]
+        regions = [
+            points_in_image[0],
+            *points_in_image[(regions,)].ravel(),
+            points_in_image[-1],
+        ]
         regions = [(regions[i], regions[i + 1]) for i in range(0, len(regions), 2)]
         overlap = [
             min(reg[1], column_range[i, 1]) - max(reg[0], column_range[i, 0])
