@@ -189,7 +189,7 @@ def main(
                             logging.debug("Wavecal files:\n%s", f[key]["wave"])
                             logging.debug("Orderdef files:\n%s", f[key]["order"])
                             logging.debug("Science files:\n%s", f[key]["spec"])
-                            run_steps(
+                            reducer = Reducer(
                                 f[key],
                                 output_dir,
                                 t,
@@ -197,281 +197,390 @@ def main(
                                 m,
                                 k,
                                 config,
-                                steps=steps,
                                 order_range=order_range,
                             )
+                            reducer.run_steps(steps=steps)
 
 
-def run_steps(
-    files,
-    output_dir,
-    target,
-    instrument,
-    mode,
-    night,
-    config,
-    steps="all",
-    order_range=None,
-):
-    """Reduce all observations from a single night and instrument mode
+class Reducer:
 
-    Parameters
-    ----------
-    input_dir : str
-        input directory, may contain tags {instrument}, {night}, {target}, {mode}
-    output_dir : str
-        output directory, may contain tags {instrument}, {night}, {target}, {mode}
-    target : str
-        observed targets as used in directory names/fits headers
-    instrument : str
-        instrument used for observations
-    mode : str
-        instrument mode used (e.g. "red" or "blue" for HARPS)
-    night : str
-        Observation night, in the same format as used in the directory structure/file sorting
-    config : dict
-        numeric reduction specific settings, like pixel threshold, which may change between runs
-    info : dict
-        fixed instrument specific values, usually header keywords for gain, readnoise, etc.
-    steps : {tuple(str), "all"}, optional
-        which steps of the reduction process to perform
-        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"
-        alternatively set steps to "all", which is equivalent to setting all steps
-        Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
-    mask_dir : str, optional
-        directory containing the masks, defaults to predefined REDUCE masks
-    """
-    info = instruments.instrument_info.get_instrument_info(instrument)
-    imode = util.find_first_index(info["modes"], mode)
+    step_order = {
+        "bias": 0,
+        "flat": 1,
+        "orders": 2,
+        "norm_flat": 3,
+        "wavecal": 4,
+        "shear": 5,
+        "science": 6,
+        "finalize": 7,
+    }
 
-    # read configuration settings
-    extension = info["extension"][imode]
-    prefix = "%s_%s" % (instrument.lower(), mode.lower())
+    def __init__(
+        self,
+        files,
+        output_dir,
+        target,
+        instrument,
+        mode,
+        night,
+        config,
+        order_range=None,
+    ):
+        """Reduce all observations from a single night and instrument mode
 
-    # define paths
-    output_dir = output_dir.format(
-        instrument=instrument, target=target, night=night, mode=mode
-    )
+        Parameters
+        ----------
+        output_dir : str
+            
+        target : str
+            observed targets as used in directory names/fits headers
+        instrument : str
+            instrument used for observations
+        mode : str
+            instrument mode used (e.g. "red" or "blue" for HARPS)
+        night : str
+            Observation night, in the same format as used in the directory structure/file sorting
+        config : dict
+            numeric reduction specific settings, like pixel threshold, which may change between runs
+        info : dict
+            fixed instrument specific values, usually header keywords for gain, readnoise, etc.
+        steps : {tuple(str), "all"}, optional
+            which steps of the reduction process to perform
+            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"
+            alternatively set steps to "all", which is equivalent to setting all steps
+            Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
+        mask_dir : str, optional
+            directory containing the masks, defaults to predefined REDUCE masks
+        """
+        #:dict(str:str): Filenames sorted by usecase
+        self.files = files
+        #:str: Name of the observed target star
+        self.target = target
+        #:str: Name of the observing instrument
+        self.instrument = instrument
+        #:str: Observing mode of the instrument
+        self.mode = mode
+        #:str: Literal of the observing night
+        self.night = night
+        #:dict(str:obj): various configuration settings for the reduction
+        self.config = config
+        #:tuple(int, int): the upper and lower bound of the orders to reduce, defaults to all orders
+        self.order_range = order_range
 
-    # define intermediary product files
-    bias_file = join(output_dir, prefix + ".bias.fits")
-    flat_file = join(output_dir, prefix + ".flat.fits")
-    norm_flat_file = join(output_dir, prefix + ".flat_norm.fits")
-    blaze_file = join(output_dir, prefix + ".ord_norm.sav")
-    order_file = join(output_dir, prefix + ".ord_default.sav")
+        self._mask = None
+        self._output_dir = output_dir
 
-    out_file = "{instrument}.{night}.ech".format(
-        instrument=instrument.upper(), night=night
-    )
-    out_file = os.path.join(output_dir, out_file)
+        info = instruments.instrument_info.get_instrument_info(instrument)
+        imode = util.find_first_index(info["modes"], mode)
 
-    # create output folder structure if necessary
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+        #:int: Fits File extension to use, as defined by the instrument settings
+        self.extension = info["extension"][imode]
 
-    # ==========================================================================
-    # Read mask
-    # the mask is not stored with the data files (it is not supported by astropy)
-    mask_dir = os.path.dirname(__file__)
-    mask_dir = os.path.join(mask_dir, "masks")
-    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode))
+        # create output folder structure if necessary
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
-    mask, _ = util.load_fits(mask_file, instrument, mode, extension=0)
-    mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+    @property
+    def output_dir(self):
+        """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
+        return self._output_dir.format(
+            instrument=self.instrument,
+            target=self.target,
+            night=self.night,
+            mode=self.mode,
+        )
 
-    # ==========================================================================
-    # Create master bias
-    if "bias" in steps or steps == "all":
+    @output_dir.setter
+    def output_dir(self, value):
+        self._output_dir = str(value)
+
+    @property
+    def prefix(self):
+        """str: temporary file prefix"""
+        i = self.instrument.lower()
+        m = self.mode.lower()
+        return f"{i}_{m}"
+
+    @property
+    def bias_file(self):
+        """str: Name of master bias fits file"""
+        return join(self.output_dir, self.prefix + ".bias.fits")
+
+    @property
+    def flat_file(self):
+        """str: Name of master flat fits file"""
+        return join(self.output_dir, self.prefix + ".flat.fits")
+
+    @property
+    def norm_flat_file(self):
+        """str: Name of normalized flat file"""
+        return join(self.output_dir, self.prefix + ".flat_norm.fits")
+
+    @property
+    def blaze_file(self):
+        """str: Name of the blaze file"""
+        return join(self.output_dir, self.prefix + ".ord_norm.npz")
+
+    @property
+    def order_file(self):
+        """str: Name of the order tracing file"""
+        return join(self.output_dir, self.prefix + ".ord_default.npz")
+
+    @property
+    def wave_file(self):
+        """str: Name of the wavelength echelle file"""
+        return join(self.output_dir, self.prefix + ".thar.ech")
+
+    @property
+    def shear_file(self):
+        """str: Name of the shear echelle file"""
+        return join(self.output_dir, self.prefix + ".shear.npz")
+
+    def science_file(self, name):
+        return util.swap_extension(name, ".science.ech", path=self.output_dir)
+
+    def output_file(self, number):
+        out = f"{self.instrument.upper()}.{self.night}_{number}.ech"
+        return os.path.join(self.output_dir, out)
+
+    @property
+    def mask(self):
+        if self._mask is None:
+            self._mask = self.load_mask()
+        return self._mask
+
+    def load_mask(self):
+        # Read mask
+        # the mask is not stored with the data files (it is not supported by astropy)
+        mask_dir = os.path.dirname(__file__)
+        mask_dir = os.path.join(mask_dir, "masks")
+        mask_file = join(
+            mask_dir, "mask_%s_%s.fits.gz" % (self.instrument.lower(), self.mode)
+        )
+
+        mask, _ = util.load_fits(mask_file, self.instrument, self.mode, extension=0)
+        mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+        return mask
+
+    def run_bias(self):
         logging.info("Creating master bias")
         bias, bhead = combine_bias(
-            files["bias"],
-            instrument,
-            mode,
-            mask=mask,
-            extension=extension,
-            plot=config["plot"],
+            self.files["bias"],
+            self.instrument,
+            self.mode,
+            mask=self.mask,
+            extension=self.extension,
+            plot=self.config["plot"],
         )
-        fits.writeto(bias_file, data=bias.data, header=bhead, overwrite=True)
-    else:
-        logging.info("Loading master bias")
-        bias = fits.open(bias_file)[0]
-        bias, bhead = bias.data, bias.header
-        bias = np.ma.masked_array(bias, mask=mask)
+        fits.writeto(self.bias_file, data=bias.data, header=bhead, overwrite=True)
+        return bias, bhead
 
-    # ==========================================================================
-    # Create master flat
-    if "flat" in steps or steps == "all":
+    def load_bias(self):
+        if not os.path.exists(self.bias_file):
+            logging.error("Bias file not found, run with bias step")
+            raise FileNotFoundError("Bias file not found, run with bias step")
+
+        logging.info("Loading master bias")
+        bias = fits.open(self.bias_file)[0]
+        bias, bhead = bias.data, bias.header
+        bias = np.ma.masked_array(bias, mask=self.mask)
+        return bias, bhead
+
+    def run_flat(self, bias):
         logging.info("Creating master flat")
         flat, fhead = combine_flat(
-            files["flat"],
-            instrument,
-            mode,
-            mask=mask,
-            extension=extension,
+            self.files["flat"],
+            self.instrument,
+            self.mode,
+            mask=self.mask,
+            extension=self.extension,
             bias=bias,
-            plot=config["plot"],
+            plot=self.config["plot"],
         )
-        fits.writeto(flat_file, data=flat.data, header=fhead, overwrite=True)
-    else:
+        fits.writeto(self.flat_file, data=flat.data, header=fhead, overwrite=True)
+        return flat, fhead
+
+    def load_flat(self):
+        if not os.path.exists(self.flat_file):
+            logging.error("Flat file not found, run with flat step")
+            raise FileNotFoundError("Flat file not found, run with flat step")
+
         logging.info("Loading master flat")
-        flat = fits.open(flat_file)[0]
+        flat = fits.open(self.flat_file)[0]
         flat, fhead = flat.data, flat.header
-        flat = np.ma.masked_array(flat, mask=mask)
+        flat = np.ma.masked_array(flat, mask=self.mask)
+        return flat, fhead
 
-    # ==========================================================================
-    # Find default orders.
-
-    if "orders" in steps or steps == "all":
+    def run_orders(self):
         logging.info("Tracing orders")
 
+        file = self.files["order"][0]
         order_img, _ = util.load_fits(
-            files["order"][0], instrument, mode, extension, mask=mask
+            file, self.instrument, self.mode, self.extension, mask=self.mask
         )
 
         orders, column_range = mark_orders(
             order_img,
-            min_cluster=config["orders.min_cluster"],
-            filter_size=config["orders.filter_size"],
-            noise=config["orders.noise"],
-            opower=config["orders.fit_degree"],
-            border_width=config["orders.border_width"],
-            manual=config["orders.manual"],
-            plot=config["plot"],
+            min_cluster=self.config["orders.min_cluster"],
+            filter_size=self.config["orders.filter_size"],
+            noise=self.config["orders.noise"],
+            opower=self.config["orders.fit_degree"],
+            border_width=self.config["orders.border_width"],
+            manual=self.config["orders.manual"],
+            plot=self.config["plot"],
         )
 
         # Save results
-        with open(order_file, "wb") as file:
-            pickle.dump((orders, column_range), file)
-    else:
+        np.savez(self.order_file, orders=orders, column_range=column_range)
+
+        return orders, column_range
+
+    def load_orders(self):
         logging.info("Loading order tracing data")
-        with open(order_file, "rb") as file:
-            orders, column_range = pickle.load(file)
+        data = np.load(self.order_file)
+        orders = data["orders"]
+        column_range = data["column_range"]
+        return orders, column_range
 
-    if order_range is None:
-        order_range = (0, len(orders) - 1)
-
-    # ==========================================================================
-    # = Construct normalized flat field.
-
-    if "norm_flat" in steps or steps == "all":
+    def run_norm_flat(self, flat, fhead, orders, column_range):
         logging.info("Normalizing flat field")
 
-        flat, blaze = normalize_flat(
+        norm, blaze = normalize_flat(
             flat,
             orders,
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
             column_range=column_range,
-            order_range=order_range,
-            extraction_width=config["normflat.extraction_width"],
-            degree=config["normflat.scatter_degree"],
-            threshold=config["normflat.threshold"],
-            lambda_sf=config["normflat.smooth_slitfunction"],
-            lambda_sp=config["normflat.smooth_spectrum"],
-            swath_width=config["normflat.swath_width"],
-            plot=config["plot"],
+            order_range=self.order_range,
+            extraction_width=self.config["normflat.extraction_width"],
+            degree=self.config["normflat.scatter_degree"],
+            threshold=self.config["normflat.threshold"],
+            lambda_sf=self.config["normflat.smooth_slitfunction"],
+            lambda_sp=self.config["normflat.smooth_spectrum"],
+            swath_width=self.config["normflat.swath_width"],
+            plot=self.config["plot"],
         )
 
+        # Fix column ranges
+        for i in range(blaze.shape[0]):
+            column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
+
         # Save data
-        with open(blaze_file, "wb") as file:
-            pickle.dump(blaze, file)
-        fits.writeto(norm_flat_file, data=flat.data, header=fhead, overwrite=True)
-    else:
+        np.savez(self.blaze_file, blaze=blaze)
+        fits.writeto(self.norm_flat_file, data=norm.data, header=fhead, overwrite=True)
+        return norm, blaze
+
+    def load_norm_flat(self):
         logging.info("Loading normalized flat field")
-        flat = fits.open(norm_flat_file)[0]
-        flat, fhead = flat.data, flat.header
-        flat = np.ma.masked_array(flat, mask=mask)
+        flat = fits.open(self.norm_flat_file)[0]
+        flat, _ = flat.data, flat.header
+        flat = np.ma.masked_array(flat, mask=self.mask)
 
-        with open(blaze_file, "rb") as file:
-            blaze = pickle.load(file)
+        data = np.load(self.blaze_file)
+        blaze = data["blaze"]
 
-    # Fix column ranges
-    for i in range(blaze.shape[0]):
-        column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
+        return flat, blaze
 
-    # ==========================================================================
-    # Prepare wavelength calibration
-
-    if "wavecal" in steps or steps == "all":
+    def run_wavecal(self, orders, column_range):
         logging.info("Creating wavelength calibration")
-        for f in files["wave"]:
-            # Load wavecal image
-            thar, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
-            orig = thar
 
-            # Extract wavecal spectrum
-            thar, _, _ = extract(
-                thar,
-                orders,
-                gain=thead["e_gain"],
-                readnoise=thead["e_readn"],
-                dark=thead["e_drk"],
-                extraction_type="arc",
-                column_range=column_range,
-                extraction_width=config["wavecal.extraction_width"],
-                osample=config["wavecal.oversampling"],
-                plot=config["plot"],
-            )
-            thead["obase"] = (order_range[0], "base order number")
+        if len(self.files["wave"]) == 0:
+            raise AttributeError("No wavecal files given")
 
-            # Create wavelength calibration fit
-            # TODO just save the coefficients?
-            reference = instruments.instrument_info.get_wavecal_filename(
-                thead, instrument, mode
-            )
-            reference = readsav(reference)
-            cs_lines = reference["cs_lines"]
-            wave = wavecal(
-                thar, cs_lines, plot=config["plot"], manual=config["wavecal.manual"]
+        f = self.files["wave"][-1]
+
+        if len(self.files["wave"]) > 1:
+            # TODO: Give the user the option to select one?
+            logging.warning(
+                "More than one wavelength calibration file found. Will use: %s", f
             )
 
-            nameout = util.swap_extension(f, ".thar.ech", output_dir)
-            echelle.save(nameout, thead, spec=thar, wave=wave)
-    else:
-        fname = util.swap_extension(files["wave"][-1], ".thar.ech", output_dir)
-        thar = echelle.read(fname, raw=True)
+        # Load wavecal image
+        thar, thead = util.load_fits(
+            f, self.instrument, self.mode, self.extension, mask=self.mask
+        )
+
+        # Extract wavecal spectrum
+        thar, _, _ = extract(
+            thar,
+            orders,
+            gain=thead["e_gain"],
+            readnoise=thead["e_readn"],
+            dark=thead["e_drk"],
+            extraction_type="arc",
+            column_range=column_range,
+            extraction_width=self.config["wavecal.extraction_width"],
+            osample=self.config["wavecal.oversampling"],
+            plot=self.config["plot"],
+        )
+        thead["obase"] = (self.order_range[0], "base order number")
+
+        # Create wavelength calibration fit
+        reference = instruments.instrument_info.get_wavecal_filename(
+            thead, self.instrument, self.mode
+        )
+        reference = readsav(reference)
+        cs_lines = reference["cs_lines"]
+        wave = wavecal(
+            thar,
+            cs_lines,
+            plot=self.config["plot"],
+            manual=self.config["wavecal.manual"],
+        )
+
+        echelle.save(self.wave_file, thead, spec=thar, wave=wave)
+        return wave, thar
+
+    def load_wavecal(self):
+        thar = echelle.read(self.wave_file, raw=True)
         wave = thar.wave
         thar = thar.spec
+        return wave, thar
 
-    # ==========================================================================
-    # Extract shear of the slit curvature from wavelength calibration image
-
-    # TODO: where to put this?
-    if "shear" in steps or steps == "all":
+    def run_shear(self, orders, column_range, thar):
         logging.info("Determine shear of slit curvature")
 
         # TODO: Pick best image / combine images ?
-        f = files["wave"][0]
-        orig, thead = util.load_fits(f, instrument, mode, extension, mask=mask)
+        f = self.files["wave"][-1]
+        orig, thead = util.load_fits(
+            f, self.instrument, self.mode, self.extension, mask=self.mask
+        )
         shear = make_shear(
             thar,
             orig,
             orders,
-            extraction_width=config.get("wavecal.extraction_width", 0.25),
+            extraction_width=self.config.get("wavecal.extraction_width", 0.25),
             column_range=column_range,
-            plot=config.get("plot", True),
+            plot=self.config.get("plot", True),
         )
 
-        nameout = util.swap_extension(f, ".shear.ech", output_dir)
-        echelle.save(nameout, thead, shear=shear)
-    else:
-        fname = util.swap_extension(files["wave"][0], ".shear.ech", output_dir)
-        try:
-            shear = echelle.read(fname, raw=True)
-            shear = shear.shear
-        except FileNotFoundError:
-            logging.warning("No Shear file found at %s", fname)
+        np.savez(self.shear_file, shear=shear)
+        return shear
+
+    def load_shear(self):
+        fname = self.shear_file
+        if os.path.exists(fname):
+            data = np.load(fname)
+            shear = data["shear"]
+        else:
+            logging.warning(
+                "No Shear file found at %s, will use vertical extraction", fname
+            )
             shear = None
+        return shear
 
-    # ==========================================================================
-    # Prepare for science spectra extraction
-
-    if "science" in steps or steps == "all":
+    def run_science(self, bias, flat, orders, shear, column_range):
         logging.info("Extracting science spectra")
-        for f in files["spec"]:
+        heads, specs, sigmas = [], [], []
+        for f in self.files["spec"]:
             im, head = util.load_fits(
-                f, instrument, mode, extension, mask=mask, dtype=np.float32
+                f,
+                self.instrument,
+                self.mode,
+                self.extension,
+                mask=self.mask,
+                dtype=np.float32,
             )
             # Correct for bias and flat field
             im -= bias
@@ -486,82 +595,172 @@ def run_steps(
                 readnoise=head["e_readn"],
                 dark=head["e_drk"],
                 column_range=column_range,
-                order_range=order_range,
-                extraction_width=config["science.extraction_width"],
-                lambda_sf=config["science.smooth_slitfunction"],
-                lambda_sp=config["science.smooth_spectrum"],
-                osample=config["science.oversampling"],
-                swath_width=config["science.swath_width"],
-                plot=config["plot"],
+                order_range=self.order_range,
+                extraction_width=self.config["science.extraction_width"],
+                lambda_sf=self.config["science.smooth_slitfunction"],
+                lambda_sp=self.config["science.smooth_spectrum"],
+                osample=self.config["science.oversampling"],
+                swath_width=self.config["science.swath_width"],
+                plot=self.config["plot"],
             )
-            head["obase"] = (order_range[0], " base order number")
+            head["obase"] = (self.order_range[0], " base order number")
 
             # save spectrum to disk
-            nameout = util.swap_extension(f, ".science.ech", path=output_dir)
+            nameout = self.science_file(f)
             echelle.save(nameout, head, spec=spec, sig=sigma)
-    else:
-        f = files["spec"][-1]
-        fname = util.swap_extension(f, ".science.ech", path=output_dir)
-        science = echelle.read(fname, raw=True)
-        head = science.head
-        spec = science.spec
-        sigma = science.sig
+            heads.append(head)
+            specs.append(spec)
+            sigmas.append(sigma)
 
-    if "continuum" in steps or steps == "all":
+        return heads, specs, sigmas
+
+    def load_science(self):
+        heads, specs, sigmas = [], [], []
+        for f in self.files["spec"]:
+            fname = self.science_file(f)
+            science = echelle.read(fname, raw=True)
+            heads.append(science.head)
+            specs.append(science.spec)
+            sigmas.append(science.sig)
+        return heads, specs, sigmas
+
+    def run_continuum(self, specs, sigmas, wave, blaze):
         logging.info("Continuum normalization")
-        for f in files["spec"]:
+        for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
             # fix column ranges
-            for i in range(spec.shape[0]):
+            nord = spec.shape[0]
+            column_range = np.zeros((nord, 2), dtype=int)
+            for i in range(nord):
                 column_range[i] = np.where(spec[i] != 0)[0][[0, -1]] + [0, 1]
 
             logging.info("Splicing orders")
-            spec, wave, blaze, sigma = splice_orders(
+            specs[j], wave, blaze, sigmas[j] = splice_orders(
                 spec,
                 wave,
                 blaze,
                 sigma,
                 column_range=column_range,
                 scaling=True,
-                plot=config["plot"],
+                plot=self.config["plot"],
+            )
+            # spec = continuum_normalize(spec, wave, blaze, sigma)
+        return specs, sigmas, wave, blaze
+
+    def run_finalize(self, specs, heads, wave, blaze, sigmas):
+        # Combine science with wavecal and continuum
+        for i, (head, spec, sigma) in enumerate(zip(heads, specs, sigmas)):
+            head["e_error_scale"] = "absolute"
+
+            # Add heliocentric correction
+            rv_corr, bjd = util.helcorr(
+                head["e_obslon"],
+                head["e_obslat"],
+                head["e_obsalt"],
+                head["ra"],
+                head["dec"],
+                head["e_jd"],
             )
 
-            # spec = continuum_normalize(spec, wave, blaze, sigma)
+            logging.debug("Heliocentric correction: %f km/s", rv_corr)
+            logging.debug("Heliocentric Julian Date: %s", str(bjd))
 
-    # Combine science with wavecal and continuum
-    for f in files["spec"]:
-        head["e_error_scale"] = "absolute"
+            head["barycorr"] = rv_corr
+            head["e_jd"] = bjd
 
-        # Add heliocentric correction
-        rv_corr, bjd = util.helcorr(
-            head["e_obslon"],
-            head["e_obslat"],
-            head["e_obsalt"],
-            head["ra"],
-            head["dec"],
-            head["e_jd"],
-        )
+            nord = spec.shape[0]
+            column_range = np.zeros((nord, 2), dtype=int)
+            for j in range(nord):
+                column_range[j] = np.where(spec[j] != 0)[0][[0, -1]] + [0, 1]
 
-        logging.debug("Heliocentric correction: %f km/s", rv_corr)
-        logging.debug("Heliocentric Julian Date: %s", str(bjd))
+            if self.config["plot"]:
+                for i in range(spec.shape[0]):
+                    plt.plot(wave[i], spec[i] / blaze[i])
+                plt.show()
 
-        head["barycorr"] = rv_corr
-        head["e_jd"] = bjd
+            out_file = self.output_file(i)
+            echelle.save(
+                out_file,
+                head,
+                spec=spec,
+                sig=sigma,
+                cont=blaze,
+                wave=wave,
+                columns=column_range,
+            )
+            logging.info("science file: %s", os.path.basename(out_file))
 
-        if config["plot"]:
-            for i in range(spec.shape[0]):
-                plt.plot(wave[i], spec[i] / blaze[i])
-            plt.show()
+    def run_steps(self, steps="all"):
 
-        echelle.save(
-            out_file,
-            head,
-            spec=spec,
-            sig=sigma,
-            cont=blaze,
-            wave=wave,
-            columns=column_range,
-        )
-        logging.info("science file: %s", os.path.basename(out_file))
+        last_step = "finalize"
+        if steps != "all":
+            new_steps = list(steps)
+            new_steps.sort(key=lambda x: self.step_order[x])
+            last_step = new_steps[-1]
+
+        # TODO some logic that will stop the run after all requested steps are done
+        if "bias" in steps or steps == "all":
+            bias, _ = self.run_bias()
+        else:
+            bias, _ = self.load_bias()
+        if last_step == "bias":
+            return
+
+        if "flat" in steps or steps == "all":
+            flat, fhead = self.run_flat(bias)
+        else:
+            flat, fhead = self.load_flat()
+        if last_step == "flat":
+            return
+
+        if "orders" in steps or steps == "all":
+            orders, column_range = self.run_orders()
+        else:
+            orders, column_range = self.load_orders()
+        if last_step == "orders":
+            return
+
+        # Define order range if not already done
+        if self.order_range is None:
+            self.order_range = (0, len(orders) - 1)
+
+        if "norm_flat" in steps or steps == "all":
+            norm, blaze = self.run_norm_flat(flat, fhead, orders, column_range)
+        else:
+            norm, blaze = self.load_norm_flat()
+        if last_step == "norm_flat":
+            return
+
+        if "wavecal" in steps or steps == "all":
+            wave, thar = self.run_wavecal(orders, column_range)
+        else:
+            wave, thar = self.load_wavecal()
+        if last_step == "wavecal":
+            return
+
+        if "shear" in steps or steps == "all":
+            shear = self.run_shear(orders, column_range, thar)
+        else:
+            shear = self.load_shear()
+        if last_step == "shear":
+            return
+
+        if "science" in steps or steps == "all":
+            heads, specs, sigmas = self.run_science(
+                bias, norm, orders, shear, column_range
+            )
+        else:
+            heads, specs, sigmas = self.load_science()
+        if last_step == "science":
+            return
+
+        if "continuum" in steps or steps == "all":
+            specs, sigmas, wave, blaze = self.run_continuum(specs, sigmas, wave, blaze)
+        if last_step == "continuum":
+            return
+
+        if "finalize" in steps or steps == "all":
+            self.run_finalize(specs, heads, wave, blaze, sigmas)
+
         logging.debug("--------------------------------")
 
 
