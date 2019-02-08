@@ -1,36 +1,30 @@
 {
-    "reduce.base_dir": "./Test",
+    "reduce.base_dir": "./",
     "reduce.input_dir": "{instrument}/{target}/raw/{night}",
     "reduce.output_dir": "{instrument}/{target}/reduced/{night}/{mode}",
     "git.remote": "origin",
-
     "__instrument__": "DEFAULT",
-
     "polarimetry": false,
     "plot": true,
     "fiber": "AB",
     "use_median": false,
-    
     "orders.fit_degree": 4,
     "orders.filter_size": null,
     "orders.min_cluster": null,
     "orders.noise": null,
-    "orders.border_width" : null,
+    "orders.border_width": null,
     "orders.manual": true,
-
     "normflat.smooth_slitfunction": 4,
-    "normflat.smooth_spectrum": 20,
+    "normflat.smooth_spectrum": 0,
     "normflat.oversampling": 10,
     "normflat.swath_width": 200,
     "normflat.threshold": 0.6,
-    "normflat.extraction_width" : 0.2,
-    "normflat.scatter_degree" : 4,
-    
+    "normflat.extraction_width": 0.2,
+    "normflat.scatter_degree": 4,
     "wavecal.oversampling": 1,
-    "wavecal.extraction_width" : 0.5,
+    "wavecal.extraction_width": 0.5,
     "wavecal.manual": false,
-    
-    "science.extraction_width" : 0.25,
+    "science.extraction_width": 0.25,
     "science.oversampling": 10,
     "science.swath_width": 300,
     "science.smooth_slitfunction": 20,

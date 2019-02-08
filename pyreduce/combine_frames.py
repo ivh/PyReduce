@@ -446,7 +446,11 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
     flat -= bias * len(files)  # subtract bias, if passed
 
     if plot:
-        plt.imshow(flat)
+        plt.title("Master Flat - Bias")
+        plt.xlabel("x [pixel]")
+        plt.ylabel("y [pixel]")
+        top = np.percentile(flat, 90)
+        plt.imshow(flat, vmax=top)
         plt.show()
 
     return flat, fhead
@@ -578,7 +582,11 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
         nbad = 0
 
     if plot:
-        plt.imshow(bias)
+        plt.title("Master Bias")
+        plt.xlabel("x [pixel]")
+        plt.ylabel("y [pixel]")
+        bot, top = np.percentile(bias, (1, 99))
+        plt.imshow(bias, vmin=bot, vmax=top)
         plt.show()
 
     try:

@@ -61,8 +61,11 @@ class AlignmentPlot:
             extent=(0, self.ncol, 0, self.nord),
         )
         self.im.figure.suptitle(
-            "Alignment, ThAr: RED, Reference: GREEN\nGreen should be above red!"
+            "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
         )
+        self.im.axes.set_xlabel("x [pixel]")
+        self.im.axes.set_ylabel("Order")
+
         self.im.figure.canvas.draw()
 
     def connect(self):
@@ -198,31 +201,6 @@ def build_2d_solution(cs_lines, plot=False):
     return coef
 
 
-def gaussian_process_fit(x, y, z, zerr):
-    import GPy
-
-    lenX, lenY = 4096, 22
-    X_new = np.arange(lenX)[:, None]
-    z_new = np.empty((lenY, lenX))
-
-    # fig, axes = plt.subplots(lenY, 1, sharex=True)
-    kernel = GPy.kern.RBF(1, lengthscale=1000)
-    for i, order in enumerate(np.unique(y)):
-        X = x[y == order, None]
-        Y = z[y == order, None]
-        model = GPy.models.GPRegression(X, Y, kernel)
-        model.optimize(messages=True)
-
-        tmp = model.predict(X_new)
-        z_new[i] = tmp[0][:, 0]
-        z_err_new = tmp[1][:, 0]
-
-        model.plot()
-        plt.show()
-
-    return z_new
-
-
 def make_wave(thar, wave_solution, plot=False):
     """Expand polynomial wavelength solution into full image
 
@@ -249,19 +227,22 @@ def make_wave(thar, wave_solution, plot=False):
 
     if plot:
         plt.subplot(211)
+        plt.title(
+            "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
+        )
         plt.xlabel("Wavelength")
-        plt.ylabel("Thar spectrum")
+        plt.ylabel("Observed spectrum")
         for i in range(thar.shape[0]):
             plt.plot(wave_img[i], thar[i], label="Order %i" % i)
         # plt.legend(loc="best")
 
         plt.subplot(212)
+        plt.title("2D Wavelength solution")
         plt.imshow(wave_img, aspect="auto", origin="lower", extent=(0, ncol, 0, nord))
         cbar = plt.colorbar()
         plt.xlabel("Column")
         plt.ylabel("Order")
         cbar.set_label("Wavelength [Å]")
-        plt.title("2D Wavelength solution")
         plt.show()
 
     return wave_img
@@ -329,7 +310,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
         clipping threshold in m/s (default: 100)
     plot : bool, optional
         wether to plot the results (default: False)
-    
+
     Returns
     -------
     cs_lines : struct_array
@@ -337,7 +318,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     """
 
     # Calculate residuals
-    nord, ncol = thar.shape
+    nord, _ = thar.shape
     x = cs_lines.posm
     y = cs_lines.order
     solution = polyval2d(x, y, wave_solution)
@@ -348,15 +329,16 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
 
     if plot:
         _, axis = plt.subplots()
-        axis.plot(cs_lines.order[mask], residual[mask], "+")
-        axis.plot(cs_lines.order[~mask], residual[~mask], "d")
+        axis.plot(cs_lines.order[mask], residual[mask], "+", label="Accepted Lines")
+        axis.plot(cs_lines.order[~mask], residual[~mask], "d", label="Rejected Lines")
         axis.set_xlabel("Order")
-        axis.set_ylabel("Residual")
-        axis.set_title("Residuals over order")
+        axis.set_ylabel("Residual [m/s]")
+        axis.set_title("Residuals versus order")
+        axis.legend()
 
         fig, ax = plt.subplots(nrows=nord // 2, ncols=2, sharex=True)
         plt.subplots_adjust(hspace=0)
-        fig.suptitle("Residuals over columns")
+        fig.suptitle("Residuals of each order versus image columns")
 
         for iord in range(nord):
             lines = cs_lines[cs_lines.order == iord]
@@ -364,13 +346,19 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
             # Residual in m/s
             residual = (solution - lines.wll) / lines.wll * speed_of_light
             mask = ~lines.flag.astype(bool)
-            ax[iord // 2, iord % 2].plot(lines.posm[mask], residual[mask], "+")
-            ax[iord // 2, iord % 2].plot(lines.posm[~mask], residual[~mask], "d")
+            ax[iord // 2, iord % 2].plot(
+                lines.posm[mask], residual[mask], "+", label="Accepted Lines"
+            )
+            ax[iord // 2, iord % 2].plot(
+                lines.posm[~mask], residual[~mask], "d", label="Rejected Lines"
+            )
             # ax[iord // 2, iord % 2].tick_params(labelleft=False)
             ax[iord // 2, iord % 2].set_ylim(-clip * 1.5, +clip * 1.5)
 
-        ax[-1, 0].set_xlabel("Column")
-        ax[-1, 1].set_xlabel("Column")
+        ax[-1, 0].set_xlabel("x [pixel]")
+        ax[-1, 1].set_xlabel("x [pixel]")
+
+        ax[0, 0].legend()
 
         plt.show()
 
@@ -409,7 +397,7 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
     # cs_lines.order = max_order - cs_lines.order
 
     if polarim:
-        raise NotImplementedError("polarized orders not impemented yet")
+        raise NotImplementedError("polarized orders not implemented yet")
 
     # Step 1: align thar and reference
     offset = align(thar, cs_lines, plot=plot, manual=manual)

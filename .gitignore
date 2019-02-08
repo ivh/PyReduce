@@ -27,3 +27,4 @@ datasets/**
 examples/uves_middle_600nm_2D.sav
 examples/uves_red_600nm_2D.sav
 docs/_build/*
+pyreduce/datasets/HD132205/UVES.2010-04-02T09_28_05.650.xml

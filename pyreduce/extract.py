@@ -783,6 +783,12 @@ def arc_extraction(
             pos += [pos[i] + index[0].shape[0]]
 
     if plot:
+        plt.title("Extracted Spectrum vs. Input Image")
+        plt.xlabel("x [pixel]")
+        plt.ylabel("order")
+        locs = np.sum(extraction_width[1:-1], axis=1) + 1
+        locs = [0, *np.cumsum(locs)[:-1]]
+        plt.yticks(locs, range(len(locs)))
         plt.imshow(
             output,
             vmin=0,

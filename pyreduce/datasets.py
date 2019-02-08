@@ -3,7 +3,7 @@ import requests
 import tarfile
 
 
-def UVES_HD132205(local_dir="./"):
+def UVES_HD132205(local_dir=None):
     """Load an example dataset for the UVES instrument
 
     Parameters
@@ -16,6 +16,10 @@ def UVES_HD132205(local_dir="./"):
     dataset_dir : str
         directory where the data was saved
     """
+
+    if local_dir is None:
+        local_dir = os.path.dirname(__file__)
+        local_dir = os.path.join(local_dir, "../")
 
     # load data if necessary
     target_dir = os.path.join(local_dir, "datasets")

@@ -200,9 +200,12 @@ def plot_orders(im, x, y, clusters, orders, order_range):
         cluster_img[x[c], y[c]] = c
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
-    plt.subplot(121)
-    plt.imshow(im, origin="lower")
-    plt.title("Input")
+    plt.subplot(211)
+    bot, top = np.percentile(im, (1, 99))
+    plt.imshow(im, origin="lower", vmin=bot, vmax=top)
+    plt.title("Input Image + Order polynomials")
+    plt.xlabel("x [pixel]")
+    plt.ylabel("y [pixel]")
 
     if orders is not None:
         for i, order in enumerate(orders):
@@ -210,9 +213,11 @@ def plot_orders(im, x, y, clusters, orders, order_range):
             y = np.polyval(order, x)
             plt.plot(x, y)
 
-    plt.subplot(122)
+    plt.subplot(212)
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
-    plt.title("Clusters")
+    plt.title("Detected Clusters + Order Polynomials")
+    plt.xlabel("x [pixel]")
+    plt.ylabel("y [pixel]")
 
     if orders is not None:
         for i, order in enumerate(orders):
@@ -292,6 +297,7 @@ def mark_orders(
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
         filter_size = im.shape[0] // npeaks
+        logging.info("Median filter size, estimated: %i", filter_size)
 
     if border_width is None:
         # find width of orders, based on central column
@@ -300,9 +306,11 @@ def mark_orders(
         idx = np.argmax(col)
         width = peak_widths(col, [idx])[0][0]
         border_width = int(np.ceil(width))
+        logging.info("Image border width, estimated: %i", border_width)
 
     if min_cluster is None:
         min_cluster = im.shape[1] // 4
+        logging.info("Minimum cluster size, estimated: %i", min_cluster)
 
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(im, filter_size, axis=0)
@@ -310,6 +318,7 @@ def mark_orders(
     if noise is None:
         tmp = np.abs(blurred.flatten())
         noise = np.percentile(tmp, 5)
+        logging.info("Background noise, estimated: %f", noise)
 
     threshold = np.ma.median(im - blurred, axis=0)
     mask = im > blurred + noise + np.abs(threshold)
@@ -336,6 +345,9 @@ def mark_orders(
         n_clusters -= 1
 
     if plot:
+        plt.title("Identified clusters")
+        plt.xlabel("x [pixel]")
+        plt.ylabel("y [pixel]")
         plt.imshow(clusters, origin="lower")
         plt.show()
 

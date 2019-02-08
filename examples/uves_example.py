@@ -3,6 +3,7 @@ Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
+import os.path
 import pyreduce
 from pyreduce import datasets
 
@@ -12,11 +13,12 @@ instrument = "UVES"
 target = "HD132205"
 night = "2010-04-02"
 mode = "middle"
-steps = (  # "bias",
-    # "flat",
-    # "orders",
-    #  "norm_flat",
-    # "wavecal",
+steps = (
+    "bias",
+    "flat",
+    "orders",
+    "norm_flat",
+    "wavecal",
     "shear",
     "science",
     "continuum",
@@ -29,7 +31,7 @@ steps = (  # "bias",
 # load dataset (and save the location)
 base_dir = datasets.UVES_HD132205()
 input_dir = "{target}/"
-output_dir = "reduced/{target}/{night}/{mode}"
+output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
 
 pyreduce.reduce.main(
     instrument,
@@ -40,5 +42,6 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    order_range=(0, 1),
+    configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json")
+    # order_range=(0, 1),
 )
