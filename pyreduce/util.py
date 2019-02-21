@@ -458,7 +458,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
     A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
-    b = z.flatten()
+    b = z.ravel()
 
     # if np.ma.is_masked(z):
     #     mask = z.mask

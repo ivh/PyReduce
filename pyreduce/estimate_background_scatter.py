@@ -98,8 +98,8 @@ def estimate_background_scatter(
 
     # Sanitize input into desired flat shape
     x = np.concatenate(x_inbetween)
-    y = np.concatenate(y_inbetween).astype(int)
-    z = img[y, x].ravel()
+    y = np.concatenate(y_inbetween)
+    z = img[y.astype(int), x].ravel()
 
     coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
     logging.debug("Background scatter coefficients: %s", str(coeff))
@@ -109,11 +109,11 @@ def estimate_background_scatter(
     y = np.array([np.polyval(order, x) for order in orders_inbetween])
     x = x[None, :] * np.full(nord + 1, 1)[:, None]
     back = np.polynomial.polynomial.polyval2d(x, y, coeff)
-    yback = y
+    yback = y.astype(int)
 
     if plot:
         plt.subplot(211)
-        plt.title("Input Image + Orders")
+        plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         plt.imshow(img, vmin=0, vmax=np.max(back), aspect="equal")

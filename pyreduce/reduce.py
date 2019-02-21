@@ -212,7 +212,8 @@ class Reducer:
         "wavecal": 4,
         "shear": 5,
         "science": 6,
-        "finalize": 7,
+        "continuum":7,
+        "finalize": 8,
     }
 
     def __init__(
@@ -454,7 +455,7 @@ class Reducer:
             column_range=column_range,
             order_range=self.order_range,
             extraction_width=self.config["normflat.extraction_width"],
-            degree=self.config["normflat.scatter_degree"],
+            scatter_degree=self.config["normflat.scatter_degree"],
             threshold=self.config["normflat.threshold"],
             lambda_sf=self.config["normflat.smooth_slitfunction"],
             lambda_sp=self.config["normflat.smooth_spectrum"],
