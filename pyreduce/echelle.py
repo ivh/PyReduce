@@ -9,6 +9,147 @@ import astropy.io.fits as fits
 import scipy.constants
 
 
+class Echelle:
+    def __init__(self, head={}, filename="", data={}):
+        self.filename = filename
+        self.header = head
+        self._data = data
+
+    @property
+    def nord(self):
+        if "spec" in self._data.keys():
+            return self._data["spec"].shape[0]
+        return None
+
+    @property
+    def ncol(self):
+        if "spec" in self._data.keys():
+            return self._data["spec"].shape[1]
+        return None
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __setitem__(self, index, value):
+        self._data[index] = value
+
+    def __contains__(self, index):
+        return index in self._data.keys()
+
+    @staticmethod
+    def read(
+        fname,
+        extension=1,
+        raw=False,
+        continuum_normalization=True,
+        barycentric_correction=True,
+        radial_velociy_correction=True,
+    ):
+        """
+        Read data from an echelle file
+        Expand wavelength and continuum polynomials
+        Apply barycentric/radial velocity correction
+        Apply continuum normalization
+
+        Will load any fields in the binary table, however special attention is given only to specific names:
+        "SPEC"    : Spectrum
+        "SIG"     : Sigma, i.e. (absolute) uncertainty
+        "CONT"    : Continuum
+        "WAVE"    : Wavelength solution
+        "COLUMNS" : Column range
+
+        Parameters
+        ----------
+        fname : str
+            filename to load
+        extension : int, optional
+            fits extension of the data within the file (default: 1)
+        raw : bool, optional
+            if true apply no corrections to the data (default: False)
+        continuum_normalization : bool, optional
+            apply continuum normalization (default: True)
+        barycentric_correction : bool, optional
+            apply barycentric correction (default: True)
+        radial_velociy_correction : bool, optional
+            apply radial velocity correction (default: True)
+
+        Returns
+        -------
+        ech : obj
+            Echelle structure, with data contained in attributes
+        """
+
+        hdu = fits.open(fname)
+        header = hdu[0].header
+        data = hdu[extension].data
+
+        _data = {column.lower(): data[column][0] for column in data.dtype.names}
+        ech = Echelle(filename=fname, head=header, data=_data)
+        nord, ncol = ech.nord, ech.ncol
+
+        if not raw:
+            if "spec" in ech:
+                base_order = header.get("obase", 1)
+                ech["orders"] = np.arange(base_order, base_order + nord)
+
+            # Wavelength
+            if "wave" in ech:
+                ech["wave"] = expand_polynomial(ncol, ech["wave"])
+
+                # Correct for radial velocity and barycentric correction
+                # + : away from observer
+                # - : towards observer
+                velocity_correction = 0
+                if barycentric_correction:
+                    velocity_correction += header.get("barycorr", 0)
+                    header["barycorr"] = 0
+                if radial_velociy_correction:
+                    velocity_correction -= header.get("radvel", 0)
+                    header["radvel"] = 0
+
+                speed_of_light = scipy.constants.speed_of_light * 1e-3
+                ech["wave"] *= 1 + velocity_correction / speed_of_light
+
+            # Continuum
+            if "cont" in ech:
+                ech["cont"] = expand_polynomial(ncol, ech["cont"])
+
+            # Create Mask, based on column range
+            if "columns" in ech:
+                ech["mask"] = np.full((nord, ncol), False)
+                for iord in range(nord):
+                    ech["mask"][iord, : ech["columns"][iord, 0]] = True
+                    ech["mask"][iord, ech["columns"][iord, 1] :] = True
+
+                if "spec" in ech:
+                    ech["spec"] = np.ma.masked_array(ech["spec"], mask=ech["mask"])
+                if "sig" in ech:
+                    ech["sig"] = np.ma.masked_array(ech["sig"], mask=ech["mask"])
+                if "cont" in ech:
+                    ech["cont"] = np.ma.masked_array(ech["cont"], mask=ech["mask"])
+                if "wave" in ech:
+                    ech.wave = np.ma.masked_array(ech["wave"], mask=ech["mask"])
+
+            # Apply continuum normalization
+            if continuum_normalization and "cont" in ech:
+                if "spec" in ech:
+                    ech["spec"] /= ech["cont"]
+                if "sig" in ech:
+                    ech["sig"] /= ech["cont"]
+
+        return ech
+
+    def save(self, fname):
+        """
+        Save data in an Echelle fits, i.e. a fits file with a Binary Table in Extension 1
+        
+        Parameters
+        ----------
+        fname : str
+            filename
+        """
+        save(fname, self.header, **self._data)
+
 def calc_2dpolynomial(solution2d):
     """Expand a 2d polynomial, where the data is given in a REDUCE make_wave format
     Note that the coefficients are for order/100 and column/1000 respectively, where the order is counted from order base up
@@ -20,7 +161,7 @@ def calc_2dpolynomial(solution2d):
         0: version
         1: number of columns
         2: number of orders
-        3: order base, i.e. 0th order number
+        3: order base, i.e. 0th order number (should not be 0)
         4-6: empty
         7: number of cross coefficients
         8: number of column only coefficients
@@ -51,11 +192,11 @@ def calc_2dpolynomial(solution2d):
     coeff[0, 0] = coeff_in[0]
     coeff[0, 1:] = coeff_in[1 : 1 + deg_column]
     coeff[1:, 0] = coeff_in[1 + deg_column : 1 + deg_column + deg_order]
-    coeff[1, 1] = coeff_in[deg_column + deg_order + 1]
-    coeff[1, 2] = coeff_in[deg_column + deg_order + 2]
-    coeff[2, 1] = coeff_in[deg_column + deg_order + 3]
-    coeff[2, 2] = coeff_in[deg_column + deg_order + 4]
-
+    if deg_cross in [4, 6]:
+        coeff[1, 1] = coeff_in[deg_column + deg_order + 1]
+        coeff[1, 2] = coeff_in[deg_column + deg_order + 2]
+        coeff[2, 1] = coeff_in[deg_column + deg_order + 3]
+        coeff[2, 2] = coeff_in[deg_column + deg_order + 4]
     if deg_cross == 6:
         coeff[1, 3] = coeff_in[deg_column + deg_order + 5]
         coeff[3, 1] = coeff_in[deg_column + deg_order + 6]
@@ -114,113 +255,8 @@ def expand_polynomial(ncol, poly):
         poly = calc_1dpolynomials(ncol, poly)
     return poly
 
-
-def read(
-    fname,
-    extension=1,
-    raw=False,
-    continuum_normalization=True,
-    barycentric_correction=True,
-    radial_velociy_correction=True,
-):
-    """
-    Read data from an echelle file
-    Expand wavelength and continuum polynomials
-    Apply barycentric/radial velocity correction
-    Apply continuum normalization
-
-    Will load any fields in the binary table, however special attention is given only to specific names:
-    "SPEC"    : Spectrum
-    "SIG"     : Sigma, i.e. (absolute) uncertainty
-    "CONT"    : Continuum
-    "WAVE"    : Wavelength solution
-    "COLUMNS" : Column range
-
-    Parameters
-    ----------
-    fname : str
-        filename to load
-    extension : int, optional
-        fits extension of the data within the file (default: 1)
-    raw : bool, optional
-        if true apply no corrections to the data (default: False)
-    continuum_normalization : bool, optional
-        apply continuum normalization (default: True)
-    barycentric_correction : bool, optional
-        apply barycentric correction (default: True)
-    radial_velociy_correction : bool, optional
-        apply radial velocity correction (default: True)
-
-    Returns
-    -------
-    ech : obj
-        Echelle structure, with data contained in attributes
-    """
-
-    hdu = fits.open(fname)
-    header = hdu[0].header
-    data = hdu[extension].data
-
-    ech = lambda: None  # placeholder
-    ech.filename = fname
-    ech.head = header
-
-    for column in data.dtype.names:
-        setattr(ech, column.lower(), data[column][0])
-        if column == "SPEC":
-            nord, ncol = data[column][0].shape
-
-    if not raw:
-        if hasattr(ech, "spec"):
-            ech.orders = np.arange(nord)
-
-        # Wavelength
-        if hasattr(ech, "wave"):
-            ech.wave = expand_polynomial(ncol, ech.wave)
-
-            # Correct for radial velocity and barycentric correction
-            # + : away from observer
-            # - : towards observer
-            velocity_correction = 0
-            if barycentric_correction:
-                velocity_correction += header.get("barycorr", 0)
-                header["barycorr"] = 0
-            if radial_velociy_correction:
-                velocity_correction -= header.get("radvel", 0)
-                header["radvel"] = 0
-
-            speed_of_light = scipy.constants.speed_of_light * 1e-3
-            ech.wave *= 1 + velocity_correction / speed_of_light
-
-        # Continuum
-        if hasattr(ech, "cont"):
-            ech.cont = expand_polynomial(ncol, ech.cont)
-
-        # Create Mask, based on column range
-        if hasattr(ech, "columns"):
-            ech.mask = np.full((nord, ncol), False)
-            for iord in range(nord):
-                ech.mask[iord, : ech.columns[iord, 0]] = True
-                ech.mask[iord, ech.columns[iord, 1] :] = True
-
-            if hasattr(ech, "spec"):
-                ech.spec = np.ma.masked_array(ech.spec, mask=ech.mask)
-            if hasattr(ech, "sig"):
-                ech.sig = np.ma.masked_array(ech.sig, mask=ech.mask)
-            if hasattr(ech, "cont"):
-                ech.cont = np.ma.masked_array(ech.cont, mask=ech.mask)
-            if hasattr(ech, "wave"):
-                ech.wave = np.ma.masked_array(ech.wave, mask=ech.mask)
-
-        # Apply continuum normalization
-        if continuum_normalization and hasattr(ech, "cont"):
-            if hasattr(ech, "spec"):
-                ech.spec /= ech.cont
-            if hasattr(ech, "sig"):
-                ech.sig /= ech.cont
-
-    return ech
-
+def read(fname, **kwargs):
+    return Echelle.read(fname, **kwargs)
 
 def save(fname, header, **kwargs):
     """Save data in an Echelle fits, i.e. a fits file with a Binary Table in Extension 1
@@ -238,11 +274,14 @@ def save(fname, header, **kwargs):
         data to be saved in the file
     """
 
+    if not isinstance(header, fits.Header):
+        header = fits.Header(cards=header)
+
     primary = fits.PrimaryHDU(header=header)
 
     columns = []
     for key, value in kwargs.items():
-        arr = value.flatten()[None, :]
+        arr = value.ravel()[None, :]
 
         if issubclass(arr.dtype.type, np.floating):
             arr = arr.astype(np.float32)
