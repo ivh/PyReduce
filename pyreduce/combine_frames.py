@@ -249,12 +249,13 @@ def combine_frames(
         bias1, head1 = load_fits(
             files[0], instrument, mode, extension, dtype=dtype, **kwargs
         )
-        exp1 = head1["exptime"]
+        exp1 = head1.get("exptime", 0)
 
         bias2, head2 = load_fits(
             files[0], instrument, mode, extension, dtype=dtype, **kwargs
         )
-        exp2, readnoise = head2["exptime"], head2["e_readn"]
+        exp2 = head2.get("exptime",0)
+        readnoise = head2.get("e_readn", 0)
 
         result = bias2 + bias1
         head = head2
@@ -299,7 +300,7 @@ def combine_frames(
 
         gain = [c[1] for c in head["e_gain*"].cards]
         readnoise = [c[1] for c in head["e_readn*"].cards]
-        total_exposure_time = sum([h["exptime"] for h in heads])
+        total_exposure_time = sum([h.get("exptime", 0) for h in heads])
 
         # Scaling for image data
         bscale = [h.get("bscale", 1) for h in heads]
@@ -314,6 +315,10 @@ def combine_frames(
             fits.open(f, memmap=True, do_not_scale_image_data=True)[extension]
             for f in files
         ]
+
+        if window >= n_columns / 2:
+            window = n_columns // 10
+            logging.warning("Reduce Window size to fit the image")
 
         # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:

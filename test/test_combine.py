@@ -76,3 +76,5 @@ def test_combine_frames(files):
     assert combine.shape[0] == img.shape[0] - ovscx
     assert combine.shape[1] == img.shape[1]
 
+    assert chead["exptime"] == 10 * len(files)
+
