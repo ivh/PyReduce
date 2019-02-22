@@ -187,7 +187,6 @@ def fit_polynomials_to_clusters(x, y, clusters, degree):
     orders : dict(int, array[degree+1])
         coefficients of polynomial fit for each cluster
     """
-
     orders = {c: np.polyfit(y[c], x[c], degree) for c in clusters}
     return orders
 
@@ -289,7 +288,8 @@ def mark_orders(
     """
 
     # Convert to signed integer, to avoid underflow problems
-    im = im.view(np.int16)
+    im = np.asarray(im)
+    im = im.astype(np.int16)
 
     if filter_size is None:
         col = im[:, im.shape[0] // 2]
@@ -298,6 +298,8 @@ def mark_orders(
         npeaks = find_peaks(col, height=threshold)[0].size
         filter_size = im.shape[0] // npeaks
         logging.info("Median filter size, estimated: %i", filter_size)
+    elif filter_size <= 0:
+        raise ValueError(f"Expected filter size > 0, but got {filter_size}")
 
     if border_width is None:
         # find width of orders, based on central column
@@ -307,10 +309,14 @@ def mark_orders(
         width = peak_widths(col, [idx])[0][0]
         border_width = int(np.ceil(width))
         logging.info("Image border width, estimated: %i", border_width)
+    elif border_width < 0:
+        raise ValueError(f"Expected border width > 0, but got {border_width}")
 
     if min_cluster is None:
         min_cluster = im.shape[1] // 4
         logging.info("Minimum cluster size, estimated: %i", min_cluster)
+    elif not np.isscalar(min_cluster):
+        raise TypeError(f"Expected scalar minimum cluster size, but got {min_cluster}")
 
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(im, filter_size, axis=0)
@@ -319,19 +325,23 @@ def mark_orders(
         tmp = np.abs(blurred.flatten())
         noise = np.percentile(tmp, 5)
         logging.info("Background noise, estimated: %f", noise)
+    elif not np.isscalar(noise):
+        raise TypeError(f"Expected scalar noise level, but got {noise}")
+
 
     threshold = np.ma.median(im - blurred, axis=0)
     mask = im > blurred + noise + np.abs(threshold)
     # remove borders
-    mask[:border_width, :] = mask[-border_width:, :] = False
+    if border_width != 0:
+        mask[:border_width, :] = mask[-border_width:, :] = False
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
     struct = np.full((5, 5), 1)
-    mask = morphology.binary_closing(mask, struct)
+    mask = morphology.binary_closing(mask, struct, border_value=1)
     # remove small lonely clusters
-    struct = morphology.generate_binary_structure(2, 1)
-    mask = morphology.binary_erosion(mask)
+    # struct = morphology.generate_binary_structure(2, 1)
+    mask = morphology.binary_opening(mask, struct)
 
     # label clusters
     clusters, n_clusters = label(mask)
@@ -387,7 +397,7 @@ def mark_orders(
     y = {c: y[key[c]] for c in n}
     orders = np.array([orders[key[c]] for c in n])
 
-    column_range = np.array([[np.min(y[i]), np.max(y[i])] for i in n])
+    column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
     if plot:
         plot_orders(im, x, y, n, orders, column_range)

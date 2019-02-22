@@ -51,3 +51,39 @@ def test_orders(instrument, mode, extension, files, settings, mask):
     assert np.all(column_range <= order_img.shape[1])
 
     assert orders.shape[0] == column_range.shape[0]
+
+def test_simple():
+    img = np.full((100, 100), 1)
+    img[45:56, :] = 100
+
+    orders, column_range = mark_orders(img, manual=False, opower=1, plot=False, border_width=0)
+
+    assert orders.shape[0] == 1
+    assert np.allclose(orders[0], [0, 50])
+
+    assert column_range.shape[0] == 1
+    assert column_range[0, 0] == 0
+    assert column_range[0, 1] == 100
+
+def test_parameters():
+    img = np.full((100, 100), 1)
+    img[45:56, :] = 100
+
+    with pytest.raises(TypeError):
+        mark_orders(None)
+    with pytest.raises(TypeError):
+        mark_orders(img, min_cluster="bla")
+    with pytest.raises(TypeError):
+        mark_orders(img, filter_size="bla")
+    with pytest.raises(ValueError):
+        mark_orders(img, filter_size=0)
+    with pytest.raises(TypeError):
+        mark_orders(img, noise="bla")
+    with pytest.raises(TypeError):
+        mark_orders(img, border_width="bla")
+    with pytest.raises(ValueError):
+        mark_orders(img, border_width=-1)
+    with pytest.raises(ValueError):
+        mark_orders(img, opower="bla")
+    with pytest.raises(ValueError):
+        mark_orders(img, opower=-1)

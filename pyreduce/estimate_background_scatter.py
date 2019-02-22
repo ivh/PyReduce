@@ -59,6 +59,20 @@ def estimate_background_scatter(
         y positions of the interorder lines, the scatter values are taken from
     """
 
+    if not isinstance(scatter_degree, (int, np.integer, tuple)):
+        raise TypeError("Expected integer value for scatter polynomial degree, got %s" % type(scatter_degree))
+    if isinstance(scatter_degree, tuple):
+            if len(scatter_degree) != 2:
+                raise ValueError("Expected tuple of length 2, but got length %i" % len(scatter_degree))
+            types = [isinstance(i, (int, np.integer)) for i in scatter_degree]
+            if not all(types):
+                raise TypeError("Expected integer value for scatter polynomial degree, got %s" % type(scatter_degree))
+            values = [i <= 0 for i in scatter_degree]
+            if any(values):
+                raise ValueError("Expected positive value for scatter polynomial degree, got %s" % str(scatter_degree))
+    elif scatter_degree <= 0:
+        raise ValueError("Expected positive value for scatter polynomial degree, got %i" % scatter_degree)
+
     nrow, ncol = img.shape
     nord, _ = orders.shape
 

@@ -597,8 +597,8 @@ def wave(files, instrument, mode, extension, mask, orders, settings, output_dir)
 
     if os.path.exists(wavefile):
         thar = echelle.read(wavefile, raw=True)
-        wave = thar.wave
-        thar = thar.spec
+        wave = thar["wave"]
+        thar = thar["spec"]
 
         mask = np.full(wave.shape, True)
         for iord in range(wave.shape[0]):
@@ -634,7 +634,7 @@ def wave(files, instrument, mode, extension, mask, orders, settings, output_dir)
 
         echelle.save(wavefile, thead, spec=thar, wave=wave)
 
-    return wave
+    return wave, thar
 
 
 @pytest.fixture
@@ -688,9 +688,9 @@ def spec(
 
     try:
         science = echelle.read(specfile, raw=True)
-        head = science.head
-        spec = science.spec
-        sigma = science.sig
+        head = science["head"]
+        spec = science["spec"]
+        sigma = science["sig"]
 
         mask = np.full(spec.shape, True)
         for iord in range(spec.shape[0]):

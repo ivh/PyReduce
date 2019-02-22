@@ -9,6 +9,7 @@ from itertools import product
 import json
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
@@ -374,6 +375,33 @@ def gaussfit(x, y):
     return gauss(x, *popt), popt
 
 
+def gaussfit2(x, y):
+    """Fit a gaussian(normal) curve to data x, y
+
+    gauss = A * exp(-(x-mu)**2/(2*sig**2))
+
+    Parameters
+    ----------
+    x : array[n]
+        x values
+    y : array[n]
+        y values
+
+    Returns
+    -------
+    popt : array[3]
+        coefficients of the gaussian: A, mu, sigma**2
+    """
+
+    gauss = lambda x, a, mu, sig: a * np.exp(-(x - mu) ** 2 / (2 * sig))
+    try:
+        popt, _ = curve_fit(gauss, x, y, p0=[np.max(y), np.mean(x), 1])
+    except RuntimeError:
+        # Sometimes the data is really bad and no fit is found
+        # then revert to a bad guess
+        popt = [np.max(y), np.mean(x), 1]
+    return popt
+
 def gaussbroad(x, y, hwhm):
     """
     Apply gaussian broadening to x, y data with half width half maximum hwhm
@@ -473,24 +501,26 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         coeff[i, j] = C[k]
 
     if plot:
-        pass
         # regular grid covering the domain of the data
-        # choice = np.random.choice(x.size, size=500, replace=False)
-        # x, y, z = x[choice], y[choice], z[choice]
-        # X, Y = np.meshgrid(
-        #     np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
-        # )
-        # Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
-        # fig = plt.figure()
-        # ax = fig.gca(projection="3d")
-        # ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
-        # ax.scatter(x, y, z, c="r", s=50)
-        # plt.xlabel("X")
-        # plt.ylabel("Y")
-        # ax.set_zlabel("Z")
-        # ax.axis("equal")
-        # ax.axis("tight")
-        # plt.show()
+        if x.size > 500:
+            choice = np.random.choice(x.size, size=500, replace=False)
+        else:
+            choice = slice(None, None, None)
+        x, y, z = x[choice], y[choice], z[choice]
+        X, Y = np.meshgrid(
+            np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
+        )
+        Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+        ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+        ax.scatter(x, y, z, c="r", s=50)
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.axis("equal")
+        ax.axis("tight")
+        plt.show()
     return coeff
 
 

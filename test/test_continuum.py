@@ -8,6 +8,7 @@ def test_continuum(spec, orders, wave, normflat, order_range):
     orders, column_range = orders
     spec, sigma = spec
     norm, blaze = normflat
+    wave, thar = wave
 
     # fix column ranges
     for i in range(spec.shape[0]):

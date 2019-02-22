@@ -620,9 +620,9 @@ class Reducer:
         for f in self.files["spec"]:
             fname = self.science_file(f)
             science = echelle.read(fname, raw=True)
-            heads.append(science.head)
-            specs.append(science.spec)
-            sigmas.append(science.sig)
+            heads.append(science.header)
+            specs.append(science["spec"])
+            sigmas.append(science["sig"])
         return heads, specs, sigmas
 
     def run_continuum(self, specs, sigmas, wave, blaze):

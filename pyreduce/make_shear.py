@@ -24,35 +24,7 @@ from scipy import signal
 from scipy.optimize import curve_fit
 
 from .extract import fix_extraction_width
-from .util import make_index
-
-
-def gaussfit(x, y):
-    """Fit a gaussian(normal) curve to data x, y
-
-    gauss = A * exp(-(x-mu)**2/(2*sig**2))
-
-    Parameters
-    ----------
-    x : array[n]
-        x values
-    y : array[n]
-        y values
-
-    Returns
-    -------
-    popt : array[3]
-        coefficients of the gaussian: A, mu, sigma**2
-    """
-
-    gauss = lambda x, a, mu, sig: a * np.exp(-(x - mu) ** 2 / (2 * sig))
-    try:
-        popt, _ = curve_fit(gauss, x, y, p0=[np.max(y), np.mean(x), 1])
-    except RuntimeError:
-        # Sometimes the data is really bad and no fit is found
-        # then revert to a bad guess
-        popt = [np.max(y), np.mean(x), 1]
-    return popt
+from .util import make_index, gaussfit2 as gaussfit
 
 
 def make_shear(
