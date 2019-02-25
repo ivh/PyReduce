@@ -8,7 +8,7 @@ dependencies:
   - scipy
   - astropy
   - python-dateutil
-  - requests
+  - wget
   - matplotlib
   - Ipython
   - jupyter

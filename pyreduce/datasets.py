@@ -1,6 +1,6 @@
 import os
-import requests
 import tarfile
+import wget
 
 
 def UVES_HD132205(local_dir=None):
@@ -29,12 +29,8 @@ def UVES_HD132205(local_dir=None):
         os.makedirs(target_dir)
 
     if not os.path.isfile(filename):
-        remote_location = (
-            "http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/FTP/reduce_demo.tar.gz"
-        )
-        r = requests.get(remote_location)
-        with open(filename, "wb") as fd:
-            fd.write(r.content)
+        url = "http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/FTP/reduce_demo.tar.gz"
+        wget.download(url, out=filename)
 
     with tarfile.open(filename) as file:
         file.extractall(path=target_dir)
