@@ -497,12 +497,13 @@ def extract_spectrum(
             )
         else:
             # shear is given, use curved extraction
+            shear_swath = shear[ibeg:iend]
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
                 ihalf
             ], mask = slitfunc_curved(
                 swath_img,
                 y_offset,
-                shear,
+                shear_swath,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
