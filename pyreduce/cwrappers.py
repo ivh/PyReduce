@@ -132,6 +132,32 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     lambda_sp = float(lambda_sp)
     osample = int(osample)
 
+    img = np.asanyarray(img)
+    ycen = np.asanyarray(ycen)
+
+    if not np.issubdtype(img.dtype, np.number):
+        raise TypeError(
+            "Input image must be a numeric type, but got %s" % str(img.dtype)
+        )
+
+    if not np.issubdtype(ycen.dtype, np.number):
+        raise TypeError("Ycen must be a numeric type, but got %s" % str(ycen.dtype))
+
+    if img.shape[0] != ycen.size:
+        raise ValueError(
+            "Image and Ycen shapes are incompatible, got %s and %s"
+            % (img.shape, ycen.shape)
+        )
+
+    if osample <= 0:
+        raise ValueError("Oversample rate must be positive, but got %i" % osample)
+    if lambda_sf < 0:
+        raise ValueError(
+            "Slitfunction smoothing must be positive, but got %f" % lambda_sf
+        )
+    if lambda_sp < 0:
+        raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
+
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
@@ -174,7 +200,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
+def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -202,6 +228,41 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     lambda_sp = float(lambda_sp)
     osample = int(osample)
 
+    img = np.asanyarray(img)
+    ycen = np.asanyarray(ycen)
+    shear = np.asanyarray(shear)
+    if np.isscalar(shear):
+        shear = np.full(img.shape[0], shear, dtype=c_double)
+
+    if not np.issubdtype(img.dtype, np.number):
+        raise TypeError(
+            "Input image must be a numeric type, but got %s" % str(img.dtype)
+        )
+    if not np.issubdtype(ycen.dtype, np.number):
+        raise TypeError("Ycen must be a numeric type, but got %s" % str(ycen.dtype))
+    if not np.issubdtype(shear.dtype, np.number):
+        raise TypeError("Shear must be a numeric type, but got %s" % str(shear.dtype))
+
+    if img.shape[0] != ycen.size:
+        raise ValueError(
+            "Image and Ycen shapes are incompatible, got %s and %s"
+            % (img.shape, ycen.shape)
+        )
+    if img.shape[0] != shear.size:
+        raise ValueError(
+            "Image and Shear shapes are incompatible, got %s and %s"
+            % (img.shape, shear.shape)
+        )
+
+    if osample <= 0:
+        raise ValueError("Oversample rate must be positive, but got %i" % osample)
+    if lambda_sf < 0:
+        raise ValueError(
+            "Slitfunction smoothing must be positive, but got %f" % lambda_sf
+        )
+    if lambda_sp < 0:
+        raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
+
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
 
@@ -226,8 +287,6 @@ def slitfunc_curved(img, ycen, shear, osample=1, lambda_sp=0, lambda_sf=0.1):
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
 
-    if np.isscalar(shear):
-        shear = np.full(ncols, shear, dtype=c_double)
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     model = np.zeros((nrows, ncols), dtype=c_double)
