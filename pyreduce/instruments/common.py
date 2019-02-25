@@ -137,8 +137,8 @@ class instrument:
 
         header["e_orient"] = get("orientation", 0)
 
-        naxis_x = get("naxis_x")
-        naxis_y = get("naxis_y")
+        naxis_x = get("naxis_x", 0)
+        naxis_y = get("naxis_y", 0)
 
         prescan_x = get("prescan_x", 0)
         overscan_x = get("overscan_x", 0)
@@ -200,7 +200,7 @@ class instrument:
 
         info = self.load_info()
         target = target.upper()
-        instrument = info["__instrument__"].upper()
+        instrument = info.get("__instrument__", "").upper()
 
         # Try matching with nights
         try:
@@ -234,7 +234,7 @@ class instrument:
         # special setting identifier, e.g. wavelength setting
         se = np.zeros(len(files), dtype="U20")
         # observed night, parsed into a datetime object
-        ni = np.zeros(len(files), dtype=datetime)
+        ni = np.zeros(len(files), dtype=datetime.datetime)
         # instrument, used for observation
         it = np.zeros(len(files), dtype="U20")
 
@@ -309,6 +309,7 @@ class instrument:
 
         info = self.load_info()
         specifier = header.get(info.get("wavecal_specifier", ""), "")
+        instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
         fname = "{instrument}_{mode}_{specifier}.sav".format(
@@ -320,5 +321,10 @@ class instrument:
 
 class COMMON(instrument):
     def load_info(self):
-        return {"naxis_x": "NAXIS1", "naxis_y": "NAXIS2"}
+        return {
+            "naxis_x": "NAXIS1",
+            "naxis_y": "NAXIS2",
+            "modes": [""],
+            "modes_id": [""],
+        }
 

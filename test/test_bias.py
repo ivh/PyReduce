@@ -54,7 +54,7 @@ def test_simple_input(tempfiles):
         data = np.full((100, 100), i, dtype=float)
         fits.writeto(files[i], data)
 
-    bias, bhead = combine_bias(files, "common", None, extension=0)
+    bias, bhead = combine_bias(files, "common", "", extension=0)
 
     assert isinstance(bias, np.ndarray)
     assert bias.shape[0] == 100

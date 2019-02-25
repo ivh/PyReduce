@@ -54,13 +54,13 @@ def get_instrument_info(instrument):
     return instrument.load_info()
 
 
-def sort_files(files, target, night, instrument, mode, **kwargs):
+def sort_files(input_dir, target, night, instrument, mode, **kwargs):
     """Sort a list of files into different categories and discard files that are not used
 
     Parameters
     ----------
-    files : list(str)
-        list of filenames
+    input_dir : str
+        directory containing all files (with tags for target, night, and instrument)
     target : str
         observation target name, as found in the files
     night : str
@@ -85,7 +85,7 @@ def sort_files(files, target, night, instrument, mode, **kwargs):
     """
 
     instrument = load_instrument(instrument)
-    return instrument.sort_files(files, target, night, mode, **kwargs)
+    return instrument.sort_files(input_dir, target, night, mode, **kwargs)
 
 
 def modeinfo(header, instrument, mode, **kwargs):

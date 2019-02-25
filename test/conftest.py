@@ -688,7 +688,7 @@ def spec(
 
     try:
         science = echelle.read(specfile, raw=True)
-        head = science["head"]
+        head = science.header
         spec = science["spec"]
         sigma = science["sig"]
 

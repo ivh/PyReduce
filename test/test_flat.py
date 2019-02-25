@@ -26,6 +26,7 @@ def test_flat(instrument, mode, files, extension, mask):
     assert flat.shape[0] == fhead["NAXIS1"] - 100  # remove window from both sides
     assert flat.shape[1] == fhead["NAXIS2"]
 
+
 def test_simple(tempfiles):
     n = 2
     files = tempfiles[:n]
@@ -34,7 +35,7 @@ def test_simple(tempfiles):
         data = np.full((100, 100), 5, dtype=float)
         fits.writeto(files[i], data)
 
-    flat, fhead = combine_flat(files, "common", None, extension=0)
+    flat, fhead = combine_flat(files, "common", "", extension=0)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 100
@@ -48,7 +49,7 @@ def test_simple(tempfiles):
         data = np.full((200, 100), 5, dtype=float)
         fits.writeto(files[i], data, overwrite=True)
 
-    flat, fhead = combine_flat(files, "common", None, extension=0, window=50)
+    flat, fhead = combine_flat(files, "common", "", extension=0, window=50)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 200

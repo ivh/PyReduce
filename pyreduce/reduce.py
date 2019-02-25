@@ -114,35 +114,7 @@ def main(
         # settings: default settings of PyReduce
         # config: paramters for the current reduction
         # info: constant, instrument specific parameters
-        if configuration is None:
-            config = "settings_%s.json" % i.upper()
-        elif isinstance(configuration, dict):
-            if i in configuration.keys():
-                config = configuration[i]
-        elif isinstance(configuration, list):
-            config = configuration[j]
-        elif isinstance(configuration, str):
-            config = configuration
-
-        if isinstance(config, str):
-            if os.path.isfile(config):
-                logging.info("Loading configuration for this from %s", config)
-                with open(config) as f:
-                    config = json.load(f)
-            else:
-                logging.warning(
-                    "No configuration found at %s, using default values", config
-                )
-                config = {}
-
-        settings = util.read_config()
-        nparam1 = len(settings)
-        settings.update(config)
-        nparam2 = len(settings)
-        if nparam2 > nparam1:
-            logging.warning("New parameter(s) in instrument config, Check spelling!")
-
-        config = settings
+        config = load_config(configuration, i, j)
 
         # load default settings from settings_pyreduce.json
         if isNone["base_dir"]:
@@ -202,6 +174,38 @@ def main(
                             reducer.run_steps(steps=steps)
 
 
+def load_config(configuration, instrument, j):
+    if configuration is None:
+        config = "settings_%s.json" % instrument.upper()
+    elif isinstance(configuration, dict):
+        config = configuration[instrument]
+    elif isinstance(configuration, list):
+        config = configuration[j]
+    elif isinstance(configuration, str):
+        config = configuration
+
+    if isinstance(config, str):
+        if os.path.isfile(config):
+            logging.info("Loading configuration from %s", config)
+            with open(config) as f:
+                config = json.load(f)
+        else:
+            logging.warning(
+                "No configuration found at %s, using default values", config
+            )
+            config = {}
+
+    settings = util.read_config()
+    nparam1 = len(settings)
+    settings.update(config)
+    nparam2 = len(settings)
+    if nparam2 > nparam1:
+        logging.warning("New parameter(s) in instrument config, Check spelling!")
+
+    config = settings
+    return settings
+
+
 class Reducer:
 
     step_order = {
@@ -212,7 +216,7 @@ class Reducer:
         "wavecal": 4,
         "shear": 5,
         "science": 6,
-        "continuum":7,
+        "continuum": 7,
         "finalize": 8,
     }
 
