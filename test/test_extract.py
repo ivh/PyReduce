@@ -6,7 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import readsav
 from scipy.signal import gaussian
-from skimage import transform as tf
+
+# from skimage import transform as tf
 
 # from pyreduce.clib.build_extract import build
 
