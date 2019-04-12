@@ -1,5 +1,11 @@
 import os
+import matplotlib
 from . import util
+
+try:
+    matplotlib.use("Qt5Agg")
+except:
+    print("Plotting Backend could not be set. Plots might not be as intended")
 
 util.start_logging(None)
 

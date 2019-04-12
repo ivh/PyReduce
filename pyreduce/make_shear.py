@@ -21,7 +21,6 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
-from scipy.optimize import curve_fit
 
 from .extract import fix_extraction_width
 from .util import make_index, gaussfit2 as gaussfit
@@ -62,7 +61,7 @@ def make_shear(
     logging.info("Extract shear of the slit")
 
     nord = orders.shape[0]
-    nrow, ncol = original.shape
+    _, ncol = original.shape
     threshold = (
         10
     )  # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
@@ -116,6 +115,8 @@ def make_shear(
             axes[iord // 2, iord % 2].plot(
                 np.arange(len(vec))[locmax], vec[locmax], "+"
             )
+            if iord not in (nord - 1, nord - 2):
+                axes2[iord // 2, iord % 2].get_xaxis().set_ticks([])
 
         # Remove the offset, due to vec being a subset of extracted
         locmax += cr[0]
@@ -176,6 +177,8 @@ def make_shear(
             x = np.arange(cr[0], cr[1])
             axes2[iord // 2, iord % 2].plot(x, np.polyval(a, x))
             axes2[iord // 2, iord % 2].set_xlim(0, ncol)
+            if iord not in (nord - 1, nord - 2):
+                axes2[iord // 2, iord % 2].get_xaxis().set_ticks([])
 
     if plot:
         plt.show()

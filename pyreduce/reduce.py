@@ -539,8 +539,8 @@ class Reducer:
 
     def load_wavecal(self):
         thar = echelle.read(self.wave_file, raw=True)
-        wave = thar.wave
-        thar = thar.spec
+        wave = thar["wave"]
+        thar = thar["spec"]
         return wave, thar
 
     def run_shear(self, orders, column_range, thar):
@@ -631,6 +631,7 @@ class Reducer:
 
     def run_continuum(self, specs, sigmas, wave, blaze):
         logging.info("Continuum normalization")
+        conts = [None for _ in specs]
         for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
             # fix column ranges
             nord = spec.shape[0]
@@ -648,12 +649,16 @@ class Reducer:
                 scaling=True,
                 plot=self.config["plot"],
             )
-            # spec = continuum_normalize(spec, wave, blaze, sigma)
-        return specs, sigmas, wave, blaze
+            conts[j] = continuum_normalize(
+                specs[j], wave, blaze, sigmas[j], column_range=column_range
+            )
+        return specs, sigmas, wave, conts
 
-    def run_finalize(self, specs, heads, wave, blaze, sigmas):
+    def run_finalize(self, specs, heads, wave, conts, sigmas):
         # Combine science with wavecal and continuum
-        for i, (head, spec, sigma) in enumerate(zip(heads, specs, sigmas)):
+        for i, (head, spec, sigma, blaze) in enumerate(
+            zip(heads, specs, sigmas, conts)
+        ):
             head["e_error_scale"] = "absolute"
 
             # Add heliocentric correction
@@ -759,12 +764,14 @@ class Reducer:
             return
 
         if "continuum" in steps or steps == "all":
-            specs, sigmas, wave, blaze = self.run_continuum(specs, sigmas, wave, blaze)
+            specs, sigmas, wave, conts = self.run_continuum(specs, sigmas, wave, blaze)
+        else:
+            conts = [blaze for _ in specs]
         if last_step == "continuum":
             return
 
         if "finalize" in steps or steps == "all":
-            self.run_finalize(specs, heads, wave, blaze, sigmas)
+            self.run_finalize(specs, heads, wave, conts, sigmas)
 
         logging.debug("--------------------------------")
 

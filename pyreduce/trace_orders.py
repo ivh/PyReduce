@@ -328,8 +328,7 @@ def mark_orders(
     elif not np.isscalar(noise):
         raise TypeError(f"Expected scalar noise level, but got {noise}")
 
-
-    threshold = np.ma.median(im - blurred, axis=0)
+    threshold = np.ma.median(blurred - im, axis=0)
     mask = im > blurred + noise + np.abs(threshold)
     # remove borders
     if border_width != 0:
@@ -344,29 +343,22 @@ def mark_orders(
     mask = morphology.binary_opening(mask, struct)
 
     # label clusters
-    clusters, n_clusters = label(mask)
+    clusters, _ = label(mask)
 
     # remove small clusters
     sizes = np.bincount(clusters.ravel())
     mask_sizes = sizes > min_cluster
-    mask_sizes[0] = 0
-    for i in np.arange(n_clusters + 1)[~mask_sizes]:
+    mask_sizes[0] = True  # This is the background, which we don't need to remove
+    for i in np.arange(len(sizes))[~mask_sizes]:
         clusters[clusters == i] = 0
-        n_clusters -= 1
 
     if plot:
         plt.title("Identified clusters")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(clusters, origin="lower")
+        _clusters = np.ma.masked_array(clusters, mask=clusters == 0)
+        plt.imshow(_clusters, origin="lower", cmap="prism")
         plt.show()
-
-    # # Getting x and y coordinates of all pixels sticking above the filtered image
-    # x, y, clusters, n_clusters = find_clusters(im, min_cluster, filter_size, noise)
-    # # disregard borders of the image
-    # clusters[(x == 0) | (y == 0) | (x == im.shape[1] - 1) | (y == im.shape[0] - 1)] = 0
-    # if n_clusters == 0:
-    #     raise Exception("No clusters found")
 
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
     # # x, y become dictionaries, with an entry for each order
