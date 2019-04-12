@@ -166,21 +166,118 @@ def splice_orders(
     return spec, wave, cont, sigm
 
 
-def continuum_normalize(spec, wave, cont, sigm, iterations=10, plot=True):
-    # TODO
+class Plot_Normalization:
+    def __init__(self, wsort, sB, new_wave, contB, iteration=0):
+        plt.ion()
+        self.fig = plt.figure()
+        self.fig.suptitle(f"Iteration: {iteration}")
 
+        self.ax = self.fig.add_subplot(111)
+        self.line1 = self.ax.plot(wsort, sB, label="Spectrum")[0]
+        self.line2 = self.ax.plot(new_wave, contB, label="Continuum Fit")[0]
+        plt.legend()
+
+        plt.show()
+
+    def plot(self, wsort, sB, new_wave, contB, iteration):
+        self.fig.suptitle(f"Iteration: {iteration}")
+        self.line1.set_xdata(wsort)
+        self.line1.set_ydata(sB)
+        self.line2.set_xdata(new_wave)
+        self.line2.set_ydata(contB)
+
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+    def close(self):
+        plt.ioff()
+        plt.close()
+
+
+def continuum_normalize(
+    spec,
+    wave,
+    cont,
+    sigm,
+    column_range=None,
+    iterations=10,
+    smooth_initial=1e5,
+    smooth_final=5e6,
+    scale_vert=1,
+    plot=True,
+):
     nord, ncol = spec.shape
 
+    par2 = 1e-4
+    par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.median(spec))))
+
+    b = np.clip(cont, 1, None)
     for i in range(nord):
-        m = np.ma.median(spec[i])
+        cr = column_range[i]
+        b[i, cr[0] : cr[1]] = util.middle(b[i, cr[0] : cr[1]], 1)
+    cont = b
+
+    wmin = np.ma.min(wave)
+    wmax = np.ma.max(wave)
+    dwave = np.abs(wave[nord // 2, ncol // 2] - wave[nord // 2, ncol // 2 - 1]) * 0.5
+    nwave = np.ceil((wmax - wmin) / dwave) + 1
+    new_wave = np.linspace(wmin, wmax, nwave, endpoint=True)
+
+    wsort, j, index = np.unique(
+        wave.compressed(), return_index=True, return_inverse=True
+    )
+    sB = (spec / cont).compressed()[j]
+
+    weight = util.middle(sB, 0.5, x=wsort - wmin)
+
+    weight = weight / util.middle(weight, 3 * smooth_initial) + np.concatenate(
+        ([0], 2 * weight[1:-1] - weight[0:-2] - weight[2:], [0])
+    )
+    weight = np.clip(weight, 0, None)
+    weight = util.safe_interpolation(wsort, weight, new_wave)
+    weight /= np.max(weight)
+
+    ssB = util.safe_interpolation(wsort, sB, new_wave)
+    bbb = util.middle(cont.compressed()[j], 1)
+
+    contB = 1
+    for niter in range(iterations):
+        c = ssB / contB
+        for ii in range(iterations):
+            c = np.clip(
+                util.top(
+                    c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
+                ),
+                c,
+                None,
+            )
+        c = (
+            util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
+            * contB
+        )
+
+        contB = c * scale_vert
+        contB = util.middle(contB, 1)
+        weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
+
+        if plot:
+            if niter == 0:
+                p = Plot_Normalization(wsort, sB, new_wave, contB, niter)
+            else:
+                p.plot(wsort, sB, new_wave, contB, niter)
 
     if plot:
-        order = 0
-        plt.plot(wave[order], spec[order], label="spec")
-        plt.plot(wave[order], cont[order], label="cont")
-        # plt.legend(loc="best")
+        p.close()
+
+    new_cont = util.safe_interpolation(new_wave, contB, wsort)
+    cont[~cont.mask] = (new_cont * bbb)[index]
+
+    if plot:
+        plt.plot(wave.ravel(), spec.ravel(), label="spec")
+        plt.plot(wave.ravel(), cont.ravel(), label="cont")
+        plt.legend(loc="best")
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
         plt.show()
 
-    return spec
+    return cont

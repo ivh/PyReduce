@@ -402,6 +402,7 @@ def gaussfit2(x, y):
         popt = [np.max(y), np.mean(x), 1]
     return popt
 
+
 def gaussbroad(x, y, hwhm):
     """
     Apply gaussian broadening to x, y data with half width half maximum hwhm
@@ -559,6 +560,75 @@ def bezier_interp(x_old, y_old, x_new):
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new
 
+def safe_interpolation(x_old, y_old, x_new=None, fill_value=0):
+    """
+    'Safe' interpolation method that should avoid
+    the common pitfalls of spline interpolation
+
+    masked arrays are compressed, i.e. only non masked entries are used
+    remove NaN input in x_old and y_old
+    only unique x values are used, corresponding y values are 'random'
+    if all else fails, revert to linear interpolation
+
+    Parameters
+    ----------
+    x_old : array of size (n,)
+        x values of the data
+    y_old : array of size (n,)
+        y values of the data
+    x_new : array of size (m, ) or None, optional
+        x values of the interpolated values
+        if None will return the interpolator object
+        (default: None)
+
+    Returns
+    -------
+    y_new: array of size (m, ) or interpolator
+        if x_new was given, return the interpolated values
+        otherwise return the interpolator object
+    """
+
+    # Handle masked arrays
+    if np.ma.is_masked(x_old):
+        x_old = np.ma.compressed(x_old)
+        y_old = np.ma.compressed(y_old)
+
+    mask = np.isfinite(x_old) & np.isfinite(y_old)
+    x_old = x_old[mask]
+    y_old = y_old[mask]
+
+    # avoid duplicate entries in x
+    # also sorts data, which allows us to use assume_sorted below
+    x_old, index = np.unique(x_old, return_index=True)
+    y_old = y_old[index]
+
+    try:
+        interpolator = scipy.interpolate.interp1d(
+            x_old,
+            y_old,
+            kind="cubic",
+            fill_value=fill_value,
+            bounds_error=False,
+            assume_sorted=True,
+        )
+    except ValueError:
+        logging.warning(
+            "Could not instantiate cubic spline interpolation, using linear instead"
+        )
+        interpolator = scipy.interpolate.interp1d(
+            x_old,
+            y_old,
+            kind="linear",
+            fill_value=fill_value,
+            bounds_error=False,
+            assume_sorted=True,
+        )
+
+    if x_new is not None:
+        return interpolator(x_new)
+    else:
+        return interpolator
+
 
 def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     """
@@ -655,7 +725,18 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
         return t * fff * (fmax - fmin) + fmin
 
 
-def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
+def middle(
+    f,
+    param,
+    x=None,
+    iterations=40,
+    eps=0.001,
+    poly=False,
+    weight=1,
+    lambda2=-1,
+    mn=None,
+    mx=None,
+):
     """
     middle tries to fit a smooth curve that is located
     along the "middle" of 1D data array f. Filter size "filter"
@@ -666,7 +747,7 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
     the convergence criterion for the fit (eps)
     04-Nov-2000 N.Piskunov wrote.
     09-Nov-2011 NP added weights and 2nd derivative constraint as LAM2
-    
+
     Parameters
     ----------
     f : Callable
@@ -686,13 +767,22 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
     weight : array(float)
         vector of weights.
     """
-    mn = kwargs.get("min", np.min(f))
-    mx = kwargs.get("max", np.max(f))
-    lambda2 = kwargs.get("lambda2", -1)
+    mn = mn if mn is not None else np.min(f)
+    mx = mx if mx is not None else np.max(f)
+
+    f = np.asarray(f)
+
+    if x is None:
+        xx = np.linspace(-1, 1, num=f.size)
+    else:
+        xx = np.asarray(x)
 
     if poly:
-        j = np.where((f >= mn) & (f <= mx))
-        xx = np.linspace(-1, 1, num=len(f))
+        j = (f >= mn) & (f <= mx)
+        n = np.count_nonzero(j)
+        if n <= round(param):
+            return f
+
         fmin = np.min(f[j]) - 1
         fmax = np.max(f[j]) + 1
         ff = (f[j] - fmin) / (fmax - fmin)
@@ -704,40 +794,51 @@ def middle(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
         ff_old = ff
         n = len(f)
 
-    for _ in range(iterations):
+    for i in range(iterations):
         if poly:
-            if order > 0:  # this is a bug in rsi poly routine
-                t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
-                tmp = np.polyval(np.polyfit(xx, (t - ff) ** 2, order), xx)
-                dev = np.sqrt(np.nan_to_num(tmp))
+            param = round(param)
+            if param > 0:
+                t = median_filter(np.polyval(np.polyfit(xx, ff, param), xx), 3)
+                tmp = np.polyval(np.polyfit(xx, (t - ff) ** 2, param), xx)
             else:
-                t = np.tile(np.polyfit(xx, ff, order), len(f))
-                t = np.tile(np.polyfit(xx, (t - ff) ** 2, order), len(f))
-                t = np.nan_to_num(t)
-                dev = np.sqrt(t)
+                t = np.tile(np.polyfit(xx, ff, param), len(f))
+                tmp = np.tile(np.polyfit(xx, (t - ff) ** 2, param), len(f))
         else:
-            t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
-            dev = np.sqrt(
-                opt_filter(
-                    weight * (t - ff) ** 2, order, weight=weight, lambda2=lambda2
-                )
+            t = median_filter(opt_filter(ff, param, weight=weight, lambda2=lambda2), 3)
+            tmp = opt_filter(
+                weight * (t - ff) ** 2, param, weight=weight, lambda2=lambda2
             )
-        ff = np.clip(np.clip(t - dev, ff, None), None, t + dev)
+
+        dev = np.sqrt(np.clip(tmp, 0, None))
+        ff = np.clip(t - dev, ff, t + dev)
         dev2 = np.max(weight * np.abs(ff - ff_old))
         ff_old = ff
+
+        # print(dev2)
         if dev2 <= eps:
             break
 
     if poly:
-        if order > 0:  # this is a bug in rsi poly routine
-            t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
+        xx = np.linspace(-1, 1, len(f))
+        if param > 0:
+            t = median_filter(np.polyval(np.polyfit(xx, ff, param), xx), 3)
         else:
-            t = np.tile(np.polyfit(xx, ff, order), len(f))
+            t = np.tile(np.polyfit(xx, ff, param), len(f))
 
     return t * (fmax - fmin) + fmin
 
 
-def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
+def top(
+    f,
+    order=1,
+    iterations=40,
+    eps=0.001,
+    poly=False,
+    weight=1,
+    lambda2=-1,
+    mn=None,
+    mx=None,
+):
     """
     top tries to fit a smooth curve to the upper envelope
     of 1D data array f. Filter size "filter"
@@ -768,13 +869,16 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
     weight : array(float)
         vector of weights.
     """
-    mn = kwargs.get("min", np.min(f))
-    mx = kwargs.get("max", np.max(f))
-    lambda2 = kwargs.get("lambda2", -1)
+    mn = mn if mn is not None else np.min(f)
+    mx = mx if mx is not None else np.max(f)
+
+    f = np.asarray(f)
+    xx = np.linspace(-1, 1, num=f.size)
 
     if poly:
-        j = np.where((f >= mn) & (f <= mx))
-        xx = np.linspace(-1, 1, num=len(f))
+        j = (f >= mn) & (f <= mx)
+        if np.count_nonzero(j) <= round(order):
+            raise ValueError("Not enough points")
         fmin = np.min(f[j]) - 1
         fmax = np.max(f[j]) + 1
         ff = (f - fmin) / (fmax - fmin)
@@ -790,23 +894,22 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
         ff_old = ff
 
     for _ in range(iterations):
-        order = int(order)
+        order = round(order)
         if poly:
             t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
             tmp = np.polyval(np.polyfit(xx, np.clip(ff - t, 0, None) ** 2, order), xx)
-            tmp[np.isnan(tmp) | (tmp < 0)] = 0
-            dev = np.sqrt(tmp)
+            dev = np.sqrt(np.clip(tmp, 0, None))
         else:
             t = median_filter(opt_filter(ff, order, weight=weight, lambda2=lambda2), 3)
-            dev = np.sqrt(
-                opt_filter(
-                    np.clip(weight * (ff - t), 0, None),
-                    order,
-                    weight=weight,
-                    lambda2=lambda2,
-                )
+            tmp = opt_filter(
+                np.clip(weight * (ff - t), 0, None),
+                order,
+                weight=weight,
+                lambda2=lambda2,
             )
-        ff = np.clip(np.clip(t - eps, ff, None), None, t + dev * 3)
+            dev = np.sqrt(np.clip(tmp, 0, None))
+
+        ff = np.clip(t - eps, ff, t + dev * 3)
         dev2 = np.max(weight * np.abs(ff - ff_old))
         ff_old = ff
         if dev2 <= eps:
@@ -819,7 +922,7 @@ def top(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs):
         return t * fff * (fmax - fmin) + fmin
 
 
-def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
+def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
     """
     Optimal filtering of 1D and 2D arrays.
     Uses tridiag in 1D case and sprsin and linbcg in 2D case.
@@ -831,7 +934,7 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
         1d or 2d array
     xwidth : int
         filter width (for 2d array width in x direction (1st index)
-    ywidth : int 
+    ywidth : int
         (for 2d array only) filter width in y direction (2nd index) if ywidth is missing for 2d array, it set equal to xwidth
     weight : array(float)
         an array of the same size(s) as f containing values between 0 and 1
@@ -839,69 +942,88 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
         maximum number of iteration for filtering of 2d array
     """
 
+    y = np.asarray(y)
+
+    if y.ndim not in [1, 2]:
+        raise ValueError("Input y must have 1 or 2 dimensions")
+
     if par < 1:
         par = 1
 
-    if y.shape[0] == len(y) or y.shape[1] == len(y):
+    # 1D case
+    if y.ndim == 1 or (y.ndim == 2 and (y.shape[0] == 1 or y.shape[1] == 1)):
         if par < 0:
             return y
-        n = len(y)
+        y = y.ravel()
+        n = y.size
+
+        if weight is None:
+            weight = np.ones(n)
+        elif np.isscalar(weight):
+            weight = np.full(n, weight)
+        else:
+            weight = weight[:n]
+
         if lambda2 > 0:
-            aij = np.zeros((n, 5))
+            # Apply regularization lambda
+            aij = np.zeros((5, n))
             # 2nd lower subdiagonal
-            aij[0, 2 : n - 1 + 1] = lambda2
+            aij[0, 2:] = lambda2
             # Lower subdiagonal
             aij[1, 1] = -par - 2 * lambda2
-            aij[1, 2 : n - 2 + 1] = -par - 4 * lambda2
-            aij[1, n - 1] = -par - 2 * lambda2
+            aij[1, 2:-1] = -par - 4 * lambda2
+            aij[1, -1] = -par - 2 * lambda2
             # Main diagonal
             aij[2, 0] = weight[0] + par + lambda2
-            aij[2, 1] = weight[1] + 2e0 * par + 5e0 * lambda2
-            aij[2, 2 : n - 3 + 1] = weight[2 : n - 3 + 1] + 2e0 * par + 6e0 * lambda2
-            aij[2, n - 2] = weight[n - 2] + 2e0 * par + 5e0 * lambda2
-            aij[2, n - 1] = weight[n - 1] + par + lambda2
+            aij[2, 1] = weight[1] + 2 * par + 5 * lambda2
+            aij[2, 2:-2] = weight[2:-2] + 2 * par + 6 * lambda2
+            aij[2, -2] = weight[-2] + 2 * par + 5 * lambda2
+            aij[2, -1] = weight[-1] + par + lambda2
             # Upper subdiagonal
-            aij[3, 0] = -par - 2e0 * lambda2
-            aij[3, 1 : n - 3 + 1] = -par - 4e0 * lambda2
-            aij[3, n - 2] = -par - 2e0 * lambda2
+            aij[3, 0] = -par - 2 * lambda2
+            aij[3, 1:-2] = -par - 4 * lambda2
+            aij[3, -2] = -par - 2 * lambda2
             # 2nd lower subdiagonal
-            aij[4, 0 : n - 3 + 1] = lambda2
+            aij[4, 0:-2] = lambda2
             # RHS
             b = weight * y
 
-            b = solve_banded([1, 1], aij, b)
-            # i = call_external(band_solv_name, 'bandsol', aij, b, long(n), 5)
-            f = b
+            if not np.all(np.isfinite(aij)) or not np.all(np.isfinite(b)):
+                print("What the fuck")
+
+            try:
+                f = solve_banded((2, 2), aij, b)
+            except ValueError:
+                print("What the hell")
         else:
             a = np.full(n, -abs(par))
-            weight = np.full(n, weight)
-            b = np.array(
-                [
-                    weight[0] + abs(par),
-                    *(weight[1:-1] + np.full(n - 2, 2 * abs(par))),
-                    weight[-1] + abs(par),
-                ]
-            )
+            b = np.copy(weight) + abs(par)
+            b[1:-1] += abs(par)
             aba = np.array([a, b, a])
 
-            f = solve_banded((1, 1), aba, weight * np.ma.getdata(y))
+            f = solve_banded((1, 1), aba, weight * y)
 
         return f
     else:
+        # 2D case
         if par1 is None:
             par1 = par
         if par == 0 and par1 == 0:
-            return y
-        n = len(y)
+            raise ValueError("par and par1 can't both be 0")
+        n = y.size
         nc, nr = y.shape
 
         adiag = abs(par)
         bdiag = abs(par1)
 
         # Main diagonal first:
+        aa = np.zeros((nc, nr))
+        aa[0, 0] = 1. + adiag + bdiag
+        aa[1:-2, 0] = np.full(nc - 2, 1. + 2. * adiag + bdiag)
+        aa[-1, 0] = 1. + adiag + bdiag
+
         aa = np.array(
             (
-                1. + adiag + bdiag,
                 np.full(nc - 2, 1. + 2. * adiag + bdiag),
                 1. + adiag + bdiag,
                 np.full(n - 2 * nc, 1. + 2. * adiag + 2. * bdiag),
@@ -913,7 +1035,7 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1):
                 np.full(n - nc, -bdiag),
                 np.full(n - nc, -bdiag),
             )
-        )  # lower sub-diagonal for y
+        )
 
         col = np.arange(nr - 2) * nc + nc  # special cases:
         aaa = np.full(nr - 2, 1. + adiag + 2. * bdiag)
