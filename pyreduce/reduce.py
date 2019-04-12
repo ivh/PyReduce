@@ -236,7 +236,7 @@ class Reducer:
         Parameters
         ----------
         output_dir : str
-            
+
         target : str
             observed targets as used in directory names/fits headers
         instrument : str
@@ -650,7 +650,7 @@ class Reducer:
                 plot=self.config["plot"],
             )
             conts[j] = continuum_normalize(
-                specs[j], wave, blaze, sigmas[j], column_range=column_range
+                specs[j], wave, blaze, sigmas[j]
             )
         return specs, sigmas, wave, conts
 
@@ -680,11 +680,12 @@ class Reducer:
             nord = spec.shape[0]
             column_range = np.zeros((nord, 2), dtype=int)
             for j in range(nord):
-                column_range[j] = np.where(spec[j] != 0)[0][[0, -1]] + [0, 1]
+                #TODO what if spec is not a masked array, i.e. did not go through continuum normalization
+                column_range[j] = np.where(spec.mask[j] == False)[0][[0, -1]] + [0, 1]
 
             if self.config["plot"]:
-                for i in range(spec.shape[0]):
-                    plt.plot(wave[i], spec[i] / blaze[i])
+                for j in range(spec.shape[0]):
+                    plt.plot(wave[j], spec[j] / blaze[j])
                 plt.show()
 
             out_file = self.output_file(i)

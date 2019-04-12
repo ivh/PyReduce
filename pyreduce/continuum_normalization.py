@@ -199,13 +199,44 @@ def continuum_normalize(
     wave,
     cont,
     sigm,
-    column_range=None,
     iterations=10,
     smooth_initial=1e5,
     smooth_final=5e6,
     scale_vert=1,
     plot=True,
 ):
+    """ Fit a continuum to a spectrum by slowly approaching it from the top.
+    We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
+
+    Parameters
+    ----------
+    spec : masked array of shape (nord, ncol)
+        Observed input spectrum, masked values describe column ranges
+    wave : masked array of shape (nord, ncol)
+        Wavelength solution of the spectrum
+    cont : masked array of shape (nord, ncol)
+        Initial continuum guess, for example based on the blaze
+    sigm : masked array of shape (nord, ncol)
+        Uncertainties of the spectrum
+    iterations : int, optional
+        Number of iterations of the algorithm, 
+        note that runtime roughly scales with the number of iterations squared 
+        (default: 10)
+    smooth_initial : float, optional
+        Smoothing parameter in the initial runs, usually smaller than smooth_final (default: 1e5)
+    smooth_final : float, optional
+        Smoothing parameter of the final run (default: 5e6)
+    scale_vert : float, optional
+        Vertical scale of the spectrum. Usually 1 if a previous normalization exists (default: 1)
+    plot : bool, optional
+        Wether to plot the current status and results or not (default: True)
+
+    Returns
+    -------
+    cont : masked array of shape (nord, ncol)
+        New continuum
+    """
+
     nord, ncol = spec.shape
 
     par2 = 1e-4
@@ -213,23 +244,24 @@ def continuum_normalize(
 
     b = np.clip(cont, 1, None)
     for i in range(nord):
-        cr = column_range[i]
-        b[i, cr[0] : cr[1]] = util.middle(b[i, cr[0] : cr[1]], 1)
+        b[i, ~b.mask[i]] = util.middle(b[i, ~b.mask[i]], 1)
     cont = b
 
+    # Create new equispaced wavelength grid
     wmin = np.ma.min(wave)
     wmax = np.ma.max(wave)
     dwave = np.abs(wave[nord // 2, ncol // 2] - wave[nord // 2, ncol // 2 - 1]) * 0.5
     nwave = np.ceil((wmax - wmin) / dwave) + 1
     new_wave = np.linspace(wmin, wmax, nwave, endpoint=True)
 
+    # Combine all orders into one big spectrum, sorted by wavelength
     wsort, j, index = np.unique(
         wave.compressed(), return_index=True, return_inverse=True
     )
     sB = (spec / cont).compressed()[j]
 
+    # Get initial weights for each point
     weight = util.middle(sB, 0.5, x=wsort - wmin)
-
     weight = weight / util.middle(weight, 3 * smooth_initial) + np.concatenate(
         ([0], 2 * weight[1:-1] - weight[0:-2] - weight[2:], [0])
     )
@@ -237,41 +269,46 @@ def continuum_normalize(
     weight = util.safe_interpolation(wsort, weight, new_wave)
     weight /= np.max(weight)
 
+    # Interpolate Spectrum onto the new grid
     ssB = util.safe_interpolation(wsort, sB, new_wave)
+    # Keep the scale of the continuum
     bbb = util.middle(cont.compressed()[j], 1)
 
     contB = 1
-    for niter in range(iterations):
+    for i in range(iterations):
+        # Find new approximation of the top, smoothed by some parameter
         c = ssB / contB
-        for ii in range(iterations):
-            c = np.clip(
-                util.top(
-                    c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
-                ),
-                c,
-                None,
+        for _ in range(iterations):
+            _c = util.top(
+                c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
             )
+            c = np.clip(_c, c, None)
         c = (
             util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
             * contB
         )
 
+        # Scale it and update the weights of each point
         contB = c * scale_vert
         contB = util.middle(contB, 1)
         weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
 
+        # Plot the intermediate results
         if plot:
-            if niter == 0:
-                p = Plot_Normalization(wsort, sB, new_wave, contB, niter)
+            if i == 0:
+                p = Plot_Normalization(wsort, sB, new_wave, contB, i)
             else:
-                p.plot(wsort, sB, new_wave, contB, niter)
+                p.plot(wsort, sB, new_wave, contB, i)
 
+    # Need to close the plot afterwards
     if plot:
         p.close()
 
+    # Calculate the new continuum from intermediate values
     new_cont = util.safe_interpolation(new_wave, contB, wsort)
     cont[~cont.mask] = (new_cont * bbb)[index]
 
+    # Final output plot
     if plot:
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
