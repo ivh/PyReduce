@@ -273,6 +273,7 @@ class Reducer:
         self.order_range = order_range
 
         self._mask = None
+        self._spec_mask = np.ma.nomask
         self._output_dir = output_dir
 
         info = instruments.instrument_info.get_instrument_info(instrument)
@@ -471,10 +472,13 @@ class Reducer:
         for i in range(blaze.shape[0]):
             column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
 
+        self._spec_mask = blaze == 0
+        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
+
         # Save data
-        np.savez(self.blaze_file, blaze=blaze)
+        np.savez(self.blaze_file, blaze=blaze, column_range=column_range)
         fits.writeto(self.norm_flat_file, data=norm.data, header=fhead, overwrite=True)
-        return norm, blaze
+        return norm, blaze, column_range
 
     def load_norm_flat(self):
         logging.info("Loading normalized flat field")
@@ -484,8 +488,11 @@ class Reducer:
 
         data = np.load(self.blaze_file)
         blaze = data["blaze"]
+        self._spec_mask = blaze == 0
+        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
+        column_range = data["column_range"]
 
-        return flat, blaze
+        return flat, blaze, column_range
 
     def run_wavecal(self, orders, column_range):
         logging.info("Creating wavelength calibration")
@@ -507,7 +514,7 @@ class Reducer:
         )
 
         # Extract wavecal spectrum
-        thar, _, _ = extract(
+        thar, _, _, _ = extract(
             thar,
             orders,
             gain=thead["e_gain"],
@@ -519,7 +526,7 @@ class Reducer:
             osample=self.config["wavecal.oversampling"],
             plot=self.config["plot"],
         )
-        thead["obase"] = (self.order_range[0], "base order number")
+        # thead["obase"] = (self.order_range[0], "base order number")
 
         # Create wavelength calibration fit
         reference = instruments.instrument_info.get_wavecal_filename(
@@ -533,6 +540,8 @@ class Reducer:
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
         )
+        wave = np.ma.masked_array(wave, mask=self._spec_mask)
+        thar = np.ma.masked_array(thar, mask=self._spec_mask)
 
         echelle.save(self.wave_file, thead, spec=thar, wave=wave)
         return wave, thar
@@ -540,7 +549,9 @@ class Reducer:
     def load_wavecal(self):
         thar = echelle.read(self.wave_file, raw=True)
         wave = thar["wave"]
+        wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = thar["spec"]
+        thar = np.ma.masked_array(thar, mask=self._spec_mask)
         return wave, thar
 
     def run_shear(self, orders, column_range, thar):
@@ -559,20 +570,16 @@ class Reducer:
             column_range=column_range,
             plot=self.config.get("plot", True),
         )
+        shear = np.ma.masked_array(shear, mask=self._spec_mask)
 
         np.savez(self.shear_file, shear=shear)
         return shear
 
     def load_shear(self):
         fname = self.shear_file
-        if os.path.exists(fname):
-            data = np.load(fname)
-            shear = data["shear"]
-        else:
-            logging.warning(
-                "No Shear file found at %s, will use vertical extraction", fname
-            )
-            shear = None
+        data = np.load(fname)
+        shear = data["shear"]
+        shear = np.ma.masked_array(shear, mask=self._spec_mask)
         return shear
 
     def run_science(self, bias, flat, orders, shear, column_range):
@@ -592,7 +599,7 @@ class Reducer:
             im /= flat
 
             # Optimally extract science spectrum
-            spec, sigma, _ = extract(
+            spec, sigma, _, column_range = extract(
                 im,
                 orders,
                 shear=shear,
@@ -608,11 +615,15 @@ class Reducer:
                 swath_width=self.config["science.swath_width"],
                 plot=self.config["plot"],
             )
-            head["obase"] = (self.order_range[0], " base order number")
+            # head["obase"] = (self.order_range[0], " base order number")
+            # Replace current column range mask with new mask by reference
+            self._spec_mask[:] = spec.mask
+            spec = np.ma.masked_array(spec.data, mask=self._spec_mask)
+            sigma = np.ma.masked_array(sigma.data, mask=self._spec_mask)
 
             # save spectrum to disk
             nameout = self.science_file(f)
-            echelle.save(nameout, head, spec=spec, sig=sigma)
+            echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
             heads.append(head)
             specs.append(spec)
             sigmas.append(sigma)
@@ -623,38 +634,35 @@ class Reducer:
         heads, specs, sigmas = [], [], []
         for f in self.files["spec"]:
             fname = self.science_file(f)
-            science = echelle.read(fname, raw=True)
+            science = echelle.read(
+                fname,
+                continuum_normalization=False,
+                barycentric_correction=False,
+                radial_velociy_correction=False,
+            )
+            self._spec_mask[:] = science["mask"]
+            spec = np.ma.masked_array(science["spec"].data, mask=self._spec_mask)
+            sig = np.ma.masked_array(science["sig"].data, mask=self._spec_mask)
             heads.append(science.header)
-            specs.append(science["spec"])
-            sigmas.append(science["sig"])
+            specs.append(spec)
+            sigmas.append(sig)
         return heads, specs, sigmas
 
     def run_continuum(self, specs, sigmas, wave, blaze):
         logging.info("Continuum normalization")
         conts = [None for _ in specs]
         for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
-            # fix column ranges
-            nord = spec.shape[0]
-            column_range = np.zeros((nord, 2), dtype=int)
-            for i in range(nord):
-                column_range[i] = np.where(spec[i] != 0)[0][[0, -1]] + [0, 1]
-
             logging.info("Splicing orders")
             specs[j], wave, blaze, sigmas[j] = splice_orders(
-                spec,
-                wave,
-                blaze,
-                sigma,
-                column_range=column_range,
-                scaling=True,
-                plot=self.config["plot"],
+                spec, wave, blaze, sigma, scaling=True, plot=self.config["plot"]
             )
+            logging.info("Normalizing continuum")
             conts[j] = continuum_normalize(
-                specs[j], wave, blaze, sigmas[j]
+                specs[j], wave, blaze, sigmas[j], plot=self.config["plot"]
             )
         return specs, sigmas, wave, conts
 
-    def run_finalize(self, specs, heads, wave, conts, sigmas):
+    def run_finalize(self, specs, heads, wave, conts, sigmas, column_range):
         # Combine science with wavecal and continuum
         for i, (head, spec, sigma, blaze) in enumerate(
             zip(heads, specs, sigmas, conts)
@@ -676,12 +684,6 @@ class Reducer:
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
-
-            nord = spec.shape[0]
-            column_range = np.zeros((nord, 2), dtype=int)
-            for j in range(nord):
-                #TODO what if spec is not a masked array, i.e. did not go through continuum normalization
-                column_range[j] = np.where(spec.mask[j] == False)[0][[0, -1]] + [0, 1]
 
             if self.config["plot"]:
                 for j in range(spec.shape[0]):
@@ -730,14 +732,12 @@ class Reducer:
         if last_step == "orders":
             return
 
-        # Define order range if not already done
-        if self.order_range is None:
-            self.order_range = (0, len(orders) - 1)
-
         if "norm_flat" in steps or steps == "all":
-            norm, blaze = self.run_norm_flat(flat, fhead, orders, column_range)
+            norm, blaze, column_range = self.run_norm_flat(
+                flat, fhead, orders, column_range
+            )
         else:
-            norm, blaze = self.load_norm_flat()
+            norm, blaze, column_range = self.load_norm_flat()
         if last_step == "norm_flat":
             return
 
@@ -772,7 +772,7 @@ class Reducer:
             return
 
         if "finalize" in steps or steps == "all":
-            self.run_finalize(specs, heads, wave, conts, sigmas)
+            self.run_finalize(specs, heads, wave, conts, sigmas, column_range)
 
         logging.debug("--------------------------------")
 

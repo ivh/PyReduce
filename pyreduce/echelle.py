@@ -116,10 +116,11 @@ class Echelle:
 
             # Create Mask, based on column range
             if "columns" in ech:
-                ech["mask"] = np.full((nord, ncol), False)
+                ech["mask"] = np.full((nord, ncol), True)
                 for iord in range(nord):
-                    ech["mask"][iord, : ech["columns"][iord, 0]] = True
-                    ech["mask"][iord, ech["columns"][iord, 1] :] = True
+                    ech["mask"][
+                        iord, ech["columns"][iord, 0] : ech["columns"][iord, 1]
+                    ] = False
 
                 if "spec" in ech:
                     ech["spec"] = np.ma.masked_array(ech["spec"], mask=ech["mask"])
@@ -128,7 +129,7 @@ class Echelle:
                 if "cont" in ech:
                     ech["cont"] = np.ma.masked_array(ech["cont"], mask=ech["mask"])
                 if "wave" in ech:
-                    ech.wave = np.ma.masked_array(ech["wave"], mask=ech["mask"])
+                    ech["wave"] = np.ma.masked_array(ech["wave"], mask=ech["mask"])
 
             # Apply continuum normalization
             if continuum_normalization and "cont" in ech:
@@ -149,6 +150,7 @@ class Echelle:
             filename
         """
         save(fname, self.header, **self._data)
+
 
 def calc_2dpolynomial(solution2d):
     """Expand a 2d polynomial, where the data is given in a REDUCE make_wave format
@@ -255,8 +257,10 @@ def expand_polynomial(ncol, poly):
         poly = calc_1dpolynomials(ncol, poly)
     return poly
 
+
 def read(fname, **kwargs):
     return Echelle.read(fname, **kwargs)
+
 
 def save(fname, header, **kwargs):
     """Save data in an Echelle fits, i.e. a fits file with a Binary Table in Extension 1

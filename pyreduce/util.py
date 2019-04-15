@@ -553,6 +553,7 @@ def bezier_interp(x_old, y_old, x_new):
         y_old = np.ma.compressed(y_old)
 
     # avoid duplicate entries in x
+    assert x_old.size == y_old.size
     x_old, index = np.unique(x_old, return_index=True)
     y_old = y_old[index]
 

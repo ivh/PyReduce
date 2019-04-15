@@ -13,16 +13,7 @@ import numpy as np
 from . import util
 
 
-def splice_orders(
-    spec,
-    wave,
-    cont,
-    sigm,
-    column_range=None,
-    order_range=None,
-    scaling=True,
-    plot=False,
-):
+def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     """
     Splice orders together so that they form a continous spectrum
     This is achieved by linearly combining the overlaping regions
@@ -37,10 +28,6 @@ def splice_orders(
         Continuum, blaze function will do fine as well
     sigm : array[nord, ncol]
         Errors on the spectrum
-    column_range : array[nord, 2], optional
-        range of each order that is to be used  (default: use whole range)
-    order_range : tuple(int, int), optional
-        range of orders to use for the splicing (default: use all orders)
     scaling : bool, optional
         If true, the spectrum/continuum will be scaled to 1 (default: False)
     plot : bool, optional
@@ -56,23 +43,10 @@ def splice_orders(
     spec, wave, cont, sigm : array[nord, ncol]
         spliced spectrum
     """
-    nord, ncol = spec.shape  # Number of sp. orders, Order length in pixels
-    if column_range is None:
-        column_range = np.tile([0, ncol], (nord, 1))
+    nord, _ = spec.shape  # Number of sp. orders, Order length in pixels
 
-    if order_range is None:
-        order_range = (0, nord - 1)
-
-    # by using masked arrays we can stop worrying about column ranges
-    mask = np.full(spec.shape, True)
-    for iord in range(order_range[0], order_range[1] + 1):
-        cr = column_range[iord]
-        mask[iord, cr[0] : cr[1]] = False
-
-    spec = np.ma.masked_array(spec[order_range[0] : order_range[1] + 1, :], mask=mask)
-    wave = np.ma.masked_array(wave[order_range[0] : order_range[1] + 1, :], mask=mask)
-    cont = np.ma.masked_array(cont[order_range[0] : order_range[1] + 1, :], mask=mask)
-    sigm = np.ma.masked_array(sigm[order_range[0] : order_range[1] + 1, :], mask=mask)
+    # Just to be extra safe that they are all the same
+    sigm.mask = wave.mask = cont.mask = spec.mask
 
     if scaling:
         # Scale everything to roughly the same size, around spec/blaze = 1
@@ -103,8 +77,8 @@ def splice_orders(
         u0, u1 = sigm[iord0], sigm[iord1]
 
         # Calculate Overlap
-        i0 = np.where((w0 >= np.ma.min(w1)) & (w0 <= np.ma.max(w1)))
-        i1 = np.where((w1 >= np.ma.min(w0)) & (w1 <= np.ma.max(w0)))
+        i0 = np.ma.where((w0 >= np.ma.min(w1)) & (w0 <= np.ma.max(w1)))
+        i1 = np.ma.where((w1 >= np.ma.min(w0)) & (w1 <= np.ma.max(w0)))
 
         # Orders overlap
         if i0[0].size > 0 and i1[0].size > 0:

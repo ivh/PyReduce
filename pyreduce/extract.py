@@ -351,6 +351,10 @@ def extract_spectrum(
     ord_num=0,
     im_norm=None,
     im_ordr=None,
+    out_spec=None,
+    out_sunc=None,
+    out_slitf=None,
+    out_mask=None,
     **kwargs
 ):
     """
@@ -439,8 +443,16 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
-    spec = np.zeros(ncol)
-    sunc = np.zeros(ncol)
+    if out_spec is None:
+        spec = np.zeros(ncol)
+    else:
+        assert out_spec.size == ncol
+        spec = out_spec
+    if out_sunc is None:
+        sunc = np.zeros(ncol)
+    else:
+        assert out_sunc.size == ncol
+        sunc = out_sunc
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
     slitf = np.zeros((2 * nbin, nslitf))
@@ -542,38 +554,49 @@ def extract_spectrum(
         weight[i][overlap_start:] = np.linspace(1, 0, overlap)
         weight[j][:overlap] = np.linspace(0, 1, overlap)
 
-    # DEBUG: Check weigths
-    # total_weight = np.zeros(ncol)
-    # for i, (ib, ie) in enumerate(zip(bins_start, bins_end)):
-    #     total_weight[ib:ie] += weight[i]
-    # if not np.all(total_weight[xlow:xhigh] == 1):
-    #     raise Exception("Weights are wrong")
-
     # Remove points at the border of the image, if order has shear
     # as those pixels have bad information
     if shear is not None:
         if np.isscalar(shear):
             shear = [shear, shear]
-        y = yhigh if shear[0] < 0 else ylow
-        shear_margin = int(np.ceil(shear[0] * y))
-        weight[0][:shear_margin] = 0
-        y = ylow if shear[-1] < 0 else yhigh
-        shear_margin = int(np.ceil(shear[-1] * y))
-        if shear_margin != 0:
-            weight[-1][-shear_margin:] = 0
+        else:
+            shear = shear.compressed()[[0, -1]]
+        y = -yhigh if shear[0] < 0 else ylow
+        shear_margin_begin = int(np.ceil(shear[0] * y))
+        weight[0][:shear_margin_begin] = 0
+        y = -ylow if shear[-1] < 0 else yhigh
+        shear_margin_end = int(np.ceil(shear[-1] * y))
+        if shear_margin_end != 0:
+            weight[-1][-shear_margin_end:] = 0
+    else:
+        shear_margin_begin = shear_margin_end = 0
+
+    xrange[0] += shear_margin_begin
+    xrange[1] -= shear_margin_end
+    if out_mask is not None:
+        out_mask[:shear_margin_begin] = out_mask[ncol - shear_margin_end :] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
         spec[ibeg:iend] += swath_spec[i] * weight[i]
         sunc[ibeg:iend] += swath_unc[i] * weight[i]
 
-        if normalize:
+    # control = np.zeros(ncol)
+    # for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+    # control[ibeg:iend] += weight[i]
+    # assert np.all(control[bins_start[0]+shear_margin_begin:bins_end[-1]-shear_margin_end] == 1)
+
+    if normalize:
+        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
             index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
     slitf = np.mean(slitf, axis=0)
-    sunc = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
+    if out_slitf is not None:
+        out_slitf[:] = slitf
+
+    sunc[:] = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
 
     model = spec[None, :] * slitf[:, None]
     return spec, slitf, model, sunc
@@ -673,6 +696,8 @@ def optimal_extraction(
     for i, onum in enumerate(range(1, nord - 1)):
         if nord < 10 or onum % 5 == 0:
             logging.info("Extracting relative order %i out of %i", onum, nord - 2)
+        else:
+            logging.debug("Extracting relative order %i out of %i", onum, nord - 2)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[onum], ix)
@@ -680,7 +705,10 @@ def optimal_extraction(
 
         shear_order = shear[i] if shear is not None else None
 
-        spectrum[i], slitfunction[i], _, uncertainties[i] = extract_spectrum(
+        # Return values are set by reference, as the out parameters
+        # Also column_range is adjusted depending on the shear
+        # This is to avoid large chunks of memory of essentially duplicates
+        extract_spectrum(
             img,
             ycen,
             yrange,
@@ -688,6 +716,10 @@ def optimal_extraction(
             scatter=scatter[i],
             shear=shear_order,
             ord_num=onum - 1,
+            out_spec=spectrum[i],
+            out_sunc=uncertainties[i],
+            out_slitf=slitfunction[i],
+            out_mask=mask[i],
             **kwargs
         )
 
@@ -908,7 +940,7 @@ def extend_orders(orders, nrow):
 
 def fix_extraction_width(extraction_width, orders, column_range, ncol):
     """Convert fractional extraction width to pixel range
-    
+
     Parameters
     ----------
     extraction_width : array[nord, 2]
@@ -1006,7 +1038,7 @@ def extract(
     if np.isscalar(shear):
         shear = np.full((nord, ncol), shear)
     if order_range is None:
-        order_range = (0, nord - 1)
+        order_range = (0, nord)
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
@@ -1015,17 +1047,17 @@ def extract(
     xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
 
     # Limit orders (and related properties) to orders in range
-    nord = order_range[1] - order_range[0] + 1
-    orders = orders[order_range[0] : order_range[1] + 1]
-    column_range = column_range[order_range[0] : order_range[1] + 1]
-    extraction_width = extraction_width[order_range[0] : order_range[1] + 1]
-    scatter = scatter[order_range[0] : order_range[1] + 2]
+    nord = order_range[1] - order_range[0]
+    orders = orders[order_range[0] : order_range[1]]
+    column_range = column_range[order_range[0] : order_range[1]]
+    extraction_width = extraction_width[order_range[0] : order_range[1]]
+    scatter = scatter[order_range[0] : order_range[1] + 1]
     if xscatter is not None:
-        xscatter = xscatter[order_range[0] : order_range[1] + 2]
+        xscatter = xscatter[order_range[0] : order_range[1] + 1]
     if yscatter is not None:
-        yscatter = yscatter[order_range[0] : order_range[1] + 2]
+        yscatter = yscatter[order_range[0] : order_range[1] + 1]
     if shear is not None:
-        shear = shear[order_range[0] : order_range[1] + 1]
+        shear = shear[order_range[0] : order_range[1]]
 
     # Extend orders and related properties
 
@@ -1090,7 +1122,7 @@ def extract(
         )
         im_norm[im_norm == 0] = 1
         im_ordr[im_ordr == 0] = 1
-        return im_norm, im_ordr, blaze
+        return im_norm, im_ordr, blaze, column_range
     elif extraction_type == "arc":
         # Simpler extraction, just summing along the arc of the order
         spectrum, uncertainties = arc_extraction(
@@ -1098,4 +1130,4 @@ def extract(
         )
         slitfunction = None
 
-    return spectrum, uncertainties, slitfunction
+    return spectrum, uncertainties, slitfunction, column_range[1:-1]

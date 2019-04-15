@@ -86,6 +86,11 @@ def make_shear(
         plt.subplots_adjust(hspace=0)
 
     for iord in range(nord):
+        if nord < 10 or iord % 5 == 0:
+            logging.info("Calculating shear of order %i out of %i", iord, nord)
+        else:
+            logging.debug("Calculating shear of order %i out of %i", iord, nord)
+
         cr = np.where(extracted[iord] > 0)[0][[0, -1]]
         cr = np.clip(cr, column_range[iord, 0], column_range[iord, 1])
 
@@ -115,6 +120,7 @@ def make_shear(
             axes[iord // 2, iord % 2].plot(
                 np.arange(len(vec))[locmax], vec[locmax], "+"
             )
+            axes[iord // 2, iord % 2].set_xlim([0, ncol])
             if iord not in (nord - 1, nord - 2):
                 axes2[iord // 2, iord % 2].get_xaxis().set_ticks([])
 
