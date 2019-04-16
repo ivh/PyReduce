@@ -29,7 +29,6 @@ from os.path import join
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.io import readsav
 
 from . import echelle, instruments, util
 
@@ -534,7 +533,7 @@ class Reducer:
         reference = instruments.instrument_info.get_wavecal_filename(
             thead, self.instrument, self.mode
         )
-        reference = readsav(reference)
+        reference = np.load(reference)
         cs_lines = reference["cs_lines"]
         wave = wavecal(
             thar,

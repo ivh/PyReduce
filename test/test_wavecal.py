@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-from scipy.io import readsav
 
 from pyreduce import util
 from pyreduce.extract import extract
@@ -44,7 +43,7 @@ def test_wavecal(
     reference = instruments.instrument_info.get_wavecal_filename(
         thead, instrument, mode
     )
-    reference = readsav(reference)
+    reference = np.load(reference)
     cs_lines = reference["cs_lines"]
     wave = wavecal(thar, cs_lines, plot=False, manual=False)
 

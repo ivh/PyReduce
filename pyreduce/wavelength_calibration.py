@@ -12,7 +12,6 @@ import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from scipy import signal
 from scipy.constants import speed_of_light
-from scipy.io import readsav
 from scipy.optimize import curve_fit
 
 from . import util
@@ -449,7 +448,7 @@ if __name__ == "__main__":
     thar = thar[1].data["SPEC"][0]
 
     reference = instrument_info.get_wavecal_filename(head, instrument, mode)
-    reference = readsav(reference)
+    reference = np.load(reference)
 
     # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_Middle", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
     # cs_lines = 'WLC', 'WLL', 'POSC', 'POSM', 'XFIRST', 'XLAST', 'APPROX', 'WIDTH', 'FLAG', 'HEIGHT', 'ORDER'

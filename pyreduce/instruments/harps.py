@@ -231,6 +231,6 @@ class HARPS(instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.sav".format(instrument="harps", mode=mode)
+        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname

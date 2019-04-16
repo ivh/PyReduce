@@ -2,7 +2,6 @@ import os
 from os.path import dirname, join
 
 import numpy as np
-from scipy.io import readsav
 from astropy.io import fits
 import tempfile
 import pickle
@@ -631,7 +630,7 @@ def wave(
         reference = instruments.instrument_info.get_wavecal_filename(
             thead, instrument, mode
         )
-        reference = readsav(reference)
+        reference = np.load(reference)
         cs_lines = reference["cs_lines"]
         wave = wavecal(thar, cs_lines, plot=False, manual=False)
 

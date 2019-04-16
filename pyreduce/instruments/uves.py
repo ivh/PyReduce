@@ -224,7 +224,7 @@ class UVES(instrument):
         specifier = int(header[info["wavecal_specifier"]])
 
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_{specifier}nm_2D.sav".format(
+        fname = "{instrument}_{mode}_{specifier}nm_2D.npz".format(
             instrument="uves", mode=mode, specifier=specifier
         )
         fname = os.path.join(cwd, "..", "wavecal", fname)

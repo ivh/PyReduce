@@ -312,7 +312,7 @@ class instrument:
         instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_{specifier}.sav".format(
+        fname = "{instrument}_{mode}_{specifier}.npz".format(
             instrument=instrument.lower(), mode=mode, specifier=specifier
         )
         fname = os.path.join(cwd, "..", "wavecal", fname)
