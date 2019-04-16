@@ -4,25 +4,19 @@ import numpy as np
 from pyreduce.continuum_normalization import splice_orders
 
 
-def test_continuum(spec, orders, wave, normflat, order_range):
-    orders, column_range = orders
+def test_continuum(spec, wave, normflat, order_range):
     spec, sigma = spec
     norm, blaze = normflat
     wave, thar = wave
 
-    # fix column ranges
-    for i in range(spec.shape[0]):
-        column_range[i] = np.where(spec[i] != 0)[0][[0, -1]] + [0, 1]
+    mask = spec.mask
+    spec = np.ma.masked_array(spec, mask=mask)
+    wave = np.ma.masked_array(wave, mask=mask)
+    blaze = np.ma.masked_array(blaze, mask=mask)
+    sigma = np.ma.masked_array(sigma, mask=mask)
 
     spec, wave, blaze, sigma = splice_orders(
-        spec,
-        wave,
-        blaze,
-        sigma,
-        column_range=column_range,
-        order_range=order_range,
-        scaling=True,
-        plot=False,
+        spec, wave, blaze, sigma, scaling=True, plot=False
     )
 
     assert isinstance(spec, np.ma.masked_array)
@@ -36,7 +30,7 @@ def test_continuum(spec, orders, wave, normflat, order_range):
         == wave.shape[0]
         == blaze.shape[0]
         == sigma.shape[0]
-        == order_range[1] - order_range[0] + 1
+        == order_range[1] - order_range[0]
     )
     assert (
         spec.shape[1]

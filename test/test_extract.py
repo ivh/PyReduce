@@ -208,7 +208,7 @@ def test_arc_extraction(sample_data, orders, width, noise, oversample):
 def test_vertical_extraction(sample_data, orders, width, height, noise, oversample):
     img, spec, slitf = sample_data
 
-    spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
+    spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
     assert isinstance(spec_vert, np.ma.masked_array)
     assert spec_vert.ndim == 2
@@ -244,8 +244,10 @@ def test_curved_equal_vertical_extraction(sample_data, orders, noise):
     img, spec, slitf = sample_data
     shear = 0
 
-    spec_curved, sunc_curved, slitf_curved = extract.extract(img, orders, shear=shear)
-    spec_vert, sunc_vert, slitf_vert = extract.extract(img, orders)
+    spec_curved, sunc_curved, slitf_curved, _ = extract.extract(
+        img, orders, shear=shear
+    )
+    spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
     assert np.allclose(spec_curved, spec_vert, rtol=1e-2)
     # assert np.allclose(sunc_curved, sunc_vert, rtol=0.1)

@@ -35,12 +35,12 @@ def test_normflat(flat, orders, settings, order_range):
 
     assert isinstance(blaze, np.ndarray)
     assert blaze.ndim == 2
-    assert blaze.shape[0] == order_range[1] - order_range[0] + 1
+    assert blaze.shape[0] == order_range[1] - order_range[0]
     assert blaze.shape[1] == flat.shape[1]
     assert np.issubdtype(blaze.dtype, np.floating)
     assert not np.any(np.isnan(blaze))
 
-    for i in range(order_range[0], order_range[1] + 1):
+    for i in range(order_range[0], order_range[1]):
         cr = column_range[i]
-        assert np.all(blaze[i, : cr[0]] == 0)
-        assert np.all(blaze[i, cr[1] :] == 0)
+        assert np.all(blaze[i, : cr[0]].mask == True)
+        assert np.all(blaze[i, cr[1] :].mask == True)

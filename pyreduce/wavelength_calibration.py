@@ -132,7 +132,8 @@ def align(thar, cs_lines, manual=False, plot=False):
     else:
         # make image from cs_lines
         min_order = np.min(cs_lines.order)
-        img = np.zeros_like(thar)
+        max_order = np.max(cs_lines.order)
+        img = np.zeros((max_order - min_order + 1, thar.shape[1]))
         for line in cs_lines:
             img[line.order, line.xfirst : line.xlast] = line.height * signal.gaussian(
                 line.xlast - line.xfirst, line.width
@@ -297,7 +298,7 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
 def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     """
     Reject lines that are too far from the peaks
-    
+
     Parameters
     ----------
     thar : array[nord, ncol]
@@ -336,7 +337,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
         axis.set_title("Residuals versus order")
         axis.legend()
 
-        fig, ax = plt.subplots(nrows=nord // 2, ncols=2, sharex=True)
+        fig, ax = plt.subplots(nrows=nord // 2, ncols=2, sharex=True, squeeze=False)
         plt.subplots_adjust(hspace=0)
         fig.suptitle("Residuals of each order versus image columns")
 
@@ -365,7 +366,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     return cs_lines
 
 
-def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False):
+def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False, base_order=0):
     """Wavelength calibration wrapper
 
     Parameters

@@ -155,7 +155,7 @@ def extension(info, mode):
 
 @pytest.fixture
 def order_range(dataset):
-    return (0, 1)
+    return (0, 2)
 
 
 @pytest.fixture
@@ -565,7 +565,9 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
 
 
 @pytest.fixture
-def wave(files, instrument, mode, extension, mask, orders, settings, output_dir):
+def wave(
+    files, instrument, mode, extension, mask, orders, settings, output_dir, order_range
+):
     """Load or create wavelength calibration files
 
     Parameters
@@ -612,7 +614,7 @@ def wave(files, instrument, mode, extension, mask, orders, settings, output_dir)
         thead["obase"] = (0, "base order number")
 
         # Extract wavecal spectrum
-        thar, _, _ = extract(
+        thar, _, _, _ = extract(
             orig,
             orders,
             gain=thead["e_gain"],
@@ -620,6 +622,7 @@ def wave(files, instrument, mode, extension, mask, orders, settings, output_dir)
             dark=thead["e_drk"],
             extraction_type="arc",
             column_range=column_range,
+            order_range=order_range,
             extraction_width=settings["wavecal.extraction_width"],
             osample=settings["wavecal.oversampling"],
             plot=False,
@@ -716,7 +719,7 @@ def spec(
         im /= flat
 
         # Optimally extract science spectrum
-        spec, sigma, _ = extract(
+        spec, sigma, _, _ = extract(
             im,
             orders,
             gain=head["e_gain"],

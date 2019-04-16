@@ -560,7 +560,7 @@ def extract_spectrum(
         if np.isscalar(shear):
             shear = [shear, shear]
         else:
-            shear = shear.compressed()[[0, -1]]
+            shear = np.ma.compressed(shear)[[0, -1]]
         y = -yhigh if shear[0] < 0 else ylow
         shear_margin_begin = int(np.ceil(shear[0] * y))
         weight[0][:shear_margin_begin] = 0
@@ -708,7 +708,7 @@ def optimal_extraction(
         # Return values are set by reference, as the out parameters
         # Also column_range is adjusted depending on the shear
         # This is to avoid large chunks of memory of essentially duplicates
-        extract_spectrum(
+        _, slitfunction[i], _, _ = extract_spectrum(
             img,
             ycen,
             yrange,
@@ -718,7 +718,6 @@ def optimal_extraction(
             ord_num=onum - 1,
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
-            out_slitf=slitfunction[i],
             out_mask=mask[i],
             **kwargs
         )
@@ -727,7 +726,7 @@ def optimal_extraction(
         plt.ioff()
         plt.close()
 
-    slitfunction = np.array(slitfunction)
+    slitfunction = np.asarray(slitfunction)
     return spectrum, slitfunction, uncertainties
 
 
@@ -912,14 +911,14 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
 
 def extend_orders(orders, nrow):
     """Extrapolate extra orders above and below the existing ones
-    
+
     Parameters
     ----------
     orders : array[nord, degree]
         order tracing coefficients
     nrow : int
         number of rows in the image
-    
+
     Returns
     -------
     orders : array[nord + 2, degree]

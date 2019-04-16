@@ -35,7 +35,7 @@ def test_science(
     im /= flat
 
     # Optimally extract science spectrum
-    spec, sigma, _ = extract(
+    spec, sigma, _, _ = extract(
         im,
         orders,
         gain=head["e_gain"],
@@ -53,7 +53,7 @@ def test_science(
 
     assert isinstance(spec, np.ma.masked_array)
     assert spec.ndim == 2
-    assert spec.shape[0] == order_range[1] - order_range[0] + 1
+    assert spec.shape[0] == order_range[1] - order_range[0]
     assert spec.shape[1] == bias.shape[1]
     assert np.issubdtype(spec.dtype, np.floating)
     assert not np.any(np.isnan(spec))
@@ -61,7 +61,7 @@ def test_science(
 
     assert isinstance(sigma, np.ma.masked_array)
     assert sigma.ndim == 2
-    assert sigma.shape[0] == order_range[1] - order_range[0] + 1
+    assert sigma.shape[0] == order_range[1] - order_range[0]
     assert sigma.shape[1] == bias.shape[1]
     assert np.issubdtype(sigma.dtype, np.floating)
     assert not np.any(np.isnan(sigma))

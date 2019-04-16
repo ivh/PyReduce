@@ -27,7 +27,13 @@ from .util import make_index, gaussfit2 as gaussfit
 
 
 def make_shear(
-    extracted, original, orders, extraction_width=0.5, column_range=None, plot=False
+    extracted,
+    original,
+    orders,
+    extraction_width=0.5,
+    column_range=None,
+    order_range=None,
+    plot=False,
 ):
     """ Calculate the shear/tilt of the slit along each order
     Determine strong spectral lines
@@ -51,7 +57,7 @@ def make_shear(
         columns that are part of the order (default: use all columns)
     plot : bool, optional
         wether to plot the results (default: False)
-    
+
     Returns
     -------
     shear : array[nord, ncol]
@@ -62,10 +68,11 @@ def make_shear(
 
     nord = orders.shape[0]
     _, ncol = original.shape
-    threshold = (
-        10
-    )  # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
+    # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
+    threshold = 10
 
+    if order_range is None:
+        order_range = (0, nord)
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width], [nord, 2])
     if column_range is None:
@@ -76,22 +83,23 @@ def make_shear(
     )
 
     # Fit shear with parabola
-    shear_x = np.zeros((nord, 3))
+    n = order_range[1] - order_range[0]
+    shear_x = np.zeros((n, 3))
 
     if plot:
-        fig, axes = plt.subplots(nrows=nord // 2, ncols=2)
+        fig, axes = plt.subplots(nrows=n // 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
-        fig2, axes2 = plt.subplots(nrows=nord // 2, ncols=2)
+        fig2, axes2 = plt.subplots(nrows=n // 2, ncols=2, squeeze=False)
         fig2.suptitle("Shear")
         plt.subplots_adjust(hspace=0)
 
-    for iord in range(nord):
-        if nord < 10 or iord % 5 == 0:
-            logging.info("Calculating shear of order %i out of %i", iord, nord)
+    for j, iord in enumerate(range(order_range[0], order_range[1])):
+        if n < 10 or j % 5 == 0:
+            logging.info("Calculating shear of order %i out of %i", j + 1, n)
         else:
-            logging.debug("Calculating shear of order %i out of %i", iord, nord)
+            logging.debug("Calculating shear of order %i out of %i", j + 1, n)
 
-        cr = np.where(extracted[iord] > 0)[0][[0, -1]]
+        cr = np.where(extracted[j] > 0)[0][[0, -1]]
         cr = np.clip(cr, column_range[iord, 0], column_range[iord, 1])
 
         xwd = extraction_width[iord]
@@ -99,7 +107,7 @@ def make_shear(
         ycen = np.polyval(orders[iord], np.arange(ncol)).astype(int)
 
         # This should probably be the same as in the wavelength calibration
-        vec = extracted[iord, cr[0] : cr[1]]
+        vec = extracted[j, cr[0] : cr[1]]
         vec -= np.ma.min(vec)
         locmax, _ = signal.find_peaks(
             vec, height=np.ma.median(vec) * threshold, distance=10
@@ -116,13 +124,11 @@ def make_shear(
         locmax = locmax[::-1]  # sort again
 
         if plot:
-            axes[iord // 2, iord % 2].plot(vec)
-            axes[iord // 2, iord % 2].plot(
-                np.arange(len(vec))[locmax], vec[locmax], "+"
-            )
-            axes[iord // 2, iord % 2].set_xlim([0, ncol])
-            if iord not in (nord - 1, nord - 2):
-                axes2[iord // 2, iord % 2].get_xaxis().set_ticks([])
+            axes[j // 2, j % 2].plot(vec)
+            axes[j // 2, j % 2].plot(np.arange(len(vec))[locmax], vec[locmax], "+")
+            axes[j // 2, j % 2].set_xlim([0, ncol])
+            if j not in (order_range[1] - 1, order_range[1] - 2):
+                axes2[j // 2, j % 2].get_xaxis().set_ticks([])
 
         # Remove the offset, due to vec being a subset of extracted
         locmax += cr[0]
@@ -158,9 +164,9 @@ def make_shear(
                 coef = np.polyfit(xind_loc, xcen_loc, 1)
                 line = np.polyval(coef, xind)
                 # Remove outliers
-                j = np.argsort(np.abs(line - xcen))
-                xind_loc = xind[j[:perc]]
-                xcen_loc = xcen[j[:perc]]
+                k = np.argsort(np.abs(line - xcen))
+                xind_loc = xind[k[:perc]]
+                xcen_loc = xcen[k[:perc]]
 
             # Final fit using best 80%
             coef = np.polyfit(xind_loc, xcen_loc, 1)
@@ -172,24 +178,24 @@ def make_shear(
         for _ in range(2):
             coef = np.polyfit(locmax_loc, shear_loc, 1)
             line = np.polyval(coef, locmax)
-            j = np.argsort(np.abs(line - shear))
-            locmax_loc = locmax[j[:perc]]
-            shear_loc = shear[j[:perc]]
+            k = np.argsort(np.abs(line - shear))
+            locmax_loc = locmax[k[:perc]]
+            shear_loc = shear[k[:perc]]
 
         a = np.polyfit(locmax_loc, shear_loc, 2)
-        shear_x[iord] = a
+        shear_x[j] = a
 
         if plot:
             x = np.arange(cr[0], cr[1])
-            axes2[iord // 2, iord % 2].plot(x, np.polyval(a, x))
-            axes2[iord // 2, iord % 2].set_xlim(0, ncol)
-            if iord not in (nord - 1, nord - 2):
-                axes2[iord // 2, iord % 2].get_xaxis().set_ticks([])
+            axes2[j // 2, j % 2].plot(x, np.polyval(a, x))
+            axes2[j // 2, j % 2].set_xlim(0, ncol)
+            if j not in (order_range[1] - 1, order_range[1] - 2):
+                axes2[j // 2, j % 2].get_xaxis().set_ticks([])
 
     if plot:
         plt.show()
 
-    shear = np.zeros((nord, ncol))
-    for iord in range(nord):
-        shear[iord] = np.polyval(shear_x[iord], np.arange(ncol))
+    shear = np.zeros((n, ncol))
+    for j in range(order_range[0], order_range[1]):
+        shear[j] = np.polyval(shear_x[j], np.arange(ncol))
     return shear

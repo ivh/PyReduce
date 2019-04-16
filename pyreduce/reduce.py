@@ -522,11 +522,13 @@ class Reducer:
             dark=thead["e_drk"],
             extraction_type="arc",
             column_range=column_range,
+            order_range=self.order_range,
             extraction_width=self.config["wavecal.extraction_width"],
             osample=self.config["wavecal.oversampling"],
             plot=self.config["plot"],
         )
-        # thead["obase"] = (self.order_range[0], "base order number")
+        base_order = 0 if self.order_range is None else self.order_range[0]
+        thead["obase"] = (base_order, "base order number")
 
         # Create wavelength calibration fit
         reference = instruments.instrument_info.get_wavecal_filename(
@@ -539,6 +541,7 @@ class Reducer:
             cs_lines,
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
+            base_order=base_order,
         )
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
@@ -568,6 +571,7 @@ class Reducer:
             orders,
             extraction_width=self.config.get("wavecal.extraction_width", 0.25),
             column_range=column_range,
+            order_range=self.order_range,
             plot=self.config.get("plot", True),
         )
         shear = np.ma.masked_array(shear, mask=self._spec_mask)
