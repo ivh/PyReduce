@@ -62,11 +62,6 @@ def getslitvar(img, xoff, osample=1):
 def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample, mask):
     """ Plot (and update the plot of) the current swath with spectrum and slitfunction """
     ny, nx = img.shape
-    ny_orig = ny
-    size = img.size
-    ny_os = len(slitf)
-    os = (ny_os - 1) / (ny + 1)
-
     idx = np.indices(img.shape)
 
     di = img.data / np.sum(img)
@@ -104,7 +99,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample,
         AX4.set_title("Model")
 
         im1 = AX1.imshow(di, aspect="auto", origin="lower")
-        line1, = AX1.plot(ny_orig / 2 + ycen, "-r")
+        line1, = AX1.plot(ny / 2 + ycen, "-r")
         im4 = AX4.imshow(dm, aspect="auto", origin="lower")
 
         specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)
@@ -187,7 +182,7 @@ def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample,
     im4.set_norm(mcolors.Normalize(vmin=np.nanmin(dm), vmax=np.nanmax(dm)))
     im4.set_data(dm)
 
-    line1.set_ydata(ny_orig / 2 + ycen)
+    line1.set_ydata(ny / 2 + ycen)
     line2.set_ydata(ds)
 
     slitvar.set_data(*getslitvar(di * nx, ycen))
@@ -446,12 +441,10 @@ def extract_spectrum(
     if out_spec is None:
         spec = np.zeros(ncol)
     else:
-        assert out_spec.size == ncol
         spec = out_spec
     if out_sunc is None:
         sunc = np.zeros(ncol)
     else:
-        assert out_sunc.size == ncol
         sunc = out_sunc
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
@@ -680,30 +673,31 @@ def optimal_extraction(
     nrow, ncol = img.shape
     nord = len(orders)
 
-    spectrum = np.zeros((nord - 2, ncol))
-    uncertainties = np.zeros((nord - 2, ncol))
-    slitfunction = [None for _ in range(nord - 2)]
+    spectrum = np.zeros((nord, ncol))
+    uncertainties = np.zeros((nord, ncol))
+    slitfunction = [None for _ in range(nord)]
+
+    if shear is None:
+        shear = [None for _ in range(nord)]
 
     # Add mask as defined by column ranges
-    mask = np.full((nord - 2, ncol), True)
-    for i, onum in enumerate(range(1, nord - 1)):
-        mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
+    mask = np.full((nord, ncol), True)
+    for i in range(nord):
+        mask[i, column_range[i, 0] : column_range[i, 1]] = False
     spectrum = np.ma.array(spectrum, mask=mask)
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
 
-    for i, onum in enumerate(range(1, nord - 1)):
-        if nord < 10 or onum % 5 == 0:
-            logging.info("Extracting relative order %i out of %i", onum, nord - 2)
+    for i in range(nord):
+        if nord < 10 or i % 5 == 0:
+            logging.info("Extracting relative order %i out of %i", i + 1, nord)
         else:
-            logging.debug("Extracting relative order %i out of %i", onum, nord - 2)
+            logging.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
-        ycen = np.polyval(orders[onum], ix)
-        yrange = get_y_scale(ycen, column_range[onum], extraction_width[onum], nrow)
-
-        shear_order = shear[i] if shear is not None else None
+        ycen = np.polyval(orders[i], ix)
+        yrange = get_y_scale(ycen, column_range[i], extraction_width[i], nrow)
 
         # Return values are set by reference, as the out parameters
         # Also column_range is adjusted depending on the shear
@@ -712,10 +706,10 @@ def optimal_extraction(
             img,
             ycen,
             yrange,
-            column_range[onum],
+            column_range[i],
             scatter=scatter[i],
-            shear=shear_order,
-            ord_num=onum - 1,
+            shear=shear[i],
+            ord_num=i+1,
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
             out_mask=mask[i],
@@ -777,14 +771,14 @@ def arc_extraction(
 
     if plot:
         # Prepare output image
-        output = np.zeros((np.sum(extraction_width[1:-1]) + nord - 2, ncol))
+        output = np.zeros((np.sum(extraction_width) + nord, ncol))
         pos = [0]
 
-    spectrum = np.zeros((nord - 2, ncol))
-    uncertainties = np.zeros((nord - 2, ncol))
+    spectrum = np.zeros((nord, ncol))
+    uncertainties = np.zeros((nord, ncol))
 
     # Add mask as defined by column ranges
-    mask = np.full((nord - 2, ncol), True)
+    mask = np.full((nord, ncol), True)
     for i, onum in enumerate(range(1, nord - 1)):
         mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
     spectrum = np.ma.array(spectrum, mask=mask)
@@ -792,12 +786,12 @@ def arc_extraction(
 
     x = np.arange(ncol)
 
-    for i, onum in enumerate(range(1, nord - 1)):  # loop thru orders
-        x_left_lim = column_range[onum, 0]  # First column to extract
-        x_right_lim = column_range[onum, 1]  # Last column to extract
+    for i in range(nord):  # loop thru orders
+        x_left_lim = column_range[i, 0]  # First column to extract
+        x_right_lim = column_range[i, 1]  # Last column to extract
 
-        ycen = np.polyval(orders[onum], x).astype(int)
-        yb, yt = ycen - extraction_width[onum, 0], ycen + extraction_width[onum, 1]
+        ycen = np.polyval(orders[i], x).astype(int)
+        yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
         index = make_index(yb, yt, x_left_lim, x_right_lim)
 
         # Sum over the prepared index
@@ -818,7 +812,7 @@ def arc_extraction(
         plt.title("Extracted Spectrum vs. Input Image")
         plt.xlabel("x [pixel]")
         plt.ylabel("order")
-        locs = np.sum(extraction_width[1:-1], axis=1) + 1
+        locs = np.sum(extraction_width, axis=1) + 1
         locs = [0, *np.cumsum(locs)[:-1]]
         plt.yticks(locs, range(len(locs)))
         plt.imshow(
@@ -829,9 +823,9 @@ def arc_extraction(
             aspect="auto",
         )
 
-        for i in range(nord - 2):
+        for i in range(nord):
             tmp = spectrum[i] - np.min(
-                spectrum[i, column_range[i + 1, 0] : column_range[i + 1, 1]]
+                spectrum[i, column_range[i, 0] : column_range[i, 1]]
             )
             tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
             tmp += pos[i]
@@ -1072,21 +1066,25 @@ def extract(
     )
     column_range = fix_column_range(img, orders, extraction_width, column_range)
 
+    orders = orders[1:-1]
+    extraction_width = extraction_width[1:-1]
+    column_range = column_range[1:-1]
+
     if xscatter is not None and yscatter is not None:
         scatter = np.zeros((nord, 4, ncol))
-        for onum in range(1, nord + 1):
+        for onum in range(nord):
             if polarization:
                 # skip inter-polarization gaps
-                oo = ((onum - 1) // 2) * 2 + 1
-                scatter[onum - 1, 0] = xscatter[oo - 1]
-                scatter[onum - 1, 1] = xscatter[oo + 1]
-                scatter[onum - 1, 2] = yscatter[oo - 1]
-                scatter[onum - 1, 3] = yscatter[oo + 1]
+                oo = ((onum) // 2) * 2 + 1
+                scatter[onum, 0] = xscatter[oo - 1]
+                scatter[onum, 1] = xscatter[oo + 1]
+                scatter[onum, 2] = yscatter[oo - 1]
+                scatter[onum, 3] = yscatter[oo + 1]
             else:  # below, above, ybelow, yabove
-                scatter[onum - 1, 0] = xscatter[onum - 1]
-                scatter[onum - 1, 1] = xscatter[onum]
-                scatter[onum - 1, 2] = yscatter[onum - 1]
-                scatter[onum - 1, 3] = yscatter[onum]
+                scatter[onum, 0] = xscatter[onum]
+                scatter[onum, 1] = xscatter[onum + 1]
+                scatter[onum, 2] = yscatter[onum]
+                scatter[onum, 3] = yscatter[onum + 1]
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
@@ -1129,4 +1127,4 @@ def extract(
         )
         slitfunction = None
 
-    return spectrum, uncertainties, slitfunction, column_range[1:-1]
+    return spectrum, uncertainties, slitfunction, column_range

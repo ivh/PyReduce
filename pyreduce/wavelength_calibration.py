@@ -43,15 +43,16 @@ class AlignmentPlot:
         """ create and show the reference plot, with the two spectra """
         ref_image = np.zeros((self.nord * 2, self.ncol, 3))
         for iord in range(self.nord):
-            idx = self.thar[iord] > 0.1
-            ref_image[iord * 2, idx, self.RED] = self.thar[iord, idx]
+            ref_image[iord * 2, :, self.RED] = 10 * np.ma.filled(self.thar[iord], 0)
             if 0 <= iord + self.offset[0] < self.nord:
                 for line in self.cs_lines[self.cs_lines.order == iord]:
                     first = np.clip(line.xfirst + self.offset[1], 0, self.ncol)
                     last = np.clip(line.xlast + self.offset[1], 0, self.ncol)
                     ref_image[
                         (iord + self.offset[0]) * 2 + 1, first:last, self.GREEN
-                    ] = line.height * signal.gaussian(last - first, line.width)
+                    ] = (10 * line.height * signal.gaussian(last - first, line.width))
+        ref_image = np.clip(ref_image, 0, 1)
+        ref_image[ref_image < 0.1] = 0
 
         self.im.imshow(
             ref_image,
@@ -141,19 +142,26 @@ def align(thar, cs_lines, manual=False, plot=False):
 
         # Cross correlate with thar image
         correlation = signal.correlate2d(thar, img, mode="same")
+        # if plot:
+        #     plt.imshow(correlation, aspect="auto")
+        #     plt.title("CrossCorellation of Wavecal Image and Reference Spectrum")
+        #     plt.show()
+
         offset_order, offset_x = np.unravel_index(
             np.argmax(correlation), correlation.shape
         )
 
         # TODO: what?
-        offset_order = 2 * (offset_order + 1) - thar.shape[0] + min_order - 1
+        offset_order = thar.shape[0] / 2 - offset_order
         offset_x = offset_x - thar.shape[1] / 2
-        offset = int(offset_order), int(offset_x)
+        offset = [int(offset_order), int(offset_x)]
 
         if plot:
             _, ax = plt.subplots()
-            AlignmentPlot(ax, thar, cs_lines, offset=offset)
+            ap = AlignmentPlot(ax, thar, cs_lines, offset=offset)
+            ap.connect()
             plt.show()
+            offset = ap.offset
 
     return offset
 
