@@ -21,7 +21,7 @@ from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index
 
 # TODO put the plotting somewhere else
-np.seterr(all="raise")
+# np.seterr(all="raise")
 
 
 class ProgressPlot:
