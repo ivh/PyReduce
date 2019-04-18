@@ -230,9 +230,10 @@ def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     img = np.asanyarray(img)
     ycen = np.asanyarray(ycen)
-    shear = np.asanyarray(shear)
-    if np.isscalar(shear):
+    if np.isscalar(shear) and np.issubdtype(np.asanyarray(shear).dtype, np.number):
         shear = np.full(img.shape[1], shear, dtype=c_double)
+    else:
+        shear = np.asanyarray(shear)
 
     if not np.issubdtype(img.dtype, np.number):
         raise TypeError(

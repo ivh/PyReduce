@@ -464,6 +464,7 @@ class Reducer:
             lambda_sf=self.config["normflat.smooth_slitfunction"],
             lambda_sp=self.config["normflat.smooth_spectrum"],
             swath_width=self.config["normflat.swath_width"],
+            osample=self.config["normflat.oversampling"],
             plot=self.config["plot"],
         )
 

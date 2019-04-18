@@ -181,10 +181,10 @@ def test_fix_column_range():
 def test_arc_extraction(sample_data, orders, width, noise, oversample):
     img, spec, slitf = sample_data
 
-    orders = np.array([orders[0], orders[0], orders[0]])
-    extraction_width = np.array([[10, 10], [10, 10], [10, 10]])
-    column_range = np.array([[0, width], [0, width], [0, width]])
-    column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
+    # orders = np.array([orders[0], orders[0], orders[0]])
+    extraction_width = np.array([[10, 10]])
+    column_range = np.array([[0, width]])
+    # column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
 
     spec_out, unc_out = extract.arc_extraction(
         img, orders, extraction_width, column_range

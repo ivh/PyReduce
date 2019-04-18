@@ -15,200 +15,155 @@ import logging
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interp1d
 
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index
 
 # TODO put the plotting somewhere else
+np.seterr(all="raise")
 
 
-def getflatimg(img, axis=0):
-    """Flatten image and indices
+class ProgressPlot:
+    def __init__(self, nrow, ncol):
+        self.nrow = nrow
+        self.ncol = ncol
 
-    Parameters
-    ----------
-    img : array
-        image to flatten
-    axis : int, optional
-        axis to flatten along (default: 0)
-
-    Returns
-    -------
-    index: array
-        flattened indices
-    img
-        flat image
-    """
-
-    idx = np.indices(img.shape)[axis]
-    return idx.flatten(), img.flat
-
-
-def getspecvar(img):
-    """ get the spectrum """
-    ny, nx = img.shape
-    nimg = img / np.nansum(img, axis=1)[:, None]
-    x = np.indices(img.shape)[1]
-    return x.flatten(), nimg.flat
-
-
-def getslitvar(img, xoff, osample=1):
-    """ get the slit function """
-    x = np.indices(img.shape)[0]
-    x = x - xoff[None, :] + 1
-    return x.flatten() * osample, img.flat
-
-
-def plot_slitfunction(img, spec, slitf, model, ycen, onum, left, right, osample, mask):
-    """ Plot (and update the plot of) the current swath with spectrum and slitfunction """
-    ny, nx = img.shape
-    idx = np.indices(img.shape)
-
-    di = img.data / np.sum(img)
-    ds = spec.data / np.sum(spec)
-
-    df = np.copy(slitf)
-    dm = model / np.sum(model)
-
-    max_bad_pixels = 100
-
-    xbad = np.full(max_bad_pixels, np.nan)
-    ybad = np.full(max_bad_pixels, np.nan)
-    ibad = np.zeros(max_bad_pixels)
-    jbad = np.zeros(max_bad_pixels)
-    n = np.nonzero(mask)[0].size
-    xbad[:n] = (di / np.nansum(di, axis=1)[:, None])[mask][:max_bad_pixels]
-    ybad[:n] = (di[mask] * nx)[:max_bad_pixels]
-    ibad[:n] = idx[0][mask][:max_bad_pixels]
-    jbad[:n] = idx[1][mask][:max_bad_pixels]
-
-    # on first execution of plot create a new figure
-    if not hasattr(plot_slitfunction, "fig"):
-        # If no figure exists, create a new one
         plt.ion()
-        FIG = plt.figure(figsize=(12, 4))
-        FIG.tight_layout(pad=0.05)
+        self.fig = plt.figure(figsize=(12, 4))
+        self.fig.tight_layout(pad=0.05)
 
-        AX1 = FIG.add_subplot(231)
-        AX1.set_title("Swath")
-        AX2 = FIG.add_subplot(132)
-        AX2.set_title("Spectrum")
-        AX3 = FIG.add_subplot(133)
-        AX3.set_title("Slit")
-        AX4 = FIG.add_subplot(234)
-        AX4.set_title("Model")
+        self.ax1 = self.fig.add_subplot(231)
+        self.ax1.set_title("Swath")
+        self.ax2 = self.fig.add_subplot(132)
+        self.ax2.set_title("Spectrum")
+        self.ax2.set_xlim((0, ncol))
+        self.ax3 = self.fig.add_subplot(133)
+        self.ax3.set_title("Slit")
+        self.ax3.set_xlim((0, nrow))
+        self.ax4 = self.fig.add_subplot(234)
+        self.ax4.set_title("Model")
 
-        im1 = AX1.imshow(di, aspect="auto", origin="lower")
-        line1, = AX1.plot(ny / 2 + ycen, "-r")
-        im4 = AX4.imshow(dm, aspect="auto", origin="lower")
+        self.im_obs = self.ax1.imshow(
+            np.zeros((nrow, ncol)), aspect="auto", origin="lower"
+        )
+        self.line_ycen, = self.ax1.plot(np.zeros(ncol), "-r")
+        self.im_model = self.ax4.imshow(
+            np.zeros((nrow, ncol)), aspect="auto", origin="lower"
+        )
+        self.dots_spec, = self.ax2.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
+        )
+        self.line_spec, = self.ax2.plot(np.zeros(ncol), "-k")
+        self.dots_slit, = self.ax3.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
+        )
+        self.line_slit, = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
 
-        specvar, = AX2.plot(*getspecvar(di), ".r", ms=2, alpha=0.6)
-        slitvar, = AX3.plot(*getslitvar(di * nx, ycen), ".r", ms=2, alpha=0.6)
-        offset = 0.5 + ycen[0]
-        slitfu, = AX3.plot(
-            np.linspace(-(1 + offset), di.shape[0] + offset, len(df)), df, "-k", lw=3
-        )  # TODO which limits for the x axis?
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
 
-        masked, = AX3.plot(ibad, ybad, "+g")
-        masked2, = AX2.plot(jbad, xbad, "+g")
+    def fix_image(self, img):
+        if img.shape[0] > self.nrow:
+            img = img[: self.nrow]
+        elif img.shape[0] < self.nrow:
+            padding = np.zeros((self.nrow - img.shape[0], img.shape[1]))
+            img = np.concatenate((img, padding))
 
-        line2, = AX2.plot(ds, "-k")
+        if img.shape[1] > self.ncol:
+            img = img[:, : self.ncol]
+        elif img.shape[1] < self.ncol:
+            padding = np.zeros((img.shape[0], self.ncol - img.shape[1]))
+            img = np.concatenate((img, padding), axis=1)
+        return img
 
-        # Save plots to this function
-        setattr(plot_slitfunction, "fig", FIG)
-        setattr(plot_slitfunction, "ax1", AX1)
-        setattr(plot_slitfunction, "ax2", AX2)
-        setattr(plot_slitfunction, "ax3", AX3)
-        setattr(plot_slitfunction, "ax4", AX4)
-        setattr(plot_slitfunction, "ny", ny)
-        setattr(plot_slitfunction, "nx", nx)
+    def fix_linear(self, data, limit):
+        if len(data) > limit:
+            data = data[:limit]
+        elif len(data) < limit:
+            padding = np.zeros(limit - len(data))
+            data = np.concatenate((data, padding))
+        return data
 
-        setattr(plot_slitfunction, "im1", im1)
-        setattr(plot_slitfunction, "line1", line1)
-        setattr(plot_slitfunction, "line2", line2)
-        setattr(plot_slitfunction, "masked", masked)
-        setattr(plot_slitfunction, "masked2", masked2)
-        setattr(plot_slitfunction, "specvar", specvar)
-        setattr(plot_slitfunction, "slitvar", slitvar)
-        setattr(plot_slitfunction, "slitfu", slitfu)
-        setattr(plot_slitfunction, "im4", im4)
-    else:
-        FIG = plot_slitfunction.fig
-        AX1 = plot_slitfunction.ax1
-        AX2 = plot_slitfunction.ax2
-        AX3 = plot_slitfunction.ax3
-        AX4 = plot_slitfunction.ax4
-        im1 = plot_slitfunction.im1
-        line2 = plot_slitfunction.line2
-        im4 = plot_slitfunction.im4
-        line1 = plot_slitfunction.line1
-        masked = plot_slitfunction.masked
-        masked2 = plot_slitfunction.masked2
-        specvar = plot_slitfunction.specvar
-        slitvar = plot_slitfunction.slitvar
-        slitfu = plot_slitfunction.slitfu
+    def plot(self, img, spec, slitf, model, ycen, mask, ord_num, left, right):
+        img = np.copy(img)
+        spec = np.copy(spec)
+        slitf = np.copy(slitf)
+        ycen = np.copy(ycen)
 
-        ny = plot_slitfunction.ny
-        nx = plot_slitfunction.nx
+        ny = img.shape[0]
+        x_spec, y_spec = self.get_spec(img, spec, slitf, ycen)
+        x_slit, y_slit = self.get_slitf(img, spec, slitf)
+        ycen = ycen + ny / 2
 
-    # Fix size of array
-    if di.shape[0] > ny:
-        di = di[:ny, :]
-        df = df[: ny + 2]
-        dm = dm[:ny, :]
-    elif di.shape[0] < ny:
-        ypad = 0, ny - di.shape[0]
-        di = np.pad(di, (ypad, (0, 0)), "constant", constant_values=np.nan)
-        df = np.pad(df, (0, ny + 2 - df.shape[0]), "constant", constant_values=np.nan)
-        dm = np.pad(dm, (ypad, (0, 0)), "constant", constant_values=np.nan)
+        new = np.linspace(0, ny - 1, ny)
+        old = np.linspace(-1, ny, len(slitf))
+        sf = np.interp(new, old, slitf)
 
-    if di.shape[1] > nx:
-        di = di[:, :nx]
-        ds = ds[:nx]
-        dm = dm[:, :nx]
-        ycen = ycen[:nx]
-    elif di.shape[1] < nx:
-        xpad = 0, nx - di.shape[1]
-        di = np.pad(di, ((0, 0), xpad), "constant", constant_values=np.nan)
-        ds = np.pad(ds, xpad, "constant", constant_values=np.nan)
-        dm = np.pad(dm, ((0, 0), xpad), "constant", constant_values=np.nan)
-        ycen = np.pad(ycen, xpad, "constant", constant_values=np.nan)
+        # Fix Sizes
+        img = self.fix_image(img)
+        model = self.fix_image(model)
+        ycen = self.fix_linear(ycen, self.ncol)
+        x_spec = self.fix_linear(x_spec, self.ncol * self.nrow)
+        y_spec = self.fix_linear(y_spec, self.ncol * self.nrow)
+        spec = self.fix_linear(spec, self.ncol)
+        x_slit = self.fix_linear(x_slit, self.ncol * self.nrow)
+        y_slit = self.fix_linear(y_slit, self.ncol * self.nrow)
+        sf = self.fix_linear(sf, self.nrow)
 
-    # Update data
-    FIG.suptitle("Order %i, Columns %i - %i" % (onum, left, right))
+        # Update Data
+        self.im_obs.set_data(img)
+        self.im_model.set_data(model)
+        self.line_ycen.set_ydata(ycen)
+        self.dots_spec.set_xdata(x_spec)
+        self.dots_spec.set_ydata(y_spec)
+        self.line_spec.set_ydata(spec)
+        self.dots_slit.set_xdata(x_slit)
+        self.dots_slit.set_ydata(y_slit)
+        self.line_slit.set_ydata(sf)
 
-    im1.set_norm(mcolors.Normalize(vmin=np.nanmin(di), vmax=np.nanmax(di)))
-    im1.set_data(di)
-    im4.set_norm(mcolors.Normalize(vmin=np.nanmin(dm), vmax=np.nanmax(dm)))
-    im4.set_data(dm)
+        self.im_obs.set_norm(
+            mcolors.Normalize(vmin=np.nanmin(img), vmax=np.nanmax(img))
+        )
+        self.im_model.set_norm(
+            mcolors.Normalize(vmin=np.nanmin(model), vmax=np.nanmax(model))
+        )
+        self.ax2.set_ylim((0, np.nanmax(y_spec) * 1.1))
+        self.ax3.set_ylim((0, np.nanmax(y_slit) * 1.1))
 
-    line1.set_ydata(ny / 2 + ycen)
-    line2.set_ydata(ds)
+        self.fig.suptitle("Order %i, Columns %i - %i" % (ord_num, left, right))
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
 
-    slitvar.set_data(*getslitvar(di * nx, ycen))
-    slitfu.set_ydata(df)
-    specvar.set_data(*getspecvar(di))
+    def close(self):
+        plt.ioff()
+        plt.close()
 
-    masked.set_xdata(ibad)
-    masked.set_ydata(ybad)
+    def get_spec(self, img, spec, slitf, ycen):
+        """ get the spectrum """
+        x = np.indices(img.shape)[1].ravel()
 
-    masked2.set_xdata(jbad)
-    masked2.set_ydata(xbad)
+        nsf = len(slitf)
+        nrow, ncol = img.shape
+        sf = np.zeros(img.shape)
+        new = np.linspace(0, nrow - 1, nrow)
+        for i in range(ncol):
+            old = np.linspace(-1, nrow - 1 + 1, nsf) + (ycen[i] - 0.5)
+            sf[:, i] = np.interp(new, old, slitf)
 
-    # Set new limits
-    AX1.set_xlim((0, img.shape[1]))
-    AX1.set_ylim((0, img.shape[0]))
-    AX4.set_xlim((0, img.shape[1]))
-    AX4.set_ylim((0, img.shape[0]))
+        y = img / sf
+        y = y.ravel() * np.mean(spec) / np.mean(y)
+        return x, y
 
-    AX2.set_xlim((0, len(spec)))
-    AX3.set_xlim((0, img.shape[0]))
-    AX2.set_ylim((0, np.nanmax(di / np.nansum(di, axis=1)[:, None]) * 1.1))
-    AX3.set_ylim((0, np.nanmax(di) * nx * 1.1))
-
-    FIG.canvas.draw()
-    FIG.canvas.flush_events()
-    # plt.show()
+    def get_slitf(self, img, spec, slitf):
+        """ get the slit function """
+        x = np.indices(img.shape)[0].ravel()
+        if np.any(spec == 0):
+            i = np.arange(len(spec))
+            spec = interp1d(i[spec != 0], spec[spec != 0], fill_value="extrapolate")(i)
+        y = img / spec[None, :]
+        y = y.ravel() * np.mean(slitf) / np.mean(y)
+        return x, y
 
 
 def make_bins(swath_width, xlow, xhigh, ycen, ncol):
@@ -343,13 +298,14 @@ def extract_spectrum(
     threshold=0,
     shear=None,
     plot=False,
-    ord_num=0,
     im_norm=None,
     im_ordr=None,
     out_spec=None,
     out_sunc=None,
     out_slitf=None,
     out_mask=None,
+    progress=None,
+    ord_num=0,
     **kwargs
 ):
     """
@@ -523,17 +479,18 @@ def extract_spectrum(
 
         if plot:
             if not np.all(np.isnan(swath_img)):
-                plot_slitfunction(
+                if progress is None:
+                    progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
+                progress.plot(
                     swath_img,
                     swath_spec[ihalf],
                     slitf[ihalf],
                     swath_model,
                     y_offset,
+                    mask,
                     ord_num,
                     ibeg,
-                    iend,
-                    osample,
-                    mask,
+                    iend
                 )
 
     # Weight for combining overlapping regions
@@ -688,6 +645,12 @@ def optimal_extraction(
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
+    if kwargs.get("plot", False):
+        ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
+        nrow_swath = np.sum(extraction_width, axis=1).max()
+        progress = ProgressPlot(nrow_swath, ncol_swath)
+    else:
+        progress = None
 
     for i in range(nord):
         if nord < 10 or i % 5 == 0:
@@ -709,16 +672,16 @@ def optimal_extraction(
             column_range[i],
             scatter=scatter[i],
             shear=shear[i],
-            ord_num=i+1,
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
             out_mask=mask[i],
+            progress=progress,
+            ord_num=i + 1,
             **kwargs
         )
 
     if kwargs.get("plot", False):
-        plt.ioff()
-        plt.close()
+        progress.close()
 
     slitfunction = np.asarray(slitfunction)
     return spectrum, slitfunction, uncertainties

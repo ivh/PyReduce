@@ -79,6 +79,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
         yscatter=yscatter,
         threshold=threshold,
         extraction_type="normalize",
+        shear=0,
         **kwargs
     )
 
