@@ -21,9 +21,12 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
+from scipy.optimize import least_squares
+
+from skimage.filters import threshold_otsu
 
 from .extract import fix_extraction_width
-from .util import make_index, gaussfit2 as gaussfit
+from .util import make_index, gaussfit2 as gaussfit, gaussval2 as gaussval
 
 
 def make_shear(
@@ -109,19 +112,13 @@ def make_shear(
         # This should probably be the same as in the wavelength calibration
         vec = extracted[j, cr[0] : cr[1]]
         vec -= np.ma.min(vec)
+        vec = np.ma.filled(vec, 0)
         locmax, _ = signal.find_peaks(
             vec, height=np.ma.median(vec) * threshold, distance=10
         )
 
         # Remove peaks at the edge
         locmax = locmax[(locmax >= 10) & (locmax < len(vec) - 10)]
-
-        # Keep not more than 20 strongest lines per order
-        i = np.argsort(vec[locmax])[::-1]
-        i = i[:20]
-        nmax = len(i)
-        locmax = locmax[i]
-        locmax = locmax[::-1]  # sort again
 
         if plot:
             axes[j // 2, j % 2].plot(vec)
@@ -134,60 +131,76 @@ def make_shear(
         locmax += cr[0]
 
         # look at +- 9 pixels around the line
+        nmax = len(locmax)
         xx = np.arange(-9, 10)
         xcen = np.zeros(height)
         xind = np.arange(-xwd[0], xwd[1] + 1)
         shear = np.zeros(nmax)
 
-        # Determine shear for each order seperately
+        deviation = np.zeros(xind.size)
+
+        # Determine shear for each line seperately
         for iline in range(nmax):
             # Extract short horizontal strip for each row in extraction width
             # Then fit a gaussian to each row, to find the center of the line
             x = locmax[iline] + xx
             x = x[(x >= 0) & (x < ncol)]
-            for irow in xind:
+            for i, irow in enumerate(xind):
                 idx = make_index(ycen + irow, ycen + irow, x[0], x[-1] + 1)
                 s = original[idx][0]
+
                 if np.all(np.ma.getmask(s)):
                     # If this row is masked, this will happen
                     xcen[irow + xwd[0]] = np.mean(x)
+                    deviation[i] = 0
                 else:
-                    s -= np.min(s)
                     coef = gaussfit(x, s)
-                    xcen[irow + xwd[0]] = coef[1]  # Store line center
+                    xcen[i] = coef[1]  # Store line center
+                    deviation[i] = np.ma.std(s)  # Store the variation within the row
 
-            # Fit a line through the line centers, along the rows
-            perc = int(len(xind) * 0.8)
-            xind_loc, xcen_loc = xind, xcen
-            for _ in range(2):
-                # Linear fit to slit image
-                coef = np.polyfit(xind_loc, xcen_loc, 1)
-                line = np.polyval(coef, xind)
-                # Remove outliers
-                k = np.argsort(np.abs(line - xcen))
-                xind_loc = xind[k[:perc]]
-                xcen_loc = xcen[k[:perc]]
+                # _s = s - np.mean(s)
+                # _s /= np.max(_s)
+                # _v = gaussval(coef[1], 1, coef[1], coef[2])
+                # plt.plot(x, _s + irow)
+                # plt.plot(coef[1], _v + irow, "rx")
 
-            # Final fit using best 80%
-            coef = np.polyfit(xind_loc, xcen_loc, 1)
+            # Seperate in order pixels from out of order pixels
+            # TODO: actually we want to weight them by the slitfunction?
+            idx = deviation > threshold_otsu(deviation)
+
+            # Linear fit to slit image
+            coef = np.polyfit(xind[idx], xcen[idx], 1)
+
+            # plt.plot(xind, xcen, ".")
+            # plt.plot(xind[idx], xcen[idx], "rx")
+            # plt.plot(xind, line)
+            # plt.show()
+
             shear[iline] = coef[0]  # Store line shear
 
-        # Fit a line through all individual shears along the order
-        perc = int(len(shear) * 0.8)
-        locmax_loc, shear_loc = locmax, shear
+        # Fit a 2nd order polynomial through all individual lines
+        # And discard obvious outliers
         for _ in range(2):
-            coef = np.polyfit(locmax_loc, shear_loc, 1)
-            line = np.polyval(coef, locmax)
-            k = np.argsort(np.abs(line - shear))
-            locmax_loc = locmax[k[:perc]]
-            shear_loc = shear[k[:perc]]
+            func = lambda c: np.polyval(c, locmax) - shear
+            res = least_squares(func, np.zeros(3), loss="soft_l1")
+            coef = res.x
 
-        a = np.polyfit(locmax_loc, shear_loc, 2)
-        shear_x[j] = a
+            line = np.polyval(coef, locmax)
+            diff = np.abs(line - shear)
+            idx = diff < np.std(diff) * 5
+            locmax = locmax[idx]
+            shear = shear[idx]
+            if np.all(idx):
+                break
+
+        # Fit a line through all individual shears along the order
+        # coef = np.polyfit(locmax, shear, 2)
+        shear_x[j] = coef
 
         if plot:
             x = np.arange(cr[0], cr[1])
-            axes2[j // 2, j % 2].plot(x, np.polyval(a, x))
+            axes2[j // 2, j % 2].plot(locmax, shear, "rx")
+            axes2[j // 2, j % 2].plot(x, np.polyval(coef, x))
             axes2[j // 2, j % 2].set_xlim(0, ncol)
             if j not in (order_range[1] - 1, order_range[1] - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])

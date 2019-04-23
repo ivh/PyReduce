@@ -393,14 +393,18 @@ def gaussfit2(x, y):
         coefficients of the gaussian: A, mu, sigma**2
     """
 
-    gauss = lambda x, a, mu, sig: a * np.exp(-(x - mu) ** 2 / (2 * sig))
+    gauss = gaussval2
     try:
-        popt, _ = curve_fit(gauss, x, y, p0=[np.max(y), np.mean(x), 1])
-    except RuntimeError:
+        popt, _ = curve_fit(gauss, x, y, p0=[np.max(y), np.mean(x), 1, np.min(y)])
+    except (RuntimeError, FloatingPointError):
         # Sometimes the data is really bad and no fit is found
         # then revert to a bad guess
         popt = [np.max(y), np.mean(x), 1]
     return popt
+
+
+def gaussval2(x, a, mu, sig, const):
+    return a * np.exp(-(x - mu) ** 2 / (2 * sig)) + const
 
 
 def gaussbroad(x, y, hwhm):
@@ -560,6 +564,7 @@ def bezier_interp(x_old, y_old, x_new):
     knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new
+
 
 def safe_interpolation(x_old, y_old, x_new=None, fill_value=0):
     """
