@@ -468,11 +468,14 @@ class Reducer:
             plot=self.config["plot"],
         )
 
+        blaze = np.ma.filled(blaze, 0)
         # Fix column ranges
         for i in range(blaze.shape[0]):
             column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
+        self._spec_mask = np.full(blaze.shape, True)
+        for i, cr in enumerate(column_range):
+            self._spec_mask[i, cr[0] : cr[1]] = False
 
-        self._spec_mask = blaze == 0
         blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
 
         # Save data
@@ -488,9 +491,14 @@ class Reducer:
 
         data = np.load(self.blaze_file)
         blaze = data["blaze"]
-        self._spec_mask = blaze == 0
-        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
         column_range = data["column_range"]
+
+        self._spec_mask = np.full(blaze.shape, True)
+        for i, cr in enumerate(column_range):
+            self._spec_mask[i, cr[0] : cr[1]] = False
+        # self._spec_mask = blaze == 0
+
+        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
 
         return flat, blaze, column_range
 
@@ -542,6 +550,9 @@ class Reducer:
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
             base_order=base_order,
+            degree_x=self.config["wavecal.degree.x"],
+            degree_y=self.config["wavecal.degree.y"],
+            threshold=self.config["wavecal.threshold"],
         )
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
@@ -651,6 +662,7 @@ class Reducer:
             self._spec_mask[:] = science["mask"]
             spec = np.ma.masked_array(science["spec"].data, mask=self._spec_mask)
             sig = np.ma.masked_array(science["sig"].data, mask=self._spec_mask)
+
             heads.append(science.header)
             specs.append(spec)
             sigmas.append(sig)

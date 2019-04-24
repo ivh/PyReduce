@@ -12,7 +12,7 @@ import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from scipy import signal
 from scipy.constants import speed_of_light
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
 
 from . import util
 from .instruments import instrument_info
@@ -76,6 +76,8 @@ class AlignmentPlot:
 
     def on_click(self, event):
         """ On click offset the reference by the distance between click positions """
+        if event.ydata is None:
+            return
         order = int(np.floor(event.ydata))
         spec = (
             "ref" if (event.ydata - order) > 0.5 else "thar"
@@ -163,10 +165,30 @@ def align(thar, cs_lines, manual=False, plot=False):
             plt.show()
             offset = ap.offset
 
+    logging.debug(f"Offset order: {offset_order}, Offset pixel: {offset_x}")
     return offset
 
 
-def build_2d_solution(cs_lines, plot=False):
+def fit_lines(thar, cs_lines):
+    # For each line fit a gaussian to the observation
+    for i, line in enumerate(cs_lines):
+        # if line.flag:  # flag = 1 -> False
+        #     continue
+        low = int(line.posm - line.width * 10)
+        low = max(low, 0)
+        high = int(line.posm + line.width * 10)
+        high = min(high, len(thar[line.order]))
+
+        section = thar[line.order, low:high]
+        x = np.arange(low, high, 1)
+
+        coef = util.gaussfit2(x, section)
+        cs_lines[i].posm = coef[1]
+
+    return cs_lines
+
+
+def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
     """make a 2d polynomial fit to flagged lines
 
     Parameters
@@ -181,31 +203,46 @@ def build_2d_solution(cs_lines, plot=False):
     coef : array[degree_x, degree_y]
         2d polynomial coefficients
     """
+    # 2d polynomial fit with: x = column, y = order, z = wavelength
+    degree_x, degree_y = degree
 
     # Only use flagged data
     mask = ~cs_lines.flag.astype(bool)  # 0 = True, 1 = False
     m_wave = cs_lines.wll[mask]
     m_pix = cs_lines.posm[mask]
     m_ord = cs_lines.order[mask]
-    m_width = cs_lines.width[mask]
 
-    # 2d polynomial fit with: x = column, y = order, z = wavelength
-    # coef = util.polyfit2d(m_pix, m_ord, m_wave, 5, plot=plot)
-
-    degree_x, degree_y = 6, 6
-    degree_x, degree_y = degree_x + 1, degree_y + 1  # Due to how np polyval2d workss
-
-    def func(x, *c):
-        c = np.array(c)
-        c.shape = degree_x, degree_y
-        value = polyval2d(x[0], x[1], c)
-        return value
-
-    # z = gaussian_process_fit(m_pix, m_ord, m_wave, m_width)
-    coef, pcov = curve_fit(
-        func, [m_pix, m_ord], m_wave, p0=np.ones(degree_x * degree_y)
+    coef = util.polyfit2d_2(
+        m_pix, m_ord, m_wave, degree=(degree_x, degree_y), plot=False
     )
-    coef.shape = degree_x, degree_y
+
+    # order = 1
+    # lines = cs_lines[mask][cs_lines[mask].order == order]
+    # x = lines.posm
+    # y = np.full(len(x), order)
+    # s = np.polynomial.polynomial.polyval2d(x, y, coef)
+    # w = lines.wll
+
+    # # (cs_lines.wll-cs_lines.wlc)/cs_lines.wll*2.9979246d8
+    # r = (w - s) / w * speed_of_light
+    # plt.plot(x, r, "x")
+    # plt.show()
+
+    if plot:
+        orders = np.unique(cs_lines.order)
+        norders = len(orders)
+        for i, order in enumerate(orders):
+            plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
+            lines = cs_lines[mask][cs_lines[mask].order == order]
+            x = np.arange(4096)
+            y = np.full(4096, order)
+            solution = np.polynomial.polynomial.polyval2d(x, y, coef)
+
+            plt.plot(lines.posm, lines.wll, "rx", label="lines")
+            plt.plot(x, solution, label="fit")
+            plt.legend()
+        plt.show()
+
     return coef
 
 
@@ -256,7 +293,7 @@ def make_wave(thar, wave_solution, plot=False):
     return wave_img
 
 
-def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
+def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
     """Automatically identify peaks that are close to known lines 
 
     Parameters
@@ -282,27 +319,55 @@ def auto_id(thar, wave_img, cs_lines, threshold=1, plot=False):
     # Set flags in cs_lines
     nord, ncol = thar.shape
 
-    # Step 1: find peaks in thar
-    # Step 2: compare lines in cs_lines with peaks
-    # Step 3: toggle flag on if close enough
-    for iord in range(nord):
-        # TODO pick good settings
-        vec = thar[iord, thar[iord] > 0]
-        vec -= np.ma.min(vec)
+    # Option 1:
+    # Step 1: Loop over unused lines in cs_lines
+    # Step 2: find peaks in neighbourhood
+    # Step 3: Toggle flag on if close
+    counter = 0
+    for i, line in enumerate(cs_lines):
+        if line.flag == 0:
+            # Line is already in use
+            continue
+        iord = line.order
 
-        peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec) * 10, distance=10)
-        pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
+        low = int(line.posm - line.width * 10)
+        low = max(low, 0)
+        high = int(line.posm + line.width * 10)
+        high = min(high, len(thar[iord]))
 
-        for i, line in enumerate(cs_lines):
-            if line.order == iord:
-                diff = np.abs(line.wll - pos_wave)
-                if np.min(diff) < threshold:
-                    cs_lines.flag[i] = 0  # 0 == True, 1 == False
+        vec = thar[iord, low:high]
+        peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec))
+        pos_wave = wave_img[iord, low:high][peak_idx]
+
+        diff = np.min(np.abs(line.wll - pos_wave)) / line.wll * speed_of_light
+        if diff < threshold:
+            counter += 1
+            cs_lines[i].flag = 0
+
+    logging.debug(f"AutoID identified {counter} new lines")
+
+    # # Option 2:
+    # # Step 1: find peaks in thar
+    # # Step 2: compare lines in cs_lines with peaks
+    # # Step 3: toggle flag on if close enough
+    # for iord in range(nord):
+    #     # TODO pick good settings
+    #     vec = thar[iord, thar[iord] > 0]
+    #     vec -= np.ma.min(vec)
+
+    #     peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec) * 10, distance=10)
+    #     pos_wave = wave_img[iord, thar[iord] > 0][peak_idx]
+
+    #     for i, line in enumerate(cs_lines):
+    #         if line.order == iord:
+    #             diff = np.abs(line.wll - pos_wave)
+    #             if np.min(diff) < threshold:
+    #                 cs_lines.flag[i] = 0  # 0 == True, 1 == False
 
     return cs_lines
 
 
-def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
+def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=True):
     """
     Reject lines that are too far from the peaks
 
@@ -331,11 +396,17 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     y = cs_lines.order
     solution = polyval2d(x, y, wave_solution)
     # Residual in m/s
+    # (cs_lines.wll-cs_lines.wlc)/cs_lines.wll*2.9979246d8
     residual = (solution - cs_lines.wll) / cs_lines.wll * speed_of_light
-    cs_lines.flag[np.abs(residual) > clip] = 1  # 1 = False
-    mask = ~cs_lines.flag.astype(bool)
+
+    ibad = np.abs(residual) > clip
+    nbad = np.count_nonzero(ibad)
+    cs_lines.flag[ibad] = 1  # 1 = False
+
+    logging.debug("Rejected {nbad} lines")
 
     if plot:
+        mask = ~cs_lines.flag.astype(bool)
         _, axis = plt.subplots()
         axis.plot(cs_lines.order[mask], residual[mask], "+", label="Accepted Lines")
         axis.plot(cs_lines.order[~mask], residual[~mask], "d", label="Rejected Lines")
@@ -373,7 +444,17 @@ def reject_lines(thar, wave_solution, cs_lines, clip=100, plot=True):
     return cs_lines
 
 
-def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False, base_order=0):
+def wavecal(
+    thar,
+    cs_lines,
+    plot=True,
+    manual=False,
+    polarim=False,
+    base_order=0,
+    threshold=1000,
+    degree_x=6,
+    degree_y=6,
+):
     """Wavelength calibration wrapper
 
     Parameters
@@ -416,17 +497,23 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False, base_order=0
     cs_lines.posm += offset[1]
     cs_lines.order += offset[0]
 
+    cs_lines = fit_lines(thar, cs_lines)
+
     for j in range(3):
         for i in range(5):
-            wave_solution = build_2d_solution(cs_lines)
+            wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
             cs_lines = reject_lines(
-                thar, wave_solution, cs_lines, plot=i == 4 and j == 2 and plot
+                thar,
+                wave_solution,
+                cs_lines,
+                clip=threshold,
+                plot=i == 4 and j == 2 and plot,
             )
 
-        wave_solution = build_2d_solution(cs_lines)
+        wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
         wave_img = make_wave(thar, wave_solution)
 
-        cs_lines = auto_id(thar, wave_img, cs_lines)
+        cs_lines = auto_id(thar, wave_img, cs_lines, threshold=threshold)
 
     logging.info(
         "Number of lines used for wavelength calibration: %i",
@@ -434,7 +521,7 @@ def wavecal(thar, cs_lines, plot=True, manual=False, polarim=False, base_order=0
     )
 
     # Step 6: build final 2d solution
-    wave_solution = build_2d_solution(cs_lines, plot=plot)
+    wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y), plot=plot)
     wave_img = make_wave(thar, wave_solution, plot=plot)
 
     return wave_img  # wavelength solution image
@@ -458,7 +545,7 @@ if __name__ == "__main__":
     reference = instrument_info.get_wavecal_filename(head, instrument, mode)
     reference = np.load(reference)
 
-    # cs_lines = "Wavelength_center", "Wavelength_left", "Position_Center", "Position_Middle", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
+    # cs_lines = "Wavelength_computed", "Wavelength_list", "Position_Computed", "Position_Model", "first x coordinate", "last x coordinate", "approximate ??", "width", "flag", "height", "order"
     # cs_lines = 'WLC', 'WLL', 'POSC', 'POSM', 'XFIRST', 'XLAST', 'APPROX', 'WIDTH', 'FLAG', 'HEIGHT', 'ORDER'
     cs_lines = reference["cs_lines"]
 

@@ -25,8 +25,8 @@ from scipy.optimize import least_squares
 
 from skimage.filters import threshold_otsu
 
-from .extract import fix_extraction_width
-from .util import make_index, gaussfit2 as gaussfit, gaussval2 as gaussval
+from .extract import fix_extraction_width, extend_orders, fix_column_range
+from .util import make_index, gaussfit3 as gaussfit, gaussval2 as gaussval
 
 
 def make_shear(
@@ -70,9 +70,11 @@ def make_shear(
     logging.info("Extract tilt of the slit")
 
     nord = orders.shape[0]
-    _, ncol = original.shape
+    nrow, ncol = original.shape
     # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
     threshold = 10
+    # The width around the line that is supposed to be extracted
+    width = 9
 
     if order_range is None:
         order_range = (0, nord)
@@ -81,9 +83,21 @@ def make_shear(
     if column_range is None:
         column_range = np.tile([0, ncol], [nord, 1])
 
+    orders = extend_orders(orders, nrow)
+    extraction_width = np.array(
+        [extraction_width[0], *extraction_width, extraction_width[-1]]
+    )
+    column_range = np.array([column_range[0], *column_range, column_range[-1]])
+
+    # Fix column range, so that all extractions are fully within the image
     extraction_width = fix_extraction_width(
         extraction_width, orders, column_range, ncol
     )
+    column_range = fix_column_range(original, orders, extraction_width, column_range)
+
+    orders = orders[1:-1]
+    extraction_width = extraction_width[1:-1]
+    column_range = column_range[1:-1]
 
     # Fit tilt with parabola
     n = order_range[1] - order_range[0]
@@ -119,7 +133,7 @@ def make_shear(
         )
 
         # Remove peaks at the edge
-        locmax = locmax[(locmax >= 10) & (locmax < len(vec) - 10)]
+        locmax = locmax[(locmax >= width + 1) & (locmax < len(vec) - width - 1)]
 
         if plot:
             axes[j // 2, j % 2].plot(vec)
@@ -133,7 +147,7 @@ def make_shear(
 
         # look at +- 9 pixels around the line
         nmax = len(locmax)
-        xx = np.arange(-9, 10)
+        xx = np.arange(-width, width + 1)
         xcen = np.zeros(height)
         xind = np.arange(-xwd[0], xwd[1] + 1)
         tilt = np.zeros(nmax)
@@ -149,12 +163,17 @@ def make_shear(
             x = locmax[iline] + xx
             x = x[(x >= 0) & (x < ncol)]
             for i, irow in enumerate(xind):
+                if np.any((ycen + irow)[x[0] : x[-1] + 1] >= original.shape[0]):
+                    # This should never happen after we fixed the extraction width
+                    xcen[i] = np.mean(x)
+                    deviation[i] = 0
+                    continue
                 idx = make_index(ycen + irow, ycen + irow, x[0], x[-1] + 1)
                 s = original[idx][0]
 
                 if np.all(np.ma.getmask(s)):
                     # If this row is masked, this will happen
-                    xcen[irow + xwd[0]] = np.mean(x)
+                    xcen[i] = np.mean(x)
                     deviation[i] = 0
                 else:
                     coef = gaussfit(x, s)

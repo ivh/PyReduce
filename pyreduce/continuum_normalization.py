@@ -12,6 +12,8 @@ import numpy as np
 
 from . import util
 
+np.seterr("raise")
+
 
 def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     """
@@ -99,20 +101,20 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             tmpU1 = util.bezier_interp(w0, u0, w1[i1])
 
             # Combine the two orders weighted by the relative error
-            wgt0 = np.ma.vstack([c0[i0] / u0[i0], tmpB0 / tmpU0]) ** 2
-            wgt1 = np.ma.vstack([c1[i1] / u1[i1], tmpB1 / tmpU1]) ** 2
+            wgt0 = np.ma.vstack([c0[i0].data / u0[i0].data, tmpB0 / tmpU0]) ** 2
+            wgt1 = np.ma.vstack([c1[i1].data / u1[i1].data, tmpB1 / tmpU1]) ** 2
 
             s0[i0], utmp = np.ma.average(
                 np.ma.vstack([s0[i0], tmpS0]), axis=0, weights=wgt0, returned=True
             )
             c0[i0] = np.ma.average([c0[i0], tmpB0], axis=0, weights=wgt0)
-            u0[i0] = c0[i0] / utmp ** 0.5
+            u0[i0] = c0[i0] * utmp ** -0.5
 
             s1[i1], utmp = np.ma.average(
                 np.ma.vstack([s1[i1], tmpS1]), axis=0, weights=wgt1, returned=True
             )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
-            u1[i1] = c1[i1] / utmp ** 0.5
+            u1[i1] = c1[i1] * utmp ** -0.5
         else:  # Orders dont overlap
             raise NotImplementedError("Orders don't overlap, please test")
             c0 *= util.top(s0 / c0, 1, poly=True)
@@ -143,7 +145,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         plt.title("Error")
         for i in range(nord):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
-        plt.ylim((0, 2))
+        plt.ylim((0, np.ma.median(sigm[i] / cont[i]) * 2))
         plt.show()
 
     return spec, wave, cont, sigm
@@ -223,7 +225,7 @@ def continuum_normalize(
     nord, ncol = spec.shape
 
     par2 = 1e-4
-    par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.median(spec))))
+    par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.ma.median(spec))))
 
     b = np.clip(cont, 1, None)
     for i in range(nord):

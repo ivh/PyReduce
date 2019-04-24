@@ -246,7 +246,7 @@ def calc_telluric_correction(telluric, img):
     sc = np.zeros(width)
 
     for itel in range(width):
-        sc[itel] = np.median(tel[itel])
+        sc[itel] = np.ma.median(tel[itel])
 
     return sc
 
@@ -443,6 +443,7 @@ def extract_spectrum(
         # Do Slitfunction extraction
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
+        swath_img = np.ma.filled(swath_img, 0)
 
         # offset from the central line
         y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
@@ -461,9 +462,9 @@ def extract_spectrum(
             )
         else:
             # shear is given, use curved extraction
-            tilt_swath = tilt[ibeg:iend]
+            tilt_swath = np.ma.filled(tilt[ibeg:iend], 0)
             if shear is not None:
-                shear_swath = shear[ibeg:iend]
+                shear_swath = np.ma.filled(shear[ibeg:iend], 0)
             else:
                 shear_swath = np.zeros(iend - ibeg)
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
@@ -473,6 +474,19 @@ def extract_spectrum(
                 y_offset,
                 tilt_swath,                
                 shear_swath,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+            )
+
+        if not np.all(np.isfinite(swath_spec[ihalf])):
+            logging.warning("Curved extraction failed")
+            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+                ihalf
+            ], mask = slitfunc_curved(
+                swath_img,
+                y_offset,
+                0, 0,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
@@ -532,7 +546,7 @@ def extract_spectrum(
     xrange[0] += tilt_margin_begin
     xrange[1] -= tilt_margin_end
     if out_mask is not None:
-        out_mask[:tilt_margin_begin] = out_mask[ncol - tilt_margin_end :] = True
+        out_mask[:xrange[0]] = out_mask[xrange[1]:] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):

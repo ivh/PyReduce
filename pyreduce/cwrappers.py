@@ -282,7 +282,8 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     sl = np.zeros(ny, dtype=c_double)
 
     # Inital guess for spectrum
-    sp = np.sum(img, axis=0)
+    sp = np.ma.sum(img, axis=0)
+    sp = np.ma.filled(sp, 0)
     sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     mask = ~np.ma.getmaskarray(img)

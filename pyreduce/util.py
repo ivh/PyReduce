@@ -414,6 +414,40 @@ def gaussfit2(x, y):
         # Sometimes the data is really bad and no fit is found
         # then revert to a bad guess
         popt = p0 + [np.min(y)]
+    except ValueError:
+        # Somehow the bounds mess up?
+        res = least_squares(lambda c: gauss(x, *c, np.min(y)) - y, p0, loss="soft_l1")
+        popt = list(res.x) + [np.min(y)]
+    return popt
+
+
+def gaussfit3(x, y):
+    """ A very simple (and relatively fast) gaussian fit
+    gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
+
+    Parameters
+    ----------
+    x : array of shape (n,)
+        x data
+    y : array of shape (n,)
+        y data
+
+    Returns
+    -------
+    popt : list of shape (4,)
+        Parameters A, mu, sigma**2, offset
+    """
+    gauss = gaussval2
+    i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
+    p0 = [y[i], x[i], 1, np.min(y)]
+
+    try:
+        popt, _ = curve_fit(gauss, x, y, p0=p0)
+    except (RuntimeError, FloatingPointError):
+        # Sometimes the data is really bad and no fit is found
+        # then revert to a bad guess
+        popt = p0
+
     return popt
 
 
@@ -541,6 +575,50 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         ax.axis("tight")
         plt.show()
     return coeff
+
+
+def polyfit2d_2(x, y, z, degree=1, plot=False):
+
+    if np.isscalar(degree):
+        degree_x = degree_y = degree + 1
+    else:
+        degree_x = degree[0] + 1
+        degree_y = degree[1] + 1
+
+    polyval2d = np.polynomial.polynomial.polyval2d
+
+    def func(c):
+        c = np.reshape(c, (degree_x, degree_y))
+        value = polyval2d(x, y, c)
+        return value - z
+
+    x0 = np.random.random_sample(degree_x * degree_y) * 0.1
+    res = least_squares(func, x0, loss="linear", method="lm", xtol=1e-12)
+    coef = res.x
+    coef.shape = degree_x, degree_y
+
+    if plot:
+        # regular grid covering the domain of the data
+        if x.size > 500:
+            choice = np.random.choice(x.size, size=500, replace=False)
+        else:
+            choice = slice(None, None, None)
+        x, y, z = x[choice], y[choice], z[choice]
+        X, Y = np.meshgrid(
+            np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
+        )
+        Z = np.polynomial.polynomial.polyval2d(X, Y, coef)
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+        ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+        ax.scatter(x, y, z, c="r", s=50)
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.axis("equal")
+        ax.axis("tight")
+        plt.show()
+    return coef
 
 
 def bezier_interp(x_old, y_old, x_new):

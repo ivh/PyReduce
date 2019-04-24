@@ -254,7 +254,7 @@ def combine_frames(
         bias2, head2 = load_fits(
             files[0], instrument, mode, extension, dtype=dtype, **kwargs
         )
-        exp2 = head2.get("exptime",0)
+        exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
 
         result = bias2 + bias1
@@ -525,7 +525,7 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
     # Compute noise in difference image by fitting Gaussian to distribution.
     diff = 0.5 * (bias1 - bias2)
     if np.min(diff) != np.max(diff):
-        crude = np.median(np.abs(diff))  # estimate of noise
+        crude = np.ma.median(np.abs(diff))  # estimate of noise
         hmin = -5.0 * crude
         hmax = +5.0 * crude
         bin_size = np.clip(2 / n, 0.5, None)

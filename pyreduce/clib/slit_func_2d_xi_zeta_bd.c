@@ -537,7 +537,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                      double *unc)      /* Spectrum uncertainties based on data - model   [ncols]       */
 {
     int x, xx, xxx, y, yy, iy, jy, n, m, ny, y_upper_lim, i;
-    double delta_x, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
+    double delta_x, tmp, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
     int info, iter, isum;
 
     int maxiter = 5;
@@ -576,8 +576,10 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
     for (i = 0; i < ncols; i++)
     {
-        delta_x = max(delta_x, (int)(fabs(tilt[i] * (0.5 / osample + y_lower_lim + ycen[i])) + 1));
-        delta_x = max(delta_x, (int)(fabs(tilt[i] * (0.5 / osample + y_upper_lim + (1. - ycen[i]))) + 1));
+        tmp = (0.5 / osample + y_lower_lim + ycen[i]);
+        delta_x = max(delta_x, (int)(fabs(shear[i] * tmp * tmp + tilt[i] * tmp) + 1));
+        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[i]));
+        delta_x = max(delta_x, (int)(fabs(shear[i] * tmp * tmp + tilt[i] * tmp) + 1));
         PSF_curve[i][0] = 0.;
         PSF_curve[i][1] = -tilt[i];
         PSF_curve[i][2] = -shear[i];
