@@ -296,6 +296,7 @@ def extract_spectrum(
     scatter=None,
     normalize=False,
     threshold=0,
+    tilt=None,
     shear=None,
     plot=False,
     im_norm=None,
@@ -363,8 +364,10 @@ def extract_spectrum(
         wether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
     threshold : int, optional
         threshold for normalization (default: 0)
+    tilt : array[ncol], optional
+        The tilt (1st order curvature) of the slit in this order for the curved extraction (default: None, i.e. tilt = 0)
     shear : array[ncol], optional
-        The shear (tilt) of the order, if given will use curved extraction instead of vertical extraction (default: None, i.e. no shear)
+        The shear (2nd order curvature) of the slit in this order for the curved extraction (default: None, i.e. shear = 0)
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional
@@ -445,8 +448,8 @@ def extract_spectrum(
         y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
 
         # TODO why does vertical extraction give nan results sometimes?
-        if shear is None:
-            # No shear given, use vertical extraction
+        if tilt is None:
+            # No tilt given, use vertical extraction
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
                 ihalf
             ], mask = slitfunc(
@@ -458,12 +461,17 @@ def extract_spectrum(
             )
         else:
             # shear is given, use curved extraction
-            shear_swath = shear[ibeg:iend]
+            tilt_swath = tilt[ibeg:iend]
+            if shear is not None:
+                shear_swath = shear[ibeg:iend]
+            else:
+                shear_swath = np.zeros(iend - ibeg)
             swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
                 ihalf
             ], mask = slitfunc_curved(
                 swath_img,
                 y_offset,
+                tilt_swath,                
                 shear_swath,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
@@ -504,27 +512,27 @@ def extract_spectrum(
         weight[i][overlap_start:] = np.linspace(1, 0, overlap)
         weight[j][:overlap] = np.linspace(0, 1, overlap)
 
-    # Remove points at the border of the image, if order has shear
+    # Remove points at the border of the image, if order has tilt
     # as those pixels have bad information
-    if shear is not None:
-        if np.isscalar(shear):
-            shear = [shear, shear]
+    if tilt is not None:
+        if np.isscalar(tilt):
+            tilt = [tilt, tilt]
         else:
-            shear = np.ma.compressed(shear)[[0, -1]]
-        y = -yhigh if shear[0] < 0 else ylow
-        shear_margin_begin = int(np.ceil(shear[0] * y))
-        weight[0][:shear_margin_begin] = 0
-        y = -ylow if shear[-1] < 0 else yhigh
-        shear_margin_end = int(np.ceil(shear[-1] * y))
-        if shear_margin_end != 0:
-            weight[-1][-shear_margin_end:] = 0
+            tilt = np.ma.compressed(tilt)[[0, -1]]
+        y = -yhigh if tilt[0] < 0 else ylow
+        tilt_margin_begin = int(np.ceil(tilt[0] * y))
+        weight[0][:tilt_margin_begin] = 0
+        y = -ylow if tilt[-1] < 0 else yhigh
+        tilt_margin_end = int(np.ceil(tilt[-1] * y))
+        if tilt_margin_end != 0:
+            weight[-1][-tilt_margin_end:] = 0
     else:
-        shear_margin_begin = shear_margin_end = 0
+        tilt_margin_begin = tilt_margin_end = 0
 
-    xrange[0] += shear_margin_begin
-    xrange[1] -= shear_margin_end
+    xrange[0] += tilt_margin_begin
+    xrange[1] -= tilt_margin_end
     if out_mask is not None:
-        out_mask[:shear_margin_begin] = out_mask[ncol - shear_margin_end :] = True
+        out_mask[:tilt_margin_begin] = out_mask[ncol - tilt_margin_end :] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -594,7 +602,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 
 
 def optimal_extraction(
-    img, orders, extraction_width, column_range, scatter, shear, **kwargs
+    img, orders, extraction_width, column_range, scatter, tilt, shear, **kwargs
 ):
     """ Use optimal extraction to get spectra
 
@@ -634,6 +642,8 @@ def optimal_extraction(
     uncertainties = np.zeros((nord, ncol))
     slitfunction = [None for _ in range(nord)]
 
+    if tilt is None:
+        tilt = [None for _ in range(nord)]
     if shear is None:
         shear = [None for _ in range(nord)]
 
@@ -671,6 +681,7 @@ def optimal_extraction(
             yrange,
             column_range[i],
             scatter=scatter[i],
+            tilt=tilt[i],
             shear=shear[i],
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
@@ -946,8 +957,9 @@ def extract(
     order_range=None,
     extraction_width=0.5,
     extraction_type="optimal",
-    polarization=False,
+    tilt=None,
     shear=None,
+    polarization=False,
     **kwargs
 ):
     """
@@ -967,6 +979,10 @@ def extract(
         extraction width above and below each order, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
     extraction_type : {"optimal", "arc", "normalize"}, optional
         which extracttion algorithm to use, "optimal" uses optimal extraction, "arc" uses simple arc extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
+    tilt : float or array[nord, ncol], optional
+        The tilt (1st order curvature) of the slit for curved extraction. Will use vertical extraction if no tilt is set. (default: None, i.e. tilt = 0)
+    shear : float or array[nord, ncol], optional
+        The shear (2nd order curvature) of the slit for curved extraction (default: None, i.e. shear = 0)
     polarization : bool, optional
         if true, pairs of orders are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
     **kwargs, optional
@@ -991,6 +1007,8 @@ def extract(
 
     nrow, ncol = img.shape
     nord, _ = orders.shape
+    if np.isscalar(tilt):
+        tilt = np.full((nord, ncol), tilt)
     if np.isscalar(shear):
         shear = np.full((nord, ncol), shear)
     if order_range is None:
@@ -1012,6 +1030,8 @@ def extract(
         xscatter = xscatter[order_range[0] : order_range[1] + 1]
     if yscatter is not None:
         yscatter = yscatter[order_range[0] : order_range[1] + 1]
+    if tilt is not None:
+        tilt = tilt[order_range[0] : order_range[1]]
     if shear is not None:
         shear = shear[order_range[0] : order_range[1]]
 
@@ -1057,6 +1077,7 @@ def extract(
             extraction_width,
             column_range,
             scatter=scatter,
+            tilt=tilt,
             shear=shear,
             **kwargs
         )
@@ -1074,6 +1095,7 @@ def extract(
             extraction_width,
             column_range,
             scatter=scatter,
+            tilt=tilt,
             shear=shear,
             normalize=True,
             im_norm=im_norm,

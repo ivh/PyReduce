@@ -565,7 +565,7 @@ class Reducer:
         orig, thead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=self.mask
         )
-        shear = make_shear(
+        tilt, shear = make_shear(
             thar,
             orig,
             orders,
@@ -574,19 +574,22 @@ class Reducer:
             order_range=self.order_range,
             plot=self.config.get("plot", True),
         )
+        tilt = np.ma.masked_array(tilt, mask=self._spec_mask)
         shear = np.ma.masked_array(shear, mask=self._spec_mask)
 
-        np.savez(self.shear_file, shear=shear)
-        return shear
+        np.savez(self.shear_file, tilt=tilt, shear=shear)
+        return tilt, shear
 
     def load_shear(self):
         fname = self.shear_file
         data = np.load(fname)
+        tilt = data["tilt"]
         shear = data["shear"]
+        tilt = np.ma.masked_array(tilt, mask=self._spec_mask)
         shear = np.ma.masked_array(shear, mask=self._spec_mask)
-        return shear
+        return tilt, shear
 
-    def run_science(self, bias, flat, orders, shear, column_range):
+    def run_science(self, bias, flat, orders, tilt, shear, column_range):
         logging.info("Extracting science spectra")
         heads, specs, sigmas = [], [], []
         for f in self.files["spec"]:
@@ -606,6 +609,7 @@ class Reducer:
             spec, sigma, _, column_range = extract(
                 im,
                 orders,
+                tilt=tilt,
                 shear=shear,
                 gain=head["e_gain"],
                 readnoise=head["e_readn"],
@@ -753,15 +757,15 @@ class Reducer:
             return
 
         if "shear" in steps or steps == "all":
-            shear = self.run_shear(orders, column_range, thar)
+            tilt, shear = self.run_shear(orders, column_range, thar)
         else:
-            shear = self.load_shear()
+            tilt, shear = self.load_shear()
         if last_step == "shear":
             return
 
         if "science" in steps or steps == "all":
             heads, specs, sigmas = self.run_science(
-                bias, norm, orders, shear, column_range
+                bias, norm, orders, tilt, shear, column_range
             )
         else:
             heads, specs, sigmas = self.load_science()

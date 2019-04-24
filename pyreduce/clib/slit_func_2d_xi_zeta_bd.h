@@ -20,6 +20,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels */
                      int *mask,        /* Initial and final mask for the swath [nrows][ncols] */
                      double *ycen,     /* Order centre line offset from pixel row boundary [ncols] */
                      int *ycen_offset, /* Order image column shift [ncols] */
+                     double *tilt,     /* slit tilt [ncols], that I later convert to PSF_curve array */
                      double *shear,    /* slit tilt [ncols], that I later convert to PSF_curve array */
                      int y_lower_lim,  /* Number of detector pixels below the pixel containing */
                                        /* the central line yc */

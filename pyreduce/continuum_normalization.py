@@ -137,11 +137,13 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         plt.title("After")
         for i in range(nord):
             plt.plot(wave[i], spec[i] / cont[i], label="order=%i" % i)
+        plt.ylim((0, 2))
 
         plt.subplot(313)
         plt.title("Error")
         for i in range(nord):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
+        plt.ylim((0, 2))
         plt.show()
 
     return spec, wave, cont, sigm

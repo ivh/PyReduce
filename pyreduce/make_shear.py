@@ -1,5 +1,5 @@
 """
-Calculate the shear based on a reference spectrum with high SNR, e.g. Wavelength calibration image
+Calculate the tilt based on a reference spectrum with high SNR, e.g. Wavelength calibration image
 
 Authors
 -------
@@ -67,7 +67,7 @@ def make_shear(
         shear along the slit
     """
 
-    logging.info("Extract shear of the slit")
+    logging.info("Extract tilt of the slit")
 
     nord = orders.shape[0]
     _, ncol = original.shape
@@ -85,22 +85,23 @@ def make_shear(
         extraction_width, orders, column_range, ncol
     )
 
-    # Fit shear with parabola
+    # Fit tilt with parabola
     n = order_range[1] - order_range[0]
+    tilt_x = np.zeros((n, 3))
     shear_x = np.zeros((n, 3))
 
     if plot:
         fig, axes = plt.subplots(nrows=n // 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
         fig2, axes2 = plt.subplots(nrows=n // 2, ncols=2, squeeze=False)
-        fig2.suptitle("Shear")
+        fig2.suptitle("tilt")
         plt.subplots_adjust(hspace=0)
 
     for j, iord in enumerate(range(order_range[0], order_range[1])):
         if n < 10 or j % 5 == 0:
-            logging.info("Calculating shear of order %i out of %i", j + 1, n)
+            logging.info("Calculating tilt of order %i out of %i", j + 1, n)
         else:
-            logging.debug("Calculating shear of order %i out of %i", j + 1, n)
+            logging.debug("Calculating tilt of order %i out of %i", j + 1, n)
 
         cr = np.where(extracted[j] > 0)[0][[0, -1]]
         cr = np.clip(cr, column_range[iord, 0], column_range[iord, 1])
@@ -135,11 +136,13 @@ def make_shear(
         xx = np.arange(-9, 10)
         xcen = np.zeros(height)
         xind = np.arange(-xwd[0], xwd[1] + 1)
+        tilt = np.zeros(nmax)
         shear = np.zeros(nmax)
 
         deviation = np.zeros(xind.size)
+        # plt.show()
 
-        # Determine shear for each line seperately
+        # Determine tilt for each line seperately
         for iline in range(nmax):
             # Extract short horizontal strip for each row in extraction width
             # Then fit a gaussian to each row, to find the center of the line
@@ -158,49 +161,60 @@ def make_shear(
                     xcen[i] = coef[1]  # Store line center
                     deviation[i] = np.ma.std(s)  # Store the variation within the row
 
-                # _s = s - np.mean(s)
-                # _s /= np.max(_s)
-                # _v = gaussval(coef[1], 1, coef[1], coef[2])
-                # plt.plot(x, _s + irow)
-                # plt.plot(coef[1], _v + irow, "rx")
+            #     _s = s - np.mean(s)
+            #     _s /= np.max(_s)
+            #     _s *= 5
+            #     _v = 5
+            #     plt.plot(x, _s + irow)
+            #     plt.plot(coef[1], _v + irow, "rx")
+            #     plt.xlabel("Column")
+            #     plt.ylabel("Row")
+            # plt.show()
 
             # Seperate in order pixels from out of order pixels
             # TODO: actually we want to weight them by the slitfunction?
             idx = deviation > threshold_otsu(deviation)
 
             # Linear fit to slit image
-            coef = np.polyfit(xind[idx], xcen[idx], 1)
+            coef = np.polyfit(xind[idx], xcen[idx], 2)
 
             # plt.plot(xind, xcen, ".")
             # plt.plot(xind[idx], xcen[idx], "rx")
             # plt.plot(xind, line)
             # plt.show()
 
-            shear[iline] = coef[0]  # Store line shear
+            tilt[iline] = coef[1]
+            shear[iline] = coef[0]
 
         # Fit a 2nd order polynomial through all individual lines
         # And discard obvious outliers
         for _ in range(2):
-            func = lambda c: np.polyval(c, locmax) - shear
+            func = lambda c: np.polyval(c, locmax) - tilt
             res = least_squares(func, np.zeros(3), loss="soft_l1")
-            coef = res.x
+            coef_tilt = res.x
 
-            line = np.polyval(coef, locmax)
-            diff = np.abs(line - shear)
+            line = np.polyval(coef_tilt, locmax)
+            diff = np.abs(line - tilt)
             idx = diff < np.std(diff) * 5
             locmax = locmax[idx]
+            tilt = tilt[idx]
             shear = shear[idx]
             if np.all(idx):
                 break
 
+        func = lambda c: np.polyval(c, locmax) - shear
+        res = least_squares(func, np.zeros(3), loss="soft_l1")
+        coef_shear = res.x
+
         # Fit a line through all individual shears along the order
         # coef = np.polyfit(locmax, shear, 2)
-        shear_x[j] = coef
+        tilt_x[j] = coef_tilt
+        shear_x[j] = coef_shear
 
         if plot:
             x = np.arange(cr[0], cr[1])
-            axes2[j // 2, j % 2].plot(locmax, shear, "rx")
-            axes2[j // 2, j % 2].plot(x, np.polyval(coef, x))
+            axes2[j // 2, j % 2].plot(locmax, tilt, "rx")
+            axes2[j // 2, j % 2].plot(x, np.polyval(coef_tilt, x))
             axes2[j // 2, j % 2].set_xlim(0, ncol)
             if j not in (order_range[1] - 1, order_range[1] - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])
@@ -208,7 +222,9 @@ def make_shear(
     if plot:
         plt.show()
 
+    tilt = np.zeros((n, ncol))
     shear = np.zeros((n, ncol))
     for j in range(order_range[0], order_range[1]):
+        tilt[j] = np.polyval(tilt_x[j], np.arange(ncol))
         shear[j] = np.polyval(shear_x[j], np.arange(ncol))
-    return shear
+    return tilt, shear

@@ -524,6 +524,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                      int *mask,        /* Initial and final mask for the swath [nrows][ncols]                 */
                      double *ycen,     /* Order centre line offset from pixel row boundary  [ncols]    */
                      int *ycen_offset, /* Order image column shift     [ncols]                         */
+                     double *tilt,     /* slit tilt [ncols], that I later convert to PSF_curve array. */
                      double *shear,    /* slit tilt [ncols], that I later convert to PSF_curve array. */
                      int y_lower_lim,  /* Number of detector pixels below the pixel containing  */
                                        /* the central line yc.                                  */
@@ -575,11 +576,11 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
     for (i = 0; i < ncols; i++)
     {
-        delta_x = max(delta_x, (int)(fabs(shear[i] * (0.5 / osample + y_lower_lim + ycen[i])) + 1));
-        delta_x = max(delta_x, (int)(fabs(shear[i] * (0.5 / osample + y_upper_lim + (1. - ycen[i]))) + 1));
+        delta_x = max(delta_x, (int)(fabs(tilt[i] * (0.5 / osample + y_lower_lim + ycen[i])) + 1));
+        delta_x = max(delta_x, (int)(fabs(tilt[i] * (0.5 / osample + y_upper_lim + (1. - ycen[i]))) + 1));
         PSF_curve[i][0] = 0.;
-        PSF_curve[i][1] = -shear[i];
-        PSF_curve[i][2] = 0.;
+        PSF_curve[i][1] = -tilt[i];
+        PSF_curve[i][2] = -shear[i];
     }
 
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);

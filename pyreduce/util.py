@@ -17,7 +17,7 @@ import scipy.constants
 import scipy.interpolate
 from scipy.linalg import solve, solve_banded
 from scipy.ndimage.filters import median_filter
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
 
 try:
     import git
@@ -378,7 +378,7 @@ def gaussfit(x, y):
 def gaussfit2(x, y):
     """Fit a gaussian(normal) curve to data x, y
 
-    gauss = A * exp(-(x-mu)**2/(2*sig**2))
+    gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
     Parameters
     ----------
@@ -389,17 +389,31 @@ def gaussfit2(x, y):
 
     Returns
     -------
-    popt : array[3]
-        coefficients of the gaussian: A, mu, sigma**2
+    popt : array[4]
+        coefficients of the gaussian: A, mu, sigma**2, offset
     """
 
     gauss = gaussval2
+
+    # Find the peak in the center (middle half) of the image
+    i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
+    p0 = [y[i], x[i], 1]
     try:
-        popt, _ = curve_fit(gauss, x, y, p0=[np.max(y), np.mean(x), 1, np.min(y)])
+        res = least_squares(
+            lambda c: gauss(x, *c, np.min(y)) - y,
+            p0,
+            loss="soft_l1",
+            bounds=(
+                [min(np.mean(y), y[i]), np.min(x), 0],
+                [np.max(y) * 1.5, np.max(x), np.inf],
+            ),
+        )
+        popt = list(res.x) + [np.min(y)]
+        # popt, _ = curve_fit(gauss, x, y, p0=p0)
     except (RuntimeError, FloatingPointError):
         # Sometimes the data is really bad and no fit is found
         # then revert to a bad guess
-        popt = [np.max(y), np.mean(x), 1]
+        popt = p0 + [np.min(y)]
     return popt
 
 

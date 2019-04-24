@@ -200,7 +200,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
+def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -230,6 +230,10 @@ def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     img = np.asanyarray(img)
     ycen = np.asanyarray(ycen)
+    if np.isscalar(tilt) and np.issubdtype(np.asanyarray(tilt).dtype, np.number):
+        tilt = np.full(img.shape[1], tilt, dtype=c_double)
+    else:
+        tilt = np.asanyarray(tilt)
     if np.isscalar(shear) and np.issubdtype(np.asanyarray(shear).dtype, np.number):
         shear = np.full(img.shape[1], shear, dtype=c_double)
     else:
@@ -248,6 +252,11 @@ def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
         raise ValueError(
             "Image and Ycen shapes are incompatible, got %s and %s"
             % (img.shape, ycen.shape)
+        )
+    if img.shape[1] != tilt.size:
+        raise ValueError(
+            "Image and Tilt shapes are incompatible, got %s and %s"
+            % (img.shape, tilt.shape)
         )
     if img.shape[1] != shear.size:
         raise ValueError(
@@ -288,6 +297,7 @@ def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
     ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
 
+    tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     model = np.zeros((nrows, ncols), dtype=c_double)
@@ -301,6 +311,7 @@ def slitfunc_curved(img, ycen, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
         ffi.cast("int *", mask.ctypes.data),
         ffi.cast("double *", ycen.ctypes.data),
         ffi.cast("int *", ycen_offset.ctypes.data),
+        ffi.cast("double *", tilt.ctypes.data),
         ffi.cast("double *", shear.ctypes.data),
         ffi.cast("int", y_lower_lim),
         ffi.cast("int", osample),
