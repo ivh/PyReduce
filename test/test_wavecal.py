@@ -45,7 +45,15 @@ def test_wavecal(
     )
     reference = np.load(reference)
     cs_lines = reference["cs_lines"]
-    wave = wavecal(thar, cs_lines, plot=False, manual=False)
+    wave = wavecal(
+        thar,
+        cs_lines,
+        plot=False,
+        manual=False,
+        threshold=settings["wavecal.threshold"],
+        degree_x=settings["wavecal.degree.x"],
+        degree_y=settings["wavecal.degree.y"],
+    )
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2

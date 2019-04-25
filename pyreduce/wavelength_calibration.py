@@ -172,8 +172,12 @@ def align(thar, cs_lines, manual=False, plot=False):
 def fit_lines(thar, cs_lines):
     # For each line fit a gaussian to the observation
     for i, line in enumerate(cs_lines):
-        # if line.flag:  # flag = 1 -> False
-        #     continue
+        if line.posm < 0 or line.posm >= thar.shape[1]:
+            # Line outside pixel range
+            continue
+        if line.order < 0 or line.order >= len(thar):
+            # Line outside order range
+            continue
         low = int(line.posm - line.width * 10)
         low = max(low, 0)
         high = int(line.posm + line.width * 10)
@@ -328,6 +332,13 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
         if line.flag == 0:
             # Line is already in use
             continue
+        if line.posm < 0 or line.posm >= ncol:
+            # Line outside pixel range
+            continue
+        if line.order < 0 or line.order >= nord:
+            # Line outside order range
+            continue
+
         iord = line.order
 
         low = int(line.posm - line.width * 10)
@@ -403,7 +414,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=True):
     nbad = np.count_nonzero(ibad)
     cs_lines.flag[ibad] = 1  # 1 = False
 
-    logging.debug("Rejected {nbad} lines")
+    logging.debug(f"Rejected {nbad} lines")
 
     if plot:
         mask = ~cs_lines.flag.astype(bool)

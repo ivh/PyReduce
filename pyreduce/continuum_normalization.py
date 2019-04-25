@@ -12,7 +12,7 @@ import numpy as np
 
 from . import util
 
-np.seterr("raise")
+# np.seterr("raise")
 
 
 def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):

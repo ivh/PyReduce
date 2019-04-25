@@ -109,7 +109,7 @@ def orders(width, ycen):
 
 
 @pytest.fixture
-def sample_data(width, height, spec, slitf, oversample, noise, ycen, shear=0):
+def sample_data(width, height, spec, slitf, oversample, noise, ycen, tilt=0):
     img = spec[None, :] * slitf[:, None]
     img += noise * np.random.randn(*img.shape)
 
@@ -241,10 +241,11 @@ def test_vertical_extraction(sample_data, orders, width, height, noise, oversamp
 def test_curved_equal_vertical_extraction(sample_data, orders, noise):
     # Currently extract always uses the vertical extraction, making this kind of useless
     img, spec, slitf = sample_data
+    tilt = 0
     shear = 0
 
     spec_curved, sunc_curved, slitf_curved, _ = extract.extract(
-        img, orders, shear=shear
+        img, orders, tilt=tilt, shear=shear
     )
     spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
