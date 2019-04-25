@@ -553,6 +553,7 @@ class Reducer:
             degree_x=self.config["wavecal.degree.x"],
             degree_y=self.config["wavecal.degree.y"],
             threshold=self.config["wavecal.threshold"],
+            iterations=self.config["wavecal.iterations"],
         )
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)

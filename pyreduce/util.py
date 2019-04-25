@@ -395,17 +395,23 @@ def gaussfit2(x, y):
 
     gauss = gaussval2
 
+    x = np.ma.compressed(x)
+    y = np.ma.compressed(y)
+
+    if len(x) == 0 or len(y) == 0:
+        return [0, 0, 0, 0]
+
     # Find the peak in the center (middle half) of the image
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1]
     try:
         res = least_squares(
-            lambda c: gauss(x, *c, np.min(y)) - y,
+            lambda c: gauss(x, *c, np.ma.min(y)) - y,
             p0,
             loss="soft_l1",
             bounds=(
-                [min(np.mean(y), y[i]), np.min(x), 0],
-                [np.max(y) * 1.5, np.max(x), np.inf],
+                [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
+                [np.ma.max(y) * 1.5, np.ma.max(x), np.inf],
             ),
         )
         popt = list(res.x) + [np.min(y)]
@@ -1086,13 +1092,7 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
             # RHS
             b = weight * y
 
-            if not np.all(np.isfinite(aij)) or not np.all(np.isfinite(b)):
-                print("What the fuck")
-
-            try:
-                f = solve_banded((2, 2), aij, b)
-            except ValueError:
-                print("What the hell")
+            f = solve_banded((2, 2), aij, b)
         else:
             a = np.full(n, -abs(par))
             b = np.copy(weight) + abs(par)

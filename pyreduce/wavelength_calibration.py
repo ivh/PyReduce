@@ -103,6 +103,20 @@ class AlignmentPlot:
                 self.make_ref_image()
 
 
+def create_image_from_lines(cs_lines, ncol):
+    min_order = np.min(cs_lines.order)
+    max_order = np.max(cs_lines.order)
+    img = np.zeros((max_order + 1, ncol))
+    for line in cs_lines:
+        if line.order < 0:
+            continue
+        img[line.order, line.xfirst : line.xlast] = line.height * signal.gaussian(
+            line.xlast - line.xfirst, line.width
+        )
+    # img = np.ma.masked_array(img, mask=img == 0)
+    return img
+
+
 def align(thar, cs_lines, manual=False, plot=False):
     """Align the observation with the reference spectrum
     Either automatically using cross correlation or manually (visually)
@@ -123,6 +137,7 @@ def align(thar, cs_lines, manual=False, plot=False):
     offset: tuple(int, int)
         offset in order and column
     """
+    nord, ncol = thar.shape
 
     # Align using window like in IDL REDUCE
     if manual:
@@ -131,41 +146,62 @@ def align(thar, cs_lines, manual=False, plot=False):
         ap.connect()
         plt.show()
         offset = ap.offset
+
+        cs_lines.xfirst += offset[1]
+        cs_lines.xlast += offset[1]
+        cs_lines.posm += offset[1]
+        cs_lines.order += offset[0]
     else:
         # make image from cs_lines
-        min_order = np.min(cs_lines.order)
-        max_order = np.max(cs_lines.order)
-        img = np.zeros((max_order - min_order + 1, thar.shape[1]))
-        for line in cs_lines:
-            img[line.order, line.xfirst : line.xlast] = line.height * signal.gaussian(
-                line.xlast - line.xfirst, line.width
-            )
-        img = np.ma.masked_array(img, mask=img == 0)
+        img = create_image_from_lines(cs_lines, ncol)
 
         # Cross correlate with thar image
         correlation = signal.correlate2d(thar, img, mode="same")
-        # if plot:
-        #     plt.imshow(correlation, aspect="auto")
-        #     plt.title("CrossCorellation of Wavecal Image and Reference Spectrum")
-        #     plt.show()
-
         offset_order, offset_x = np.unravel_index(
             np.argmax(correlation), correlation.shape
         )
 
-        # TODO: what?
-        offset_order = thar.shape[0] / 2 - offset_order
-        offset_x = offset_x - thar.shape[1] / 2
+        # TODO: align individual orders ?!
+        offset_order = nord / 2 - offset_order
+        offset_x = offset_x - ncol / 2
         offset = [int(offset_order), int(offset_x)]
+
+        cs_lines.xfirst += offset[1]
+        cs_lines.xlast += offset[1]
+        cs_lines.posm += offset[1]
+        cs_lines.order += offset[0]
+
+        img = create_image_from_lines(cs_lines, ncol)
+
+        for i in range(offset[0], min(len(thar), len(img))):
+            correlation = signal.correlate(thar[i], img[i], mode="same")
+            width = ncol // 200  # 1 % total width ?
+            low = ncol // 2 - width
+            high = ncol // 2 + width
+
+            if not all(correlation == 0):
+                offset_x = np.argmax(correlation[low:high]) + low
+                offset_x = int(offset_x - ncol / 2)
+                cs_lines[cs_lines.order == i].posm += offset_x
+                cs_lines[cs_lines.order == i].xfirst += offset_x
+                cs_lines[cs_lines.order == i].xlast += offset_x
 
         if plot:
             _, ax = plt.subplots()
-            ap = AlignmentPlot(ax, thar, cs_lines, offset=offset)
+            ap = AlignmentPlot(ax, thar, cs_lines, offset=[0, 0])
             ap.connect()
             plt.show()
             offset = ap.offset
 
+            cs_lines.xfirst += offset[1]
+            cs_lines.xlast += offset[1]
+            cs_lines.posm += offset[1]
+            cs_lines.order += offset[0]
+
     logging.debug(f"Offset order: {offset_order}, Offset pixel: {offset_x}")
+    # Step 1.5: Apply offset
+    # be careful not to apply offset twice
+
     return offset
 
 
@@ -193,12 +229,15 @@ def fit_lines(thar, cs_lines):
 
 
 def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
-    """make a 2d polynomial fit to flagged lines
+    """
+    Create a 2D polynomial fit to flagged lines
 
     Parameters
     ----------
     cs_lines : struc_array
         line data
+    degree : tuple(int, int), optional
+        polynomial degree of the fit in (column, order) dimension (default: (6, 6))
     plot : bool, optional
         wether to plot the solution (default: False)
 
@@ -220,31 +259,16 @@ def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
         m_pix, m_ord, m_wave, degree=(degree_x, degree_y), plot=False
     )
 
-    # order = 1
-    # lines = cs_lines[mask][cs_lines[mask].order == order]
-    # x = lines.posm
-    # y = np.full(len(x), order)
-    # s = np.polynomial.polynomial.polyval2d(x, y, coef)
-    # w = lines.wll
-
-    # # (cs_lines.wll-cs_lines.wlc)/cs_lines.wll*2.9979246d8
-    # r = (w - s) / w * speed_of_light
-    # plt.plot(x, r, "x")
-    # plt.show()
-
     if plot:
         orders = np.unique(cs_lines.order)
         norders = len(orders)
         for i, order in enumerate(orders):
             plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
             lines = cs_lines[mask][cs_lines[mask].order == order]
-            x = np.arange(4096)
-            y = np.full(4096, order)
-            solution = np.polynomial.polynomial.polyval2d(x, y, coef)
+            residual = calculate_residual(coef, lines)
 
-            plt.plot(lines.posm, lines.wll, "rx", label="lines")
-            plt.plot(x, solution, label="fit")
-            plt.legend()
+            plt.plot(lines.posm, residual, "rx")
+            plt.hlines([0], lines.posm.min(), lines.posm.max())
         plt.show()
 
     return coef
@@ -348,14 +372,15 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
 
         vec = thar[iord, low:high]
         peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec))
-        pos_wave = wave_img[iord, low:high][peak_idx]
+        if len(peak_idx) > 0:
+            pos_wave = wave_img[iord, low:high][peak_idx]
 
-        diff = np.min(np.abs(line.wll - pos_wave)) / line.wll * speed_of_light
-        if diff < threshold:
-            counter += 1
-            cs_lines[i].flag = 0
+            diff = np.min(np.abs(line.wll - pos_wave)) / line.wll * speed_of_light
+            if diff < threshold:
+                counter += 1
+                cs_lines.flag[i] = 0
 
-    logging.debug(f"AutoID identified {counter} new lines")
+    logging.info(f"AutoID identified {counter} new lines")
 
     # # Option 2:
     # # Step 1: find peaks in thar
@@ -378,7 +403,17 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
     return cs_lines
 
 
-def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=True):
+def calculate_residual(wave_solution, cs_lines):
+    x = cs_lines.posm
+    y = cs_lines.order
+    solution = polyval2d(x, y, wave_solution)
+    # Residual in m/s
+    # (cs_lines.wll-cs_lines.wlc)/cs_lines.wll*2.9979246d8
+    residual = (solution - cs_lines.wll) / cs_lines.wll * speed_of_light
+    return residual
+
+
+def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=False):
     """
     Reject lines that are too far from the peaks
 
@@ -402,21 +437,18 @@ def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=True):
     """
 
     # Calculate residuals
-    nord, _ = thar.shape
-    x = cs_lines.posm
-    y = cs_lines.order
-    solution = polyval2d(x, y, wave_solution)
-    # Residual in m/s
-    # (cs_lines.wll-cs_lines.wlc)/cs_lines.wll*2.9979246d8
-    residual = (solution - cs_lines.wll) / cs_lines.wll * speed_of_light
+    mask = cs_lines.flag.astype(bool)
 
-    ibad = np.abs(residual) > clip
-    nbad = np.count_nonzero(ibad)
+    residual = calculate_residual(wave_solution, cs_lines)
+    residual = np.ma.masked_array(residual, mask=mask)
+
+    # Strongest outlier
+    ibad = np.ma.argmax(np.abs(residual))
     cs_lines.flag[ibad] = 1  # 1 = False
-
-    logging.debug(f"Rejected {nbad} lines")
+    residual[ibad] = np.ma.masked
 
     if plot:
+        nord, _ = thar.shape
         mask = ~cs_lines.flag.astype(bool)
         _, axis = plt.subplots()
         axis.plot(cs_lines.order[mask], residual[mask], "+", label="Accepted Lines")
@@ -452,7 +484,7 @@ def reject_lines(thar, wave_solution, cs_lines, clip=1000, plot=True):
 
         plt.show()
 
-    return cs_lines
+    return cs_lines, residual
 
 
 def wavecal(
@@ -465,6 +497,7 @@ def wavecal(
     threshold=1000,
     degree_x=6,
     degree_y=6,
+    iterations=3,
 ):
     """Wavelength calibration wrapper
 
@@ -485,12 +518,19 @@ def wavecal(
         wavelength solution for each point in the spectrum
     """
 
-    # normalize images
-    thar = np.ma.masked_array(thar, mask=thar == 0)
-    thar -= np.min(thar)
-    thar /= np.max(thar)
+    thar = np.copy(thar)
+    # normalize each order
+    for i in range(len(thar)):
+        thar[i] -= np.ma.min(thar[i][thar[i] != 0])
+        thar[i] /= np.ma.max(thar[i])
+    thar[thar <= 0] = 0
 
-    cs_lines.height /= np.max(cs_lines.height)
+    # Normalize lines in each order
+    topheight = {}
+    for order in np.unique(cs_lines.order):
+        topheight[order] = np.max(cs_lines[cs_lines.order == order].height)
+    for i, line in enumerate(cs_lines):
+        cs_lines[i].height /= topheight[line.order]
 
     # TODO: reverse orders?
     # max_order = np.max(cs_lines.order)
@@ -500,35 +540,27 @@ def wavecal(
         raise NotImplementedError("polarized orders not implemented yet")
 
     # Step 1: align thar and reference
-    offset = align(thar, cs_lines, plot=plot, manual=manual)
-    # Step 1.5: Apply offset
-    # be careful not to apply offset twice
-    cs_lines.xfirst += offset[1]
-    cs_lines.xlast += offset[1]
-    cs_lines.posm += offset[1]
-    cs_lines.order += offset[0]
+    align(thar, cs_lines, plot=plot, manual=manual)
 
     cs_lines = fit_lines(thar, cs_lines)
 
-    for j in range(3):
-        for i in range(5):
-            wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
-            cs_lines = reject_lines(
-                thar,
-                wave_solution,
-                cs_lines,
-                clip=threshold,
-                plot=i == 4 and j == 2 and plot,
-            )
-
+    for i in range(iterations):
+        logging.info(f"Wavelength calibration iteration {i}")
         wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
         wave_img = make_wave(thar, wave_solution)
-
         cs_lines = auto_id(thar, wave_img, cs_lines, threshold=threshold)
+        residual = threshold + 1
+
+        nbad = 0
+        while np.ma.any(np.abs(residual) > threshold):
+            wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
+            cs_lines, residual = reject_lines(thar, wave_solution, cs_lines)
+            nbad += 1
+        logging.info(f"Discarding {nbad} lines")
 
     logging.info(
         "Number of lines used for wavelength calibration: %i",
-        len(cs_lines[~cs_lines.flag.astype(bool)]),
+        len(cs_lines) - np.sum(cs_lines.flag),
     )
 
     # Step 6: build final 2d solution
