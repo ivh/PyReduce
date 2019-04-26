@@ -445,8 +445,7 @@ def extract_spectrum(
         swath_img = np.clip(swath_img, 0, None)
         swath_img = np.ma.filled(swath_img, 0)
 
-        # offset from the central line
-        y_offset = ycen[ibeg:iend] - ycen_int[ibeg:iend]
+        swath_ycen = ycen[ibeg:iend]
 
         # TODO why does vertical extraction give nan results sometimes?
         if tilt is None:
@@ -455,7 +454,7 @@ def extract_spectrum(
                 ihalf
             ], mask = slitfunc(
                 swath_img,
-                y_offset,
+                swath_ycen,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
@@ -471,7 +470,7 @@ def extract_spectrum(
                 ihalf
             ], mask = slitfunc_curved(
                 swath_img,
-                y_offset,
+                swath_ycen,
                 tilt_swath,                
                 shear_swath,
                 lambda_sp=lambda_sp,
@@ -485,7 +484,7 @@ def extract_spectrum(
                 ihalf
             ], mask = slitfunc_curved(
                 swath_img,
-                y_offset,
+                swath_ycen,
                 0, 0,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
@@ -494,9 +493,10 @@ def extract_spectrum(
 
         if normalize:
             # Save image and model for later
-            norm_img[ihalf] = np.where(
-                swath_model > threshold / gain, swath_img / swath_model, 1
-            )
+            # Use np.divide to avoid divisions by zero
+            where = swath_model > threshold / gain
+            norm_img[ihalf] = np.ones_like(swath_model)
+            np.divide(swath_img, swath_model, where=where, out=norm_img[ihalf])
             norm_model[ihalf] = swath_model
 
         if plot:
@@ -508,7 +508,7 @@ def extract_spectrum(
                     swath_spec[ihalf],
                     slitf[ihalf],
                     swath_model,
-                    y_offset,
+                    swath_ycen,
                     mask,
                     ord_num,
                     ibeg,

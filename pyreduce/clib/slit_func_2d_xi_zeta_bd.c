@@ -577,9 +577,9 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     for (i = 0; i < ncols; i++)
     {
         tmp = (0.5 / osample + y_lower_lim + ycen[i]);
-        delta_x = max(delta_x, (int)(fabs(shear[i] * tmp * tmp + tilt[i] * tmp) + 1));
+        delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
         tmp = (0.5 / osample + y_upper_lim + (1. - ycen[i]));
-        delta_x = max(delta_x, (int)(fabs(shear[i] * tmp * tmp + tilt[i] * tmp) + 1));
+        delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
         PSF_curve[i][0] = 0.;
         PSF_curve[i][1] = -tilt[i];
         PSF_curve[i][2] = -shear[i];

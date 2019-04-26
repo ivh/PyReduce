@@ -127,14 +127,14 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         spectrum, slitfunction, model, spectrum uncertainties
     """
 
-    # Get dimensions
+    # Convert input to expected datatypes
     lambda_sf = float(lambda_sf)
     lambda_sp = float(lambda_sp)
     osample = int(osample)
-
     img = np.asanyarray(img)
     ycen = np.asanyarray(ycen)
 
+    # Ensure the datatype and shape of all arrays before sending them to C code
     if not np.issubdtype(img.dtype, np.number):
         raise TypeError(
             "Input image must be a numeric type, but got %s" % str(img.dtype)
@@ -158,9 +158,12 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     if lambda_sp < 0:
         raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
 
+    # Get some derived values
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
+    ycen = ycen - ycen.astype(int)
 
+    # Prepare all arrays
     # Inital guess for slit function and spectrum
     sp = np.ma.sum(img, axis=0)
     sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
@@ -180,6 +183,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
 
+    # Call the C function
     slitfunclib.slit_func_vert(
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
@@ -224,12 +228,13 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
         spectrum, slitfunction, model, spectrum uncertainties
     """
 
+    # Convert datatypes to expected values
     lambda_sf = float(lambda_sf)
     lambda_sp = float(lambda_sp)
     osample = int(osample)
-
     img = np.asanyarray(img)
     ycen = np.asanyarray(ycen)
+
     if np.isscalar(tilt) and np.issubdtype(np.asanyarray(tilt).dtype, np.number):
         tilt = np.full(img.shape[1], tilt, dtype=c_double)
     else:
@@ -239,12 +244,15 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     else:
         shear = np.asanyarray(shear)
 
+    # Check type and dimensions of arrays before sending them to the C code
     if not np.issubdtype(img.dtype, np.number):
         raise TypeError(
             "Input image must be a numeric type, but got %s" % str(img.dtype)
         )
     if not np.issubdtype(ycen.dtype, np.number):
         raise TypeError("Ycen must be a numeric type, but got %s" % str(ycen.dtype))
+    if not np.issubdtype(tilt.dtype, np.number):
+        raise TypeError("Tilt must be a numeric type, but got %s" % str(tilt.dtype))
     if not np.issubdtype(shear.dtype, np.number):
         raise TypeError("Shear must be a numeric type, but got %s" % str(shear.dtype))
 
@@ -273,8 +281,12 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     if lambda_sp < 0:
         raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
 
+    # Retrieve some derived values
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
+
+    ycen_offset = ycen.astype(c_int)
+    ycen = ycen - ycen_offset
 
     y_lower_lim = nrows // 2 - np.min(ycen).astype(int)
     y_lower_lim = int(y_lower_lim)
@@ -286,6 +298,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     sp = np.ma.filled(sp, 0)
     sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
 
+    # Initialize arrays and ensure the correct datatype for C
     mask = ~np.ma.getmaskarray(img)
     mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
 
@@ -296,7 +309,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     pix_unc = np.require(pix_unc, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
-    ycen_offset = np.require(ycen, dtype=c_int, requirements=["C", "A", "W", "O"])
+
+    ycen_offset = np.require(
+        ycen_offset, dtype=c_int, requirements=["C", "A", "W", "O"]
+    )
 
     tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
@@ -304,6 +320,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
 
+    # Call the C function
     slitfunc_2dlib.slit_func_curved(
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
