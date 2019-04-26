@@ -122,13 +122,18 @@ def create_image_from_lines(cs_lines, ncol):
     img : array of shape (nord, ncol)
         New reference image
     """
+    min_order = np.min(cs_lines.order)
     max_order = np.max(cs_lines.order)
-    img = np.zeros((max_order + 1, ncol))
+    img = np.zeros((max_order - min_order + 1, ncol))
     for line in cs_lines:
         if line.order < 0:
             continue
-        img[line.order, line.xfirst : line.xlast] = line.height * signal.gaussian(
-            line.xlast - line.xfirst, line.width
+        if line.xlast < 0 or line.xfirst > ncol:
+            continue
+        first = max(line.xfirst, 0)
+        last = min(line.xlast, ncol)
+        img[line.order - min_order, first:last] = line.height * signal.gaussian(
+            last - first, line.width
         )
     return img
 
@@ -154,6 +159,7 @@ def align(thar, cs_lines, manual=False, plot=False):
         offset in order and column
     """
     nord, ncol = thar.shape
+    thar = np.ma.filled(thar, 0)
 
     # Align using window like in IDL REDUCE
     if manual:
@@ -255,9 +261,14 @@ def fit_lines(thar, cs_lines):
 
         section = thar[line.order, low:high]
         x = np.arange(low, high, 1)
+        x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
 
         coef = util.gaussfit2(x, section)
-        cs_lines[i].posm = coef[1]
+        if not any(coef):
+            # Gaussian fit failed, dont use line
+            cs_lines[i].flag = 1
+        else:
+            cs_lines[i].posm = coef[1]
 
     return cs_lines
 
@@ -405,6 +416,8 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
         high = min(high, len(thar[iord]))
 
         vec = thar[iord, low:high]
+        if np.all(np.ma.getmaskarray(vec)):
+            continue
         peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec))
         if len(peak_idx) > 0:
             pos_wave = wave_img[iord, low:high][peak_idx]
@@ -585,12 +598,12 @@ def wavecal(
     """
 
     nord, ncol = thar.shape
-    thar = np.copy(thar)
+    thar = np.ma.copy(thar)
     # normalize each order
     for i in range(len(thar)):
         thar[i] -= np.ma.min(thar[i][thar[i] != 0])
         thar[i] /= np.ma.max(thar[i])
-    thar[thar <= 0] = 0
+    thar[thar <= 0] = np.ma.masked
 
     # Normalize lines in each order
     topheight = {}

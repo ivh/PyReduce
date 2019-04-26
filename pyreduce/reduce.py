@@ -549,7 +549,6 @@ class Reducer:
             cs_lines,
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
-            base_order=base_order,
             degree_x=self.config["wavecal.degree.x"],
             degree_y=self.config["wavecal.degree.y"],
             threshold=self.config["wavecal.threshold"],

@@ -401,6 +401,9 @@ def gaussfit2(x, y):
     if len(x) == 0 or len(y) == 0:
         return [0, 0, 0, 0]
 
+    if len(x) != len(y):
+        print("What?")
+
     # Find the peak in the center (middle half) of the image
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1]
