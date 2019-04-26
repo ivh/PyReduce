@@ -397,6 +397,9 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
+    if shear is None:
+        shear = np.zeros(ncol)
+
     if out_spec is None:
         spec = np.zeros(ncol)
     else:
@@ -407,7 +410,7 @@ def extract_spectrum(
         sunc = out_sunc
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
-    slitf = np.zeros((2 * nbin, nslitf))
+    swath_slitf = np.zeros((2 * nbin, nslitf))
 
     swath_spec = [None for _ in range(2 * nbin - 1)]
     swath_unc = [None for _ in range(2 * nbin - 1)]
@@ -443,16 +446,15 @@ def extract_spectrum(
         # Do Slitfunction extraction
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
-        swath_img = np.ma.filled(swath_img, 0)
 
         swath_ycen = ycen[ibeg:iend]
 
         # TODO why does vertical extraction give nan results sometimes?
         if tilt is None:
             # No tilt given, use vertical extraction
-            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
                 ihalf
-            ], mask = slitfunc(
+            ], swath_mask = slitfunc(
                 swath_img,
                 swath_ycen,
                 lambda_sp=lambda_sp,
@@ -460,32 +462,30 @@ def extract_spectrum(
                 osample=osample,
             )
         else:
-            # shear is given, use curved extraction
-            tilt_swath = np.ma.filled(tilt[ibeg:iend], 0)
-            if shear is not None:
-                shear_swath = np.ma.filled(shear[ibeg:iend], 0)
-            else:
-                shear_swath = np.zeros(iend - ibeg)
-            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+            # tilt is given, use curved extraction
+            swath_tilt = tilt[ibeg:iend]
+            swath_shear = shear[ibeg:iend]
+            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
                 ihalf
-            ], mask = slitfunc_curved(
+            ], swath_mask = slitfunc_curved(
                 swath_img,
                 swath_ycen,
-                tilt_swath,                
-                shear_swath,
+                swath_tilt,
+                swath_shear,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
             )
 
         if not np.all(np.isfinite(swath_spec[ihalf])):
-            logging.warning("Curved extraction failed")
-            swath_spec[ihalf], slitf[ihalf], swath_model, swath_unc[
+            logging.warning("Curved extraction failed, using Tilt=Shear=0 instead")
+            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
                 ihalf
-            ], mask = slitfunc_curved(
+            ], swath_mask = slitfunc_curved(
                 swath_img,
                 swath_ycen,
-                0, 0,
+                0,
+                0,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
@@ -506,13 +506,13 @@ def extract_spectrum(
                 progress.plot(
                     swath_img,
                     swath_spec[ihalf],
-                    slitf[ihalf],
+                    swath_slitf[ihalf],
                     swath_model,
                     swath_ycen,
-                    mask,
+                    swath_mask,
                     ord_num,
                     ibeg,
-                    iend
+                    iend,
                 )
 
     # Weight for combining overlapping regions
@@ -546,7 +546,7 @@ def extract_spectrum(
     xrange[0] += tilt_margin_begin
     xrange[1] -= tilt_margin_end
     if out_mask is not None:
-        out_mask[:xrange[0]] = out_mask[xrange[1]:] = True
+        out_mask[: xrange[0]] = out_mask[xrange[1] :] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -564,7 +564,7 @@ def extract_spectrum(
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
-    slitf = np.mean(slitf, axis=0)
+    slitf = np.mean(swath_slitf, axis=0)
     if out_slitf is not None:
         out_slitf[:] = slitf
 
