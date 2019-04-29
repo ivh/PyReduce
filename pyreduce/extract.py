@@ -44,6 +44,8 @@ class ProgressPlot:
         self.ax4 = self.fig.add_subplot(234)
         self.ax4.set_title("Model")
 
+        # Just plot empty pictures, to create the plots
+        # Update the data later
         self.im_obs = self.ax1.imshow(
             np.zeros((nrow, ncol)), aspect="auto", origin="lower"
         )
@@ -64,6 +66,7 @@ class ProgressPlot:
         self.fig.canvas.flush_events()
 
     def fix_image(self, img):
+        """ Assures that the shape of img is equal to self.nrow, self.ncol """
         if img.shape[0] > self.nrow:
             img = img[: self.nrow]
         elif img.shape[0] < self.nrow:
@@ -78,6 +81,7 @@ class ProgressPlot:
         return img
 
     def fix_linear(self, data, limit):
+        """ Assures the size of the 1D array data is equal to limit """
         if len(data) > limit:
             data = data[:limit]
         elif len(data) < limit:
@@ -140,8 +144,9 @@ class ProgressPlot:
         plt.close()
 
     def get_spec(self, img, spec, slitf, ycen):
-        """ get the spectrum """
+        """ get the spectrum corrected by the slit function """
         x = np.indices(img.shape)[1].ravel()
+        ycen = ycen - ycen.astype(int)
 
         nsf = len(slitf)
         nrow, ncol = img.shape
@@ -550,7 +555,8 @@ def extract_spectrum(
         # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
         triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
         # Cut away the margins at the corners
-        triangle = triangle[margin[j, 0]:-margin[i, 1]]
+        
+        triangle = triangle[margin[j, 0]:len(triangle)-margin[i, 1]]
         # Set values
         weight[i][start_i: end_i] = 1 - triangle
         weight[j][start_j : end_j] = triangle
