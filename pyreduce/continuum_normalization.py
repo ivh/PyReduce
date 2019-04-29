@@ -63,11 +63,17 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         cont *= scale[:, None]
 
     if plot:
-        plt.subplot(311)
+        plt.subplot(411)
         plt.title("Before")
         for i in range(spec.shape[0]):
             plt.plot(wave[i], spec[i] / cont[i])
         plt.ylim([0, 2])
+
+        plt.subplot(412)
+        plt.title("Before Error")
+        for i in range(spec.shape[0]):
+            plt.plot(wave[i], sigm[i] / cont[i])
+        plt.ylim((0, np.ma.median(sigm[i] / cont[i]) * 2))
 
     # Order with largest signal, everything is scaled relative to this order
     iord0 = np.argmax(np.ma.median(spec / cont, axis=1))
@@ -135,13 +141,13 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             s1 *= scale
 
     if plot:
-        plt.subplot(312)
+        plt.subplot(413)
         plt.title("After")
         for i in range(nord):
             plt.plot(wave[i], spec[i] / cont[i], label="order=%i" % i)
         plt.ylim((0, 2))
 
-        plt.subplot(313)
+        plt.subplot(414)
         plt.title("Error")
         for i in range(nord):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
