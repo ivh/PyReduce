@@ -25,7 +25,7 @@ from .util import make_index
 
 
 class ProgressPlot:
-    def __init__(self, nrow, ncol, nbad=100):
+    def __init__(self, nrow, ncol, nbad=1000):
         self.nrow = nrow
         self.ncol = ncol
 
@@ -231,8 +231,8 @@ def make_bins(swath_width, xlow, xhigh, ycen, ncol):
         nbin = np.clip(int(np.round((xhigh - xlow) / swath_width)), 1, None)
 
     bins = np.linspace(xlow, xhigh, 2 * nbin + 1)  # boundaries of bins
-    bins_start = np.floor(bins[:-2]).astype(int)  # beginning of each bin
-    bins_end = np.ceil(bins[2:]).astype(int)  # end of each bin
+    bins_start = np.ceil(bins[:-2]).astype(int)  # beginning of each bin
+    bins_end = np.floor(bins[2:]).astype(int)  # end of each bin
 
     return nbin, bins_start, bins_end
 

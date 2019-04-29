@@ -402,31 +402,33 @@ def gaussfit2(x, y):
         return [0, 0, 0, 0]
 
     if len(x) != len(y):
-        print("What?")
+        raise ValueError("The masks of x and y are different")
 
     # Find the peak in the center (middle half) of the image
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1]
-    try:
-        res = least_squares(
-            lambda c: gauss(x, *c, np.ma.min(y)) - y,
-            p0,
-            loss="soft_l1",
-            bounds=(
-                [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
-                [np.ma.max(y) * 1.5, np.ma.max(x), np.inf],
-            ),
-        )
-        popt = list(res.x) + [np.min(y)]
-        # popt, _ = curve_fit(gauss, x, y, p0=p0)
-    except (RuntimeError, FloatingPointError):
-        # Sometimes the data is really bad and no fit is found
-        # then revert to a bad guess
-        popt = p0 + [np.min(y)]
-    except ValueError:
-        # Somehow the bounds mess up?
-        res = least_squares(lambda c: gauss(x, *c, np.min(y)) - y, p0, loss="soft_l1")
-        popt = list(res.x) + [np.min(y)]
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter("ignore")
+        try:
+            res = least_squares(
+                lambda c: gauss(x, *c, np.ma.min(y)) - y,
+                p0,
+                loss="soft_l1",
+                bounds=(
+                    [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
+                    [np.ma.max(y) * 1.5, np.ma.max(x), np.inf],
+                ),
+            )
+            popt = list(res.x) + [np.min(y)]
+            # popt, _ = curve_fit(gauss, x, y, p0=p0)
+        except (RuntimeError, FloatingPointError):
+            # Sometimes the data is really bad and no fit is found
+            # then revert to a bad guess
+            popt = p0 + [np.min(y)]
+        except ValueError:
+            # Somehow the bounds mess up?
+            res = least_squares(lambda c: gauss(x, *c, np.min(y)) - y, p0, loss="soft_l1")
+            popt = list(res.x) + [np.min(y)]
     return popt
 
 
@@ -450,12 +452,14 @@ def gaussfit3(x, y):
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1, np.min(y)]
 
-    try:
-        popt, _ = curve_fit(gauss, x, y, p0=p0)
-    except (RuntimeError, FloatingPointError):
-        # Sometimes the data is really bad and no fit is found
-        # then revert to a bad guess
-        popt = p0
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter("ignore")
+        try:
+            popt, _ = curve_fit(gauss, x, y, p0=p0)
+        except (RuntimeError, FloatingPointError):
+            # Sometimes the data is really bad and no fit is found
+            # then revert to a bad guess
+            popt = p0
 
     return popt
 

@@ -45,12 +45,16 @@ class AlignmentPlot:
         for iord in range(self.nord):
             ref_image[iord * 2, :, self.RED] = 10 * np.ma.filled(self.thar[iord], 0)
             if 0 <= iord + self.offset[0] < self.nord:
-                for line in self.cs_lines[self.cs_lines.order == iord]:
-                    first = np.clip(line.xfirst + self.offset[1], 0, self.ncol)
-                    last = np.clip(line.xlast + self.offset[1], 0, self.ncol)
+                for line in self.cs_lines[self.cs_lines["order"] == iord]:
+                    first = np.clip(line["xfirst"] + self.offset[1], 0, self.ncol)
+                    last = np.clip(line["xlast"] + self.offset[1], 0, self.ncol)
                     ref_image[
                         (iord + self.offset[0]) * 2 + 1, first:last, self.GREEN
-                    ] = (10 * line.height * signal.gaussian(last - first, line.width))
+                    ] = (
+                        10
+                        * line["height"]
+                        * signal.gaussian(last - first, line["width"])
+                    )
         ref_image = np.clip(ref_image, 0, 1)
         ref_image[ref_image < 0.1] = 0
 
@@ -122,18 +126,18 @@ def create_image_from_lines(cs_lines, ncol):
     img : array of shape (nord, ncol)
         New reference image
     """
-    min_order = np.min(cs_lines.order)
-    max_order = np.max(cs_lines.order)
+    min_order = np.min(cs_lines["order"])
+    max_order = np.max(cs_lines["order"])
     img = np.zeros((max_order - min_order + 1, ncol))
     for line in cs_lines:
-        if line.order < 0:
+        if line["order"] < 0:
             continue
-        if line.xlast < 0 or line.xfirst > ncol:
+        if line["xlast"] < 0 or line["xfirst"] > ncol:
             continue
-        first = max(line.xfirst, 0)
-        last = min(line.xlast, ncol)
-        img[line.order - min_order, first:last] = line.height * signal.gaussian(
-            last - first, line.width
+        first = max(line["xfirst"], 0)
+        last = min(line["xlast"], ncol)
+        img[line["order"] - min_order, first:last] = line["height"] * signal.gaussian(
+            last - first, line["width"]
         )
     return img
 
@@ -169,10 +173,10 @@ def align(thar, cs_lines, manual=False, plot=False):
         plt.show()
         offset = ap.offset
 
-        cs_lines.xfirst += offset[1]
-        cs_lines.xlast += offset[1]
-        cs_lines.posm += offset[1]
-        cs_lines.order += offset[0]
+        cs_lines["xfirst"] += offset[1]
+        cs_lines["xlast"] += offset[1]
+        cs_lines["posm"] += offset[1]
+        cs_lines["order"] += offset[0]
     else:
         # make image from cs_lines
         img = create_image_from_lines(cs_lines, ncol)
@@ -189,10 +193,10 @@ def align(thar, cs_lines, manual=False, plot=False):
         offset = [int(offset_order), int(offset_x)]
 
         # apply offset
-        cs_lines.xfirst += offset[1]
-        cs_lines.xlast += offset[1]
-        cs_lines.posm += offset[1]
-        cs_lines.order += offset[0]
+        cs_lines["xfirst"] += offset[1]
+        cs_lines["xlast"] += offset[1]
+        cs_lines["posm"] += offset[1]
+        cs_lines["order"] += offset[0]
 
         # Shift individual orders to fit reference
         # Only allow a small shift here (1%) ?
@@ -205,9 +209,9 @@ def align(thar, cs_lines, manual=False, plot=False):
             high = ncol // 2 + width
             offset_x = np.argmax(correlation[low:high]) + low
             offset_x = int(offset_x - ncol / 2)
-            cs_lines[cs_lines.order == i].posm += offset_x
-            cs_lines[cs_lines.order == i].xfirst += offset_x
-            cs_lines[cs_lines.order == i].xlast += offset_x
+            cs_lines[cs_lines["order"] == i]["posm"] += offset_x
+            cs_lines[cs_lines["order"] == i]["xfirst"] += offset_x
+            cs_lines[cs_lines["order"] == i]["xlast"] += offset_x
 
         if plot:
             # Even without manual=True, allow the user to shift the image here
@@ -218,10 +222,10 @@ def align(thar, cs_lines, manual=False, plot=False):
             plt.show()
             offset = ap.offset
 
-            cs_lines.xfirst += offset[1]
-            cs_lines.xlast += offset[1]
-            cs_lines.posm += offset[1]
-            cs_lines.order += offset[0]
+            cs_lines["xfirst"] += offset[1]
+            cs_lines["xlast"] += offset[1]
+            cs_lines["posm"] += offset[1]
+            cs_lines["order"] += offset[0]
 
     logging.debug(f"Offset order: {offset[0]}, Offset pixel: {offset[1]}")
 
@@ -248,27 +252,27 @@ def fit_lines(thar, cs_lines):
     """
     # For each line fit a gaussian to the observation
     for i, line in enumerate(cs_lines):
-        if line.posm < 0 or line.posm >= thar.shape[1]:
+        if line["posm"] < 0 or line["posm"] >= thar.shape[1]:
             # Line outside pixel range
             continue
-        if line.order < 0 or line.order >= len(thar):
+        if line["order"] < 0 or line["order"] >= len(thar):
             # Line outside order range
             continue
-        low = int(line.posm - line.width * 10)
+        low = int(line["posm"] - line["width"] * 10)
         low = max(low, 0)
-        high = int(line.posm + line.width * 10)
-        high = min(high, len(thar[line.order]))
+        high = int(line["posm"] + line["width"] * 10)
+        high = min(high, len(thar[line["order"]]))
 
-        section = thar[line.order, low:high]
+        section = thar[line["order"], low:high]
         x = np.arange(low, high, 1)
         x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
 
         coef = util.gaussfit2(x, section)
         if not any(coef):
             # Gaussian fit failed, dont use line
-            cs_lines[i].flag = 1
+            cs_lines[i]["flag"] = False
         else:
-            cs_lines[i].posm = coef[1]
+            cs_lines[i]["posm"] = coef[1]
 
     return cs_lines
 
@@ -295,25 +299,25 @@ def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
     degree_x, degree_y = degree
 
     # Only use flagged data
-    mask = ~cs_lines.flag.astype(bool)  # 0 = True, 1 = False
-    m_wave = cs_lines.wll[mask]
-    m_pix = cs_lines.posm[mask]
-    m_ord = cs_lines.order[mask]
+    mask = cs_lines["flag"]  # True: use line, False: dont use line
+    m_wave = cs_lines["wll"][mask]
+    m_pix = cs_lines["posm"][mask]
+    m_ord = cs_lines["order"][mask]
 
     coef = util.polyfit2d_2(
         m_pix, m_ord, m_wave, degree=(degree_x, degree_y), plot=False
     )
 
     if plot:
-        orders = np.unique(cs_lines.order)
+        orders = np.unique(cs_lines["order"])
         norders = len(orders)
         for i, order in enumerate(orders):
             plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
-            lines = cs_lines[mask][cs_lines[mask].order == order]
+            lines = cs_lines[mask][cs_lines[mask]["order"] == order]
             residual = calculate_residual(coef, lines)
 
-            plt.plot(lines.posm, residual, "rx")
-            plt.hlines([0], lines.posm.min(), lines.posm.max())
+            plt.plot(lines["posm"], residual, "rx")
+            plt.hlines([0], lines["posm"].min(), lines["posm"].max())
         plt.show()
 
     return coef
@@ -398,21 +402,21 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
     # Step 3: Toggle flag on if close
     counter = 0
     for i, line in enumerate(cs_lines):
-        if line.flag == 0:
+        if line["flag"]:
             # Line is already in use
             continue
-        if line.posm < 0 or line.posm >= ncol:
+        if line["posm"] < 0 or line["posm"] >= ncol:
             # Line outside pixel range
             continue
-        if line.order < 0 or line.order >= nord:
+        if line["order"] < 0 or line["order"] >= nord:
             # Line outside order range
             continue
 
-        iord = line.order
+        iord = line["order"]
 
-        low = int(line.posm - line.width * 10)
+        low = int(line["posm"] - line["width"] * 10)
         low = max(low, 0)
-        high = int(line.posm + line.width * 10)
+        high = int(line["posm"] + line["width"] * 10)
         high = min(high, len(thar[iord]))
 
         vec = thar[iord, low:high]
@@ -422,10 +426,10 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
         if len(peak_idx) > 0:
             pos_wave = wave_img[iord, low:high][peak_idx]
 
-            diff = np.min(np.abs(line.wll - pos_wave)) / line.wll * speed_of_light
+            diff = np.min(np.abs(line["wll"] - pos_wave)) / line["wll"] * speed_of_light
             if diff < threshold:
                 counter += 1
-                cs_lines.flag[i] = 0
+                cs_lines["flag"][i] = True
 
     logging.info(f"AutoID identified {counter} new lines")
 
@@ -433,7 +437,7 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
 
 
 def calculate_residual(wave_solution, cs_lines):
-    """ 
+    """
     Calculate all residuals of all given lines
 
     Residual = (Wavelength Solution - Expected Wavelength) / Expected Wavelength * speed of light
@@ -450,10 +454,10 @@ def calculate_residual(wave_solution, cs_lines):
     residual : array of shape (nlines,)
         Residual of each line in m/s
     """
-    x = cs_lines.posm
-    y = cs_lines.order
+    x = cs_lines["posm"]
+    y = cs_lines["order"]
     solution = polyval2d(x, y, wave_solution)
-    residual = (solution - cs_lines.wll) / cs_lines.wll * speed_of_light
+    residual = (solution - cs_lines["wll"]) / cs_lines["wll"] * speed_of_light
     return residual
 
 
@@ -477,12 +481,12 @@ def reject_outlier(residual, cs_lines):
     """
 
     # Calculate residuals
-    mask = cs_lines.flag.astype(bool)
+    mask = ~cs_lines["flag"]
     residual = np.ma.masked_array(residual, mask=mask)
 
     # Strongest outlier
     ibad = np.ma.argmax(np.abs(residual))
-    cs_lines.flag[ibad] = 1  # 1 = False
+    cs_lines["flag"][ibad] = False  # 1 = False
     residual[ibad] = np.ma.masked
 
     return cs_lines, residual
@@ -520,10 +524,12 @@ def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), plot=False):
     logging.info(f"Discarding {nbad} lines")
 
     if plot:
-        mask = ~cs_lines.flag.astype(bool)
+        mask = cs_lines["flag"]
         _, axis = plt.subplots()
-        axis.plot(cs_lines.order[mask], residual[mask], "+", label="Accepted Lines")
-        axis.plot(cs_lines.order[~mask], residual[~mask], "d", label="Rejected Lines")
+        axis.plot(cs_lines["order"][mask], residual[mask], "+", label="Accepted Lines")
+        axis.plot(
+            cs_lines["order"][~mask], residual[~mask], "d", label="Rejected Lines"
+        )
         axis.set_xlabel("Order")
         axis.set_ylabel("Residual [m/s]")
         axis.set_title("Residuals versus order")
@@ -534,16 +540,16 @@ def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), plot=False):
         fig.suptitle("Residuals of each order versus image columns")
 
         for iord in range(nord):
-            lines = cs_lines[cs_lines.order == iord]
-            solution = polyval2d(lines.posm, lines.order, wave_solution)
+            lines = cs_lines[cs_lines["order"] == iord]
+            solution = polyval2d(lines["posm"], lines["order"], wave_solution)
             # Residual in m/s
-            residual = (solution - lines.wll) / lines.wll * speed_of_light
-            mask = ~lines.flag.astype(bool)
+            residual = (solution - lines["wll"]) / lines["wll"] * speed_of_light
+            mask = lines["flag"]
             ax[iord // 2, iord % 2].plot(
-                lines.posm[mask], residual[mask], "+", label="Accepted Lines"
+                lines["posm"][mask], residual[mask], "+", label="Accepted Lines"
             )
             ax[iord // 2, iord % 2].plot(
-                lines.posm[~mask], residual[~mask], "d", label="Rejected Lines"
+                lines["posm"][~mask], residual[~mask], "d", label="Rejected Lines"
             )
             # ax[iord // 2, iord % 2].tick_params(labelleft=False)
             ax[iord // 2, iord % 2].set_ylim(-threshold * 1.5, +threshold * 1.5)
@@ -607,14 +613,14 @@ def wavecal(
 
     # Normalize lines in each order
     topheight = {}
-    for order in np.unique(cs_lines.order):
-        topheight[order] = np.max(cs_lines[cs_lines.order == order].height)
+    for order in np.unique(cs_lines["order"]):
+        topheight[order] = np.max(cs_lines[cs_lines["order"] == order]["height"])
     for i, line in enumerate(cs_lines):
-        cs_lines[i].height /= topheight[line.order]
+        cs_lines[i]["height"] /= topheight[line["order"]]
 
     # TODO: reverse orders?
-    # max_order = np.max(cs_lines.order)
-    # cs_lines.order = max_order - cs_lines.order
+    # max_order = np.max(cs_lines["order"]
+    # cs_lines["order"]= max_order - cs_lines["order"]
 
     if polarim:
         raise NotImplementedError("polarized orders not implemented yet")
@@ -639,7 +645,7 @@ def wavecal(
 
     logging.info(
         "Number of lines used for wavelength calibration: %i",
-        len(cs_lines) - np.sum(cs_lines.flag),
+        np.count_nonzero(cs_lines["flag"]),
     )
 
     # Step 6: build final 2d solution
@@ -680,7 +686,7 @@ if __name__ == "__main__":
         plt.plot(solution[i], thar[i], label="Order %i" % i)
 
     for line in cs_lines:
-        plt.axvline(x=line.wll, ymax=line.height)
+        plt.axvline(x=line["wll"], ymax=line["height"])
 
     plt.show()
 
