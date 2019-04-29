@@ -410,25 +410,25 @@ def extract_spectrum(
         sunc = out_sunc
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
-    swath_slitf = np.zeros((2 * nbin, nslitf))
+    nswath = 2 * nbin - 1
+    swath_slitf = np.zeros((nswath, nslitf))
+    margin = np.zeros((nswath, 2), int)
 
-    swath_spec = [None for _ in range(2 * nbin - 1)]
-    swath_unc = [None for _ in range(2 * nbin - 1)]
+    swath_spec = [None] * nswath
+    swath_unc = [None] * nswath
     if normalize:
-        norm_img = [None for _ in range(2 * nbin - 1)]
-        norm_model = [None for _ in range(2 * nbin - 1)]
+        norm_img = [None] * nswath
+        norm_model = [None] * nswath
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
     for ihalf, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-        width = iend - ibeg  # number of columns in swath
         logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
 
         # Cut out swath from image
         index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
         swath_img = img[index]
-
-        # swath_img = cutout_image(img, ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
+        swath_ycen = ycen[ibeg:iend]
 
         # Corrections
         if telluric is not None:
@@ -437,19 +437,18 @@ def extract_spectrum(
             telluric_correction = 0
 
         if scatter is not None:
+            swath_scatter = scatter[:, ibeg:iend]
+            swath_ycen_int = ycen_int[ibeg:iend] - ylow
             scatter_correction = calc_scatter_correction(
-                scatter[:, ibeg:iend], ycen_int[ibeg:iend] - ylow, height
+                swath_scatter, swath_ycen_int, height
             )
         else:
             scatter_correction = 0
 
-        # Do Slitfunction extraction
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
 
-        swath_ycen = ycen[ibeg:iend]
-
-        # TODO why does vertical extraction give nan results sometimes?
+        # Do Slitfunction extraction
         if tilt is None:
             # No tilt given, use vertical extraction
             swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
@@ -478,6 +477,7 @@ def extract_spectrum(
             )
 
         if not np.all(np.isfinite(swath_spec[ihalf])):
+            # TODO: Why does this happen?
             logging.warning("Curved extraction failed, using Tilt=Shear=0 instead")
             swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
                 ihalf
@@ -515,36 +515,58 @@ def extract_spectrum(
                     iend,
                 )
 
-    # Weight for combining overlapping regions
-    weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nbin * 2 - 1)]
-    for i, j in zip(range(0, nbin * 2 - 2), range(1, nbin * 2 - 1)):
-        width = bins_end[i] - bins_start[i]
-
-        overlap_start = bins_start[j] - bins_start[i]
-        overlap = width - overlap_start
-
-        weight[i][overlap_start:] = np.linspace(1, 0, overlap)
-        weight[j][:overlap] = np.linspace(0, 1, overlap)
-
-    # Remove points at the border of the image, if order has tilt
+    # Remove points at the border of the each swath, if order has tilt
     # as those pixels have bad information
     if tilt is not None:
-        if np.isscalar(tilt):
-            tilt = [tilt, tilt]
-        else:
-            tilt = np.ma.compressed(tilt)[[0, -1]]
-        y = -yhigh if tilt[0] < 0 else ylow
-        tilt_margin_begin = int(np.ceil(tilt[0] * y))
-        weight[0][:tilt_margin_begin] = 0
-        y = -ylow if tilt[-1] < 0 else yhigh
-        tilt_margin_end = int(np.ceil(tilt[-1] * y))
-        if tilt_margin_end != 0:
-            weight[-1][-tilt_margin_end:] = 0
-    else:
-        tilt_margin_begin = tilt_margin_end = 0
+        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+            swath_tilt = tilt[ibeg:iend]
+            swath_shear = shear[ibeg:iend]
+            tilt_first, tilt_last = swath_tilt[[0, -1]]
+            shear_first, shear_last = swath_shear[[0, -1]]
 
-    xrange[0] += tilt_margin_begin
-    xrange[1] -= tilt_margin_end
+            y = -yhigh if tilt_first < 0 else ylow
+            excess = np.polyval([shear_first, tilt_first, 0], y)
+            margin[i, 0] = int(np.ceil(excess))
+
+            y = -ylow if tilt_last < 0 else yhigh
+            excess = np.polyval([shear_last, tilt_last, 0], y)
+            margin[i, 1] = int(np.ceil(excess))
+
+    # Weight for combining swaths
+    weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
+    weight[0][:margin[0, 0]] = 0
+    weight[-1][len(weight[-1]) - margin[-1, 1]:] = 0
+    for i, j in zip(range(0, nswath - 1), range(1, nswath)):
+        width = bins_end[i] - bins_start[i]
+        overlap = bins_end[i] - bins_start[j]
+
+        # Start and end indices for the two swaths
+        start_i = width - overlap + margin[j, 0]
+        end_i = width - margin[i, 1]
+
+        start_j = margin[j, 0]
+        end_j = overlap - margin[i, 1]
+
+        # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
+        triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
+        # Cut away the margins at the corners
+        triangle = triangle[margin[j, 0]:-margin[i, 1]]
+        # Set values
+        weight[i][start_i: end_i] = 1 - triangle
+        weight[j][start_j : end_j] = triangle
+
+        # Don't use the pixels at the egdes (due to curvature)
+        weight[i][end_i:] = 0
+        weight[j][:start_j] = 0
+
+    # control = np.zeros(ncol)
+    # for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+    #     control[ibeg:iend] += weight[i]
+    # assert np.all(control[bins_start[0] + margin[0, 0] : bins_end[-1] - margin[-1, 1]] == 1)
+
+    # Update column range
+    xrange[0] += margin[0, 0]
+    xrange[1] -= margin[-1, 1]
     if out_mask is not None:
         out_mask[: xrange[0]] = out_mask[xrange[1] :] = True
 
@@ -552,11 +574,6 @@ def extract_spectrum(
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
         spec[ibeg:iend] += swath_spec[i] * weight[i]
         sunc[ibeg:iend] += swath_unc[i] * weight[i]
-
-    # control = np.zeros(ncol)
-    # for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-    # control[ibeg:iend] += weight[i]
-    # assert np.all(control[bins_start[0]+shear_margin_begin:bins_end[-1]-shear_margin_end] == 1)
 
     if normalize:
         for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -882,8 +899,6 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
             )
         else:
             column_range[i] = regions[iregion]
-
-        column_range[i, 1] += 1
 
     column_range[0] = column_range[1]
     column_range[-1] = column_range[-2]
