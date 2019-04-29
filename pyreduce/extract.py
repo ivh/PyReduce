@@ -25,9 +25,11 @@ from .util import make_index
 
 
 class ProgressPlot:
-    def __init__(self, nrow, ncol):
+    def __init__(self, nrow, ncol, nbad=100):
         self.nrow = nrow
         self.ncol = ncol
+
+        self.nbad = nbad
 
         plt.ion()
         self.fig = plt.figure(figsize=(12, 4))
@@ -57,10 +59,12 @@ class ProgressPlot:
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         self.line_spec, = self.ax2.plot(np.zeros(ncol), "-k")
+        self.mask_spec, = self.ax2.plot(np.zeros(self.nbad), "+g")
         self.dots_slit, = self.ax3.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         self.line_slit, = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
+        self.mask_slit, = self.ax3.plot(np.zeros(self.nbad), "+g")
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -80,12 +84,12 @@ class ProgressPlot:
             img = np.concatenate((img, padding), axis=1)
         return img
 
-    def fix_linear(self, data, limit):
+    def fix_linear(self, data, limit, fill=0):
         """ Assures the size of the 1D array data is equal to limit """
         if len(data) > limit:
             data = data[:limit]
         elif len(data) < limit:
-            padding = np.zeros(limit - len(data))
+            padding = np.full(limit - len(data), fill, dtype=data.dtype)
             data = np.concatenate((data, padding))
         return data
 
@@ -105,6 +109,11 @@ class ProgressPlot:
         sf = np.interp(new, old, slitf)
 
         # Fix Sizes
+        mask_spec_x = self.fix_linear(x_spec[mask.ravel()], self.nbad, fill=np.nan)
+        mask_spec = self.fix_linear(y_spec[mask.ravel()], self.nbad, fill=np.nan)
+        mask_slit_x = self.fix_linear(x_slit[mask.ravel()], self.nbad, fill=np.nan)
+        mask_slit = self.fix_linear(y_slit[mask.ravel()], self.nbad, fill=np.nan)
+
         img = self.fix_image(img)
         model = self.fix_image(model)
         ycen = self.fix_linear(ycen, self.ncol)
@@ -122,9 +131,16 @@ class ProgressPlot:
         self.dots_spec.set_xdata(x_spec)
         self.dots_spec.set_ydata(y_spec)
         self.line_spec.set_ydata(spec)
+
+        self.mask_spec.set_xdata(mask_spec_x)
+        self.mask_spec.set_ydata(mask_spec)
+
         self.dots_slit.set_xdata(x_slit)
         self.dots_slit.set_ydata(y_slit)
         self.line_slit.set_ydata(sf)
+
+        self.mask_slit.set_xdata(mask_slit_x)
+        self.mask_slit.set_ydata(mask_slit)
 
         self.im_obs.set_norm(
             mcolors.Normalize(vmin=np.nanmin(img), vmax=np.nanmax(img))
