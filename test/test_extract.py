@@ -158,6 +158,7 @@ def test_extend_orders():
 
 
 def test_fix_column_range():
+    # Some orders will be shortened
     img = np.zeros((50, 1000))
     orders = np.array([[0.2, 3], [0.2, 5], [0.2, 7], [0.2, 9]])
     ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
@@ -170,6 +171,7 @@ def test_fix_column_range():
     assert np.array_equal(fixed[0], fixed[1])
     assert np.array_equal(fixed[-1], fixed[-1])
 
+    # Nothing should change here
     orders = np.array([[20], [20], [20]])
     ew = np.array([[10, 10], [10, 10], [10, 10]])
     cr = np.array([[0, 1000], [0, 1000], [0, 1000]])

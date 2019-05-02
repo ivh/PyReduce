@@ -909,7 +909,7 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
             *points_in_image[(regions,)].ravel(),
             points_in_image[-1],
         ]
-        regions = [(regions[i], regions[i + 1]) for i in range(0, len(regions), 2)]
+        regions = [[regions[i], regions[i + 1] + 1] for i in range(0, len(regions), 2)]
         overlap = [
             min(reg[1], column_range[i, 1]) - max(reg[0], column_range[i, 0])
             for reg in regions
