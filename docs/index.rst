@@ -11,6 +11,7 @@ Welcome to PyReduce's documentation!
    :caption: Contents:
 
    modules
+   examples
 
 Indices and tables
 ==================
