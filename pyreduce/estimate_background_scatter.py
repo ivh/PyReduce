@@ -165,7 +165,7 @@ def estimate_background_scatter(
         plt.subplot(212)
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
-        plt.ylabel("order")
+        plt.ylabel("y [pixel]")
         plt.imshow(back, vmin=0, vmax=np.max(back))
         plt.show()
 
