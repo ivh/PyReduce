@@ -334,6 +334,12 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
     # in x: the rows between ymin and ymax
     # in y: the column, but n times to match the x index
+    ymin = np.asarray(ymin, dtype=int)
+    ymax = np.asarray(ymax, dtype=int)
+    xmin = int(xmin)
+    xmax = int(xmax)
+
+    
     if zero:
         zero = xmin
 
@@ -404,31 +410,27 @@ def gaussfit2(x, y):
     if len(x) != len(y):
         raise ValueError("The masks of x and y are different")
 
-    # Find the peak in the center (middle half) of the image
-    i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
+    # Find the peak in the center of the image
+    weights = np.ones(len(y), dtype=y.dtype)
+    midpoint = len(y) // 2
+    weights[:midpoint] = np.linspace(0, 1, midpoint, dtype=weights.dtype)
+    weights[midpoint:] = np.linspace(1, 0, len(y) - midpoint, dtype=weights.dtype)
+
+    i = np.argmax(y * weights)
     p0 = [y[i], x[i], 1]
     with np.warnings.catch_warnings():
         np.warnings.simplefilter("ignore")
-        try:
-            res = least_squares(
-                lambda c: gauss(x, *c, np.ma.min(y)) - y,
-                p0,
-                loss="soft_l1",
-                bounds=(
-                    [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
-                    [np.ma.max(y) * 1.5, np.ma.max(x), np.inf],
-                ),
-            )
-            popt = list(res.x) + [np.min(y)]
-            # popt, _ = curve_fit(gauss, x, y, p0=p0)
-        except (RuntimeError, FloatingPointError):
-            # Sometimes the data is really bad and no fit is found
-            # then revert to a bad guess
-            popt = p0 + [np.min(y)]
-        except ValueError:
-            # Somehow the bounds mess up?
-            res = least_squares(lambda c: gauss(x, *c, np.min(y)) - y, p0, loss="soft_l1")
-            popt = list(res.x) + [np.min(y)]
+        res = least_squares(
+            lambda c: gauss(x, *c, np.ma.min(y)) - y,
+            p0,
+            loss="soft_l1",
+            bounds=(
+                [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
+                [np.ma.max(y) * 1.5, np.ma.max(x), len(x) / 2],
+            ),
+        )
+        popt = list(res.x) + [np.min(y)]
+       
     return popt
 
 
@@ -590,7 +592,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
     return coeff
 
 
-def polyfit2d_2(x, y, z, degree=1, plot=False):
+def polyfit2d_2(x, y, z, degree=1, x0=None, plot=False):
 
     if np.isscalar(degree):
         degree_x = degree_y = degree + 1
@@ -601,12 +603,16 @@ def polyfit2d_2(x, y, z, degree=1, plot=False):
     polyval2d = np.polynomial.polynomial.polyval2d
 
     def func(c):
-        c = np.reshape(c, (degree_x, degree_y))
+        c = c.reshape(degree_x, degree_y)
         value = polyval2d(x, y, c)
         return value - z
 
-    x0 = np.random.random_sample(degree_x * degree_y) * 0.1
-    res = least_squares(func, x0, loss="linear", method="lm", xtol=1e-12)
+    if x0 is None:
+        x0 = np.random.random_sample(degree_x * degree_y) * 0.1
+    else:
+        x0 = x0.ravel()
+
+    res = least_squares(func, x0, loss="linear", method="lm")
     coef = res.x
     coef.shape = degree_x, degree_y
 

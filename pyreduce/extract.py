@@ -272,33 +272,26 @@ def calc_telluric_correction(telluric, img):
     return sc
 
 
-def calc_scatter_correction(scatter, ycen_low, height):
+def calc_scatter_correction(scatter, index):
     """ Calculate scatter correction
+    by interpolating between values?
 
     Parameters
     ----------
-    scatter : array[4, ncol]
-        background scattered light, (below, above, ybelow, yabove)
-    ycen_low : array[ncol]
-        y center of the order
-    height : int
-        height of the extraction window (?)
+    scatter : array of shape (degree_x, degree_y)
+        2D polynomial coefficients of the background scatter
+    index : tuple (array, array)
+        indices of the swath within the overall image
 
     Returns
     -------
-    scatter_correction : array[ncol]
+    scatter_correction : array of shape (swath_width, swath_height)
         correction for scattered light
     """
 
-    # scatter = (below, above, ybelow, yabove)
-    index_y = np.array([np.arange(k, height + k) for k in ycen_low])
-    dy_scatter = (index_y.T - scatter[2][None, :]) / (
-        scatter[3][None, :] - scatter[2][None, :]
-    )
-    scatter_correction = (
-        scatter[1][None, :] - scatter[0][None, :]
-    ) * dy_scatter + scatter[0][None, :]
-
+    # The indices in the image are switched
+    y, x = index
+    scatter_correction = np.polynomial.polynomial.polyval2d(x, y, scatter)
     return scatter_correction
 
 
@@ -379,8 +372,8 @@ def extract_spectrum(
         swath width suggestion, actual width depends also on ncol, see make_bins (default: None, which will determine the width based on the order tracing)
     telluric : {float, None}, optional
         telluric correction factor (default: None, i.e. no telluric correction)
-    scatter : {array[4, ncol], None}, optional
-        background scatter (below, above, ybelow, yabove) (default: None, no correction)
+    scatter : {array, None}, optional
+        background scatter as 2d polynomial coefficients (default: None, no correction)
     normalize : bool, optional
         wether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
     threshold : int, optional
@@ -452,16 +445,15 @@ def extract_spectrum(
         swath_ycen = ycen[ibeg:iend]
 
         # Corrections
+        # TODO: what is it even supposed to do?
         if telluric is not None:
             telluric_correction = calc_telluric_correction(telluric, swath_img)
         else:
             telluric_correction = 0
 
         if scatter is not None:
-            swath_scatter = scatter[:, ibeg:iend]
-            swath_ycen_int = ycen_int[ibeg:iend] - ylow
             scatter_correction = calc_scatter_correction(
-                swath_scatter, swath_ycen_int, height
+                scatter, index
             )
         else:
             scatter_correction = 0
@@ -571,7 +563,7 @@ def extract_spectrum(
         # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
         triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
         # Cut away the margins at the corners
-        
+
         triangle = triangle[margin[j, 0]:len(triangle)-margin[i, 1]]
         # Set values
         weight[i][start_i: end_i] = 1 - triangle
@@ -655,7 +647,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 
 
 def optimal_extraction(
-    img, orders, extraction_width, column_range, scatter, tilt, shear, **kwargs
+    img, orders, extraction_width, column_range, tilt, shear, **kwargs
 ):
     """ Use optimal extraction to get spectra
 
@@ -733,7 +725,6 @@ def optimal_extraction(
             ycen,
             yrange,
             column_range[i],
-            scatter=scatter[i],
             tilt=tilt[i],
             shear=shear[i],
             out_spec=spectrum[i],
@@ -1068,19 +1059,12 @@ def extract(
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
-    scatter = [None for _ in range(nord + 1)]
-    xscatter, yscatter = kwargs.get("xscatter"), kwargs.get("yscatter")
 
     # Limit orders (and related properties) to orders in range
     nord = order_range[1] - order_range[0]
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_width = extraction_width[order_range[0] : order_range[1]]
-    scatter = scatter[order_range[0] : order_range[1] + 1]
-    if xscatter is not None:
-        xscatter = xscatter[order_range[0] : order_range[1] + 1]
-    if yscatter is not None:
-        yscatter = yscatter[order_range[0] : order_range[1] + 1]
     if tilt is not None:
         tilt = tilt[order_range[0] : order_range[1]]
     if shear is not None:
@@ -1104,22 +1088,6 @@ def extract(
     extraction_width = extraction_width[1:-1]
     column_range = column_range[1:-1]
 
-    if xscatter is not None and yscatter is not None:
-        scatter = np.zeros((nord, 4, ncol))
-        for onum in range(nord):
-            if polarization:
-                # skip inter-polarization gaps
-                oo = ((onum) // 2) * 2 + 1
-                scatter[onum, 0] = xscatter[oo - 1]
-                scatter[onum, 1] = xscatter[oo + 1]
-                scatter[onum, 2] = yscatter[oo - 1]
-                scatter[onum, 3] = yscatter[oo + 1]
-            else:  # below, above, ybelow, yabove
-                scatter[onum, 0] = xscatter[onum]
-                scatter[onum, 1] = xscatter[onum + 1]
-                scatter[onum, 2] = yscatter[onum]
-                scatter[onum, 3] = yscatter[onum + 1]
-
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
@@ -1127,7 +1095,6 @@ def extract(
             orders,
             extraction_width,
             column_range,
-            scatter=scatter,
             tilt=tilt,
             shear=shear,
             **kwargs
@@ -1145,7 +1112,6 @@ def extract(
             orders,
             extraction_width,
             column_range,
-            scatter=scatter,
             tilt=tilt,
             shear=shear,
             normalize=True,
