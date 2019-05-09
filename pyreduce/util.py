@@ -15,7 +15,7 @@ from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
 import scipy.constants
 import scipy.interpolate
-from scipy.linalg import solve, solve_banded
+from scipy.linalg import solve, solve_banded, lstsq
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 
@@ -377,7 +377,7 @@ def gaussfit(x, y):
     """
 
     gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2) ** 2 / 2)
-    popt, _ = curve_fit(gauss, x, y, p0=[max(y), 1, 1])
+    popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 
 
@@ -405,7 +405,7 @@ def gaussfit2(x, y):
     y = np.ma.compressed(y)
 
     if len(x) == 0 or len(y) == 0:
-        return [0, 0, 0, 0]
+        raise ValueError("All values masked")
 
     if len(x) != len(y):
         raise ValueError("The masks of x and y are different")
@@ -430,7 +430,6 @@ def gaussfit2(x, y):
             ),
         )
         popt = list(res.x) + [np.min(y)]
-       
     return popt
 
 
@@ -456,12 +455,33 @@ def gaussfit3(x, y):
 
     with np.warnings.catch_warnings():
         np.warnings.simplefilter("ignore")
-        try:
-            popt, _ = curve_fit(gauss, x, y, p0=p0)
-        except (RuntimeError, FloatingPointError):
-            # Sometimes the data is really bad and no fit is found
-            # then revert to a bad guess
-            popt = p0
+        popt, _ = curve_fit(gauss, x, y, p0=p0)
+
+    return popt
+
+def gaussfit4(x, y):
+    """ A very simple (and relatively fast) gaussian fit
+    gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
+
+    Parameters
+    ----------
+    x : array of shape (n,)
+        x data
+    y : array of shape (n,)
+        y data
+
+    Returns
+    -------
+    popt : list of shape (4,)
+        Parameters A, mu, sigma**2, offset
+    """
+    gauss = gaussval2
+    i = np.argmax(y)
+    p0 = [y[i], x[i], 1, np.min(y)]
+
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter("ignore")
+        popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
 
@@ -550,23 +570,30 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
     # We only want the combinations with maximum order COMBINED power
     idx = np.array(idx)
-    idx = idx[idx[:, 0] + idx[:, 1] <= degree]
+    # idx = idx[idx[:, 0] + idx[:, 1] <= degree]
+
+    # Normalize x and y to avoid huge numbers
+    norm_x = np.max(x).astype(float)
+    norm_y = np.max(y).astype(float)
+    x = x / norm_x
+    y = y / norm_y
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
-    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
+    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx], dtype=float).T
     b = z.ravel()
 
-    # if np.ma.is_masked(z):
-    #     mask = z.mask
-    #     b = z.compressed()
-    #     A = A[~mask, :]
+    if np.ma.is_masked(z):
+        mask = z.mask
+        b = z.compressed()
+        A = A[~mask, :]
 
     # Do least squares fit
-    C, *_ = np.linalg.lstsq(A, b, rcond=-1)
+    C, *_ = lstsq(A, b)
+    # C, *_ = np.linalg.lstsq(A, b, rcond=-1)
 
     # Reorder coefficients into numpy compatible 2d array
     for k, (i, j) in enumerate(idx):
-        coeff[i, j] = C[k]
+        coeff[i, j] = C[k] / (norm_x**i * norm_y**j)
 
     if plot:
         # regular grid covering the domain of the data
@@ -575,6 +602,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         else:
             choice = slice(None, None, None)
         x, y, z = x[choice], y[choice], z[choice]
+        x, y = x * norm_x, y * norm_y
         X, Y = np.meshgrid(
             np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
         )
@@ -592,7 +620,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
     return coeff
 
 
-def polyfit2d_2(x, y, z, degree=1, x0=None, plot=False):
+def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
 
     if np.isscalar(degree):
         degree_x = degree_y = degree + 1
@@ -612,7 +640,7 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, plot=False):
     else:
         x0 = x0.ravel()
 
-    res = least_squares(func, x0, loss="linear", method="lm")
+    res = least_squares(func, x0, loss=loss, method=method)
     coef = res.x
     coef.shape = degree_x, degree_y
 

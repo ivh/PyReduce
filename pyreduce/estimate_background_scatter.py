@@ -122,8 +122,13 @@ def estimate_background_scatter(
 
         width = (
             int(np.mean(y_above - y_below))
-            - (extraction_width[i, 0] + extraction_width[j, 1])
+            - (extraction_width[i, 1] + extraction_width[j, 0])
         ) // 4
+
+        within_image = (y_order > 0) & (y_order < nrow)
+        width = min(
+            width, y_order[within_image].min(), ncol - y_order[within_image].max()
+        )
 
         within_image = (y_order > width) & (y_order < nrow - width)
         x_order = x_order[within_image]
@@ -132,13 +137,17 @@ def estimate_background_scatter(
 
         index = make_index(y_order - width, y_order + width, left, right, zero=True)
 
-        mask = ~img[index].mask
+        sub_img = img[index]
+        threshold = np.ma.median(sub_img) + 5 * np.ma.std(sub_img)
+        sub_img[sub_img > threshold] = np.ma.masked
+
+        mask = ~sub_img.mask
         x_inbetween[i] = index[1][mask].ravel()
         y_inbetween[i] = index[0][mask].ravel()
-        z_inbetween[i] = img[index][mask].ravel()
+        z_inbetween[i] = sub_img.compressed()
 
         # plt.title("Between %i and %i" % (i, j))
-        # plt.imshow(img[index], aspect="auto")
+        # plt.imshow(sub_img, aspect="auto")
         # plt.show()
 
     # Sanitize input into desired flat shape
@@ -158,7 +167,7 @@ def estimate_background_scatter(
         plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(img, vmin=0, vmax=np.max(back), aspect="equal")
+        plt.imshow(img - back, vmin=0, vmax=np.max(back), aspect="equal")
         for i in range(len(x_inbetween)):
             plt.plot(x_inbetween[i], y_inbetween[i])
 
@@ -166,7 +175,7 @@ def estimate_background_scatter(
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(back, vmin=0, vmax=np.max(back))
+        plt.imshow(back, vmin=0, vmax=np.max(back), aspect="equal")
         plt.show()
 
     return coeff
