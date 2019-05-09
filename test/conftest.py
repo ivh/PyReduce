@@ -154,7 +154,7 @@ def extension(info, mode):
 
 @pytest.fixture
 def order_range(dataset):
-    return (0, 2)
+    return (3, 5)
 
 
 @pytest.fixture

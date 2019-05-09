@@ -203,7 +203,7 @@ def align(thar, cs_lines, shift_window=0.01, manual=False, plot=False):
         # Only allow a small shift here (1%) ?
         img = create_image_from_lines(cs_lines, ncol)
 
-        for i in range(offset[0], min(len(thar), len(img))):
+        for i in range(max(offset[0], 0), min(len(thar), len(img))):
             correlation = signal.correlate(thar[i], img[i], mode="same")
             width = ncol // (2 * int(1 / shift_window))
             low = ncol // 2 - width
