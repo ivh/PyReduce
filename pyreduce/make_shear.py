@@ -36,6 +36,8 @@ def make_shear(
     extraction_width=0.5,
     column_range=None,
     order_range=None,
+    width=9,
+    threshold=10,
     plot=False,
 ):
     """ Calculate the shear/tilt of the slit along each order
@@ -58,6 +60,11 @@ def make_shear(
         extraction width per order, values below 1.5 are considered fractions (default: 0.5)
     column_range : array[nord, 2], optional
         columns that are part of the order (default: use all columns)
+    width : int, optional
+        The width around each individual line peak that is used; approx hwhm (default: 9)
+        The full area is 2 * width + 1  (one for the central column)
+    threshold: float, optional
+        how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
     plot : bool, optional
         wether to plot the results (default: False)
 
@@ -71,10 +78,6 @@ def make_shear(
 
     nord = orders.shape[0]
     nrow, ncol = original.shape
-    # how much SNR should a peak have to contribute (were Noise = median(img - min(img)))
-    threshold = 10
-    # The width around the line that is supposed to be extracted
-    width = 9
 
     if order_range is None:
         order_range = (0, nord)
@@ -117,9 +120,7 @@ def make_shear(
         else:
             logging.debug("Calculating tilt of order %i out of %i", j + 1, n)
 
-        cr = np.where(extracted[j] > 0)[0][[0, -1]]
-        cr = np.clip(cr, column_range[iord, 0], column_range[iord, 1])
-
+        cr = column_range[iord]
         xwd = extraction_width[iord]
         height = np.sum(xwd) + 1
         ycen = np.polyval(orders[iord], np.arange(ncol)).astype(int)
@@ -128,67 +129,63 @@ def make_shear(
         vec = extracted[j, cr[0] : cr[1]]
         vec -= np.ma.min(vec)
         vec = np.ma.filled(vec, 0)
-        locmax, _ = signal.find_peaks(
+        peaks, _ = signal.find_peaks(
             vec, height=np.ma.median(vec) * threshold, distance=10
         )
 
         # Remove peaks at the edge
-        locmax = locmax[(locmax >= width + 1) & (locmax < len(vec) - width - 1)]
+        peaks = peaks[(peaks >= width + 1) & (peaks < len(vec) - width - 1)]
+        # Remove the offset, due to vec being a subset of extracted
+        peaks += cr[0]
 
         if plot:
             axes[j // 2, j % 2].plot(vec)
-            axes[j // 2, j % 2].plot(np.arange(len(vec))[locmax], vec[locmax], "+")
+            axes[j // 2, j % 2].plot(
+                np.arange(len(vec))[peaks - cr[0]], vec[peaks - cr[0]], "+"
+            )
             axes[j // 2, j % 2].set_xlim([0, ncol])
             if j not in (order_range[1] - 1, order_range[1] - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])
 
-        # Remove the offset, due to vec being a subset of extracted
-        locmax += cr[0]
-
-        # look at +- 9 pixels around the line
-        nmax = len(locmax)
-        xx = np.arange(-width, width + 1)
+        # look at +- width pixels around the line
+        #:array of shape (2*width + 1,): indices of the pixels to the left and right of the line peak
+        index_x = np.arange(-width, width + 1)
+        #:array of shape (height,): stores the peak positions of the fits to each row
         xcen = np.zeros(height)
+        #:array of shape (height,): indices of the rows in the order, with 0 being the central row
         xind = np.arange(-xwd[0], xwd[1] + 1)
-        tilt = np.zeros(nmax)
-        shear = np.zeros(nmax)
+        #:array of shape (height,): Scatter of the values within the row, to seperate in order and out of order rows
+        deviation = np.zeros(height)
 
-        deviation = np.zeros(xind.size)
-        # plt.show()
+        npeaks = len(peaks)
+        #:array of shape (npeaks,): 1st order curvature for each peak
+        tilt = np.zeros(npeaks)
+        #:array of shape (npeaks,): 2nd order curvature for each peak
+        shear = np.zeros(npeaks)
 
         # Determine tilt for each line seperately
-        for iline in range(nmax):
+        for ipeak, peak in enumerate(peaks):
             # Extract short horizontal strip for each row in extraction width
             # Then fit a gaussian to each row, to find the center of the line
-            x = locmax[iline] + xx
+            x = peak + index_x
             x = x[(x >= 0) & (x < ncol)]
             for i, irow in enumerate(xind):
-                if np.any((ycen + irow)[x[0] : x[-1] + 1] >= original.shape[0]):
-                    # This should never happen after we fixed the extraction width
-                    xcen[i] = np.mean(x)
-                    deviation[i] = 0
-                    continue
+                # Trying to access values outside the image
+                assert not np.any((ycen + irow)[x[0] : x[-1] + 1] >= original.shape[0])
+
+                # Just cutout this one row
                 idx = make_index(ycen + irow, ycen + irow, x[0], x[-1] + 1)
                 s = original[idx][0]
 
                 if np.all(np.ma.getmask(s)):
                     # If this row is masked, this will happen
+                    # It will be ignored by the thresholding anyway
                     xcen[i] = np.mean(x)
                     deviation[i] = 0
                 else:
                     coef = gaussfit(x, s)
                     xcen[i] = coef[1]  # Store line center
                     deviation[i] = np.ma.std(s)  # Store the variation within the row
-
-            #     _s = s - np.mean(s)
-            #     _s /= np.max(_s)
-            #     _s *= 5
-            #     _v = 5
-            #     plt.plot(x, _s + irow)
-            #     plt.plot(coef[1], _v + irow, "rx")
-            #     plt.xlabel("Column")
-            #     plt.ylabel("Row")
-            # plt.show()
 
             # Seperate in order pixels from out of order pixels
             # TODO: actually we want to weight them by the slitfunction?
@@ -197,42 +194,37 @@ def make_shear(
             # Linear fit to slit image
             coef = np.polyfit(xind[idx], xcen[idx], 2)
 
-            # plt.plot(xind, xcen, ".")
-            # plt.plot(xind[idx], xcen[idx], "rx")
-            # plt.plot(xind, line)
-            # plt.show()
-
-            tilt[iline] = coef[1]
-            shear[iline] = coef[0]
+            tilt[ipeak] = coef[1]
+            shear[ipeak] = coef[0]
 
         # Fit a 2nd order polynomial through all individual lines
         # And discard obvious outliers
         for _ in range(2):
-            func = lambda c: np.polyval(c, locmax) - tilt
+            func = lambda c: np.polyval(c, peaks) - tilt
             res = least_squares(func, np.zeros(3), loss="soft_l1")
             coef_tilt = res.x
 
-            line = np.polyval(coef_tilt, locmax)
+            line = np.polyval(coef_tilt, peaks)
             diff = np.abs(line - tilt)
             idx = diff < np.std(diff) * 5
-            locmax = locmax[idx]
+            peaks = peaks[idx]
             tilt = tilt[idx]
             shear = shear[idx]
             if np.all(idx):
                 break
 
-        func = lambda c: np.polyval(c, locmax) - shear
+        func = lambda c: np.polyval(c, peaks) - shear
         res = least_squares(func, np.zeros(3), loss="soft_l1")
         coef_shear = res.x
 
         # Fit a line through all individual shears along the order
-        # coef = np.polyfit(locmax, shear, 2)
+        # coef = np.polyfit(peaks, shear, 2)
         tilt_x[j] = coef_tilt
         shear_x[j] = coef_shear
 
         if plot:
             x = np.arange(cr[0], cr[1])
-            axes2[j // 2, j % 2].plot(locmax, tilt, "rx")
+            axes2[j // 2, j % 2].plot(peaks, tilt, "rx")
             axes2[j // 2, j % 2].plot(x, np.polyval(coef_tilt, x))
             axes2[j // 2, j % 2].set_xlim(0, ncol)
             if j not in (order_range[1] - 1, order_range[1] - 2):
