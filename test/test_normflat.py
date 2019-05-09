@@ -40,7 +40,7 @@ def test_normflat(flat, orders, settings, order_range):
     assert np.issubdtype(blaze.dtype, np.floating)
     assert not np.any(np.isnan(blaze))
 
-    for i in range(order_range[0], order_range[1]):
-        cr = column_range[i]
+    for i, j in enumerate(range(order_range[0], order_range[1])):
+        cr = column_range[j]
         assert np.all(blaze[i, : cr[0]].mask == True)
         assert np.all(blaze[i, cr[1] :].mask == True)

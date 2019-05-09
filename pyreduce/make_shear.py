@@ -26,7 +26,7 @@ from scipy.optimize import least_squares
 from skimage.filters import threshold_otsu
 
 from .extract import fix_extraction_width, extend_orders, fix_column_range
-from .util import make_index, gaussfit3 as gaussfit, gaussval2 as gaussval
+from .util import make_index, gaussfit4 as gaussfit, gaussval2 as gaussval
 
 
 def make_shear(
@@ -144,7 +144,7 @@ def make_shear(
                 np.arange(len(vec))[peaks - cr[0]], vec[peaks - cr[0]], "+"
             )
             axes[j // 2, j % 2].set_xlim([0, ncol])
-            if j not in (order_range[1] - 1, order_range[1] - 2):
+            if j not in (n - 1, n - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])
 
         # look at +- width pixels around the line
@@ -183,9 +183,15 @@ def make_shear(
                     xcen[i] = np.mean(x)
                     deviation[i] = 0
                 else:
-                    coef = gaussfit(x, s)
-                    xcen[i] = coef[1]  # Store line center
-                    deviation[i] = np.ma.std(s)  # Store the variation within the row
+                    try:
+                        coef = gaussfit(x, s)
+                        # Store line center
+                        xcen[i] = coef[1]
+                        # Store the variation within the row
+                        deviation[i] = np.ma.std(s)
+                    except:
+                        xcen[i] = np.mean(x)
+                        deviation[i] = 0
 
             # Seperate in order pixels from out of order pixels
             # TODO: actually we want to weight them by the slitfunction?
@@ -227,7 +233,7 @@ def make_shear(
             axes2[j // 2, j % 2].plot(peaks, tilt, "rx")
             axes2[j // 2, j % 2].plot(x, np.polyval(coef_tilt, x))
             axes2[j // 2, j % 2].set_xlim(0, ncol)
-            if j not in (order_range[1] - 1, order_range[1] - 2):
+            if j not in (n - 1, n - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])
 
     if plot:
@@ -235,7 +241,7 @@ def make_shear(
 
     tilt = np.zeros((n, ncol))
     shear = np.zeros((n, ncol))
-    for j in range(order_range[0], order_range[1]):
+    for j in range(n):
         tilt[j] = np.polyval(tilt_x[j], np.arange(ncol))
         shear[j] = np.polyval(shear_x[j], np.arange(ncol))
     return tilt, shear

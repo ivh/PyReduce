@@ -30,4 +30,3 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
     assert shear.ndim == 2
     assert shear.shape[0] == order_range[1] - order_range[0]
     assert shear.shape[1] == extracted.shape[1]
-
