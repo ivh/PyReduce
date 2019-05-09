@@ -15,6 +15,8 @@
     "normflat.oversampling": 12,
     "normflat.swath_width": 200,
     "normflat.threshold": 1000,
+    "wavecal.threshold": 100,
+    "wavecal.mode": "2D",
     "wavecal.oversampling": 1,
     "wavecal.manual": false,
     "science.oversampling": 1,

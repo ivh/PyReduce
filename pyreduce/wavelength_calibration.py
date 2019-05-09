@@ -4,6 +4,7 @@ by comparison to a reference spectrum
 Loosely bases on the IDL wavecal function
 """
 
+import datetime as dt
 import logging
 
 import astropy.io.fits as fits
@@ -142,7 +143,7 @@ def create_image_from_lines(cs_lines, ncol):
     return img
 
 
-def align(thar, cs_lines, manual=False, plot=False):
+def align(thar, cs_lines, shift_window=0.01, manual=False, plot=False):
     """Align the observation with the reference spectrum
     Either automatically using cross correlation or manually (visually)
 
@@ -188,8 +189,8 @@ def align(thar, cs_lines, manual=False, plot=False):
             np.argmax(correlation), correlation.shape
         )
 
-        offset_order = nord / 2 - offset_order
-        offset_x = offset_x - ncol / 2
+        offset_order = offset_order - img.shape[0] / 2 + 1
+        offset_x = offset_x - img.shape[1] / 2 + 1
         offset = [int(offset_order), int(offset_x)]
 
         # apply offset
@@ -204,14 +205,15 @@ def align(thar, cs_lines, manual=False, plot=False):
 
         for i in range(offset[0], min(len(thar), len(img))):
             correlation = signal.correlate(thar[i], img[i], mode="same")
-            width = ncol // 200
+            width = ncol // (2 * int(1 / shift_window))
             low = ncol // 2 - width
             high = ncol // 2 + width
             offset_x = np.argmax(correlation[low:high]) + low
             offset_x = int(offset_x - ncol / 2)
-            cs_lines[cs_lines["order"] == i]["posm"] += offset_x
-            cs_lines[cs_lines["order"] == i]["xfirst"] += offset_x
-            cs_lines[cs_lines["order"] == i]["xlast"] += offset_x
+            select = cs_lines["order"] == i
+            cs_lines["posm"][select] += offset_x
+            cs_lines["xfirst"][select] += offset_x
+            cs_lines["xlast"][select] += offset_x
 
         if plot:
             # Even without manual=True, allow the user to shift the image here
@@ -232,7 +234,7 @@ def align(thar, cs_lines, manual=False, plot=False):
     return offset
 
 
-def fit_lines(thar, cs_lines):
+def fit_lines(thar, cs_lines, plot=False):
     """
     Determine exact position of each line on the detector based on initial guess
 
@@ -258,26 +260,36 @@ def fit_lines(thar, cs_lines):
         if line["order"] < 0 or line["order"] >= len(thar):
             # Line outside order range
             continue
-        low = int(line["posm"] - line["width"] * 10)
+        low = int(line["posm"] - line["width"] * 5)
         low = max(low, 0)
-        high = int(line["posm"] + line["width"] * 10)
+        high = int(line["posm"] + line["width"] * 5)
         high = min(high, len(thar[line["order"]]))
 
         section = thar[line["order"], low:high]
         x = np.arange(low, high, 1)
         x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
 
-        coef = util.gaussfit2(x, section)
-        if not any(coef):
+        try:
+            coef = util.gaussfit2(x, section)
+            cs_lines[i]["posm"] = coef[1]
+        except:
             # Gaussian fit failed, dont use line
             cs_lines[i]["flag"] = False
-        else:
-            cs_lines[i]["posm"] = coef[1]
+
+        if plot:
+            x2 = np.linspace(x.min(), x.max(), len(x) * 100)
+            plt.plot(x, section, label="Observation")
+            plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
+            plt.title("Gaussian Fit to spectral line")
+            plt.xlabel("x [pixel]")
+            plt.ylabel("Intensity [a.u.]")
+            plt.legend()
+            plt.show()
 
     return cs_lines
 
 
-def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
+def build_2d_solution(cs_lines, degree=(6, 6), mode="1D", plot=False):
     """
     Create a 2D polynomial fit to flagged lines
 
@@ -304,9 +316,20 @@ def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
     m_pix = cs_lines["posm"][mask]
     m_ord = cs_lines["order"][mask]
 
-    coef = util.polyfit2d_2(
-        m_pix, m_ord, m_wave, degree=(degree_x, degree_y), plot=False
-    )
+    if mode == "1D":
+        nord = m_ord.max() + 1
+        coef = np.zeros((nord, degree_x + 1))
+        for i in range(nord):
+            select = m_ord == i
+            coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=degree_x)
+    elif mode == "2D":
+        coef = util.polyfit2d(
+            m_pix, m_ord, m_wave, degree=(degree_x, degree_y), plot=False
+        )
+    else:
+        raise ValueError(
+            f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {mode}"
+        )
 
     if plot:
         orders = np.unique(cs_lines["order"])
@@ -314,16 +337,58 @@ def build_2d_solution(cs_lines, degree=(6, 6), plot=False):
         for i, order in enumerate(orders):
             plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
             lines = cs_lines[mask][cs_lines[mask]["order"] == order]
-            residual = calculate_residual(coef, lines)
-
-            plt.plot(lines["posm"], residual, "rx")
-            plt.hlines([0], lines["posm"].min(), lines["posm"].max())
+            if len(lines) > 0:
+                residual = calculate_residual(coef, lines, mode=mode)
+                plt.plot(lines["posm"], residual, "rx")
+                plt.hlines([0], lines["posm"].min(), lines["posm"].max())
         plt.show()
 
     return coef
 
 
-def make_wave(thar, wave_solution, plot=False):
+def evaluate_solution(pos, order, solution, mode="1D"):
+    """
+    Evaluate the 1d or 2d wavelength solution at the given pixel positions and orders
+
+    Parameters
+    ----------
+    pos : array
+        pixel position on the detector (i.e. x axis)
+    order : array
+        order of each point
+    solution : array of shape (nord, ndegree) or (degree_x, degree_y)
+        polynomial coefficients. For mode=1D, one set of coefficients per order.
+        For mode=2D, the first dimension is for the positions and the second for the orders
+    mode : str, optional
+        Wether to interpret the solution as 1D or 2D polynomials, by default "1D"
+
+    Returns
+    -------
+    result: array
+        Evaluated polynomial
+
+    Raises
+    ------
+    ValueError
+        If pos and order have different shapes, or mode is of the wrong value
+    """
+    if not np.array_equal(pos.shape, order.shape):
+        raise ValueError("pos and order must have the same shape")
+    if mode == "1D":
+        result = np.zeros(pos.shape)
+        for i in np.unique(order):
+            select = order == i
+            result[select] = np.polyval(solution[i], pos[select])
+    elif mode == "2D":
+        result = np.polynomial.polynomial.polyval2d(pos, order, solution)
+    else:
+        raise ValueError(
+            f"parameter 'mode' not understood, expected '1D' or '2D' but got {mode}"
+        )
+    return result
+
+
+def make_wave(thar, wave_solution, mode="1D", plot=False):
     """Expand polynomial wavelength solution into full image
 
     Parameters
@@ -342,10 +407,8 @@ def make_wave(thar, wave_solution, plot=False):
     """
 
     nord, ncol = thar.shape
-    x = np.arange(ncol)
-    y = np.arange(nord)
-    x, y = np.meshgrid(x, y)
-    wave_img = polyval2d(x, y, wave_solution)
+    y, x = np.indices((nord, ncol))
+    wave_img = evaluate_solution(x, y, wave_solution, mode=mode)
 
     if plot:
         plt.subplot(211)
@@ -382,7 +445,7 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
     cs_lines : struc_array
         line data
     threshold : int, optional
-        difference threshold between line positions in Angstrom, until which a line is considered identified (default: 1)
+        difference threshold between line positions in m/s, until which a line is considered identified (default: 1)
     plot : bool, optional
         wether to plot the new lines
 
@@ -405,38 +468,51 @@ def auto_id(thar, wave_img, cs_lines, threshold=100, plot=False):
         if line["flag"]:
             # Line is already in use
             continue
-        if line["posm"] < 0 or line["posm"] >= ncol:
-            # Line outside pixel range
-            continue
         if line["order"] < 0 or line["order"] >= nord:
             # Line outside order range
             continue
-
         iord = line["order"]
+        if line["wll"] < wave_img[iord][0] or line["posm"] >= wave_img[iord][-1]:
+            # Line outside pixel range
+            continue
 
-        low = int(line["posm"] - line["width"] * 10)
+        wl = line["wll"]
+        width = line["width"] * 10
+        wave = wave_img[iord]
+        obs = thar[iord]
+        # Find where the line should be
+        try:
+            idx = np.digitize(wl, wave)
+        except ValueError:
+            # Wavelength solution is not monotonic
+            idx = np.where(wave >= wl)[0][0]
+
+        low = int(idx - width)
         low = max(low, 0)
-        high = int(line["posm"] + line["width"] * 10)
-        high = min(high, len(thar[iord]))
+        high = int(idx + width)
+        high = min(high, len(obs))
 
-        vec = thar[iord, low:high]
+        vec = obs[low:high]
         if np.all(np.ma.getmaskarray(vec)):
             continue
+        # Find the best fitting peak
+        # TODO use gaussian fit?
         peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec))
         if len(peak_idx) > 0:
-            pos_wave = wave_img[iord, low:high][peak_idx]
-
-            diff = np.min(np.abs(line["wll"] - pos_wave)) / line["wll"] * speed_of_light
-            if diff < threshold:
+            pos_wave = wave[low:high][peak_idx]
+            residual = np.abs(wl - pos_wave) / wl * speed_of_light
+            idx = np.argmin(residual)
+            if residual[idx] < threshold:
                 counter += 1
                 cs_lines["flag"][i] = True
+                cs_lines["posm"][i] = low + peak_idx[idx]
 
     logging.info(f"AutoID identified {counter} new lines")
 
     return cs_lines
 
 
-def calculate_residual(wave_solution, cs_lines):
+def calculate_residual(wave_solution, cs_lines, mode="1D"):
     """
     Calculate all residuals of all given lines
 
@@ -456,8 +532,12 @@ def calculate_residual(wave_solution, cs_lines):
     """
     x = cs_lines["posm"]
     y = cs_lines["order"]
-    solution = polyval2d(x, y, wave_solution)
+    mask = ~cs_lines["flag"]
+
+    solution = evaluate_solution(x, y, wave_solution, mode=mode)
+
     residual = (solution - cs_lines["wll"]) / cs_lines["wll"] * speed_of_light
+    residual = np.ma.masked_array(residual, mask=mask)
     return residual
 
 
@@ -480,19 +560,14 @@ def reject_outlier(residual, cs_lines):
         residuals of each line, with outliers masked (including the new one)
     """
 
-    # Calculate residuals
-    mask = ~cs_lines["flag"]
-    residual = np.ma.masked_array(residual, mask=mask)
-
     # Strongest outlier
     ibad = np.ma.argmax(np.abs(residual))
-    cs_lines["flag"][ibad] = False  # 1 = False
-    residual[ibad] = np.ma.masked
+    cs_lines["flag"][ibad] = False
 
-    return cs_lines, residual
+    return cs_lines
 
 
-def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), plot=False):
+def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), mode="1D", plot=False):
     """
     Reject the largest outlier one by one until all residuals are lower than the threshold
 
@@ -514,14 +589,16 @@ def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), plot=False):
     cs_lines : recarray of shape (nlines,)
         Line data with updated flags
     """
-    residual = threshold + 1
+
+    wave_solution = build_2d_solution(cs_lines, degree=degree, mode=mode)
+    residual = calculate_residual(wave_solution, cs_lines, mode=mode)
     nbad = 0
     while np.ma.any(np.abs(residual) > threshold):
-        wave_solution = build_2d_solution(cs_lines, degree=degree)
-        residual = calculate_residual(wave_solution, cs_lines)
-        cs_lines, residual = reject_outlier(residual, cs_lines)
+        cs_lines = reject_outlier(residual, cs_lines)
+        wave_solution = build_2d_solution(cs_lines, degree=degree, mode=mode)
+        residual = calculate_residual(wave_solution, cs_lines, mode=mode)
         nbad += 1
-    logging.info(f"Discarding {nbad} lines")
+    logging.info("Discarding %i lines", nbad)
 
     if plot:
         mask = cs_lines["flag"]
@@ -541,7 +618,9 @@ def reject_lines(cs_lines, nord, threshold=100, degree=(6, 6), plot=False):
 
         for iord in range(nord):
             lines = cs_lines[cs_lines["order"] == iord]
-            solution = polyval2d(lines["posm"], lines["order"], wave_solution)
+            solution = evaluate_solution(
+                lines["posm"], lines["order"], wave_solution, mode=mode
+            )
             # Residual in m/s
             residual = (solution - lines["wll"]) / lines["wll"] * speed_of_light
             mask = lines["flag"]
@@ -570,6 +649,8 @@ def wavecal(
     degree_x=6,
     degree_y=6,
     iterations=3,
+    mode="1D",
+    shift_window=0.01,
     manual=False,
     polarim=False,
     plot=True,
@@ -602,7 +683,7 @@ def wavecal(
     wave_img : array[nord, ncol]
         wavelength solution for each point in the spectrum
     """
-
+    degree = (degree_x, degree_y)
     nord, ncol = thar.shape
     thar = np.ma.copy(thar)
     # normalize each order
@@ -618,15 +699,11 @@ def wavecal(
     for i, line in enumerate(cs_lines):
         cs_lines[i]["height"] /= topheight[line["order"]]
 
-    # TODO: reverse orders?
-    # max_order = np.max(cs_lines["order"]
-    # cs_lines["order"]= max_order - cs_lines["order"]
-
     if polarim:
         raise NotImplementedError("polarized orders not implemented yet")
 
     # Step 1: align thar and reference
-    align(thar, cs_lines, plot=plot, manual=manual)
+    align(thar, cs_lines, plot=plot, manual=manual, shift_window=shift_window)
 
     # Step 2: Locate the lines on the detector, and update the pixel position
     cs_lines = fit_lines(thar, cs_lines)
@@ -634,13 +711,13 @@ def wavecal(
     for i in range(iterations):
         logging.info(f"Wavelength calibration iteration: {i}")
         # Step 3: Create a wavelength solution on known lines
-        wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y))
-        wave_img = make_wave(thar, wave_solution)
+        wave_solution = build_2d_solution(cs_lines, degree=degree, mode=mode)
+        wave_img = make_wave(thar, wave_solution, mode=mode)
         # Step 4: Identify lines that fit into the solution
         cs_lines = auto_id(thar, wave_img, cs_lines, threshold=threshold)
         # Step 5: Reject outliers
         cs_lines = reject_lines(
-            cs_lines, nord, threshold=threshold, degree=(degree_x, degree_y)
+            cs_lines, nord, threshold=threshold, degree=degree, mode=mode
         )
 
     logging.info(
@@ -649,8 +726,8 @@ def wavecal(
     )
 
     # Step 6: build final 2d solution
-    wave_solution = build_2d_solution(cs_lines, degree=(degree_x, degree_y), plot=plot)
-    wave_img = make_wave(thar, wave_solution, plot=plot)
+    wave_solution = build_2d_solution(cs_lines, degree=degree, mode=mode, plot=plot)
+    wave_img = make_wave(thar, wave_solution, mode=mode, plot=plot)
 
     return wave_img
 

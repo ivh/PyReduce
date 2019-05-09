@@ -41,7 +41,7 @@ from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import wavecal
 
-# from getxwd import getxwd
+from .extraction_width import estimate_extraction_width
 
 # TODO turn dicts into numpy structured array
 # TODO use masked array instead of column_range ? or use a mask instead of column range
@@ -447,6 +447,13 @@ class Reducer:
         column_range = data["column_range"]
         return orders, column_range
 
+    def run_extraction_width(self, flat, orders, column_range):
+        extraction_width = estimate_extraction_width(flat, orders, column_range)
+
+        self.config["normflat.extraction_width"] = extraction_width
+
+        return extraction_width
+
     def run_norm_flat(self, flat, fhead, orders, column_range):
         logging.info("Normalizing flat field")
 
@@ -553,6 +560,8 @@ class Reducer:
             degree_y=self.config["wavecal.degree.y"],
             threshold=self.config["wavecal.threshold"],
             iterations=self.config["wavecal.iterations"],
+            mode=self.config["wavecal.mode"],
+            shift_window=self.config["wavecal.shift_window"],
         )
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
@@ -580,7 +589,7 @@ class Reducer:
             thar,
             orig,
             orders,
-            extraction_width=self.config.get("wavecal.extraction_width", 0.25),
+            extraction_width=self.config["wavecal.extraction_width"],
             column_range=column_range,
             order_range=self.order_range,
             plot=self.config.get("plot", True),
@@ -751,6 +760,8 @@ class Reducer:
             orders, column_range = self.load_orders()
         if last_step == "orders":
             return
+
+        # extraction_width = self.run_extraction_width(flat, orders, column_range)
 
         if "norm_flat" in steps or steps == "all":
             norm, blaze, column_range = self.run_norm_flat(

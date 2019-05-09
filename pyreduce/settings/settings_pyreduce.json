@@ -28,6 +28,8 @@
     "wavecal.degree.y": 6,
     "wavecal.threshold": 100,
     "wavecal.iterations": 3,
+    "wavecal.mode": "1D",
+    "wavecal.shift_window": 0.01,
     "science.extraction_width": 0.25,
     "science.oversampling": 10,
     "science.swath_width": 300,
