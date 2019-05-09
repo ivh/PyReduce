@@ -75,13 +75,13 @@ def estimate_background_scatter(
                 "Expected integer value for scatter polynomial degree, got %s"
                 % type(scatter_degree)
             )
-        values = [i <= 0 for i in scatter_degree]
+        values = [i < 0 for i in scatter_degree]
         if any(values):
             raise ValueError(
                 "Expected positive value for scatter polynomial degree, got %s"
                 % str(scatter_degree)
             )
-    elif scatter_degree <= 0:
+    elif scatter_degree < 0:
         raise ValueError(
             "Expected positive value for scatter polynomial degree, got %i"
             % scatter_degree
@@ -139,12 +139,11 @@ def estimate_background_scatter(
 
         sub_img = img[index]
         threshold = np.ma.median(sub_img) + 5 * np.ma.std(sub_img)
-        sub_img[sub_img > threshold] = np.ma.masked
 
-        mask = ~sub_img.mask
+        mask = (~np.ma.getmaskarray(sub_img)) & (sub_img <= threshold)
         x_inbetween[i] = index[1][mask].ravel()
         y_inbetween[i] = index[0][mask].ravel()
-        z_inbetween[i] = sub_img.compressed()
+        z_inbetween[i] = np.ma.getdata(sub_img[mask]).ravel()
 
         # plt.title("Between %i and %i" % (i, j))
         # plt.imshow(sub_img, aspect="auto")
