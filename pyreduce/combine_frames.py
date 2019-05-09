@@ -461,7 +461,7 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
     return flat, fhead
 
 
-def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
+def combine_bias(files, instrument, mode, extension=1, plot=False, science_observation_time=None, **kwargs):
     """
     Combine bias frames, determine read noise, reject bad pixels.
     Read noise calculation only valid if both lists yield similar noise.
@@ -501,6 +501,7 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, **kwargs):
             kw = get_instrument_info(instrument)["date"]
             times = [parser.parse(fits.open(f)[0].header[kw]) for f in files]
             files = files[np.argsort(times)]
+            # np.digitize(science_observation_time, sorted(times))
         except KeyError:
             logging.info("Could not sort files by observation time")
         list1, list2 = files[: n // 2], files[n // 2 :]

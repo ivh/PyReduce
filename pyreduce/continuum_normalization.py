@@ -199,6 +199,9 @@ def continuum_normalize(
     """ Fit a continuum to a spectrum by slowly approaching it from the top.
     We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
 
+    TODO automatically find good parameters for smooth_initial and smooth_final
+    TODO give variables better names
+
     Parameters
     ----------
     spec : masked array of shape (nord, ncol)

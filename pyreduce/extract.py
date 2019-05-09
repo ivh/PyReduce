@@ -16,6 +16,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.misc import imresize
 
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index
@@ -71,21 +72,12 @@ class ProgressPlot:
 
     def fix_image(self, img):
         """ Assures that the shape of img is equal to self.nrow, self.ncol """
-        if img.shape[0] > self.nrow:
-            img = img[: self.nrow]
-        elif img.shape[0] < self.nrow:
-            padding = np.zeros((self.nrow - img.shape[0], img.shape[1]))
-            img = np.concatenate((img, padding))
-
-        if img.shape[1] > self.ncol:
-            img = img[:, : self.ncol]
-        elif img.shape[1] < self.ncol:
-            padding = np.zeros((img.shape[0], self.ncol - img.shape[1]))
-            img = np.concatenate((img, padding), axis=1)
+        img = imresize(img, (self.nrow, self.ncol))
         return img
 
     def fix_linear(self, data, limit, fill=0):
         """ Assures the size of the 1D array data is equal to limit """
+
         if len(data) > limit:
             data = data[:limit]
         elif len(data) < limit:
@@ -452,9 +444,7 @@ def extract_spectrum(
             telluric_correction = 0
 
         if scatter is not None:
-            scatter_correction = calc_scatter_correction(
-                scatter, index
-            )
+            scatter_correction = calc_scatter_correction(scatter, index)
         else:
             scatter_correction = 0
 
@@ -547,8 +537,8 @@ def extract_spectrum(
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
-    weight[0][:margin[0, 0]] = 0
-    weight[-1][len(weight[-1]) - margin[-1, 1]:] = 0
+    weight[0][: margin[0, 0]] = 0
+    weight[-1][len(weight[-1]) - margin[-1, 1] :] = 0
     for i, j in zip(range(0, nswath - 1), range(1, nswath)):
         width = bins_end[i] - bins_start[i]
         overlap = bins_end[i] - bins_start[j]
@@ -564,10 +554,10 @@ def extract_spectrum(
         triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
         # Cut away the margins at the corners
 
-        triangle = triangle[margin[j, 0]:len(triangle)-margin[i, 1]]
+        triangle = triangle[margin[j, 0] : len(triangle) - margin[i, 1]]
         # Set values
-        weight[i][start_i: end_i] = 1 - triangle
-        weight[j][start_j : end_j] = triangle
+        weight[i][start_i:end_i] = 1 - triangle
+        weight[j][start_j:end_j] = triangle
 
         # Don't use the pixels at the egdes (due to curvature)
         weight[i][end_i:] = 0
@@ -1001,7 +991,6 @@ def extract(
     extraction_type="optimal",
     tilt=None,
     shear=None,
-    polarization=False,
     **kwargs
 ):
     """
@@ -1049,12 +1038,14 @@ def extract(
 
     nrow, ncol = img.shape
     nord, _ = orders.shape
-    if np.isscalar(tilt):
-        tilt = np.full((nord, ncol), tilt)
-    if np.isscalar(shear):
-        shear = np.full((nord, ncol), shear)
     if order_range is None:
         order_range = (0, nord)
+    if np.isscalar(tilt):
+        n = order_range[1] - order_range[0]
+        tilt = np.full((n, ncol), tilt)
+    if np.isscalar(shear):
+        n = order_range[1] - order_range[0]
+        shear = np.full((n, ncol), shear)
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
@@ -1065,13 +1056,8 @@ def extract(
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_width = extraction_width[order_range[0] : order_range[1]]
-    if tilt is not None:
-        tilt = tilt[order_range[0] : order_range[1]]
-    if shear is not None:
-        shear = shear[order_range[0] : order_range[1]]
 
     # Extend orders and related properties
-
     orders = extend_orders(orders, nrow)
     extraction_width = np.array(
         [extraction_width[0], *extraction_width, extraction_width[-1]]

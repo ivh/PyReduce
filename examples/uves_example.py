@@ -14,13 +14,13 @@ target = "HD132205"
 night = "2010-04-02"
 mode = "middle"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "norm_flat",
-    # "wavecal",
-    # "shear",
-    # "science",
+    "bias",
+    "flat",
+    "orders",
+    "norm_flat",
+    "wavecal",
+    "shear",
+    "science",
     "continuum",
     "finalize",
 )
@@ -43,6 +43,6 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json")
-    # order_range=(0, 1),
+    configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json"),
+    order_range=(1, 21),
 )

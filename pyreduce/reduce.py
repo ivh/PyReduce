@@ -478,9 +478,10 @@ class Reducer:
         blaze = np.ma.filled(blaze, 0)
         # Fix column ranges
         for i in range(blaze.shape[0]):
-            column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
+            j = i + self.order_range[0]
+            column_range[j] = np.where(blaze[i] != 0)[0][[0, -1]]
         self._spec_mask = np.full(blaze.shape, True)
-        for i, cr in enumerate(column_range):
+        for i, cr in enumerate(column_range[self.order_range[0] : self.order_range[1]]):
             self._spec_mask[i, cr[0] : cr[1]] = False
 
         blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
@@ -501,7 +502,7 @@ class Reducer:
         column_range = data["column_range"]
 
         self._spec_mask = np.full(blaze.shape, True)
-        for i, cr in enumerate(column_range):
+        for i, cr in enumerate(column_range[self.order_range[0] : self.order_range[1]]):
             self._spec_mask[i, cr[0] : cr[1]] = False
         # self._spec_mask = blaze == 0
 
