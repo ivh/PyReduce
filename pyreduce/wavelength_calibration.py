@@ -785,7 +785,7 @@ class WavelengthCalibration:
         )
 
         # Step 6: build final 2d solution
-        wave_solution = self.build_2d_solution(lines, plot=True)
-        wave_img = self.make_wave(obs, wave_solution, plot=True)
+        wave_solution = self.build_2d_solution(lines, plot=self.plot)
+        wave_img = self.make_wave(obs, wave_solution, plot=self.plot)
 
         return wave_img
