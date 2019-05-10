@@ -50,8 +50,7 @@ def test_wavecal(
         plot=False,
         manual=False,
         threshold=settings["wavecal.threshold"],
-        degree_x=settings["wavecal.degree.x"],
-        degree_y=settings["wavecal.degree.y"],
+        degree=(settings["wavecal.degree.x"], settings["wavecal.degree.y"]),
     )
     wave = module.execute(thar, linelist)
 
