@@ -789,10 +789,3 @@ class WavelengthCalibration:
         wave_img = self.make_wave(obs, wave_solution, plot=True)
 
         return wave_img
-
-
-def wavecal(obs, lines, **kwargs):
-    """ Interface to the new WavelengthCalibration class """
-    wcal = WavelengthCalibration(**kwargs)
-    img = wcal.execute(obs, lines)
-    return img
