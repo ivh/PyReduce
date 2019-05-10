@@ -13,7 +13,7 @@ from pyreduce.combine_frames import combine_bias, combine_flat
 from pyreduce.trace_orders import mark_orders
 from pyreduce.normalize_flat import normalize_flat
 from pyreduce.extract import extract
-from pyreduce.wavelength_calibration import wavecal
+from pyreduce.wavelength_calibration import WavelengthCalibration
 from pyreduce import echelle
 
 
@@ -631,8 +631,10 @@ def wave(
             thead, instrument, mode
         )
         reference = np.load(reference)
-        cs_lines = reference["cs_lines"]
-        wave = wavecal(thar, cs_lines, plot=False, manual=False)
+        linelist = reference["cs_lines"]
+
+        module = WavelengthCalibration(plot=False, manual=False)
+        wave = module.execute(thar, linelist)
 
         echelle.save(wavefile, thead, spec=thar, wave=wave)
 

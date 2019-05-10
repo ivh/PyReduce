@@ -3,7 +3,7 @@ import numpy as np
 
 from pyreduce import util
 from pyreduce.extract import extract
-from pyreduce.wavelength_calibration import wavecal
+from pyreduce.wavelength_calibration import WavelengthCalibration
 
 from pyreduce import instruments
 
@@ -44,16 +44,16 @@ def test_wavecal(
         thead, instrument, mode
     )
     reference = np.load(reference)
-    cs_lines = reference["cs_lines"]
-    wave = wavecal(
-        thar,
-        cs_lines,
+    linelist = reference["cs_lines"]
+
+    module = WavelengthCalibration(
         plot=False,
         manual=False,
         threshold=settings["wavecal.threshold"],
         degree_x=settings["wavecal.degree.x"],
         degree_y=settings["wavecal.degree.y"],
     )
+    wave = module.execute(thar, linelist)
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2

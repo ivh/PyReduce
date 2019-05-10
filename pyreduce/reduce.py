@@ -39,7 +39,7 @@ from .extract import extract
 from .make_shear import make_shear
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
-from .wavelength_calibration import wavecal, WavelengthCalibration
+from .wavelength_calibration import WavelengthCalibration
 
 from .extraction_width import estimate_extraction_width
 
