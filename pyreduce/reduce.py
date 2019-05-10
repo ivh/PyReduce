@@ -39,7 +39,7 @@ from .extract import extract
 from .make_shear import make_shear
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
-from .wavelength_calibration import wavecal
+from .wavelength_calibration import wavecal, WavelengthCalibration
 
 from .extraction_width import estimate_extraction_width
 
@@ -551,19 +551,19 @@ class Reducer:
             thead, self.instrument, self.mode
         )
         reference = np.load(reference)
-        cs_lines = reference["cs_lines"]
-        wave = wavecal(
-            thar,
-            cs_lines,
+        linelist = reference["cs_lines"]
+
+        module = WavelengthCalibration(
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
-            degree_x=self.config["wavecal.degree.x"],
-            degree_y=self.config["wavecal.degree.y"],
+            degree=(self.config["wavecal.degree.x"], self.config["wavecal.degree.y"]),
             threshold=self.config["wavecal.threshold"],
             iterations=self.config["wavecal.iterations"],
             mode=self.config["wavecal.mode"],
             shift_window=self.config["wavecal.shift_window"],
         )
+        wave = module.execute(thar, linelist)
+
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
 
