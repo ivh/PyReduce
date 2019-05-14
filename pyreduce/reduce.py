@@ -618,9 +618,10 @@ class Reducer:
             osample=self.config["wavecal.oversampling"],
             plot=self.config["plot"],
         )
-        lfc_m = chead["ESO INS LFC1 SLMLEVEL"]
-        lfc_f0 = chead["ESO INS LFC1 ANCHOR"]
-        lfc_fr = chead["ESO INS LFC1 REPRATE"]
+        # Get info from header
+        lfc_m = chead["e_lfc_m"]
+        lfc_f0 = chead["e_lfc_f0"]
+        lfc_fr = chead["e_lfc_fr"]
 
         module = WavelengthCalibration(
             plot=self.config["plot"],
