@@ -7,6 +7,7 @@ import os.path
 import glob
 import logging
 from datetime import datetime
+import fnmatch
 
 import numpy as np
 from astropy.io import fits
@@ -32,10 +33,11 @@ class HARPS(instrument):
             "instrument": "INSTRUME",
             "date": "DATE-OBS",
             "modes": ["blue", "red"],
+            "modes_id": ["HARPS", "HARPS"],
             "extension": [1, 2],
             # Header info for reduction
             "id": [[1, 1], [1, 2]],
-            "orientation": 6,
+            "orientation": 5,
             "prescan_x": "HIERARCH ESO DET OUT{id[0]} PRSCX",
             "overscan_x": "HIERARCH ESO DET OUT{id[0]} OVSCX",
             "prescan_y": 0,
@@ -61,7 +63,8 @@ class HARPS(instrument):
             "id_bias": "BIAS,BIAS",
             "id_flat": "LAMP,LAMP,TUN",
             "id_wave": "WAVE,WAVE,THAR2",
-            "id_spec": "STAR,SKY,M",
+            "id_spec": "STAR,*,*",
+            "id_comb": "WAVE,WAVE,COMB",
             "id_fiber_a": "LAMP,DARK,TUN",
             "id_fiber_b": "DARK,LAMP,TUN",
             "instrument_mode": "ESO INS MODE",
@@ -74,7 +77,6 @@ class HARPS(instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
-        header["e_orient"] = 5
 
         try:
             header["e_ra"] /= 15
@@ -128,10 +130,16 @@ class HARPS(instrument):
 
         if fiber == "AB":
             id_orddef = info["id_flat"]
+            id_spec = "STAR,STAR,*"
+            id_flat = "LAMP,LAMP,TUN"
         elif fiber == "A":
             id_orddef = info["id_fiber_a"]
+            id_spec = "STAR,*,*"
+            id_flat = "LAMP,DARK,TUN"
         elif fiber == "B":
             id_orddef = info["id_fiber_b"]
+            id_spec = "*,STAR,*"
+            id_flat = "DARK,LAMP,TUN"
         else:
             raise ValueError(
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
@@ -205,7 +213,10 @@ class HARPS(instrument):
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
-            keys = se[(ty == info["id_spec"]) & (ob == target) & selection]
+            match_ty = np.array([fnmatch.fnmatch(t, id_spec) for t in ty])
+            match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
+
+            keys = se[match_ty & match_ob & selection]
             keys = np.unique(keys)
 
             files_this_night = {}
@@ -216,10 +227,11 @@ class HARPS(instrument):
                 # bias ignores the setting
                 files_this_night[key] = {
                     "bias": files[(ty == info["id_bias"]) & selection],
-                    "flat": files[(ty == info["id_flat"]) & select],
+                    "flat": files[(ty == id_flat) & select],
                     "order": files[(ty == id_orddef) & select],
                     "wave": files[(ob == info["id_wave"]) & select],
-                    "spec": files[(ty == info["id_spec"]) & (ob == target) & select],
+                    "comb": files[(ty == info["id_comb"]) & select],
+                    "spec": files[match_ty & match_ob & select],
                 }
 
             if len(keys) != 0:

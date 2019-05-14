@@ -213,10 +213,11 @@ class Reducer:
         "orders": 2,
         "norm_flat": 3,
         "wavecal": 4,
-        "shear": 5,
-        "science": 6,
-        "continuum": 7,
-        "finalize": 8,
+        "frequency_comb": 5,
+        "shear": 6,
+        "science": 7,
+        "continuum": 8,
+        "finalize": 9,
     }
 
     def __init__(
@@ -334,7 +335,7 @@ class Reducer:
     @property
     def wave_file(self):
         """str: Name of the wavelength echelle file"""
-        return join(self.output_dir, self.prefix + ".thar.ech")
+        return join(self.output_dir, self.prefix + ".thar.npz")
 
     @property
     def shear_file(self):
@@ -377,7 +378,13 @@ class Reducer:
             extension=self.extension,
             plot=self.config["plot"],
         )
-        fits.writeto(self.bias_file, data=bias.data, header=bhead, overwrite=True)
+        fits.writeto(
+            self.bias_file,
+            data=bias.data,
+            header=bhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
         return bias, bhead
 
     def load_bias(self):
@@ -402,7 +409,13 @@ class Reducer:
             bias=bias,
             plot=self.config["plot"],
         )
-        fits.writeto(self.flat_file, data=flat.data, header=fhead, overwrite=True)
+        fits.writeto(
+            self.flat_file,
+            data=flat.data,
+            header=fhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
         return flat, fhead
 
     def load_flat(self):
@@ -488,7 +501,13 @@ class Reducer:
 
         # Save data
         np.savez(self.blaze_file, blaze=blaze, column_range=column_range)
-        fits.writeto(self.norm_flat_file, data=norm.data, header=fhead, overwrite=True)
+        fits.writeto(
+            self.norm_flat_file,
+            data=norm.data,
+            header=fhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
         return norm, blaze, column_range
 
     def load_norm_flat(self):
@@ -515,9 +534,7 @@ class Reducer:
 
         if len(self.files["wave"]) == 0:
             raise AttributeError("No wavecal files given")
-
         f = self.files["wave"][-1]
-
         if len(self.files["wave"]) > 1:
             # TODO: Give the user the option to select one?
             logging.warning(
@@ -553,6 +570,10 @@ class Reducer:
         reference = np.load(reference)
         linelist = reference["cs_lines"]
 
+        # Flippy Flip
+        # max_order = linelist["order"].max()
+        # linelist["order"] = max_order - linelist["order"]
+
         module = WavelengthCalibration(
             plot=self.config["plot"],
             manual=self.config["wavecal.manual"],
@@ -567,23 +588,58 @@ class Reducer:
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
 
-        echelle.save(self.wave_file, thead, spec=thar, wave=wave)
+        np.savez(self.wave_file, wave=wave, thar=thar)
         return wave, thar
 
     def load_wavecal(self):
-        thar = echelle.read(self.wave_file, raw=True)
-        wave = thar["wave"]
+        data = np.load(self.wave_file)
+        wave = data["wave"]
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
-        thar = thar["spec"]
+        thar = data["thar"]
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
         return wave, thar
+
+    def run_comb(self, wave, orders, column_range):
+        f = self.files["comb"][0]
+        comb, chead = util.load_fits(
+            f, self.instrument, self.mode, self.extension, mask=self.mask
+        )
+
+        comb, _, _, _ = extract(
+            comb,
+            orders,
+            gain=chead["e_gain"],
+            readnoise=chead["e_readn"],
+            dark=chead["e_drk"],
+            extraction_type="arc",
+            column_range=column_range,
+            order_range=self.order_range,
+            extraction_width=self.config["wavecal.extraction_width"],
+            osample=self.config["wavecal.oversampling"],
+            plot=self.config["plot"],
+        )
+        lfc_m = chead["ESO INS LFC1 SLMLEVEL"]
+        lfc_f0 = chead["ESO INS LFC1 ANCHOR"]
+        lfc_fr = chead["ESO INS LFC1 REPRATE"]
+
+        module = WavelengthCalibration(
+            plot=self.config["plot"],
+            degree=(self.config["wavecal.degree.x"], self.config["wavecal.degree.y"]),
+            mode=self.config["wavecal.mode"],
+            lfc_m=lfc_m,
+            lfc_f0=lfc_f0,
+            lfc_fr=lfc_fr,
+        )
+
+        wave = module.frequency_comb(comb, wave)
+        return wave
 
     def run_shear(self, orders, column_range, thar):
         logging.info("Determine shear of slit curvature")
 
         # TODO: Pick best image / combine images ?
         f = self.files["wave"][-1]
-        orig, thead = util.load_fits(
+        orig, _ = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=self.mask
         )
         tilt, shear = make_shear(
@@ -769,7 +825,11 @@ class Reducer:
                 flat, fhead, orders, column_range
             )
         else:
-            norm, blaze, column_range = self.load_norm_flat()
+            try:
+                norm, blaze, column_range = self.load_norm_flat()
+            except:
+                logging.warning("Could not load normalized Flat field")
+                norm, blaze = None, None
         if last_step == "norm_flat":
             return
 
@@ -778,6 +838,11 @@ class Reducer:
         else:
             wave, thar = self.load_wavecal()
         if last_step == "wavecal":
+            return
+
+        if "frequency_comb" in steps or steps == "all":
+            wave = self.run_comb(wave, orders, column_range)
+        if last_step == "frequency_comb":
             return
 
         if "shear" in steps or steps == "all":

@@ -40,7 +40,7 @@ def observation_date_to_night(observation_date):
     observation_date = parser.parse(observation_date)
     oneday = datetime.timedelta(days=1)
 
-    if observation_date.hour < 6:
+    if observation_date.hour < 12:
         observation_date -= oneday
     return observation_date.date()
 

@@ -455,13 +455,21 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         top = np.percentile(flat, 90)
-        plt.imshow(flat, vmax=top)
+        plt.imshow(flat, vmax=top, origin="lower")
         plt.show()
 
     return flat, fhead
 
 
-def combine_bias(files, instrument, mode, extension=1, plot=False, science_observation_time=None, **kwargs):
+def combine_bias(
+    files,
+    instrument,
+    mode,
+    extension=1,
+    plot=False,
+    science_observation_time=None,
+    **kwargs
+):
     """
     Combine bias frames, determine read noise, reject bad pixels.
     Read noise calculation only valid if both lists yield similar noise.
@@ -592,7 +600,7 @@ def combine_bias(files, instrument, mode, extension=1, plot=False, science_obser
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(bias, (1, 99))
-        plt.imshow(bias, vmin=bot, vmax=top)
+        plt.imshow(bias, vmin=bot, vmax=top, origin="lower")
         plt.show()
 
     try:
