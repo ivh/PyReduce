@@ -842,15 +842,12 @@ class WavelengthCalibration:
                 fd_all[k] -= fr_all[k] * shift
                 print(shift)
 
-            # plt.plot(wj, nj)
-            # plt.plot(wk, nk)
-            # plt.show()
-
         n_all = np.concatenate(n_all)
         f_all = np.concatenate(f_all)
         pixel = np.concatenate(pixel)
         order = np.concatenate(order)
 
+        # Fit f0 and fr to all data
         fr, f0 = np.polyfit(n_all, f_all, deg=1)
         print(f0)
         print(fr)
