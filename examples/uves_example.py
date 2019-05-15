@@ -11,14 +11,14 @@ from pyreduce import datasets
 # define parameters
 instrument = "UVES"
 target = "HD132205"
-night = "2010-04-02"
+night = "2010-04-01"
 mode = "middle"
 steps = (
-    "bias",
-    "flat",
-    "orders",
-    "norm_flat",
-    "wavecal",
+    # "bias",
+    # "flat",
+    # "orders",
+    # "norm_flat",
+    # "wavecal",
     "shear",
     "science",
     "continuum",

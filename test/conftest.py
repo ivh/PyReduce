@@ -86,7 +86,7 @@ def night(dataset):
 
     _, target = dataset
     if target == "HD132205":
-        return "2010-04-02"
+        return "2010-04-01"
 
 
 @pytest.fixture
@@ -250,7 +250,7 @@ def input_dir(data, target):
 def output_dir(data, settings, instrument, target, night, mode):
     """Output data directory
     Also creates that directory if necessary
-    
+
     Parameters
     ----------
     data : str
@@ -265,7 +265,7 @@ def output_dir(data, settings, instrument, target, night, mode):
         observation night
     mode : str
         observing mode
-    
+
     Returns
     -------
     output_dir : str
