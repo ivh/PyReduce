@@ -583,13 +583,13 @@ class Reducer:
             mode=self.config["wavecal.mode"],
             shift_window=self.config["wavecal.shift_window"],
         )
-        wave = module.execute(thar, linelist)
+        wave, coef = module.execute(thar, linelist)
 
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
 
-        np.savez(self.wave_file, wave=wave, thar=thar)
-        return wave, thar
+        np.savez(self.wave_file, wave=wave, thar=thar, coef=coef)
+        return wave, thar, coef
 
     def load_wavecal(self):
         data = np.load(self.wave_file)
@@ -597,9 +597,10 @@ class Reducer:
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = data["thar"]
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
-        return wave, thar
+        coef = data["coef"]
+        return wave, thar, coef
 
-    def run_comb(self, wave, orders, column_range):
+    def run_comb(self, wave_coef, orders, column_range):
         f = self.files["comb"][0]
         comb, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=self.mask
@@ -632,7 +633,7 @@ class Reducer:
             lfc_fr=lfc_fr,
         )
 
-        wave = module.frequency_comb(comb, wave)
+        wave = module.frequency_comb(comb, wave_coef)
         return wave
 
     def run_shear(self, orders, column_range, thar):
@@ -835,14 +836,14 @@ class Reducer:
             return
 
         if "wavecal" in steps or steps == "all":
-            wave, thar = self.run_wavecal(orders, column_range)
+            wave, thar, wave_coef = self.run_wavecal(orders, column_range)
         else:
-            wave, thar = self.load_wavecal()
+            wave, thar, wave_coef = self.load_wavecal()
         if last_step == "wavecal":
             return
 
         if "frequency_comb" in steps or steps == "all":
-            wave = self.run_comb(wave, orders, column_range)
+            wave = self.run_comb(wave_coef, orders, column_range)
         if last_step == "frequency_comb":
             return
 

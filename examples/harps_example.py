@@ -14,9 +14,9 @@ target = "HD109200"
 night = "2015-04-09"
 mode = "red"
 steps = (
-    "bias",
-    "flat",
-    "orders",
+    # "bias",
+    # "flat",
+    # "orders",
     # "norm_flat",
     "wavecal",
     "frequency_comb",
@@ -45,5 +45,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=os.path.join(os.path.dirname(__file__), "settings_HARPS.json"),
-    order_range=(0, 25),
+    # order_range=(0, 25),
 )

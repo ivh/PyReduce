@@ -20,6 +20,8 @@ from .instruments import instrument_info
 
 import warnings
 
+debug_lines = None
+
 
 class AlignmentPlot:
     """
@@ -447,19 +449,7 @@ class WavelengthCalibration:
             )
 
         if plot or self.plot >= 2:
-            orders = np.unique(lines["order"])
-            norders = len(orders)
-            for i, order in enumerate(orders):
-                plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
-                order_lines = lines[lines["order"] == order]
-                if len(order_lines) > 0:
-                    residual = self.calculate_residual(coef, order_lines)
-                    plt.plot(order_lines["posm"], residual, "rx")
-                    plt.hlines(
-                        [0], order_lines["posm"].min(), order_lines["posm"].max()
-                    )
-                    plt.ylim((-self.threshold, self.threshold))
-            plt.show()
+            self.plot_residuals(lines, coef)
 
         return coef
 
@@ -489,7 +479,7 @@ class WavelengthCalibration:
         ValueError
             If pos and order have different shapes, or mode is of the wrong value
         """
-        if not np.array_equal(pos.shape, order.shape):
+        if not np.array_equal(np.shape(pos), np.shape(order)):
             raise ValueError("pos and order must have the same shape")
         if self.mode == "1D":
             result = np.zeros(pos.shape)
@@ -738,14 +728,68 @@ class WavelengthCalibration:
             plt.show()
         return lines
 
-    def frequency_comb(self, comb, wave_img):
+    def plot_results(self, wave_img, obs):
+        plt.subplot(211)
+        plt.title(
+            "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
+        )
+        plt.xlabel("Wavelength")
+        plt.ylabel("Observed spectrum")
+        for i in range(self.nord):
+            plt.plot(wave_img[i], obs[i], label="Order %i" % i)
+
+        plt.subplot(212)
+        plt.title("2D Wavelength solution")
+        plt.imshow(
+            wave_img, aspect="auto", origin="lower", extent=(0, self.ncol, 0, self.nord)
+        )
+        cbar = plt.colorbar()
+        plt.xlabel("Column")
+        plt.ylabel("Order")
+        cbar.set_label("Wavelength [Å]")
+        plt.show()
+
+    def plot_residuals(self, lines, coef):
+        orders = np.unique(lines["order"])
+        norders = len(orders)
+        for i, order in enumerate(orders):
+            plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
+            order_lines = lines[lines["order"] == order]
+            if len(order_lines) > 0:
+                residual = self.calculate_residual(coef, order_lines)
+                plt.plot(order_lines["posm"], residual, "rx")
+                plt.hlines([0], order_lines["posm"].min(), order_lines["posm"].max())
+                # plt.ylim((-self.threshold, self.threshold))
+        plt.show()
+
+    def frequency_comb(self, comb, wave_solution):
         self.nord, self.ncol = comb.shape
+
+        # TODO give everything better names
         pixel, order, wavelengths = [], [], []
+        n_all, fr_all, f_all, fd_all = [], [], [], []
+        n0_all = []
         comb = np.ma.masked_array(comb, mask=comb <= 0)
-        for i in range(len(comb)):
+        f0 = self.lfc_f0 * 1e-10
+
+        for i in range(self.nord):
             # find peaks in the comb spectrum
             c = comb[i] - np.ma.min(comb[i])
-            peaks, _ = signal.find_peaks(c, height=np.ma.median(c))
+            height = np.ma.median(c)
+            peaks, _ = signal.find_peaks(c, height=height)
+            width = np.median(np.diff(peaks)) // 4
+            peaks, _ = signal.find_peaks(c, height=height, distance=width, width=3)
+
+            # TODO fix missed/double peaks
+            n = np.arange(len(peaks))
+            diff = np.diff(peaks)
+            idx = np.where(diff > 1.5 * np.median(diff))[0]
+            for j in idx:
+                n[j + 1 :] += 1
+
+            idx = np.where(diff < 0.5 * np.median(diff))[0]
+            for j in idx:
+                n[j + 1 :] -= 1
 
             # Fit peaks with gaussian to get accurate position
             new_peaks = peaks.astype(float)
@@ -756,45 +800,75 @@ class WavelengthCalibration:
                 coef = util.gaussfit3(np.arange(len(idx)), c[idx])
                 new_peaks[j] = coef[1] + p - width
 
-            # TODO fix missed peaks
-            # mode_number = np.arange(len(new_peaks))
-            # coef = np.polyfit(mode_number, new_peaks, deg=4)
+            p_ord = np.full(len(peaks), i)
+            w_old = self.evaluate_solution(new_peaks, p_ord, wave_solution)
+            f_old = speed_of_light / w_old
 
-            # TODO Why the factor 100 / 2 ???
-            # in Hz, i.e. 1/s
-            m = self.lfc_m
-            f0 = self.lfc_f0
-            fr = self.lfc_fr * m * 100 / 2
+            fr, fd = np.polyfit(n, f_old, deg=1)
+            n0 = (f0 - fd) / fr
+            n0 = int(round(n0))
+            n -= n0
 
-            # Pick an arbitrary peak in the center of the order (better signal)
-            # TODO pick a peak next to a good line in the wavelength calibration
-            idx = peaks[len(peaks) // 2]  # pixel resolution is good enough
-            # Use the "normal" wavelength solution to find the predicted wavelength of that peak
-            w = wave_img[i, idx] * 1e-10
-            # Round to the next integer n of f0 + n * fr, to get the actual solution
-            f = speed_of_light / w
-            n = (f - f0) / fr
-            n = round(n)
-
-            # All other peaks are then given by f0 + n * fr (careful to not accidentially skip a peak)
-            p = np.arange(len(peaks)) - len(peaks) // 2 + n
-            freq = f0 + p * fr
-            wnew = speed_of_light / freq * 1e10
-
+            fr_all += [fr]
+            fd_all += [fd + n0 * fr]
+            n_all += [n]
+            n0_all += [n0]
+            f_all += [f_old]
             pixel += [new_peaks]
-            order += [np.full(len(new_peaks), i)]
-            wavelengths += [wnew]
+            order += [p_ord]
 
+        # TODO Align neighbouring orders, because that can be off
+        lines = debug_lines
+
+        for j, k in zip(range(self.nord - 1), range(1, self.nord)):
+            wj = lines[(lines["order"] == j) & (lines["flag"])]["wll"]
+            wk = lines[(lines["order"] == k) & (lines["flag"])]["wll"]
+
+            fj = speed_of_light / wj
+            fk = speed_of_light / wk
+
+            nj = (fj - fd_all[j]) / fr_all[j]
+            nk = (fk - fd_all[k]) / fr_all[k]
+
+            overlap = np.concatenate((wj, wk))
+            xj = np.polyval(np.polyfit(wj, nj, 1), overlap)
+            xk = np.polyval(np.polyfit(wk, nk, 1), overlap)
+
+            shift = np.median(xj - xk)
+            shift = int(shift)
+            if shift != 0:
+                nk += shift
+                n_all[k] += shift
+                fd_all[k] -= fr_all[k] * shift
+                print(shift)
+
+            # plt.plot(wj, nj)
+            # plt.plot(wk, nk)
+            # plt.show()
+
+        n_all = np.concatenate(n_all)
+        f_all = np.concatenate(f_all)
         pixel = np.concatenate(pixel)
         order = np.concatenate(order)
-        wavelengths = np.concatenate(wavelengths)
+
+        fr, f0 = np.polyfit(n_all, f_all, deg=1)
+        print(f0)
+        print(fr)
+
+        # All other peaks are then given by f0 + n * fr (careful to not accidentially skip a peak)
+        wavelengths = speed_of_light / (f0 + n_all * fr)
 
         # Use now better resolution to find the new solution
         lines = {"wll": wavelengths, "posm": pixel, "order": order, "flag": slice(None)}
         coef = self.build_2d_solution(lines)
         new_wave = self.make_wave(coef)
 
+        logging.info(f"Laser Frequency Comb solution based on {len(pixel)} lines.")
+
+        self.plot_residuals(debug_lines, coef)
+
         if self.plot:
+            wave_img = self.make_wave(wave_solution)
             plt.suptitle(
                 "Difference between GasLamp Solution and Laser Frequency Comb solution\nEach plot shows one order."
             )
@@ -802,6 +876,9 @@ class WavelengthCalibration:
                 plt.subplot(len(new_wave) // 4 + 1, 4, i + 1)
                 plt.plot(wave_img[i] - new_wave[i])
             plt.show()
+
+        if self.plot:
+            self.plot_results(new_wave, comb)
 
         return new_wave
 
@@ -858,28 +935,7 @@ class WavelengthCalibration:
         wave_img = self.make_wave(wave_solution)
 
         if self.plot:
-            plt.subplot(211)
-            plt.title(
-                "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
-            )
-            plt.xlabel("Wavelength")
-            plt.ylabel("Observed spectrum")
-            for i in range(self.nord):
-                plt.plot(wave_img[i], obs[i], label="Order %i" % i)
-
-            plt.subplot(212)
-            plt.title("2D Wavelength solution")
-            plt.imshow(
-                wave_img,
-                aspect="auto",
-                origin="lower",
-                extent=(0, self.ncol, 0, self.nord),
-            )
-            cbar = plt.colorbar()
-            plt.xlabel("Column")
-            plt.ylabel("Order")
-            cbar.set_label("Wavelength [Å]")
-            plt.show()
+            self.plot_results(wave_img, obs)
 
         # m_wave = lines["wll"]
         # m_pix = lines["posm"]
@@ -904,4 +960,6 @@ class WavelengthCalibration:
         # aic = 2 * k - 2 * logl
         # aicc_2d = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
 
-        return wave_img
+        global debug_lines
+        debug_lines = lines
+        return wave_img, wave_solution
