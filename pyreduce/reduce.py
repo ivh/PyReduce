@@ -588,8 +588,8 @@ class Reducer:
         wave = np.ma.masked_array(wave, mask=self._spec_mask)
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
 
-        np.savez(self.wave_file, wave=wave, thar=thar, coef=coef)
-        return wave, thar, coef
+        np.savez(self.wave_file, wave=wave, thar=thar, coef=coef, linelist=linelist)
+        return wave, thar, coef, linelist
 
     def load_wavecal(self):
         data = np.load(self.wave_file)
@@ -598,9 +598,11 @@ class Reducer:
         thar = data["thar"]
         thar = np.ma.masked_array(thar, mask=self._spec_mask)
         coef = data["coef"]
-        return wave, thar, coef
+        linelist = data["linelist"]
+        return wave, thar, coef, linelist
 
-    def run_comb(self, wave_coef, orders, column_range):
+    def run_comb(self, wave_coef, orders, column_range, linelist):
+        logging.info("Using Laser Frequency Comb to improve wavelength calibration")
         f = self.files["comb"][0]
         comb, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=self.mask
@@ -619,21 +621,16 @@ class Reducer:
             osample=self.config["wavecal.oversampling"],
             plot=self.config["plot"],
         )
-        # Get info from header
-        lfc_m = chead["e_lfc_m"]
-        lfc_f0 = chead["e_lfc_f0"]
-        lfc_fr = chead["e_lfc_fr"]
 
         module = WavelengthCalibration(
             plot=self.config["plot"],
             degree=(self.config["wavecal.degree.x"], self.config["wavecal.degree.y"]),
+            threshold=self.config["wavecal.threshold"],
             mode=self.config["wavecal.mode"],
-            lfc_m=lfc_m,
-            lfc_f0=lfc_f0,
-            lfc_fr=lfc_fr,
+            lfc_peak_width=self.config["wavecal.lfc.peak_width"],
         )
 
-        wave = module.frequency_comb(comb, wave_coef)
+        wave = module.frequency_comb(comb, wave_coef, linelist)
         return wave
 
     def run_shear(self, orders, column_range, thar):
@@ -836,14 +833,14 @@ class Reducer:
             return
 
         if "wavecal" in steps or steps == "all":
-            wave, thar, wave_coef = self.run_wavecal(orders, column_range)
+            wave, thar, wave_coef, linelist = self.run_wavecal(orders, column_range)
         else:
-            wave, thar, wave_coef = self.load_wavecal()
+            wave, thar, wave_coef, linelist = self.load_wavecal()
         if last_step == "wavecal":
             return
 
         if "frequency_comb" in steps or steps == "all":
-            wave = self.run_comb(wave_coef, orders, column_range)
+            wave = self.run_comb(wave_coef, orders, column_range, linelist)
         if last_step == "frequency_comb":
             return
 

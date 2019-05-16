@@ -20,8 +20,6 @@ from .instruments import instrument_info
 
 import warnings
 
-debug_lines = None
-
 
 class AlignmentPlot:
     """
@@ -127,9 +125,7 @@ class WavelengthCalibration:
         shift_window=0.01,
         manual=False,
         polarim=False,
-        lfc_m=None,
-        lfc_f0=None,
-        lfc_fr=None,
+        lfc_peak_width=3,
         plot=True,
     ):
         #:float: Residual threshold in m/s above which to remove lines
@@ -150,12 +146,8 @@ class WavelengthCalibration:
         #:int: Wether to plot the results. Set to 2 to plot during all steps.
         self.plot = plot
 
-        #:int: Laser Frequency comb attenuation factor
-        self.lfc_m = lfc_m
-        #:float: Laser Frequency Comb, Anchor frequency in Hz
-        self.lfc_f0 = lfc_f0
-        #:float: Laser Frequency Comb, Repetition Rate in Hz
-        self.lfc_fr = lfc_fr
+        #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
+        self.lfc_peak_width = lfc_peak_width
 
         #:int: Number of orders in the observation
         self.nord = None
@@ -749,9 +741,10 @@ class WavelengthCalibration:
         cbar.set_label("Wavelength [Å]")
         plt.show()
 
-    def plot_residuals(self, lines, coef):
+    def plot_residuals(self, lines, coef, title=""):
         orders = np.unique(lines["order"])
         norders = len(orders)
+        plt.suptitle(title)
         for i, order in enumerate(orders):
             plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
             order_lines = lines[lines["order"] == order]
@@ -762,23 +755,27 @@ class WavelengthCalibration:
                 # plt.ylim((-self.threshold, self.threshold))
         plt.show()
 
-    def frequency_comb(self, comb, wave_solution):
+    def frequency_comb(self, comb, wave_solution, lines):
         self.nord, self.ncol = comb.shape
 
         # TODO give everything better names
         pixel, order, wavelengths = [], [], []
-        n_all, fr_all, f_all, fd_all = [], [], [], []
-        n0_all = []
+        n_all, f_all = [], []
         comb = np.ma.masked_array(comb, mask=comb <= 0)
-        f0 = self.lfc_f0 * 1e-10
 
         for i in range(self.nord):
-            # find peaks in the comb spectrum
+            # Find peaks in the comb spectrum
+            # Run find_peak twice
+            # once to find the average distance between peaks
+            # once for real (disregarding close peaks)
             c = comb[i] - np.ma.min(comb[i])
+            width = self.lfc_peak_width
             height = np.ma.median(c)
-            peaks, _ = signal.find_peaks(c, height=height)
-            width = np.median(np.diff(peaks)) // 4
-            peaks, _ = signal.find_peaks(c, height=height, distance=width, width=3)
+            peaks, _ = signal.find_peaks(c, height=height, width=width)
+            distance = np.median(np.diff(peaks)) // 4
+            peaks, _ = signal.find_peaks(
+                c, height=height, distance=distance, width=width
+            )
 
             # TODO fix missed/double peaks
             n = np.arange(len(peaks))
@@ -800,69 +797,76 @@ class WavelengthCalibration:
                 coef = util.gaussfit3(np.arange(len(idx)), c[idx])
                 new_peaks[j] = coef[1] + p - width
 
+            # Determine the n-offset of this order, relative to the anchor frequency
+            # Use the existing absolute wavelength calibration as reference
             p_ord = np.full(len(peaks), i)
             w_old = self.evaluate_solution(new_peaks, p_ord, wave_solution)
             f_old = speed_of_light / w_old
 
+            # fr: repeating frequency
+            # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
             fr, fd = np.polyfit(n, f_old, deg=1)
+
+            # The first order is used as the baseline for all other orders
+            # The choice is arbitrary and doesn't matter
+            if i == 0:
+                f0 = fd
+
+            # n0: shift in n, relative to the absolute reference
+            # shift n to the absolute grid, so that all peaks are given by the same f0
             n0 = (f0 - fd) / fr
             n0 = int(round(n0))
             n -= n0
 
-            fr_all += [fr]
-            fd_all += [fd + n0 * fr]
             n_all += [n]
-            n0_all += [n0]
             f_all += [f_old]
             pixel += [new_peaks]
             order += [p_ord]
 
-        # TODO Align neighbouring orders, because that can be off
-        lines = debug_lines
-
-        for j, k in zip(range(self.nord - 1), range(1, self.nord)):
-            wj = lines[(lines["order"] == j) & (lines["flag"])]["wll"]
-            wk = lines[(lines["order"] == k) & (lines["flag"])]["wll"]
-
-            fj = speed_of_light / wj
-            fk = speed_of_light / wk
-
-            nj = (fj - fd_all[j]) / fr_all[j]
-            nk = (fk - fd_all[k]) / fr_all[k]
-
-            overlap = np.concatenate((wj, wk))
-            xj = np.polyval(np.polyfit(wj, nj, 1), overlap)
-            xk = np.polyval(np.polyfit(wk, nk, 1), overlap)
-
-            shift = np.median(xj - xk)
-            shift = int(shift)
-            if shift != 0:
-                nk += shift
-                n_all[k] += shift
-                fd_all[k] -= fr_all[k] * shift
-                print(shift)
+            logging.debug(
+                "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd + n0 * fr, fr, n0
+            )
 
         n_all = np.concatenate(n_all)
         f_all = np.concatenate(f_all)
-        pixel = np.concatenate(pixel)
-        order = np.concatenate(order)
 
         # Fit f0 and fr to all data
         fr, f0 = np.polyfit(n_all, f_all, deg=1)
-        print(f0)
-        print(fr)
+        logging.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
+        logging.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
 
-        # All other peaks are then given by f0 + n * fr (careful to not accidentially skip a peak)
+        # All peaks are then given by f0 + n * fr
         wavelengths = speed_of_light / (f0 + n_all * fr)
+        pixel = np.concatenate(pixel)
+        order = np.concatenate(order)
+        flag = np.full(len(wavelengths), True)
 
         # Use now better resolution to find the new solution
-        lines = {"wll": wavelengths, "posm": pixel, "order": order, "flag": slice(None)}
-        coef = self.build_2d_solution(lines)
+        laser_lines = np.rec.fromarrays(
+            (wavelengths, pixel, order, flag), names=("wll", "posm", "order", "flag")
+        )
+        # A single pass of discarding outliers should be enough
+        coef = self.build_2d_solution(laser_lines)
+        resid = self.calculate_residual(coef, laser_lines)
+        laser_lines["flag"] = np.abs(resid) < self.threshold
+        # laser_lines["flag"] = np.abs(resid) < resid.std() * 5
+
+        coef = self.build_2d_solution(laser_lines)
         new_wave = self.make_wave(coef)
 
-        logging.info(f"Laser Frequency Comb solution based on {len(pixel)} lines.")
-
-        self.plot_residuals(debug_lines, coef)
+        ngood = np.count_nonzero(laser_lines["flag"])
+        logging.info(f"Laser Frequency Comb solution based on {ngood} lines.")
+        if self.plot:
+            self.plot_residuals(
+                lines,
+                coef,
+                title="GasLamp Line Residuals in the Laser Frequency Comb Solution",
+            )
+            self.plot_residuals(
+                laser_lines,
+                coef,
+                title="Laser Frequency Comb Peak Residuals in the LFC Solution",
+            )
 
         if self.plot:
             wave_img = self.make_wave(wave_solution)
@@ -957,6 +961,4 @@ class WavelengthCalibration:
         # aic = 2 * k - 2 * logl
         # aicc_2d = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
 
-        global debug_lines
-        debug_lines = lines
         return wave_img, wave_solution
