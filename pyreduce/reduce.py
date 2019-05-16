@@ -205,6 +205,310 @@ def load_config(configuration, instrument, j):
     return settings
 
 
+class Step:
+    def __init__(self, instrument, mode, extension, target, night, config):
+        self._dependsOn = []
+        self.instrument = instrument
+        self.mode = mode
+        self.extension = extension
+        self.target = target
+        self.night = night
+        self.order_range = config["order_range"]
+        self.plot = config["plot"]
+        self._output_dir = config["output_dir"]
+
+    def run(self, files, *args):
+        raise NotImplementedError
+
+    def save(self, *args):
+        raise NotImplementedError
+
+    def load(self):
+        raise NotImplementedError
+
+    @property
+    def dependsOn(self):
+        return self._dependsOn
+
+    @property
+    def output_dir(self):
+        """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
+        return self._output_dir.format(
+            instrument=self.instrument,
+            target=self.target,
+            night=self.night,
+            mode=self.mode,
+        )
+
+    @property
+    def prefix(self):
+        """str: temporary file prefix"""
+        i = self.instrument.lower()
+        m = self.mode.lower()
+        return f"{i}_{m}"
+
+
+class Mask(Step):
+    def __init__(self, instrument, mode, extension, target, night, config):
+        super().__init__(instrument, mode, extension, target, night, config)
+        self.extension = 0
+        self._mask_dir = config["reduce.mask.dir"]
+
+    @property
+    def mask_dir(self):
+        this = os.path.dirname(__file__)
+        return self._mask_dir.format(file=this)
+
+    @property
+    def mask_file(self):
+        i = self.instrument.lower()
+        m = self.mode
+        return f"mask_{i}_{m}.fits.gz"
+
+    def run(self):
+        return self.load()
+
+    def save(self, mask):
+        mask_file = join(self.mask_dir, self.mask_file)
+        fits.writeto(mask_file, data=(~mask).astype(int))
+
+    def load(self):
+        mask_file = join(self.mask_dir, self.mask_file)
+        mask, _ = util.load_fits(
+            mask_file, self.instrument, self.mode, extension=self.extension
+        )
+        mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+        return mask
+
+
+class Bias(Step):
+    def __init__(self, instrument, mode, extension, target, night, config):
+        super().__init__(instrument, mode, extension, target, night, config)
+        self._dependsOn += ["mask"]
+        self._loadDependsOn += ["mask"]
+
+    @property
+    def savefile(self):
+        """str: Name of master bias fits file"""
+        return join(self.output_dir, self.prefix + ".bias.fits")
+
+    def save(self, bias, bhead):
+        fits.writeto(
+            self.savefile,
+            data=bias,
+            header=bhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
+
+    def run(self, files, mask):
+        logging.info("Creating master bias")
+        bias, bhead = combine_bias(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            extension=self.extension,
+            plot=self.plot,
+        )
+
+        self.save(bias.data, bhead)
+
+        return bias, bhead
+
+    def load(self, mask):
+        if not os.path.exists(self.savefile):
+            error = f"Bias file '{self.savefile}' not found, run with bias step"
+            logging.error(error)
+            raise FileNotFoundError(error)
+
+        logging.info("Loading master bias")
+        bias = fits.open(self.savefile)[0]
+        bias, bhead = bias.data, bias.header
+        bias = np.ma.masked_array(bias, mask=mask)
+        return bias, bhead
+
+
+class Flat(Step):
+    def __init__(self, instrument, mode, extension, target, night, config):
+        super().__init__(instrument, mode, extension, target, night, config)
+        self._dependsOn += ["mask", "bias"]
+
+    @property
+    def savefile(self):
+        """str: Name of master bias fits file"""
+        return join(self.output_dir, self.prefix + ".flat.fits")
+
+    def save(self, flat, fhead):
+        fits.writeto(
+            self.savefile,
+            data=flat,
+            header=fhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
+
+    def run(self, files, bias, mask):
+        bias, bhead = bias
+        logging.info("Creating master flat")
+        flat, fhead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            extension=self.extension,
+            bias=bias,
+            plot=self.plot,
+        )
+
+        self.save(flat.data, fhead)
+        return flat, fhead
+
+    def load(self, mask, bias=None):
+        if not os.path.exists(self.savefile):
+            error = f"Flat file '{self.savefile}' not found, run with flat step"
+            logging.error(error)
+            raise FileNotFoundError(error)
+
+        logging.info("Loading master flat")
+        flat = fits.open(self.savefile)[0]
+        flat, fhead = flat.data, flat.header
+        flat = np.ma.masked_array(flat, mask=mask)
+        return flat, fhead
+
+
+class Orders(Step):
+    def __init__(self, instrument, mode, extension, target, night, config):
+        super().__init__(instrument, mode, extension, target, night, config)
+        self._dependsOn += ["mask"]
+
+        self.min_cluster = config["orders.min_cluster"]
+        self.filter_size = config["orders.filter_size"]
+        self.noise = config["orders.noise"]
+        self.opower = config["orders.fit_degree"]
+        self.border_width = config["orders.border_width"]
+        self.manual = config["orders.manual"]
+
+    @property
+    def savefile(self):
+        """str: Name of the order tracing file"""
+        return join(self.output_dir, self.prefix + ".ord_default.npz")
+
+    def run(self, files, mask):
+        logging.info("Tracing orders")
+
+        order_img, _ = util.load_fits(
+            files[0], self.instrument, self.mode, self.extension, mask=mask
+        )
+
+        orders, column_range = mark_orders(
+            order_img,
+            min_cluster=self.min_cluster,
+            filter_size=self.filter_size,
+            noise=self.noise,
+            opower=self.fit_degree,
+            border_width=self.border_width,
+            manual=self.manual,
+            plot=self.plot,
+        )
+
+        self.save(orders, column_range)
+
+        return orders, column_range
+
+    def save(self, orders, column_range):
+        np.savez(self.savefile, orders=orders, column_range=column_range)
+
+    def load(self, mask=None):
+        logging.info("Loading order tracing data")
+        data = np.load(self.savefile)
+        orders = data["orders"]
+        column_range = data["column_range"]
+        return orders, column_range
+
+
+class NormalizeFlatField(Step):
+    def __init__(self, instrument, mode, extension, target, night, config):
+        super().__init__(instrument, mode, extension, target, night, config)
+        self._dependsOn += ["flat", "orders"]
+
+        self.extraction_width = config["normflat.extraction_width"]
+        self.scatter_degree = config["normflat.scatter_degree"]
+        self.threshold = config["normflat.threshold"]
+        self.lambda_sf = config["normflat.smooth_slitfunction"]
+        self.lambda_sp = config["normflat.smooth_spectrum"]
+        self.swath_width = config["normflat.swath_width"]
+        self.osample = config["normflat.oversampling"]
+
+    @property
+    def normflat_file(self):
+        """str: Name of normalized flat file"""
+        return join(self.output_dir, self.prefix + ".flat_norm.fits")
+
+    @property
+    def blaze_file(self):
+        """str: Name of the blaze file"""
+        return join(self.output_dir, self.prefix + ".ord_norm.npz")
+
+    def run(self, flat, orders):
+        flat, fhead = flat
+        orders, column_range = orders
+
+        logging.info("Normalizing flat field")
+
+        norm, blaze = normalize_flat(
+            flat,
+            orders,
+            gain=fhead["e_gain"],
+            readnoise=fhead["e_readn"],
+            dark=fhead["e_drk"],
+            column_range=column_range,
+            order_range=self.order_range,
+            extraction_width=self.extraction_width,
+            scatter_degree=self.scatter_degree,
+            threshold=self.threshold,
+            smooth_slitfunction=self.smooth_slitfunction,
+            smooth_spectrum=self.smooth_spectrum,
+            swath_width=self.swath_width,
+            oversampling=self.oversampling,
+            plot=self.plot,
+        )
+
+        blaze = np.ma.filled(blaze, 0)
+        # Fix column ranges
+        for i in range(blaze.shape[0]):
+            j = i + self.order_range[0]
+            column_range[j] = np.where(blaze[i] != 0)[0][[0, -1]]
+
+        # Save data
+        self.save(fhead, norm, blaze, column_range)
+
+        return norm, blaze, column_range
+
+    def save(self, fhead, norm, blaze, column_range):
+        np.savez(self.blaze_file, blaze=blaze, column_range=column_range)
+        fits.writeto(
+            self.normflat_file,
+            data=norm,
+            header=fhead,
+            overwrite=True,
+            output_verify="fix+warn",
+        )
+
+    def load(self, flat=None, orders=None):
+        logging.info("Loading normalized flat field")
+        norm = fits.open(self.normflat_file)[0]
+        norm = norm.data
+        norm = np.ma.masked_array(norm, mask=self.mask)
+
+        data = np.load(self.blaze_file)
+        blaze = data["blaze"]
+        column_range = data["column_range"]
+        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
+
+        return norm, blaze, column_range
+
+
 class Reducer:
 
     step_order = {
@@ -275,6 +579,8 @@ class Reducer:
         self._mask = None
         self._spec_mask = np.ma.nomask
         self._output_dir = output_dir
+        self.config["output_dir"] = output_dir
+        self.config["order_range"] = order_range
 
         info = instruments.instrument_info.get_instrument_info(instrument)
         imode = util.find_first_index(info["modes"], mode)
@@ -355,179 +661,12 @@ class Reducer:
             self._mask = self.load_mask()
         return self._mask
 
-    def load_mask(self):
-        # Read mask
-        # the mask is not stored with the data files (it is not supported by astropy)
-        mask_dir = os.path.dirname(__file__)
-        mask_dir = os.path.join(mask_dir, "masks")
-        mask_file = join(
-            mask_dir, "mask_%s_%s.fits.gz" % (self.instrument.lower(), self.mode)
-        )
-
-        mask, _ = util.load_fits(mask_file, self.instrument, self.mode, extension=0)
-        mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
-        return mask
-
-    def run_bias(self):
-        logging.info("Creating master bias")
-        bias, bhead = combine_bias(
-            self.files["bias"],
-            self.instrument,
-            self.mode,
-            mask=self.mask,
-            extension=self.extension,
-            plot=self.config["plot"],
-        )
-        fits.writeto(
-            self.bias_file,
-            data=bias.data,
-            header=bhead,
-            overwrite=True,
-            output_verify="fix+warn",
-        )
-        return bias, bhead
-
-    def load_bias(self):
-        if not os.path.exists(self.bias_file):
-            logging.error("Bias file not found, run with bias step")
-            raise FileNotFoundError("Bias file not found, run with bias step")
-
-        logging.info("Loading master bias")
-        bias = fits.open(self.bias_file)[0]
-        bias, bhead = bias.data, bias.header
-        bias = np.ma.masked_array(bias, mask=self.mask)
-        return bias, bhead
-
-    def run_flat(self, bias):
-        logging.info("Creating master flat")
-        flat, fhead = combine_flat(
-            self.files["flat"],
-            self.instrument,
-            self.mode,
-            mask=self.mask,
-            extension=self.extension,
-            bias=bias,
-            plot=self.config["plot"],
-        )
-        fits.writeto(
-            self.flat_file,
-            data=flat.data,
-            header=fhead,
-            overwrite=True,
-            output_verify="fix+warn",
-        )
-        return flat, fhead
-
-    def load_flat(self):
-        if not os.path.exists(self.flat_file):
-            logging.error("Flat file not found, run with flat step")
-            raise FileNotFoundError("Flat file not found, run with flat step")
-
-        logging.info("Loading master flat")
-        flat = fits.open(self.flat_file)[0]
-        flat, fhead = flat.data, flat.header
-        flat = np.ma.masked_array(flat, mask=self.mask)
-        return flat, fhead
-
-    def run_orders(self):
-        logging.info("Tracing orders")
-
-        file = self.files["order"][0]
-        order_img, _ = util.load_fits(
-            file, self.instrument, self.mode, self.extension, mask=self.mask
-        )
-
-        orders, column_range = mark_orders(
-            order_img,
-            min_cluster=self.config["orders.min_cluster"],
-            filter_size=self.config["orders.filter_size"],
-            noise=self.config["orders.noise"],
-            opower=self.config["orders.fit_degree"],
-            border_width=self.config["orders.border_width"],
-            manual=self.config["orders.manual"],
-            plot=self.config["plot"],
-        )
-
-        # Save results
-        np.savez(self.order_file, orders=orders, column_range=column_range)
-
-        return orders, column_range
-
-    def load_orders(self):
-        logging.info("Loading order tracing data")
-        data = np.load(self.order_file)
-        orders = data["orders"]
-        column_range = data["column_range"]
-        return orders, column_range
-
     def run_extraction_width(self, flat, orders, column_range):
         extraction_width = estimate_extraction_width(flat, orders, column_range)
 
         self.config["normflat.extraction_width"] = extraction_width
 
         return extraction_width
-
-    def run_norm_flat(self, flat, fhead, orders, column_range):
-        logging.info("Normalizing flat field")
-
-        norm, blaze = normalize_flat(
-            flat,
-            orders,
-            gain=fhead["e_gain"],
-            readnoise=fhead["e_readn"],
-            dark=fhead["e_drk"],
-            column_range=column_range,
-            order_range=self.order_range,
-            extraction_width=self.config["normflat.extraction_width"],
-            scatter_degree=self.config["normflat.scatter_degree"],
-            threshold=self.config["normflat.threshold"],
-            lambda_sf=self.config["normflat.smooth_slitfunction"],
-            lambda_sp=self.config["normflat.smooth_spectrum"],
-            swath_width=self.config["normflat.swath_width"],
-            osample=self.config["normflat.oversampling"],
-            plot=self.config["plot"],
-        )
-
-        blaze = np.ma.filled(blaze, 0)
-        # Fix column ranges
-        for i in range(blaze.shape[0]):
-            j = i + self.order_range[0]
-            column_range[j] = np.where(blaze[i] != 0)[0][[0, -1]]
-        self._spec_mask = np.full(blaze.shape, True)
-        for i, cr in enumerate(column_range[self.order_range[0] : self.order_range[1]]):
-            self._spec_mask[i, cr[0] : cr[1]] = False
-
-        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
-
-        # Save data
-        np.savez(self.blaze_file, blaze=blaze, column_range=column_range)
-        fits.writeto(
-            self.norm_flat_file,
-            data=norm.data,
-            header=fhead,
-            overwrite=True,
-            output_verify="fix+warn",
-        )
-        return norm, blaze, column_range
-
-    def load_norm_flat(self):
-        logging.info("Loading normalized flat field")
-        flat = fits.open(self.norm_flat_file)[0]
-        flat, _ = flat.data, flat.header
-        flat = np.ma.masked_array(flat, mask=self.mask)
-
-        data = np.load(self.blaze_file)
-        blaze = data["blaze"]
-        column_range = data["column_range"]
-
-        self._spec_mask = np.full(blaze.shape, True)
-        for i, cr in enumerate(column_range[self.order_range[0] : self.order_range[1]]):
-            self._spec_mask[i, cr[0] : cr[1]] = False
-        # self._spec_mask = blaze == 0
-
-        blaze = np.ma.masked_array(blaze, mask=self._spec_mask)
-
-        return flat, blaze, column_range
 
     def run_wavecal(self, orders, column_range):
         logging.info("Creating wavelength calibration")
@@ -603,7 +742,7 @@ class Reducer:
 
     def run_comb(self, wave_coef, orders, column_range, linelist):
         logging.info("Using Laser Frequency Comb to improve wavelength calibration")
-        f = self.files["comb"][0]
+        f = self.files["comb"][1]
         comb, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=self.mask
         )
@@ -621,6 +760,10 @@ class Reducer:
             osample=self.config["wavecal.oversampling"],
             plot=self.config["plot"],
         )
+
+        # for i in range(len(comb)):
+        #     comb[i] -= comb[i][comb[i] > 0].min()
+        #     comb[i] /= blaze[i] * comb[i].max() / blaze[i].max()
 
         module = WavelengthCalibration(
             plot=self.config["plot"],
@@ -787,6 +930,34 @@ class Reducer:
             )
             logging.info("science file: %s", os.path.basename(out_file))
 
+    def run_module(self, step, load=False):
+        # The Module this step is based on (An object of the Step class)
+        module = self.modules[step](*self.inputs)
+
+        # Load the dependencies necessary for loading/running this step
+        dependencies = module.dependsOn if not load else module.loadDependsOn
+        for dependency in dependencies:
+            if dependency not in self.data.keys():
+                self.data[dependency] = self.run_module(dependency, load=True)
+        args = {d: self.data[d] for d in dependencies}
+
+        # Try to load the data, if the step is not specifically given as necessary
+        # If the intermediate data is not available, run it normally instead
+        # But give a warning
+        if load:
+            try:
+                data = module.load(**args)
+            except FileNotFoundError:
+                logging.Warning(
+                    "Intermediate File(s) for loading step {step} not found. Running it instead."
+                )
+                data = self.run_module(step, load=False)
+        else:
+            data = module.run(self.files[step], **args)
+
+        self.data[step] = data
+        return data
+
     def run_steps(self, steps="all"):
 
         last_step = "finalize"
@@ -794,6 +965,22 @@ class Reducer:
             new_steps = list(steps)
             new_steps.sort(key=lambda x: self.step_order[x])
             last_step = new_steps[-1]
+
+        # TODO Order steps
+
+        self.modules = {"mask": Mask, "bias": Bias, "flat": Flat}
+        self.data = {}
+        self.inputs = (
+            self.instrument,
+            self.mode,
+            self.extension,
+            self.target,
+            self.night,
+            self.config,
+        )
+
+        for step in steps:
+            self.run_module(step)
 
         # TODO some logic that will stop the run after all requested steps are done
         if "bias" in steps or steps == "all":
@@ -824,11 +1011,7 @@ class Reducer:
                 flat, fhead, orders, column_range
             )
         else:
-            try:
-                norm, blaze, column_range = self.load_norm_flat()
-            except:
-                logging.warning("Could not load normalized Flat field")
-                norm, blaze = None, None
+            norm, blaze, column_range = self.load_norm_flat()
         if last_step == "norm_flat":
             return
 
