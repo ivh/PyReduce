@@ -941,7 +941,7 @@ def extend_orders(orders, nrow):
     return np.array([order_low, *orders, order_high])
 
 
-def fix_extraction_width(extraction_width, orders, column_range, ncol):
+def fix_extraction_width(extraction_width, orders, column_range, ncol, img=None, plot=False):
     """Convert fractional extraction width to pixel range
 
     Parameters
@@ -965,20 +965,34 @@ def fix_extraction_width(extraction_width, orders, column_range, ncol):
         # if extraction width is in relative scale transform to pixel scale
         x = np.arange(ncol)
         for i in range(1, len(extraction_width) - 1):
-            left, right = column_range[i]
-            current = np.polyval(orders[i], x[left:right])
+            for j in [0, 1]:
+                if extraction_width[i, j] < 1.5:
+                    k = i-1 if j == 0 else i +1
+                    left = max(column_range[[i, k], 0])
+                    right = min(column_range[[i, k], 1])
 
-            if extraction_width[i, 0] < 1.5:
-                below = np.polyval(orders[i - 1], x[left:right])
-                extraction_width[i, 0] *= np.mean(current - below)
-            if extraction_width[i, 1] < 1.5:
-                above = np.polyval(orders[i + 1], x[left:right])
-                extraction_width[i, 1] *= np.mean(above - current)
+                    current = np.polyval(orders[i], x[left:right])
+                    below = np.polyval(orders[k], x[left:right])
+                    extraction_width[i, j] *= np.abs(np.mean(current - below))
+
 
         extraction_width[0] = extraction_width[1]
         extraction_width[-1] = extraction_width[-2]
 
-    extraction_width = extraction_width.astype(int)
+    extraction_width = np.ceil(extraction_width).astype(int)
+
+    if plot and img is not None:
+        plt.imshow(img, aspect="auto", origin="lower")
+        for i in range(len(extraction_width)):
+            left, right = column_range[i]
+            xwd = extraction_width[i]
+            current = np.polyval(orders[i], x[left:right])
+
+            plt.plot(x[left:right], current, "k-")
+            plt.plot(x[left:right], np.round(current - xwd[0]), "k--")
+            plt.plot(x[left:right], np.round(current + xwd[1]), "k--")
+        plt.show()
+
     return extraction_width
 
 

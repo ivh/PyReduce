@@ -1,7 +1,7 @@
 {
     "__instrument__": "UVES",
     "polarimetry": false,
-    "plot": true,
+    "plot": false,
     "fiber": "AB",
     "use_median": true,
     "orders.fit_degree": 4,
@@ -11,7 +11,7 @@
     "orders.manual": true,
     "normflat.smooth_slitfunction": 2,
     "normflat.smooth_spectrum": 0,
-    "normflat.extraction_width": 0.4,
+    "normflat.extraction_width": 0.45,
     "normflat.oversampling": 12,
     "normflat.swath_width": 200,
     "normflat.threshold": 1000,

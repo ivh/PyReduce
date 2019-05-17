@@ -102,12 +102,10 @@ def estimate_background_scatter(
     column_range = np.array([column_range[0], *column_range, column_range[-1]])
 
     extraction_width = extract.fix_extraction_width(
-        extraction_width, orders, column_range, ncol
+        extraction_width, orders, column_range, ncol, img=img, plot=True
     )
-    # additional orders outside don't have an extraction width
-    extraction_width[0] = extraction_width[-1] = [0, 0]
 
-    column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
+    # column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
 
     # determine points inbetween orders
     x_inbetween = [None for _ in range(nord + 1)]
@@ -120,32 +118,30 @@ def estimate_background_scatter(
 
         x_order = np.arange(left, right)
         y_below = np.polyval(orders[i], x_order)
-        y_below = np.clip(y_below, 0, ncol)
         y_above = np.polyval(orders[j], x_order)
-        y_above = np.clip(y_above, 0, ncol)
 
-        y_order = ((y_below + y_above) / 2).astype(int)
+        y_below += extraction_width[i, 1]
+        y_above -= extraction_width[j, 0]
 
-        width = int(np.min(y_above - y_below)) / 2
-        width_above = width - extraction_width[j, 0]
-        width_below = width - extraction_width[i, 1]
+        y_above = np.floor(y_above)
+        y_below = np.ceil(y_below)
 
-        width_above = int(np.ceil(width_above / 2))
-        width_below = int(np.ceil(width_below / 2))
+        within_img = (y_below < nrow) & (y_above >= 0)
+        left, right = x_order[within_img][[0, -1]]
+        y_below = np.clip(y_below[within_img], 0, nrow - 1)
+        y_above = np.clip(y_above[within_img], 0, nrow - 1)
 
-        width_above = min(width_above, nrow - y_order.max() - 1)
-        width_below = min(width_below, y_order.min())
+        index = make_index(y_below, y_above, left, right, zero=True)
 
-        index = make_index(
-            y_order - width_below, y_order + width_above, left, right, zero=True
-        )
+        y = np.concatenate(index[0])
+        x = np.concatenate(index[1])
+        sub_img = img[(y, x)]
 
-        sub_img = img[index]
         threshold = np.ma.median(sub_img) + 5 * np.ma.std(sub_img)
 
         mask = (~np.ma.getmaskarray(sub_img)) & (sub_img <= threshold)
-        x_inbetween[i] = index[1][mask].ravel()
-        y_inbetween[i] = index[0][mask].ravel()
+        x_inbetween[i] = x[mask]
+        y_inbetween[i] = y[mask]
         z_inbetween[i] = np.ma.getdata(sub_img[mask]).ravel()
 
         # plt.title("Between %i and %i" % (i, j))
@@ -169,7 +165,9 @@ def estimate_background_scatter(
         plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(img - back, vmin=0, vmax=np.max(back), aspect="equal")
+        plt.imshow(
+            img - back, vmin=0, vmax=np.max(back), aspect="equal", origin="lower"
+        )
         for i in range(len(x_inbetween)):
             plt.plot(x_inbetween[i], y_inbetween[i], ".")
 
@@ -177,7 +175,7 @@ def estimate_background_scatter(
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(back, vmin=0, vmax=np.max(back), aspect="equal")
+        plt.imshow(back, vmin=0, vmax=np.max(back), aspect="equal", origin="lower")
         plt.show()
 
     return coeff
