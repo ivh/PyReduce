@@ -57,10 +57,6 @@ class HARPS(instrument):
             "longitude": "HIERARCH ESO TEL GEOLON",
             "latitude": "HIERARCH ESO TEL GEOLAT",
             "altitude": "HIERARCH ESO TEL GEOELEV",
-            # Laser Frequency Comb
-            "lfc_attunement": "ESO INS LFC1 SLMLEVEL",
-            "lfc_freq_anchor": "ESO INS LFC1 ANCHOR",
-            "lfc_freq_repeating": "ESO INS LFC1 REPRATE",
             # Ids for file sorting
             "target": "OBJECT",
             "observation_type": "ESO DPR TYPE",
@@ -82,10 +78,6 @@ class HARPS(instrument):
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
         info = self.load_info()
-
-        header["e_lfc_m"] = header.get(info["lfc_attunement"], 0)
-        header["e_lfc_f0"] = header.get(info["lfc_freq_anchor"], 0)
-        header["e_lfc_fr"] = header.get(info["lfc_freq_repeating"], 0)
 
         try:
             header["e_ra"] /= 15
@@ -237,9 +229,10 @@ class HARPS(instrument):
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == id_flat) & select],
                     "order": files[(ty == id_orddef) & select],
-                    "wave": files[(ob == info["id_wave"]) & select],
-                    "comb": files[(ty == info["id_comb"]) & select],
-                    "spec": files[match_ty & match_ob & select],
+                    "wavecal": files[(ob == info["id_wave"]) & select],
+                    "curvature": files[(ob == info["id_wave"]) & select],
+                    "freq_comb": files[(ty == info["id_comb"]) & select],
+                    "science": files[match_ty & match_ob & select],
                 }
 
             if len(keys) != 0:
