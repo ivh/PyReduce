@@ -102,7 +102,7 @@ def estimate_background_scatter(
     column_range = np.array([column_range[0], *column_range, column_range[-1]])
 
     extraction_width = extract.fix_extraction_width(
-        extraction_width, orders, column_range, ncol, img=img, plot=True
+        extraction_width, orders, column_range, ncol
     )
 
     # column_range = extract.fix_column_range(img, orders, extraction_width, column_range)

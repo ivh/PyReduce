@@ -18,11 +18,11 @@ steps = (
     # "flat",
     # "orders",
     # "norm_flat",
-    "wavecal",
+    # "wavecal",
     # "curvature",
-    # "science",
+    "science",
     # "continuum",
-    # "finalize",
+    "finalize",
 )
 
 # some basic settings
@@ -44,5 +44,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json"),
-    order_range=(1, 21),
+    # order_range=(1, 21),
 )

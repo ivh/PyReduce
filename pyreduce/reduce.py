@@ -572,6 +572,7 @@ class LaserFrequencyComb(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
         self._dependsOn += ["wavecal", "orders", "mask"]
+        self._loadDependsOn += ["wavecal"]
 
         self.order_range = config["order_range"]
         self.oversampling = config["wavecal.oversampling"]
@@ -630,8 +631,13 @@ class LaserFrequencyComb(Step):
     def save(self, wave, comb):
         np.savez(self.savefile, wave=wave, comb=comb)
 
-    def load(self):
-        data = np.load(self.savefile)
+    def load(self, wavecal):
+        try:
+            data = np.load(self.savefile)
+        except FileNotFoundError:
+            logging.warning("No data for Laser Frequency Comb found, using regular wavelength calibration instead")
+            wave, thar, coef, linelist = wavecal
+            data = {"wave":wave, "comb":None}
         wave = data["wave"]
         comb = data["comb"]
         return wave, comb
@@ -676,7 +682,12 @@ class SlitCurvatureDetermination(Step):
         np.savez(self.savefile, tilt=tilt, shear=shear)
 
     def load(self):
-        data = np.load(self.savefile)
+        try:
+            data = np.load(self.savefile)
+        except FileNotFoundError:
+            logging.warning("No data for slit curvature found, setting it to 0.")
+            data = {"tilt":None, "shear":None}
+
         tilt = data["tilt"]
         shear = data["shear"]
         return tilt, shear
@@ -703,7 +714,7 @@ class ScienceExtraction(Step):
         orders, column_range = orders
         tilt, shear = curvature
 
-        heads, specs, sigmas = [], [], []
+        heads, specs, sigmas, columns = [], [], [], []
         for fname in files:
             im, head = util.load_fits(
                 fname,
@@ -741,8 +752,9 @@ class ScienceExtraction(Step):
             heads.append(head)
             specs.append(spec)
             sigmas.append(sigma)
+            columns.append(column_range)
 
-        return heads, specs, sigmas
+        return heads, specs, sigmas, columns
 
     def save(self, fname, head, spec, sigma, column_range):
         nameout = self.science_file(fname)
@@ -771,14 +783,14 @@ class ScienceExtraction(Step):
 class ContinuumNormalization(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
-        self._dependsOn += ["science", "wavecal", "norm_flat"]
+        self._dependsOn += ["science", "freq_comb", "norm_flat"]
 
     @property
     def savefile(self):
         return join(self.output_dir, self.prefix + ".cont.npz")
 
-    def run(self, science, wavecal, norm_flat):
-        wave, thar, coef, linelist = wavecal
+    def run(self, science, freq_comb, norm_flat):
+        wave, comb = freq_comb
         heads, specs, sigmas, columns = science
         norm, blaze = norm_flat
 
@@ -806,15 +818,6 @@ class ContinuumNormalization(Step):
             "columns": columns,
         }
         joblib.dump(value, self.savefile)
-        # # TODO saving headers in numpy
-        # np.savez(
-        #     self.savefile,
-        #     heads=heads,
-        #     specs=specs,
-        #     sigmas=sigmas,
-        #     conts=conts,
-        #     columns=columns,
-        # )
 
     def load(self):
         data = joblib.load(self.savefile)
@@ -829,15 +832,15 @@ class ContinuumNormalization(Step):
 class Finalize(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
-        self._dependsOn += ["continuum", "wavecal"]
+        self._dependsOn += ["continuum", "freq_comb"]
 
     def output_file(self, number):
         out = f"{self.instrument.upper()}.{self.night}_{number}.ech"
         return os.path.join(self.output_dir, out)
 
-    def run(self, continuum, wavecal):
+    def run(self, continuum, freq_comb):
         heads, specs, sigmas, conts, columns = continuum
-        wave, thar, coef, linelist = wavecal
+        wave, comb = freq_comb
 
         # Combine science with wavecal and continuum
         for i, (head, spec, sigma, blaze) in enumerate(

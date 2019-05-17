@@ -1,7 +1,7 @@
 {
     "__instrument__": "UVES",
     "polarimetry": false,
-    "plot": false,
+    "plot": true,
     "fiber": "AB",
     "use_median": true,
     "orders.fit_degree": 4,
