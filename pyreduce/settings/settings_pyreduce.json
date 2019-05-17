@@ -2,6 +2,7 @@
     "reduce.base_dir": "./",
     "reduce.input_dir": "{instrument}/{target}/raw/{night}",
     "reduce.output_dir": "{instrument}/{target}/reduced/{night}/{mode}",
+    "reduce.mask.dir": "{file}/masks",
     "git.remote": "origin",
     "__instrument__": "DEFAULT",
     "polarimetry": false,
