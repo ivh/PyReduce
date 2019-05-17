@@ -104,6 +104,9 @@ def estimate_background_scatter(
     extraction_width = extract.fix_extraction_width(
         extraction_width, orders, column_range, ncol
     )
+    # additional orders outside don't have an extraction width
+    extraction_width[0] = extraction_width[-1] = [0, 0]
+
     column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
 
     # determine points inbetween orders
@@ -117,25 +120,25 @@ def estimate_background_scatter(
 
         x_order = np.arange(left, right)
         y_below = np.polyval(orders[i], x_order)
+        y_below = np.clip(y_below, 0, ncol)
         y_above = np.polyval(orders[j], x_order)
+        y_above = np.clip(y_above, 0, ncol)
+
         y_order = ((y_below + y_above) / 2).astype(int)
 
-        width = (
-            int(np.mean(y_above - y_below))
-            - (extraction_width[i, 1] + extraction_width[j, 0])
-        ) // 4
+        width = int(np.min(y_above - y_below)) / 2
+        width_above = width - extraction_width[j, 0]
+        width_below = width - extraction_width[i, 1]
 
-        within_image = (y_order > 0) & (y_order < nrow)
-        width = min(
-            width, y_order[within_image].min(), ncol - y_order[within_image].max()
+        width_above = int(np.ceil(width_above / 2))
+        width_below = int(np.ceil(width_below / 2))
+
+        width_above = min(width_above, nrow - y_order.max() - 1)
+        width_below = min(width_below, y_order.min())
+
+        index = make_index(
+            y_order - width_below, y_order + width_above, left, right, zero=True
         )
-
-        within_image = (y_order > width) & (y_order < nrow - width)
-        x_order = x_order[within_image]
-        y_order = y_order[within_image]
-        left, right = x_order[[0, -1]]
-
-        index = make_index(y_order - width, y_order + width, left, right, zero=True)
 
         sub_img = img[index]
         threshold = np.ma.median(sub_img) + 5 * np.ma.std(sub_img)
@@ -168,7 +171,7 @@ def estimate_background_scatter(
         plt.ylabel("y [pixel]")
         plt.imshow(img - back, vmin=0, vmax=np.max(back), aspect="equal")
         for i in range(len(x_inbetween)):
-            plt.plot(x_inbetween[i], y_inbetween[i])
+            plt.plot(x_inbetween[i], y_inbetween[i], ".")
 
         plt.subplot(212)
         plt.title("2D fit to the scatter between orders")
