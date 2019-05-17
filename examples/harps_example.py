@@ -15,10 +15,10 @@ night = "2015-04-09"
 mode = "red"
 steps = (
     # "bias",
-    # "flat",
+    "flat",
     # "orders",
     # "norm_flat",
-    "wavecal",
+    # "wavecal",
     "frequency_comb",
     # "shear",
     # "science",

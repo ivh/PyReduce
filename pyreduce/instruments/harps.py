@@ -138,21 +138,20 @@ class HARPS(instrument):
         instrument = info["__instrument__"].upper()
 
         if fiber == "AB":
-            id_orddef = info["id_flat"]
-            id_spec = "STAR,STAR,*"
-            id_flat = "LAMP,LAMP,TUN"
+            template = "{a},{a},{c}"
         elif fiber == "A":
-            id_orddef = info["id_fiber_a"]
-            id_spec = "STAR,*,*"
-            id_flat = "LAMP,DARK,TUN"
+            template = "{a},{b},{c}"
         elif fiber == "B":
-            id_orddef = info["id_fiber_b"]
-            id_spec = "*,STAR,*"
-            id_flat = "DARK,LAMP,TUN"
+            template = "{b},{a},{c}"
         else:
             raise ValueError(
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
+
+        id_orddef = template.format(a="LAMP", b="DARK", c="TUN")
+        id_flat = template.format(a="LAMP", b="DARK", c="TUN")
+        # id_flat = info["id_flat"]
+        id_spec = template.format(a="STAR", b="*", c="*")
 
         # Try matching with nights
         try:
