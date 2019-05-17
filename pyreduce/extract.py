@@ -313,7 +313,7 @@ def extract_spectrum(
     out_mask=None,
     progress=None,
     ord_num=0,
-    **kwargs
+    **kwargs,
 ):
     """
     Extract the spectrum of a single order from an image
@@ -722,7 +722,7 @@ def optimal_extraction(
             out_mask=mask[i],
             progress=progress,
             ord_num=i + 1,
-            **kwargs
+            **kwargs,
         )
 
     if kwargs.get("plot", False):
@@ -741,7 +741,7 @@ def arc_extraction(
     readnoise=0,
     dark=0,
     plot=False,
-    **kwargs
+    **kwargs,
 ):
     """ Use "simple" arc extraction to get a spectrum
     Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
@@ -883,6 +883,10 @@ def fix_column_range(img, orders, extraction_width, column_range, no_clip=False)
         # then use the region that most closely resembles the existing column range (from order tracing)
         # but clip it to the existing column range (order tracing polynomials are not well defined outside the original range)
         points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
+
+        if len(points_in_image) == 0:
+            raise ValueError(f"No pixels are completely within the extraction width for order {i}")
+
         regions = np.where(np.diff(points_in_image) != 1)[0]
         regions = [(r, r + 1) for r in regions]
         regions = [
@@ -957,28 +961,24 @@ def fix_extraction_width(extraction_width, orders, column_range, ncol):
         updated extraction width in pixels
     """
 
-    if np.all(extraction_width > 1.5):
-        # already in pixel scale
-        extraction_width = extraction_width.astype(int)
-        return extraction_width
+    if not np.all(extraction_width > 1.5):
+        # if extraction width is in relative scale transform to pixel scale
+        x = np.arange(ncol)
+        for i in range(1, len(extraction_width) - 1):
+            left, right = column_range[i]
+            current = np.polyval(orders[i], x[left:right])
 
-    x = np.arange(ncol)
-    # if extraction width is in relative scale transform to pixel scale
-    for i in range(1, len(extraction_width) - 1):
-        left, right = column_range[i]
-        current = np.polyval(orders[i], x[left:right])
+            if extraction_width[i, 0] < 1.5:
+                below = np.polyval(orders[i - 1], x[left:right])
+                extraction_width[i, 0] *= np.mean(current - below)
+            if extraction_width[i, 1] < 1.5:
+                above = np.polyval(orders[i + 1], x[left:right])
+                extraction_width[i, 1] *= np.mean(above - current)
 
-        if extraction_width[i, 0] < 1.5:
-            below = np.polyval(orders[i - 1], x[left:right])
-            extraction_width[i, 0] *= np.mean(current - below)
-        if extraction_width[i, 1] < 1.5:
-            above = np.polyval(orders[i + 1], x[left:right])
-            extraction_width[i, 1] *= np.mean(above - current)
+        extraction_width[0] = extraction_width[1]
+        extraction_width[-1] = extraction_width[-2]
 
-    extraction_width[0] = extraction_width[1]
-    extraction_width[-1] = extraction_width[-2]
     extraction_width = extraction_width.astype(int)
-
     return extraction_width
 
 
@@ -991,7 +991,7 @@ def extract(
     extraction_type="optimal",
     tilt=None,
     shear=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Extract the spectrum from an image
@@ -1083,7 +1083,7 @@ def extract(
             column_range,
             tilt=tilt,
             shear=shear,
-            **kwargs
+            **kwargs,
         )
     elif extraction_type == "normalize":
         # TODO
@@ -1103,7 +1103,7 @@ def extract(
             normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,
-            **kwargs
+            **kwargs,
         )
         im_norm[im_norm == 0] = 1
         im_ordr[im_ordr == 0] = 1
@@ -1114,5 +1114,125 @@ def extract(
             img, orders, extraction_width, column_range, **kwargs
         )
         slitfunction = None
+    else:
+        raise ValueError(
+            f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'arc' bug got {extraction_type}."
+        )
 
     return spectrum, uncertainties, slitfunction, column_range
+
+
+class Extraction:
+    def __init__(
+        self,
+        orders,
+        column_range=None,
+        order_range=None,
+        extraction_width=0.5,
+        tilt=None,
+        shear=None,
+        extraction_type="optimal",
+    ):
+        # nrow, ncol = img.shape
+
+        self.nord = orders.shape[0]
+        if order_range is None:
+            order_range = (0, self.nord)
+        self.order_range = order_range
+
+        if np.isscalar(tilt):
+            n = order_range[1] - order_range[0]
+            tilt = np.full((n, ncol), tilt)
+        if np.isscalar(shear):
+            n = order_range[1] - order_range[0]
+            shear = np.full((n, ncol), shear)
+
+        if column_range is None:
+            column_range = np.tile([0, ncol], (self.nord, 1))
+
+        if np.isscalar(extraction_width):
+            extraction_width = np.tile(
+                [extraction_width, extraction_width], (self.nord, 1)
+            )
+
+        # Limit orders (and related properties) to orders in range
+        nord = order_range[1] - order_range[0]
+        orders = orders[order_range[0] : order_range[1]]
+        column_range = column_range[order_range[0] : order_range[1]]
+        extraction_width = extraction_width[order_range[0] : order_range[1]]
+
+        # Extend orders and related properties
+        orders = extend_orders(orders, nrow)
+        extraction_width = np.array(
+            [extraction_width[0], *extraction_width, extraction_width[-1]]
+        )
+        column_range = np.array([column_range[0], *column_range, column_range[-1]])
+
+        # Fix column range, so that all extractions are fully within the image
+        extraction_width = fix_extraction_width(
+            extraction_width, orders, column_range, ncol
+        )
+        column_range = fix_column_range(img, orders, extraction_width, column_range)
+
+        orders = orders[1:-1]
+        extraction_width = extraction_width[1:-1]
+        column_range = column_range[1:-1]
+
+        self.extraction_type = extraction_type
+        pass
+
+    def execute_optimal(self, img):
+        spectrum, slitfunction, uncertainties = optimal_extraction(
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            tilt=tilt,
+            shear=shear,
+            **kwargs,
+        )
+        return spectrum, slitfunction, uncertainties
+
+    def execute_normalize(self, img):
+        im_norm = np.zeros_like(img)
+        im_ordr = np.zeros_like(img)
+
+        blaze, _, _ = optimal_extraction(
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            tilt=tilt,
+            shear=shear,
+            normalize=True,
+            im_norm=im_norm,
+            im_ordr=im_ordr,
+            **kwargs,
+        )
+        im_norm[im_norm == 0] = 1
+        im_ordr[im_ordr == 0] = 1
+        return im_norm, im_ordr, blaze, column_range
+
+    def execute_arc(self, img):
+        spectrum, uncertainties = arc_extraction(
+            img, orders, extraction_width, column_range, **kwargs
+        )
+        slitfunction = None
+        return spectrum, slitfunction, uncertainties
+
+    def execute(self, img):
+        if self.extraction_type == "optimal":
+            # the "normal" case, except for wavelength calibration files
+            return self.execute_optimal(img)
+        elif self.extraction_type == "normalize":
+            # Prepare normalized flat field image if necessary
+            # These will be passed and "returned" by reference
+            # I dont like it, but it works for now
+            return self.execute_normalize(img)
+        elif self.extraction_type == "arc":
+            # Simpler extraction, just summing along the arc of the order
+            return self.execute_arc(img)
+        else:
+            raise ValueError(
+                f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'arc' bug got {self.extraction_type}."
+            )
