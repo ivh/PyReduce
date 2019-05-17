@@ -29,6 +29,7 @@ from os.path import join
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
+import joblib
 
 from . import echelle, instruments, util
 
@@ -157,9 +158,9 @@ def main(
                             logging.info("Group Identifier: %s", key)
                             logging.debug("Bias files:\n%s", f[key]["bias"])
                             logging.debug("Flat files:\n%s", f[key]["flat"])
-                            logging.debug("Wavecal files:\n%s", f[key]["wave"])
-                            logging.debug("Orderdef files:\n%s", f[key]["order"])
-                            logging.debug("Science files:\n%s", f[key]["spec"])
+                            logging.debug("Wavecal files:\n%s", f[key]["wavecal"])
+                            logging.debug("Orderdef files:\n%s", f[key]["orders"])
+                            logging.debug("Science files:\n%s", f[key]["science"])
                             reducer = Reducer(
                                 f[key],
                                 output_dir,
@@ -253,14 +254,6 @@ class Step:
         return f"{i}_{m}"
 
 
-class Files(Step):
-    def run(self, files):
-        return files
-
-    def load(self):
-        raise FileNotFoundError
-
-
 class Mask(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
@@ -306,6 +299,7 @@ class Bias(Step):
         return join(self.output_dir, self.prefix + ".bias.fits")
 
     def save(self, bias, bhead):
+        bias = np.asarray(bias, dtype=np.float32)
         fits.writeto(
             self.savefile,
             data=bias,
@@ -315,7 +309,6 @@ class Bias(Step):
         )
 
     def run(self, files, mask):
-        logging.info("Creating master bias")
         bias, bhead = combine_bias(
             files,
             self.instrument,
@@ -330,12 +323,6 @@ class Bias(Step):
         return bias, bhead
 
     def load(self, mask):
-        if not os.path.exists(self.savefile):
-            error = f"Bias file '{self.savefile}' not found, run with bias step"
-            logging.error(error)
-            raise FileNotFoundError(error)
-
-        logging.info("Loading master bias")
         bias = fits.open(self.savefile)[0]
         bias, bhead = bias.data, bias.header
         bias = np.ma.masked_array(bias, mask=mask)
@@ -354,6 +341,7 @@ class Flat(Step):
         return join(self.output_dir, self.prefix + ".flat.fits")
 
     def save(self, flat, fhead):
+        flat = np.asarray(flat, dtype=np.float32)
         fits.writeto(
             self.savefile,
             data=flat,
@@ -364,7 +352,6 @@ class Flat(Step):
 
     def run(self, files, bias, mask):
         bias, bhead = bias
-        logging.info("Creating master flat")
         flat, fhead = combine_flat(
             files,
             self.instrument,
@@ -379,12 +366,6 @@ class Flat(Step):
         return flat, fhead
 
     def load(self, mask):
-        if not os.path.exists(self.savefile):
-            error = f"Flat file '{self.savefile}' not found, run with flat step"
-            logging.error(error)
-            raise FileNotFoundError(error)
-
-        logging.info("Loading master flat")
         flat = fits.open(self.savefile)[0]
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
@@ -409,8 +390,6 @@ class OrderTracing(Step):
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
     def run(self, files, mask):
-        logging.info("Tracing orders")
-
         order_img, _ = util.load_fits(
             files[0], self.instrument, self.mode, self.extension, mask=mask
         )
@@ -434,7 +413,6 @@ class OrderTracing(Step):
         np.savez(self.savefile, orders=orders, column_range=column_range)
 
     def load(self):
-        logging.info("Loading order tracing data")
         data = np.load(self.savefile)
         orders = data["orders"]
         column_range = data["column_range"]
@@ -459,7 +437,7 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, files, flat, orders):
+    def run(self, flat, orders):
         flat, fhead = flat
         orders, column_range = orders
 
@@ -486,11 +464,11 @@ class NormalizeFlatField(Step):
         blaze = np.ma.filled(blaze, 0)
 
         # Save data
-        self.save(fhead, norm, blaze)
+        self.save(norm, blaze)
 
         return norm, blaze
 
-    def save(self, fhead, norm, blaze):
+    def save(self, norm, blaze):
         np.savez(self.savefile, blaze=blaze, norm=norm)
 
     def load(self):
@@ -514,7 +492,7 @@ class WavelengthCalibration(Step):
         self.degree = (config["wavecal.degree.x"], config["wavecal.degree.y"])
         self.threshold = config["wavecal.threshold"]
         self.iterations = config["wavecal.iterations"]
-        self.mode = config["wavecal.mode"]
+        self.wavecal_mode = config["wavecal.mode"]
         self.shift_window = config["wavecal.shift_window"]
 
     @property
@@ -525,10 +503,8 @@ class WavelengthCalibration(Step):
     def run(self, files, orders, mask):
         orders, column_range = orders
 
-        logging.info("Creating wavelength calibration")
-
         if len(files) == 0:
-            raise AttributeError("No wavecal files given")
+            raise FileNotFoundError("No wavecal files given")
         f = files[0]
         if len(files) > 1:
             # TODO: Give the user the option to select one?
@@ -570,7 +546,7 @@ class WavelengthCalibration(Step):
             degree=self.degree,
             threshold=self.threshold,
             iterations=self.iterations,
-            mode=self.mode,
+            mode=self.wavecal_mode,
             shift_window=self.shift_window,
         )
         wave, coef = module.execute(thar, linelist)
@@ -582,7 +558,7 @@ class WavelengthCalibration(Step):
     def save(self, wave, thar, coef, linelist):
         np.savez(self.savefile, wave=wave, thar=thar, coef=coef, linelist=linelist)
 
-    def load(self, mask):
+    def load(self):
         data = np.load(self.savefile)
         wave = data["wave"]
         thar = data["thar"]
@@ -615,7 +591,6 @@ class LaserFrequencyComb(Step):
         wave, thar, coef, linelist = wavecal
         orders, column_range = orders
 
-        logging.info("Using Laser Frequency Comb to improve wavelength calibration")
         f = files[0]
         comb, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
@@ -677,7 +652,6 @@ class SlitCurvatureDetermination(Step):
     def run(self, files, orders, wavecal, mask):
         orders, column_range = orders
         wave, thar, coef, linelist = wavecal
-        logging.info("Determine shear of slit curvature")
 
         # TODO: Pick best image / combine images ?
         f = files[0]
@@ -711,8 +685,8 @@ class SlitCurvatureDetermination(Step):
 class ScienceExtraction(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
-        self._dependsOn += ["mask", "bias", "orders", "norm", "curvature"]
-        self._loadDependsOn += ["files"]
+        self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
+        self._loadDependsOn += []
 
         self.extraction_width = config["science.extraction_width"]
         self.smooth_slitfunction = config["science.smooth_slitfunction"]
@@ -723,17 +697,21 @@ class ScienceExtraction(Step):
     def science_file(self, name):
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
 
-    def run(self, files, bias, orders, norm, curvature, mask):
+    def run(self, files, bias, orders, norm_flat, curvature, mask):
         bias, bhead = bias
-        norm, blaze = norm
+        norm, blaze = norm_flat
         orders, column_range = orders
         tilt, shear = curvature
 
-        logging.info("Extracting science spectra")
         heads, specs, sigmas = [], [], []
         for fname in files:
             im, head = util.load_fits(
-                fname, self.instrument, self.mode, self.extension, mask=mask
+                fname,
+                self.instrument,
+                self.mode,
+                self.extension,
+                mask=mask,
+                dtype=np.floating,
             )
             # Correct for bias and flat field
             im -= bias
@@ -770,10 +748,12 @@ class ScienceExtraction(Step):
         nameout = self.science_file(fname)
         echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
 
-    def load(self, files):
+    def load(self):
+        files = [s for s in os.listdir(self.output_dir) if s.endswith(".science.ech")]
+
         heads, specs, sigmas, columns = [], [], [], []
-        for f in files["science"]:
-            fname = self.science_file(f)
+        for fname in files:
+            fname = join(self.output_dir, fname)
             science = echelle.read(
                 fname,
                 continuum_normalization=False,
@@ -791,16 +771,16 @@ class ScienceExtraction(Step):
 class ContinuumNormalization(Step):
     def __init__(self, instrument, mode, extension, target, night, config):
         super().__init__(instrument, mode, extension, target, night, config)
-        self._dependsOn += ["science", "wavecal", "norm"]
+        self._dependsOn += ["science", "wavecal", "norm_flat"]
 
     @property
     def savefile(self):
         return join(self.output_dir, self.prefix + ".cont.npz")
 
-    def run(self, files, science, wavecal, norm):
+    def run(self, science, wavecal, norm_flat):
         wave, thar, coef, linelist = wavecal
         heads, specs, sigmas, columns = science
-        norm, blaze = norm
+        norm, blaze = norm_flat
 
         logging.info("Continuum normalization")
         conts = [None for _ in specs]
@@ -818,17 +798,26 @@ class ContinuumNormalization(Step):
         return heads, specs, sigmas, conts, columns
 
     def save(self, heads, specs, sigmas, conts, columns):
-        np.savez(
-            self.savefile,
-            heads=heads,
-            specs=specs,
-            sigmas=sigmas,
-            conts=conts,
-            columns=columns,
-        )
+        value = {
+            "heads": heads,
+            "specs": specs,
+            "sigmas": sigmas,
+            "conts": conts,
+            "columns": columns,
+        }
+        joblib.dump(value, self.savefile)
+        # # TODO saving headers in numpy
+        # np.savez(
+        #     self.savefile,
+        #     heads=heads,
+        #     specs=specs,
+        #     sigmas=sigmas,
+        #     conts=conts,
+        #     columns=columns,
+        # )
 
     def load(self):
-        data = np.load(self.savefile)
+        data = joblib.load(self.savefile)
         heads = data["heads"]
         specs = data["specs"]
         sigmas = data["sigmas"]
@@ -846,15 +835,15 @@ class Finalize(Step):
         out = f"{self.instrument.upper()}.{self.night}_{number}.ech"
         return os.path.join(self.output_dir, out)
 
-    def run(self, files, cont, wavecal):
-        heads, specs, sigmas, conts, columns = cont
+    def run(self, continuum, wavecal):
+        heads, specs, sigmas, conts, columns = continuum
         wave, thar, coef, linelist = wavecal
 
         # Combine science with wavecal and continuum
         for i, (head, spec, sigma, blaze) in enumerate(
             zip(heads, specs, sigmas, conts)
         ):
-            head["e_errscale"] = "absolute"
+            head["e_erscle"] = ("absolute", "error scale")
 
             # Add heliocentric correction
             rv_corr, bjd = util.helcorr(
@@ -896,11 +885,25 @@ class Reducer:
         "orders": 30,
         "norm_flat": 40,
         "wavecal": 50,
-        "frequency_comb": 60,
-        "shear": 70,
+        "freq_comb": 60,
+        "curvature": 70,
         "science": 80,
         "continuum": 90,
         "finalize": 100,
+    }
+
+    modules = {
+        "mask": Mask,
+        "bias": Bias,
+        "flat": Flat,
+        "orders": OrderTracing,
+        "norm_flat": NormalizeFlatField,
+        "wavecal": WavelengthCalibration,
+        "freq_comb": LaserFrequencyComb,
+        "curvature": SlitCurvatureDetermination,
+        "science": ScienceExtraction,
+        "continuum": ContinuumNormalization,
+        "finalize": Finalize,
     }
 
     def __init__(
@@ -942,44 +945,18 @@ class Reducer:
         """
         #:dict(str:str): Filenames sorted by usecase
         self.files = files
-        #:str: Name of the observed target star
-        self.target = target
-        #:str: Name of the observing instrument
-        self.instrument = instrument
-        #:str: Observing mode of the instrument
-        self.mode = mode
-        #:str: Literal of the observing night
-        self.night = night
-        #:dict(str:obj): various configuration settings for the reduction
-        self.config = config
-        #:tuple(int, int): the upper and lower bound of the orders to reduce, defaults to all orders
-        self.order_range = order_range
-
-        self._mask = None
-        self._spec_mask = np.ma.nomask
-        self._output_dir = output_dir
-        self.config["output_dir"] = output_dir
-        self.config["order_range"] = order_range
+        output_dir = output_dir.format(
+            instrument=instrument, target=target, night=night, mode=mode
+        )
+        config["output_dir"] = output_dir
+        config["order_range"] = order_range
 
         info = instruments.instrument_info.get_instrument_info(instrument)
         imode = util.find_first_index(info["modes"], mode)
+        extension = info["extension"][imode]
 
-        #:int: Fits File extension to use, as defined by the instrument settings
-        self.extension = info["extension"][imode]
-
-        # create output folder structure if necessary
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-
-    @property
-    def output_dir(self):
-        """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
-        return self._output_dir.format(
-            instrument=self.instrument,
-            target=self.target,
-            night=self.night,
-            mode=self.mode,
-        )
+        self.data = {}
+        self.inputs = (instrument, mode, extension, target, night, config)
 
     def run_module(self, step, load=False):
         # The Module this step is based on (An object of the Step class)
@@ -997,6 +974,7 @@ class Reducer:
         # But give a warning
         if load:
             try:
+                logging.info("Loading data from step '%s'", step)
                 data = module.load(**args)
             except FileNotFoundError:
                 logging.warning(
@@ -1004,43 +982,29 @@ class Reducer:
                 )
                 data = self.run_module(step, load=False)
         else:
-            data = module.run(self.files[step], **args)
+            logging.info("Running step '%s'", step)
+            if step in self.files.keys():
+                args["files"] = self.files[step]
+            data = module.run(**args)
 
         self.data[step] = data
         return data
 
+    def prepare_output_dir(self):
+        # create output folder structure if necessary
+        instrument, mode, extension, target, night, config = self.inputs
+        output_dir = config["output_dir"]
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
     def run_steps(self, steps="all"):
+        self.prepare_output_dir()
 
         if steps == "all":
             steps = list(self.step_order.keys())
-    
+
         steps = list(steps)
         steps.sort(key=lambda x: self.step_order[x])
-
-        self.modules = {
-            "files": Files,
-            "mask": Mask,
-            "bias": Bias,
-            "flat": Flat,
-            "orders": OrderTracing,
-            "norm_flat": NormalizeFlatField,
-            "wavecal": WavelengthCalibration,
-            "comb": LaserFrequencyComb,
-            "curvature": SlitCurvatureDetermination,
-            "science": ScienceExtraction,
-            "continuum": ContinuumNormalization,
-            "finalize": Finalize,
-        }
-
-        self.data = {}
-        self.inputs = (
-            self.instrument,
-            self.mode,
-            self.extension,
-            self.target,
-            self.night,
-            self.config,
-        )
 
         for step in steps:
             self.run_module(step)

@@ -18,11 +18,11 @@ steps = (
     # "flat",
     # "orders",
     # "norm_flat",
-    # "wavecal",
-    "shear",
-    "science",
-    "continuum",
-    "finalize",
+    "wavecal",
+    # "curvature",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
