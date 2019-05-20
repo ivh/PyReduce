@@ -316,7 +316,9 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
 
     tilt = np.ma.filled(tilt, 0)
     tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
-    shear = np.ma.filled(shear, 0)
+    # TODO DEBUG dont do this
+    shear = np.zeros(ncols)
+    # shear = np.ma.filled(-shear, 0)
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     model = np.zeros((nrows, ncols), dtype=c_double)
