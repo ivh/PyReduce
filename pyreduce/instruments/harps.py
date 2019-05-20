@@ -228,7 +228,7 @@ class HARPS(instrument):
                 files_this_night[key] = {
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == id_flat) & select],
-                    "order": files[(ty == id_orddef) & select],
+                    "orders": files[(ty == id_orddef) & select],
                     "wavecal": files[(ob == info["id_wave"]) & select],
                     "curvature": files[(ob == info["id_wave"]) & select],
                     "freq_comb": files[(ty == info["id_comb"]) & select],

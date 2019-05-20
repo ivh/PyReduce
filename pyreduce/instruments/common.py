@@ -280,9 +280,9 @@ class instrument:
                 files_this_night[key] = {
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == info["id_flat"]) & select],
-                    "order": files[(ty == info["id_orders"]) & select],
-                    "wave": files[(ob == info["id_wave"]) & select],
-                    "spec": files[(ty == info["id_spec"]) & (ob == target) & select],
+                    "orders": files[(ty == info["id_orders"]) & select],
+                    "wavecal": files[(ob == info["id_wave"]) & select],
+                    "science": files[(ty == info["id_spec"]) & (ob == target) & select],
                 }
 
             if len(keys) != 0:

@@ -580,7 +580,7 @@ class LaserFrequencyComb(Step):
 
         self.degree = (config["wavecal.degree.x"], config["wavecal.degree.y"])
         self.threshold = config["wavecal.threshold"]
-        self.mode = config["wavecal.mode"]
+        self.wavecal_mode = config["wavecal.mode"]
         self.lfc_peak_width = config["wavecal.lfc.peak_width"]
 
     @property
@@ -619,7 +619,7 @@ class LaserFrequencyComb(Step):
             plot=self.plot,
             degree=self.degree,
             threshold=self.threshold,
-            mode=self.mode,
+            mode=self.wavecal_mode,
             lfc_peak_width=self.lfc_peak_width,
         )
         wave = module.frequency_comb(comb, coef, linelist)
@@ -648,7 +648,10 @@ class SlitCurvatureDetermination(Step):
         super().__init__(instrument, mode, extension, target, night, config)
         self._dependsOn += ["orders", "wavecal", "mask"]
         self.order_range = config["order_range"]
-        self.extraction_width = config["wavecal.extraction_width"]
+        self.extraction_width = config["curvature.extraction_width"]
+        self.fit_degree = config["curvature.degree"]
+        self.max_iter = config["curvature.number_of_iterations"]
+        self.sigma_cutoff = config["curvature.sigma_cutoff"]
 
     @property
     def savefile(self):
@@ -671,6 +674,9 @@ class SlitCurvatureDetermination(Step):
             column_range=column_range,
             extraction_width=self.extraction_width,
             order_range=self.order_range,
+            fit_degree=self.fit_degree,
+            max_iter=self.max_iter,
+            sigma_cutoff=self.sigma_cutoff,
             plot=self.plot,
         )
 

@@ -20,8 +20,9 @@
     "wavecal.oversampling": 1,
     "wavecal.manual": false,
     "wavecal.extraction_width": 10,
+    "curvature.extraction_width": 10,
     "science.oversampling": 1,
-    "science.extraction_width": 0.2,
+    "science.extraction_width": 10,
     "science.swath_width": 300,
     "science.smooth_slitfunction": 0.1,
     "science.smooth_spectrum": 0

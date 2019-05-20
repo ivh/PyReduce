@@ -527,13 +527,11 @@ def extract_spectrum(
             tilt_first, tilt_last = swath_tilt[[0, -1]]
             shear_first, shear_last = swath_shear[[0, -1]]
 
-            y = -yhigh if tilt_first < 0 else ylow
-            excess = np.polyval([shear_first, tilt_first, 0], y)
-            margin[i, 0] = int(np.ceil(excess))
+            excess = np.polyval([shear_first, tilt_first, 0], [ylow, -yhigh])
+            margin[i, 0] = abs(int(np.ceil(excess).max()))
 
-            y = -ylow if tilt_last < 0 else yhigh
-            excess = np.polyval([shear_last, tilt_last, 0], y)
-            margin[i, 1] = int(np.ceil(excess))
+            excess = np.polyval([shear_last, tilt_last, 0], [-ylow, yhigh])
+            margin[i, 1] = abs(int(np.ceil(excess).max()))
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
