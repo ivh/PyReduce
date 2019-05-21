@@ -9,12 +9,6 @@ def test_continuum(spec, wave, normflat, order_range):
     norm, blaze = normflat
     wave, thar = wave
 
-    mask = spec.mask
-    spec = np.ma.masked_array(spec, mask=mask)
-    wave = np.ma.masked_array(wave, mask=mask)
-    blaze = np.ma.masked_array(blaze, mask=mask)
-    sigma = np.ma.masked_array(sigma, mask=mask)
-
     spec, wave, blaze, sigma = splice_orders(
         spec, wave, blaze, sigma, scaling=True, plot=False
     )

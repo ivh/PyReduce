@@ -597,16 +597,11 @@ def wave(
     wavefile = os.path.join(output_dir, "test_wavecal.thar.ech")
 
     if os.path.exists(wavefile):
-        thar = echelle.read(wavefile, raw=True)
-        wave = thar["wave"]
-        thar = thar["spec"]
+        data = np.load(wavefile)
 
-        mask = np.full(wave.shape, True)
-        for iord in range(wave.shape[0]):
-            cr = column_range[iord]
-            mask[iord, cr[0] : cr[1]] = False
-
-        wave = np.ma.array(wave, mask=mask)
+        thar = data["thar"]
+        wave = data["wave"]
+        solution = data["solution"]
     else:
         files = files["wavecal"][0]
         orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
@@ -634,9 +629,9 @@ def wave(
         linelist = reference["cs_lines"]
 
         module = WavelengthCalibration(plot=False, manual=False)
-        wave = module.execute(thar, linelist)
+        wave, solution = module.execute(thar, linelist)
 
-        echelle.save(wavefile, thead, spec=thar, wave=wave)
+        np.savez(wavefile, thar=thar, wave=wave, solution=solution)
 
     return wave, thar
 
@@ -720,7 +715,7 @@ def spec(
         im /= flat
 
         # Optimally extract science spectrum
-        spec, sigma, _, _ = extract(
+        spec, sigma, _, columns = extract(
             im,
             orders,
             gain=head["e_gain"],
@@ -735,6 +730,6 @@ def spec(
             swath_width=settings["science.swath_width"],
             plot=False,
         )
-        echelle.save(specfile, head, spec=spec, sig=sigma)
+        echelle.save(specfile, head, spec=spec, sig=sigma, columns=columns)
 
     return spec, sigma
