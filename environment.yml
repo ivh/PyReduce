@@ -10,6 +10,7 @@ dependencies:
   - scikit-image
   - python-dateutil
   - wget
+  - joblib
   - matplotlib
   - Ipython
   - jupyter
