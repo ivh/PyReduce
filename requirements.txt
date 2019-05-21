@@ -6,5 +6,5 @@ cffi==1.12.2
 scikit-image
 python-dateutil==2.8.0
 wget==3.2
-joblib
+joblib==0.13.2
 pytest==4.4.0
