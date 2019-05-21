@@ -25,7 +25,7 @@ def test_science(
     for i in range(blaze.shape[0]):
         column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
 
-    f = files["spec"][0]
+    f = files["science"][0]
 
     im, head = util.load_fits(
         f, instrument, mode, extension, mask=mask, dtype=np.float32

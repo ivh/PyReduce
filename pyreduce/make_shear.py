@@ -60,7 +60,8 @@ def find_peaks(vec, cr, threshold, width):
     # This should probably be the same as in the wavelength calibration
     vec -= np.ma.min(vec)
     vec = np.ma.filled(vec, 0)
-    peaks, _ = signal.find_peaks(vec, height=np.ma.median(vec) * threshold, width=3)
+    height = np.quantile(vec, 0.1) * threshold
+    peaks, _ = signal.find_peaks(vec, height=height)
 
     # Remove peaks at the edge
     peaks = peaks[(peaks >= width + 1) & (peaks < len(vec) - width - 1)]
@@ -158,6 +159,8 @@ def fit_curvature_single_order(peaks, tilt, shear, fit_degree, max_iter, sigma=3
         # if no maximum iteration is given, go on forever
         if np.ma.all(~idx1) and np.ma.all(~idx2):
             break
+        if np.all(mask):
+            raise ValueError("Could not fit polynomial to the data")
 
     coef_tilt = polyfit(peaks, tilt, fit_degree)
     coef_shear = polyfit(peaks, shear, fit_degree)
@@ -234,7 +237,7 @@ def make_shear(
     order_range=None,
     width=9,
     threshold=10,
-    fit_degree=3,
+    fit_degree=2,
     sigma_cutoff=3,
     max_iter=None,
     plot=False,
@@ -314,6 +317,10 @@ def make_shear(
         vec, peaks = find_peaks(vec, cr, threshold, width)
 
         npeaks = len(peaks)
+        if npeaks < fit_degree + 1:
+            raise ValueError(
+                f"Not enough peaks found to fit a polynomial of degree {fit_degree}"
+            )
         # 1st order curvature for each peak
         tilt = np.zeros(npeaks)
         # 2nd order curvature for each peak

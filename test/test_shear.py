@@ -9,7 +9,7 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
     _, extracted = wave
     orders, column_range = orders
 
-    files = files["wave"][0]
+    files = files["curvature"][0]
     original, thead = load_fits(files, instrument, mode, extension, mask=mask)
 
     tilt, shear = make_shear(

@@ -26,7 +26,7 @@ def test_orders(instrument, mode, extension, files, settings, mask):
         Bad pixel mask
     """
 
-    files = files["order"][0]
+    files = files["orders"][0]
     order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
 
     orders, column_range = mark_orders(
@@ -52,11 +52,14 @@ def test_orders(instrument, mode, extension, files, settings, mask):
 
     assert orders.shape[0] == column_range.shape[0]
 
+
 def test_simple():
     img = np.full((100, 100), 1)
     img[45:56, :] = 100
 
-    orders, column_range = mark_orders(img, manual=False, opower=1, plot=False, border_width=0)
+    orders, column_range = mark_orders(
+        img, manual=False, opower=1, plot=False, border_width=0
+    )
 
     assert orders.shape[0] == 1
     assert np.allclose(orders[0], [0, 50])
@@ -64,6 +67,7 @@ def test_simple():
     assert column_range.shape[0] == 1
     assert column_range[0, 0] == 0
     assert column_range[0, 1] == 100
+
 
 def test_parameters():
     img = np.full((100, 100), 1)

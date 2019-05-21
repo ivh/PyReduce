@@ -12,7 +12,7 @@ def test_wavecal(
     files, instrument, mode, extension, mask, orders, settings, order_range
 ):
     orders, column_range = orders
-    files = files["wave"][0]
+    files = files["wavecal"][0]
     orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
     thead["obase"] = (0, "base order number")
 
