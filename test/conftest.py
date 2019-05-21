@@ -485,7 +485,7 @@ def orders(instrument, mode, extension, files, settings, mask, output_dir):
         with open(orderfile, "rb") as file:
             orders, column_range = pickle.load(file)
     except FileNotFoundError:
-        files = files["order"][0]
+        files = files["orders"][0]
         order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
 
         orders, column_range = mark_orders(
@@ -608,7 +608,7 @@ def wave(
 
         wave = np.ma.array(wave, mask=mask)
     else:
-        files = files["wave"][0]
+        files = files["wavecal"][0]
         orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
         thead["obase"] = (0, "base order number")
 
@@ -710,7 +710,7 @@ def spec(
         for i in range(blaze.shape[0]):
             column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
 
-        f = files["spec"][0]
+        f = files["science"][0]
 
         im, head = util.load_fits(
             f, instrument, mode, extension, mask=mask, dtype=np.float32
