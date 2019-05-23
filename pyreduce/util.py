@@ -329,7 +329,6 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     xmin = int(xmin)
     xmax = int(xmax)
 
-    
     if zero:
         zero = xmin
 
@@ -453,6 +452,8 @@ def gaussfit4(x, y):
     """ A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
+    Assumes x is sorted
+
     Parameters
     ----------
     x : array of shape (n,)
@@ -466,7 +467,7 @@ def gaussfit4(x, y):
         Parameters A, mu, sigma**2, offset
     """
     gauss = gaussval2
-    i = np.argmax(y)
+    i = len(x)//2
     p0 = [y[i], x[i], 1, np.min(y)]
 
     with np.warnings.catch_warnings():

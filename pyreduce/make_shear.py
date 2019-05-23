@@ -31,11 +31,73 @@ from .util import make_index, gaussfit4 as gaussfit, polyfit2d
 
 
 class ProgressPlot:
-    def __init__(self):
+    def __init__(self, ncol, width, height):
         plt.ion()
 
-    def update(self):
-        pass
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+
+        fig.suptitle("Curvature in each order")
+
+        line1, = ax1.plot(np.arange(ncol) + 1)
+        line2, = ax1.plot(0, 0, "d")
+        ax1.set_yscale("log")
+
+        lines = [None] * height
+        for i in range(height):
+            lines[i], = ax2.plot(
+                np.arange(-width, width + 1), np.arange(-width, width + 1)
+            )
+
+        line3, = ax2.plot(np.arange(height), "r--")
+        line4, = ax2.plot(np.arange(height), "rx")
+        ax2.set_xlim((-width, width))
+        ax2.set_ylim((0, height + 5))
+
+        self.ncol = ncol
+        self.width = width * 2 + 1
+        self.height = height
+
+        self.fig = fig
+        self.ax1 = ax1
+        self.ax2 = ax2
+        self.line1 = line1
+        self.line2 = line2
+        self.line3 = line3
+        self.line4 = line4
+        self.lines = lines
+
+    def update_plot1(self, vector, peak, offset=0):
+        data = np.ones(self.ncol)
+        data[offset : len(vector) + offset] = np.clip(vector, 1, None)
+        self.line1.set_ydata(data)
+        self.line2.set_xdata(peak)
+        self.line2.set_ydata(data[peak])
+        self.ax1.set_ylim((data.min(), data.max()))
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+    def update_plot2(self, segments, tilt, shear, positions, values):
+        l4_y = np.full(self.height, np.nan)
+        for i, (s, v) in enumerate(zip(segments, values)):
+            s, v = s - s.min(), v - s.min()
+            s, v = s / s.max() * 5, v / s.max() * 5
+            l4_y[i] = v + i
+            self.lines[i].set_ydata(s + i)
+        for i in range(len(segments), self.height):
+            self.lines[i].set_ydata(np.full(self.width, np.nan))
+
+        y = np.arange(0, self.height) - self.height // 2
+        x = np.polyval((shear, tilt, 0), y)
+        y += np.arange(self.height)
+        y += self.height // 2
+        self.line3.set_xdata(x)
+        self.line3.set_ydata(y)
+
+        self.line4.set_xdata(positions)
+        self.line4.set_ydata(l4_y)
+
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
 
     def close(self):
         plt.close()
@@ -140,6 +202,7 @@ class Curvature:
         index_x = np.arange(-self.width, self.width + 1)
         #:array of shape (height,): stores the peak positions of the fits to each row
         xcen = np.zeros(height)
+        vcen = np.zeros(height)
         #:array of shape (height,): indices of the rows in the order, with 0 being the central row
         xind = np.arange(-xwd[0], xwd[1] + 1)
         #:array of shape (height,): Scatter of the values within the row, to seperate in order and out of order rows
@@ -170,6 +233,7 @@ class Curvature:
                     coef = gaussfit(x, segment)
                     # Store line center
                     xcen[i] = coef[1]
+                    vcen[i] = coef[0] + coef[3]
                     # Store the variation within the row
                     deviation[i] = np.ma.std(segment)
                 except RuntimeError:
@@ -190,15 +254,8 @@ class Curvature:
             coef = (0, 0)
         tilt, shear = coef[1], coef[0]
 
-        # plot = False
-        # if plot:
-        #     plt.figure()
-        #     for i, s in enumerate(segments):
-        #         s = s - s.min()
-        #         s = s / s.max() * 5
-        #         plt.plot(s + i)
-        #     plt.show()
-
+        if self.plot:
+            self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
         return tilt, shear
 
     def _fit_curvature_single_order(self, peaks, tilt, shear):
@@ -268,10 +325,8 @@ class Curvature:
             tilt = np.zeros(npeaks)
             shear = np.zeros(npeaks)
             for ipeak, peak in enumerate(peaks):
-                # TODO progress plot
-                # plt.figure()
-                # plt.plot(np.arange(len(vec)) + cr[0], vec)
-                # plt.plot(peaks[ipeak], vec[peaks[ipeak] - cr[0]], "d")
+                if self.plot:
+                    self.progress.update_plot1(vec, peak, cr[0])
                 tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
                     original, peak, ycen, xwd
                 )
@@ -379,7 +434,12 @@ class Curvature:
 
     def execute(self, extracted, original):
         _, ncol = original.shape
+
         self._fix_inputs(original)
+
+        if self.plot:
+            height = np.sum(self.extraction_width, axis=1).max() + 1
+            self.progress = ProgressPlot(ncol, self.width, height)
 
         peaks, tilt, shear, vec = self._determine_curvature_all_lines(
             original, extracted
