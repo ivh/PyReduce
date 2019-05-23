@@ -402,13 +402,20 @@ class NormalizeFlatField(Step):
         super().__init__(*args, **config)
         self._dependsOn += ["flat", "orders"]
 
-        self.extraction_width = config["extraction_width"]
+        self.extraction_method = config["extraction_method"]
+        if self.extraction_method == "normalize":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"]
+            }
+        else:
+            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'norm_flat'")
+
         self.scatter_degree = config["scatter_degree"]
         self.threshold = config["threshold"]
-        self.smooth_slitfunction = config["smooth_slitfunction"]
-        self.smooth_spectrum = config["smooth_spectrum"]
-        self.swath_width = config["swath_width"]
-        self.oversampling = config["oversampling"]
 
     @property
     def savefile(self):
@@ -419,8 +426,6 @@ class NormalizeFlatField(Step):
         flat, fhead = flat
         orders, column_range = orders
 
-        logging.info("Normalizing flat field")
-
         norm, blaze = normalize_flat(
             flat,
             orders,
@@ -429,14 +434,10 @@ class NormalizeFlatField(Step):
             dark=fhead["e_drk"],
             column_range=column_range,
             order_range=self.order_range,
-            extraction_width=self.extraction_width,
             scatter_degree=self.scatter_degree,
             threshold=self.threshold,
-            lambda_sf=self.smooth_slitfunction,
-            lambda_sp=self.smooth_spectrum,
-            swath_width=self.swath_width,
-            osample=self.oversampling,
             plot=self.plot,
+            **self.extraction_kwargs
         )
 
         blaze = np.ma.filled(blaze, 0)
@@ -462,8 +463,22 @@ class WavelengthCalibration(Step):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "orders"]
 
+        self.extraction_method = config["extraction_method"]
+
+        if self.extraction_method == "arc":
+            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+        elif self.extraction_method == "optimal":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"]
+            }
+        else:
+            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'wavecal'")
+
         self.degree = config["degree"]
-        self.extraction_width = config["extraction_width"]
         self.manual = config["manual"]
         self.threshold = config["threshold"]
         self.iterations = config["iterations"]
@@ -499,11 +514,11 @@ class WavelengthCalibration(Step):
             gain=thead["e_gain"],
             readnoise=thead["e_readn"],
             dark=thead["e_drk"],
-            extraction_type="arc",
             column_range=column_range,
+            extraction_type=self.extraction_method,
             order_range=self.order_range,
-            extraction_width=self.extraction_width,
             plot=self.plot,
+            **self.extraction_kwargs,
         )
 
         # load reference linelist
@@ -548,6 +563,21 @@ class LaserFrequencyComb(Step):
         self._dependsOn += ["wavecal", "orders", "mask"]
         self._loadDependsOn += ["wavecal"]
 
+        self.extraction_method = config["extraction_method"]
+
+        if self.extraction_method == "arc":
+            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+        elif self.extraction_method == "optimal":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"]
+            }
+        else:
+            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'freq_comb'")
+
         self.degree = config["degree"]
         self.extraction_width = config["extraction_width"]
         self.threshold = config["threshold"]
@@ -574,11 +604,11 @@ class LaserFrequencyComb(Step):
             gain=chead["e_gain"],
             readnoise=chead["e_readn"],
             dark=chead["e_drk"],
-            extraction_type="arc",
+            extraction_type=self.extraction_method,
             column_range=column_range,
             order_range=self.order_range,
-            extraction_width=self.extraction_width,
             plot=self.plot,
+            **self.extraction_kwargs
         )
 
         # for i in range(len(comb)):
@@ -653,16 +683,6 @@ class SlitCurvatureDetermination(Step):
             plot=self.plot,
         )
         tilt, shear = module.execute(thar, orig)
-
-        # tilt, shear = make_shear(thar, orig, orders,
-        #     column_range=column_range,
-        #     extraction_width=self.extraction_width,
-        #     order_range=self.order_range,
-        #     fit_degree=self.fit_degree,
-        #     max_iter=self.max_iter,
-        #     sigma_cutoff=self.sigma_cutoff,
-        #     plot=self.plot,)
-
         self.save(tilt, shear)
 
         return tilt, shear
@@ -688,11 +708,19 @@ class ScienceExtraction(Step):
         self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
         self._loadDependsOn += []
 
-        self.extraction_width = config["extraction_width"]
-        self.smooth_slitfunction = config["smooth_slitfunction"]
-        self.smooth_spectrum = config["smooth_spectrum"]
-        self.oversampling = config["oversampling"]
-        self.swath_width = config["swath_width"]
+        self.extraction_method = config["extraction_method"]
+        if self.extraction_method == "arc":
+            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+        elif self.extraction_method == "optimal":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"]
+            }
+        else:
+            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'science'")
 
     def science_file(self, name):
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
@@ -726,14 +754,11 @@ class ScienceExtraction(Step):
                 gain=head["e_gain"],
                 readnoise=head["e_readn"],
                 dark=head["e_drk"],
+                extraction_type=self.extraction_method,
                 column_range=column_range,
                 order_range=self.order_range,
-                extraction_width=self.extraction_width,
-                lambda_sf=self.smooth_slitfunction,
-                lambda_sp=self.smooth_spectrum,
-                osample=self.oversampling,
-                swath_width=self.swath_width,
                 plot=self.plot,
+                **self.extraction_kwargs
             )
 
             # save spectrum to disk
