@@ -35,5 +35,5 @@
     "id_flat": "LAMP,FLAT",
     "id_wave": "LAMP,WAVE",
     "id_orders": "LAMP,ORDERDEF",
-    "id_spec": "OBJECT,POINT",
+    "id_spec": "OBJECT,POINT"
 }

@@ -20,6 +20,7 @@ def test_science(
     flat, blaze = normflat
     bias, _ = bias
     orders, column_range = orders
+    settings = settings["science"]
 
     # Fix column ranges
     for i in range(blaze.shape[0]):
@@ -43,11 +44,12 @@ def test_science(
         dark=head["e_drk"],
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["science.extraction_width"],
-        lambda_sf=settings["science.smooth_slitfunction"],
-        lambda_sp=settings["science.smooth_spectrum"],
-        osample=settings["science.oversampling"],
-        swath_width=settings["science.swath_width"],
+        extraction_type=settings["extraction_method"],
+        extraction_width=settings["extraction_width"],
+        lambda_sf=settings["smooth_slitfunction"],
+        lambda_sp=settings["smooth_spectrum"],
+        osample=settings["oversampling"],
+        swath_width=settings["swath_width"],
         plot=False,
     )
 

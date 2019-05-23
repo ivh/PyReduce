@@ -28,21 +28,22 @@ def test_orders(instrument, mode, extension, files, settings, mask):
 
     files = files["orders"][0]
     order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
+    settings = settings["orders"]
 
     orders, column_range = mark_orders(
         order_img,
-        min_cluster=settings["orders.min_cluster"],
-        filter_size=settings["orders.filter_size"],
-        noise=settings["orders.noise"],
-        opower=settings["orders.fit_degree"],
-        border_width=settings["orders.border_width"],
+        min_cluster=settings["min_cluster"],
+        filter_size=settings["filter_size"],
+        noise=settings["noise"],
+        opower=settings["degree"],
+        border_width=settings["border_width"],
         manual=False,
         plot=False,
     )
 
     assert isinstance(orders, np.ndarray)
     assert np.issubdtype(orders.dtype, np.floating)
-    assert orders.shape[1] == settings["orders.fit_degree"] + 1
+    assert orders.shape[1] == settings["degree"] + 1
 
     assert isinstance(column_range, np.ndarray)
     assert np.issubdtype(column_range.dtype, np.integer)

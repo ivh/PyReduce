@@ -12,6 +12,7 @@ def test_wavecal(
     files, instrument, mode, extension, mask, orders, settings, order_range
 ):
     orders, column_range = orders
+    settings = settings["wavecal"]
     files = files["wavecal"][0]
     orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
     thead["obase"] = (0, "base order number")
@@ -26,8 +27,7 @@ def test_wavecal(
         extraction_type="arc",
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["wavecal.extraction_width"],
-        osample=settings["wavecal.oversampling"],
+        extraction_width=settings["extraction_width"],
         plot=False,
     )
 
@@ -49,8 +49,8 @@ def test_wavecal(
     module = WavelengthCalibration(
         plot=False,
         manual=False,
-        threshold=settings["wavecal.threshold"],
-        degree=(settings["wavecal.degree.x"], settings["wavecal.degree.y"]),
+        threshold=settings["threshold"],
+        degree=settings["degree"],
     )
     wave, solution = module.execute(thar, linelist)
 

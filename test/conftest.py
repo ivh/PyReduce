@@ -8,7 +8,7 @@ import pickle
 
 import json
 import pytest
-from pyreduce import datasets, util, instruments
+from pyreduce import datasets, util, instruments, configuration
 from pyreduce.combine_frames import combine_bias, combine_flat
 from pyreduce.trace_orders import mark_orders
 from pyreduce.normalize_flat import normalize_flat
@@ -221,7 +221,7 @@ def settings(config):
         updated settings
     """
 
-    setti = util.read_config()
+    setti = configuration.read_config()
     setti.update(config)
     return setti
 
@@ -272,7 +272,7 @@ def output_dir(data, settings, instrument, target, night, mode):
         output directory
     """
 
-    odir = settings["reduce.output_dir"]
+    odir = settings["reduce"]["output_dir"]
     odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
     odir = join(data, "reduced", odir)
 
@@ -307,7 +307,7 @@ def files(input_dir, instrument, target, night, mode, settings):
     """
 
     files, _ = instruments.instrument_info.sort_files(
-        input_dir, target, night, instrument, mode, **settings
+        input_dir, target, night, instrument, mode, **settings["instrument"]
     )
     files = files[0][list(files[0].keys())[0]]
     return files
@@ -479,6 +479,7 @@ def orders(instrument, mode, extension, files, settings, mask, output_dir):
     column_range : array(int) of size (norders, 2)
         valid columns that include traces/data
     """
+    settings = settings["orders"]
 
     orderfile = os.path.join(output_dir, "test_orders.pkl")
     try:
@@ -490,11 +491,11 @@ def orders(instrument, mode, extension, files, settings, mask, output_dir):
 
         orders, column_range = mark_orders(
             order_img,
-            min_cluster=settings["orders.min_cluster"],
-            filter_size=settings["orders.filter_size"],
-            noise=settings["orders.noise"],
-            opower=settings["orders.fit_degree"],
-            border_width=settings["orders.border_width"],
+            min_cluster=settings["min_cluster"],
+            filter_size=settings["filter_size"],
+            noise=settings["noise"],
+            opower=settings["degree"],
+            border_width=settings["border_width"],
             manual=False,
             plot=False,
         )
@@ -529,6 +530,8 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
     normflatfile = os.path.join(output_dir, "test_normflat.fits")
     blazefile = os.path.join(output_dir, "test_blaze.pkl")
 
+    settings = settings["norm_flat"]
+
     if os.path.exists(normflatfile) and os.path.exists(blazefile):
         norm = fits.open(normflatfile)[0]
         norm, fhead = norm.data, norm.header
@@ -548,12 +551,12 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
             dark=fhead["e_drk"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["normflat.extraction_width"],
-            degree=settings["normflat.scatter_degree"],
-            threshold=settings["normflat.threshold"],
-            lambda_sf=settings["normflat.smooth_slitfunction"],
-            lambda_sp=settings["normflat.smooth_spectrum"],
-            swath_width=settings["normflat.swath_width"],
+            extraction_width=settings["extraction_width"],
+            degree=settings["scatter_degree"],
+            threshold=settings["threshold"],
+            lambda_sf=settings["smooth_slitfunction"],
+            lambda_sp=settings["smooth_spectrum"],
+            swath_width=settings["swath_width"],
             plot=False,
         )
         with open(blazefile, "wb") as file:
@@ -595,6 +598,7 @@ def wave(
     """
     orders, column_range = orders
     wavefile = os.path.join(output_dir, "test_wavecal.thar.ech")
+    settings = settings["wavecal"]
 
     if os.path.exists(wavefile):
         data = np.load(wavefile)
@@ -614,11 +618,10 @@ def wave(
             gain=thead["e_gain"],
             readnoise=thead["e_readn"],
             dark=thead["e_drk"],
-            extraction_type="arc",
+            extraction_type=settings["extraction_method"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["wavecal.extraction_width"],
-            osample=settings["wavecal.oversampling"],
+            extraction_width=settings["extraction_width"],
             plot=False,
         )
 
@@ -684,6 +687,7 @@ def spec(
     """
     orders, column_range = orders
     specfile = os.path.join(output_dir, "test_spec.ech")
+    settings = settings["science"]
 
     try:
         science = echelle.read(specfile, raw=True)
@@ -723,11 +727,12 @@ def spec(
             dark=head["e_drk"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["science.extraction_width"],
-            lambda_sf=settings["science.smooth_slitfunction"],
-            lambda_sp=settings["science.smooth_spectrum"],
-            osample=settings["science.oversampling"],
-            swath_width=settings["science.swath_width"],
+            extraction_type=settings["extraction_method"],
+            extraction_width=settings["extraction_width"],
+            lambda_sf=settings["smooth_slitfunction"],
+            lambda_sp=settings["smooth_spectrum"],
+            osample=settings["oversampling"],
+            swath_width=settings["swath_width"],
             plot=False,
         )
         echelle.save(specfile, head, spec=spec, sig=sigma, columns=columns)

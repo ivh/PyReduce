@@ -7,6 +7,7 @@ from pyreduce.normalize_flat import normalize_flat
 def test_normflat(flat, orders, settings, order_range):
     flat, fhead = flat
     orders, column_range = orders
+    settings = settings["norm_flat"]
 
     norm, blaze = normalize_flat(
         flat,
@@ -16,12 +17,12 @@ def test_normflat(flat, orders, settings, order_range):
         dark=fhead["e_drk"],
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["normflat.extraction_width"],
-        degree=settings["normflat.scatter_degree"],
-        threshold=settings["normflat.threshold"],
-        lambda_sf=settings["normflat.smooth_slitfunction"],
-        lambda_sp=settings["normflat.smooth_spectrum"],
-        swath_width=settings["normflat.swath_width"],
+        extraction_width=settings["extraction_width"],
+        degree=settings["scatter_degree"],
+        threshold=settings["threshold"],
+        lambda_sf=settings["smooth_slitfunction"],
+        lambda_sp=settings["smooth_spectrum"],
+        swath_width=settings["swath_width"],
         plot=False,
     )
 
