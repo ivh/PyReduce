@@ -1,0 +1,454 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "pyreduce.schema",
+    "title": "PyReduce Settings",
+    "description": "Available settings for the PyReduce reduction pipeline",
+    "type": "object",
+    "properties": {
+        "__instrument__": {
+            "description": "The name of the instrument these settings are designed for",
+            "type": "string"
+        },
+        "reduce": {
+            "type": "object",
+            "properties": {
+                "base_dir": {
+                    "description": "Base directory of all reduce operations, to keep input and output seperate",
+                    "type": "string"
+                },
+                "input_dir": {
+                    "description": "Directory containing the input data, relative to the base directory. May contain {instrument}, {night}, {mode}, {target} tags.",
+                    "type": "string"
+                },
+                "output_dir": {
+                    "description": "Directory to place the output (and temporary) files in, relative to the base directory. May contain {instrument}, {night}, {mode}, {target} tags.",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "base_dir",
+                "input_dir",
+                "output_dir"
+            ]
+        },
+        "instrument": {
+            "type": "object"
+        },
+        "mask": {
+            "type": "object",
+            "properties": {
+                "directory": {
+                    "description": "Directory containing the instrument specific mask files. May contain {file} tag, referencing the reduce script location",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "directory"
+            ]
+        },
+        "bias": {
+            "$ref": "#/definitions/step"
+        },
+        "flat": {
+            "$ref": "#/definitions/step"
+        },
+        "orders": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "degree": {
+                            "description": "Polynomial degree of the fit to the orders on the detector",
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "filter_size": {
+                            "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
+                        "min_cluster": {
+                            "description": "Smallest allowed size of clusters before merging. Estimated automatically if null.",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
+                        "noise": {
+                            "description": "Background noise level cutoff. Estimated automatically if null.",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
+                        "border_width": {
+                            "description": "Number of pixels to disregard at the border of the image. Estimated automatically if null.",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
+                        "manual": {
+                            "description": "Ask for manual confirmation before merging any clusters. Otherwise only ask when overlap below 90%.",
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "degree",
+                        "filter_size",
+                        "min_cluster",
+                        "noise",
+                        "border_width",
+                        "manual"
+                    ]
+                }
+            ]
+        },
+        "norm_flat": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/extraction"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "threshold": {
+                            "description": "Background level threshold, if lower than 0, it is understood as a fraction of the maximum",
+                            "type": [
+                                "number",
+                                "integer"
+                            ],
+                            "exclusiveMinimum": 0
+                        },
+                        "scatter_degree": {
+                            "description": "Polynomial degree of the background scatter, in both pixel dimensions",
+                            "type": [
+                                "integer",
+                                "array"
+                            ],
+                            "minimum": 0,
+                            "items": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    },
+                    "required": [
+                        "threshold",
+                        "scatter_degree"
+                    ]
+                }
+            ]
+        },
+        "wavecal": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/extraction"
+                },
+                {
+                    "$ref": "#/definitions/polynomialfit"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "manual": {
+                            "description": "Use only manual order alignment if true. When false still allow manual alignment after automatic alignment if plot is true",
+                            "type": "boolean"
+                        },
+                        "shift_window": {
+                            "description": "The fraction of the columns that each order can be shifted individually to align with the reference",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "threshold": {
+                            "description": "Residual threshold in m/s above which lines will be removed from the fit",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "iterations": {
+                            "description": "Number of iterations in the Remove Lines, Identify Lines loop",
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "manual",
+                        "shift_window",
+                        "degree",
+                        "threshold",
+                        "iterations",
+                        "dimensionality"
+                    ]
+                }
+            ]
+        },
+        "freq_comb": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/extraction"
+                },
+                {
+                    "$ref": "#/definitions/polynomialfit"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "peak_width": {
+                            "description": "Required width of the frequency comb peaks, in the peak detection algorithm",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1
+                        },
+                        "threshold": {
+                            "description": "Residual threshold in m/s above which lines will be removed from the fit",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        }
+                    },
+                    "required": [
+                        "peak_width",
+                        "degree",
+                        "dimensionality",
+                        "threshold"
+                    ]
+                }
+            ]
+        },
+        "curvature": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/polynomialfit"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "extraction_width": {
+                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
+                        },
+                        "iterations": {
+                            "description": "Number of iterations in the removing of outliers loop. Unlimited loop if null.",
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
+                        "sigma_cutoff": {
+                            "description": "The threshold for removing outliers in standard deviations of the residual",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        }
+                    },
+                    "required": [
+                        "dimensionality",
+                        "degree",
+                        "extraction_width",
+                        "iterations",
+                        "sigma_cutoff"
+                    ]
+                }
+            ]
+        },
+        "science": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/extraction"
+                }
+            ]
+        },
+        "continuum": {
+            "$ref": "#/definitions/step"
+        },
+        "finalize": {
+            "$ref": "#/definitions/step"
+        }
+    },
+    "required": [
+        "reduce",
+        "instrument",
+        "mask",
+        "bias",
+        "flat",
+        "orders",
+        "norm_flat",
+        "wavecal",
+        "freq_comb",
+        "curvature",
+        "continuum",
+        "finalize"
+    ],
+    "definitions": {
+        "step": {
+            "type": "object",
+            "properties": {
+                "plot": {
+                    "description": "Plot results and progress if true",
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "plot"
+            ]
+        },
+        "extraction": {
+            "description": "Common settings for an extraction",
+            "type": "object",
+            "$comment": "There are two options for the extraction. Each has its own set of parameters that need to be present",
+            "oneOf": [{
+                    "properties": {
+                        "extraction_method": {
+                            "description": "The method to use for extraction",
+                            "type": "string",
+                            "enum": [
+                                "normalize",
+                                "optimal"
+                            ]
+                        },
+                        "oversampling": {
+                            "description": "Ovsersampling factor",
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "smooth_slitfunction": {
+                            "description": "Smoothing parameter for the slitfunction",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "smooth_spectrum": {
+                            "description": "Smoothing parameter for the spectrum",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "swath_width": {
+                            "description": "Approximate width of each swath. Exact width might vary slightly",
+                            "type": "integer",
+                            "minimum": 3
+                        },
+                        "extraction_width": {
+                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
+                        }
+                    },
+                    "required": [
+                        "extraction_method",
+                        "oversampling",
+                        "smooth_slitfunction",
+                        "smooth_spectrum",
+                        "swath_width",
+                        "extraction_width"
+                    ]
+                },
+                {
+                    "properties": {
+                        "extraction_method": {
+                            "description": "The method to use for extraction",
+                            "type": "string",
+                            "enum": [
+                                "arc"
+                            ]
+                        },
+                        "extraction_width": {
+                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
+                        }
+                    },
+                    "required": [
+                        "extraction_method",
+                        "extraction_width"
+                    ]
+                }
+            ]
+        },
+        "polynomialfit": {
+            "type": "object",
+            "oneOf": [{
+                    "properties": {
+                        "dimensionality": {
+                            "type": "string",
+                            "enum": [
+                                "1D"
+                            ]
+                        },
+                        "degree": {
+                            "description": "Polynomial degree in column direction",
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "dimensionality": {
+                            "type": "string",
+                            "enum": [
+                                "2D"
+                            ]
+                        },
+                        "degree": {
+                            "description": "Polynomial degree in each direction. The first element is in column direction, the second in order direction",
+                            "type": "array",
+                            "items": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

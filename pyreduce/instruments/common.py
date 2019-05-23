@@ -6,6 +6,7 @@ import os.path
 import datetime
 import glob
 import logging
+import json
 
 import numpy as np
 from astropy.io import fits
@@ -96,6 +97,10 @@ class instrument:
     Handles the handling of instrument specific information
     """
 
+    def __init__(self):
+        self.instrument = "common"
+        raise NotImplementedError("This is an abstract class")
+
     def load_info(self):
         """
         Load static instrument information
@@ -105,16 +110,18 @@ class instrument:
         ------
         info : dict(str:object)
             dictionary of REDUCE names for properties to Header keywords/static values
-
-        Raises
-        ------
-        NotImplementedError
-            This function needs to exist for every instrument
         """
+        # Tips & Tricks:
+        # if several modes are supported, use a list for modes
+        # if a value changes depending on the mode, use a list with the same order as "modes"
+        # you can also use values from this dictionary as placeholders using {name}, just like str.format
 
-        raise NotImplementedError(
-            "Instrument info must be defined for each instrument seperately"
-        )
+        this = os.path.dirname(__file__)
+        fname = f"{self.instrument.lower()}.json"
+        fname = os.path.join(this, fname)
+        with open(fname) as f:
+            info = json.load(f)
+        return info
 
     def add_header_info(self, header, mode, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header

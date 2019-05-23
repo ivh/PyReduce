@@ -1,44 +1,88 @@
 {
-    "reduce.base_dir": "./",
-    "reduce.input_dir": "{instrument}/{target}/raw/{night}",
-    "reduce.output_dir": "{instrument}/{target}/reduced/{night}/{mode}",
-    "reduce.mask.dir": "{file}/masks",
-    "git.remote": "origin",
+    "$schema": "./settings_schema.json",
     "__instrument__": "DEFAULT",
-    "polarimetry": false,
-    "plot": true,
-    "fiber": "AB",
-    "use_median": false,
-    "orders.fit_degree": 4,
-    "orders.filter_size": null,
-    "orders.min_cluster": null,
-    "orders.noise": null,
-    "orders.border_width": null,
-    "orders.manual": true,
-    "normflat.smooth_slitfunction": 4,
-    "normflat.smooth_spectrum": 0,
-    "normflat.oversampling": 10,
-    "normflat.swath_width": 200,
-    "normflat.threshold": 0.6,
-    "normflat.extraction_width": 0.2,
-    "normflat.scatter_degree": 4,
-    "wavecal.oversampling": 1,
-    "wavecal.extraction_width": 0.5,
-    "wavecal.manual": false,
-    "wavecal.degree.x": 6,
-    "wavecal.degree.y": 6,
-    "wavecal.threshold": 100,
-    "wavecal.iterations": 3,
-    "wavecal.mode": "2D",
-    "wavecal.shift_window": 0.01,
-    "wavecal.lfc.peak_width": 3,
-    "curvature.extraction_width": 0.2,
-    "curvature.degree": 2,
-    "curvature.number_of_iterations": null,
-    "curvature.sigma_cutoff": 3,
-    "science.extraction_width": 0.25,
-    "science.oversampling": 10,
-    "science.swath_width": 300,
-    "science.smooth_slitfunction": 20,
-    "science.smooth_spectrum": 0.0
+    "reduce": {
+        "base_dir": "./",
+        "input_dir": "{instrument}/{target}/raw/{night}",
+        "output_dir": "{instrument}/{target}/reduced/{night}/{mode}"
+    },
+    "instrument": {},
+    "mask": {
+        "directory": "{reduce}/masks"
+    },
+    "bias": {
+        "plot": true
+    },
+    "flat": {
+        "plot": true
+    },
+    "orders": {
+        "degree": 4,
+        "filter_size": null,
+        "min_cluster": null,
+        "noise": null,
+        "border_width": null,
+        "manual": true,
+        "plot": true
+    },
+    "norm_flat": {
+        "extraction_method": "normalize",
+        "smooth_slitfunction": 4,
+        "smooth_spectrum": 0,
+        "oversampling": 10,
+        "swath_width": 200,
+        "extraction_width": 0.2,
+        "scatter_degree": 4,
+        "threshold": 0.6,
+        "plot": true
+    },
+    "wavecal": {
+        "extraction_method": "arc",
+        "extraction_width": 0.5,
+        "manual": false,
+        "threshold": 100,
+        "iterations": 3,
+        "dimensionality": "2D",
+        "degree": [
+            6,
+            6
+        ],
+        "shift_window": 0.01,
+        "plot": true
+    },
+    "freq_comb": {
+        "extraction_method": "arc",
+        "extraction_width": 0.5,
+        "peak_width": 3,
+        "dimensionality": "2D",
+        "degree": [
+            6,
+            6
+        ],
+        "threshold": 100,
+        "plot": true
+    },
+    "curvature": {
+        "dimensionality": "1D",
+        "degree": 2,
+        "extraction_width": 0.2,
+        "iterations": null,
+        "sigma_cutoff": 3,
+        "plot": true
+    },
+    "science": {
+        "extraction_method": "optimal",
+        "extraction_width": 0.25,
+        "oversampling": 10,
+        "swath_width": 300,
+        "smooth_slitfunction": 20,
+        "smooth_spectrum": 0.0,
+        "plot": true
+    },
+    "continuum": {
+        "plot": true
+    },
+    "finalize": {
+        "plot": true
+    }
 }

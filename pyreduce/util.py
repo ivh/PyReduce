@@ -7,6 +7,7 @@ import logging
 import os
 from itertools import product
 import json
+import jsonschema
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -30,17 +31,6 @@ except ImportError:
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
-
-def read_config(fname="settings_pyreduce.json"):
-    this_dir = os.path.dirname(__file__)
-    fname = os.path.join(this_dir, "settings", fname)
-
-    if os.path.exists(fname):
-        with open(fname) as file:
-            settings = json.load(file)
-            return settings
-    else:
-        return None
 
 
 def checkGitRepo(remote_name="origin"):
@@ -536,7 +526,7 @@ def gaussbroad(x, y, hwhm):
     return sout  # return broadened spectrum.
 
 
-def polyfit2d(x, y, z, degree=1, plot=False):
+def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     """A simple 2D plynomial fit to data x, y, z
 
     Parameters
@@ -570,13 +560,17 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
     # We only want the combinations with maximum order COMBINED power
     idx = np.array(idx)
-    # idx = idx[idx[:, 0] + idx[:, 1] <= degree]
+    if max_degree is not None:
+        idx = idx[idx[:, 0] + idx[:, 1] <= max_degree]
 
-    # Normalize x and y to avoid huge numbers
-    norm_x = np.max(x).astype(float)
-    norm_y = np.max(y).astype(float)
-    x = x / norm_x
-    y = y / norm_y
+    if scale:
+        # Normalize x and y to avoid huge numbers
+        norm_x = np.max(x).astype(float)
+        norm_y = np.max(y).astype(float)
+        x = x / norm_x
+        y = y / norm_y
+    else:
+        norm_x = norm_y = 1
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
     A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx], dtype=float).T

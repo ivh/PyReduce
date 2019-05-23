@@ -16,59 +16,8 @@ from .common import getter, instrument, observation_date_to_night
 
 
 class UVES(instrument):
-    def load_info(self):
-        """ Load harcoded information about this instrument """
-
-        # Tips & Tricks:
-        # if several modes are supported, use a list for modes
-        # if a value changes depending on the mode, use a list with the same order as "modes"
-        # you can also use values from this dictionary as placeholders using {name}, just like str.format
-
-        # red and middle are in the same fits file, with different extensions,
-        # i.e. share the same mode identifier, but have different extensions
-        info = {
-            "__instrument__": "UVES",
-            # General information
-            "instrument": "INSTRUME",
-            "date": "DATE-OBS",
-            "modes": ["blue", "middle", "red"],
-            "modes_id": ["blue", "red", "red"],
-            "extension": [0, 2, 1],
-            # Header info for reduction
-            "id": [[1, 5], [1, 4], [1, 4]],
-            "orientation": [6, 1, 1],
-            "prescan_x": "HIERARCH ESO DET OUT{id[0]} PRSCX",
-            "overscan_x": "HIERARCH ESO DET OUT{id[0]} OVSCX",
-            "prescan_y": 0,
-            "overscan_y": 0,
-            "naxis_x": "NAXIS1",
-            "naxis_y": "NAXIS2",
-            "gain": "HIERARCH ESO DET OUT{id[0]} CONAD",
-            "readnoise": "HIERARCH ESO DET OUT{id[0]} RON",
-            "dark": "HIERARCH ESO INS DET{id[1]} OFFDRK",
-            "sky": "HIERARCH ESO INS DET{id[1]} OFFSKY",
-            "exposure_time": "EXPTIME",
-            "image_type": "OBJECT",
-            "category": "HIERARCH ESO DPR CATG",
-            "ra": "RA",
-            "dec": "DEC",
-            "jd": "MJD-OBS",
-            "longitude": "HIERARCH ESO TEL GEOLON",
-            "latitude": "HIERARCH ESO TEL GEOLAT",
-            "altitude": "HIERARCH ESO TEL GEOELEV",
-            "wavecal_specifier": "ESO INS GRAT2 WLEN",
-            # Ids for file sorting
-            "target": "OBJECT",
-            "observation_type": "ESO DPR TYPE",
-            "instrument_mode": "ESO INS MODE",
-            "instrument_mode_alternative": "ESO TPL NAME",
-            "id_bias": "BIAS",
-            "id_flat": "LAMP,FLAT",
-            "id_wave": "LAMP,WAVE",
-            "id_orders": "LAMP,ORDERDEF",
-            "id_spec": "OBJECT,POINT",
-        }
-        return info
+    def __init__(self):
+        self.instrument = "uves"
 
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """

@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from pyreduce.util import load_fits
-from pyreduce.make_shear import make_shear
+from pyreduce.make_shear import Curvature as CurvatureModule
 
 
 def test_shear(files, wave, orders, instrument, mode, extension, mask, order_range):
@@ -12,14 +12,10 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
     files = files["curvature"][0]
     original, thead = load_fits(files, instrument, mode, extension, mask=mask)
 
-    tilt, shear = make_shear(
-        extracted,
-        original,
-        orders,
-        column_range=column_range,
-        order_range=order_range,
-        plot=False,
+    module = CurvatureModule(
+        orders, column_range=column_range, order_range=order_range, plot=False
     )
+    tilt, shear = module.execute(extracted, original)
 
     assert isinstance(tilt, np.ndarray)
     assert tilt.ndim == 2

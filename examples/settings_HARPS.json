@@ -1,29 +1,44 @@
 {
     "__instrument__": "HARPS",
-    "polarimetry": false,
-    "plot": true,
-    "fiber": "A",
-    "use_median": true,
-    "orders.fit_degree": 4,
-    "orders.filter_size": 80,
-    "orders.min_cluster": 2000,
-    "orders.noise": 8,
-    "orders.manual": true,
-    "normflat.smooth_slitfunction": 2,
-    "normflat.smooth_spectrum": 0,
-    "normflat.extraction_width": 10,
-    "normflat.oversampling": 12,
-    "normflat.swath_width": 200,
-    "normflat.threshold": 1000,
-    "wavecal.threshold": 100,
-    "wavecal.mode": "2D",
-    "wavecal.oversampling": 1,
-    "wavecal.manual": false,
-    "wavecal.extraction_width": 10,
-    "curvature.extraction_width": 10,
-    "science.oversampling": 1,
-    "science.extraction_width": 10,
-    "science.swath_width": 300,
-    "science.smooth_slitfunction": 0.1,
-    "science.smooth_spectrum": 0
+    "instrument": {
+        "polarimetry": false,
+        "fiber": "A"
+    },
+    "orders": {
+        "degree": 4,
+        "filter_size": 80,
+        "min_cluster": 2000,
+        "noise": 8,
+        "manual": false
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 10,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "manual": false,
+        "extraction_width": 10
+    },
+    "freq_comb": {
+        "dimensionality": "2D",
+        "extraction_width": 10
+    },
+    "curvature": {
+        "extraction_width": 10,
+        "dimensionality": "1D",
+        "degree": 2
+    },
+    "science": {
+        "oversampling": 1,
+        "extraction_width": 10,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0
+    }
 }

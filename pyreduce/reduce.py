@@ -34,10 +34,11 @@ import joblib
 from . import echelle, instruments, util
 
 # PyReduce subpackages
+from .configuration import load_config
 from .combine_frames import combine_bias, combine_flat
 from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
-from .make_shear import make_shear
+from .make_shear import Curvature as CurvatureModule
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
@@ -45,11 +46,10 @@ from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrati
 from .extraction_width import estimate_extraction_width
 
 # TODO turn dicts into numpy structured array
-# TODO use masked array instead of column_range ? or use a mask instead of column range
 # TODO Naming of functions and modules
 # TODO License
 
-# TODO wavelength calibration: automatic alignment parameters
+# TODO automatic determination of the extraction width
 
 
 def main(
@@ -118,11 +118,11 @@ def main(
 
         # load default settings from settings_pyreduce.json
         if isNone["base_dir"]:
-            base_dir = config["reduce.base_dir"]
+            base_dir = config["reduce"]["base_dir"]
         if isNone["input_dir"]:
-            input_dir = config["reduce.input_dir"]
+            input_dir = config["reduce"]["input_dir"]
         if isNone["output_dir"]:
-            output_dir = config["reduce.output_dir"]
+            output_dir = config["reduce"]["output_dir"]
 
         input_dir = join(base_dir, input_dir)
         output_dir = join(base_dir, output_dir)
@@ -144,7 +144,7 @@ def main(
                 for m in mode:
                     # find input files and sort them by type
                     files, nights = instruments.instrument_info.sort_files(
-                        input_dir, t, n, i, m, **config
+                        input_dir, t, n, i, m, **config["instrument"]
                     )
                     for f, k in zip(files, nights):
                         logging.info("Instrument: %s", i)
@@ -174,40 +174,18 @@ def main(
                             reducer.run_steps(steps=steps)
 
 
-def load_config(configuration, instrument, j):
-    if configuration is None:
-        config = "settings_%s.json" % instrument.upper()
-    elif isinstance(configuration, dict):
-        config = configuration[instrument]
-    elif isinstance(configuration, list):
-        config = configuration[j]
-    elif isinstance(configuration, str):
-        config = configuration
-
-    if isinstance(config, str):
-        if os.path.isfile(config):
-            logging.info("Loading configuration from %s", config)
-            with open(config) as f:
-                config = json.load(f)
-        else:
-            logging.warning(
-                "No configuration found at %s, using default values", config
-            )
-            config = {}
-
-    settings = util.read_config()
-    nparam1 = len(settings)
-    settings.update(config)
-    nparam2 = len(settings)
-    if nparam2 > nparam1:
-        logging.warning("New parameter(s) in instrument config, Check spelling!")
-
-    config = settings
-    return settings
-
-
 class Step:
-    def __init__(self, instrument, mode, extension, target, night, config):
+    def __init__(
+        self,
+        instrument,
+        mode,
+        extension,
+        target,
+        night,
+        output_dir,
+        order_range,
+        **config,
+    ):
         self._dependsOn = []
         self._loadDependsOn = []
         self.instrument = instrument
@@ -215,9 +193,9 @@ class Step:
         self.extension = extension
         self.target = target
         self.night = night
-        self.order_range = config["order_range"]
-        self.plot = config["plot"]
-        self._output_dir = config["output_dir"]
+        self.order_range = order_range
+        self.plot = config.get("plot", False)
+        self._output_dir = output_dir
 
     def run(self, files, *args):
         raise NotImplementedError
@@ -255,15 +233,15 @@ class Step:
 
 
 class Mask(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self.extension = 0
-        self._mask_dir = config["reduce.mask.dir"]
+        self._mask_dir = config["directory"]
 
     @property
     def mask_dir(self):
         this = os.path.dirname(__file__)
-        return self._mask_dir.format(file=this)
+        return self._mask_dir.format(reduce=this)
 
     @property
     def mask_file(self):
@@ -288,8 +266,8 @@ class Mask(Step):
 
 
 class Bias(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["mask"]
         self._loadDependsOn += ["mask"]
 
@@ -330,8 +308,8 @@ class Bias(Step):
 
 
 class Flat(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias"]
         self._loadDependsOn += ["mask"]
 
@@ -373,16 +351,16 @@ class Flat(Step):
 
 
 class OrderTracing(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["mask"]
 
-        self.min_cluster = config["orders.min_cluster"]
-        self.filter_size = config["orders.filter_size"]
-        self.noise = config["orders.noise"]
-        self.fit_degree = config["orders.fit_degree"]
-        self.border_width = config["orders.border_width"]
-        self.manual = config["orders.manual"]
+        self.min_cluster = config["min_cluster"]
+        self.filter_size = config["filter_size"]
+        self.noise = config["noise"]
+        self.fit_degree = config["degree"]
+        self.border_width = config["border_width"]
+        self.manual = config["manual"]
 
     @property
     def savefile(self):
@@ -420,17 +398,17 @@ class OrderTracing(Step):
 
 
 class NormalizeFlatField(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["flat", "orders"]
 
-        self.extraction_width = config["normflat.extraction_width"]
-        self.scatter_degree = config["normflat.scatter_degree"]
-        self.threshold = config["normflat.threshold"]
-        self.smooth_slitfunction = config["normflat.smooth_slitfunction"]
-        self.smooth_spectrum = config["normflat.smooth_spectrum"]
-        self.swath_width = config["normflat.swath_width"]
-        self.oversampling = config["normflat.oversampling"]
+        self.extraction_width = config["extraction_width"]
+        self.scatter_degree = config["scatter_degree"]
+        self.threshold = config["threshold"]
+        self.smooth_slitfunction = config["smooth_slitfunction"]
+        self.smooth_spectrum = config["smooth_spectrum"]
+        self.swath_width = config["swath_width"]
+        self.oversampling = config["oversampling"]
 
     @property
     def savefile(self):
@@ -480,20 +458,17 @@ class NormalizeFlatField(Step):
 
 
 class WavelengthCalibration(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["mask", "orders"]
 
-        self.extraction_width = config["wavecal.extraction_width"]
-        self.oversampling = config["wavecal.oversampling"]
-        self.order_range = config["order_range"]
-
-        self.manual = config["wavecal.manual"]
-        self.degree = (config["wavecal.degree.x"], config["wavecal.degree.y"])
-        self.threshold = config["wavecal.threshold"]
-        self.iterations = config["wavecal.iterations"]
-        self.wavecal_mode = config["wavecal.mode"]
-        self.shift_window = config["wavecal.shift_window"]
+        self.degree = config["degree"]
+        self.extraction_width = config["extraction_width"]
+        self.manual = config["manual"]
+        self.threshold = config["threshold"]
+        self.iterations = config["iterations"]
+        self.wavecal_mode = config["dimensionality"]
+        self.shift_window = config["shift_window"]
 
     @property
     def savefile(self):
@@ -528,7 +503,6 @@ class WavelengthCalibration(Step):
             column_range=column_range,
             order_range=self.order_range,
             extraction_width=self.extraction_width,
-            osample=self.oversampling,
             plot=self.plot,
         )
 
@@ -569,19 +543,16 @@ class WavelengthCalibration(Step):
 
 # TODO somehow this is part of the wavelength calibration, and not its own step
 class LaserFrequencyComb(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["wavecal", "orders", "mask"]
         self._loadDependsOn += ["wavecal"]
 
-        self.order_range = config["order_range"]
-        self.oversampling = config["wavecal.oversampling"]
-        self.extraction_width = config["wavecal.extraction_width"]
-
-        self.degree = (config["wavecal.degree.x"], config["wavecal.degree.y"])
-        self.threshold = config["wavecal.threshold"]
-        self.wavecal_mode = config["wavecal.mode"]
-        self.lfc_peak_width = config["wavecal.lfc.peak_width"]
+        self.degree = config["degree"]
+        self.extraction_width = config["extraction_width"]
+        self.threshold = config["threshold"]
+        self.wavecal_mode = config["dimensionality"]
+        self.lfc_peak_width = config["peak_width"]
 
     @property
     def savefile(self):
@@ -607,7 +578,6 @@ class LaserFrequencyComb(Step):
             column_range=column_range,
             order_range=self.order_range,
             extraction_width=self.extraction_width,
-            osample=self.oversampling,
             plot=self.plot,
         )
 
@@ -622,7 +592,7 @@ class LaserFrequencyComb(Step):
             mode=self.wavecal_mode,
             lfc_peak_width=self.lfc_peak_width,
         )
-        wave = module.frequency_comb(comb, coef, linelist)
+        wave = module.frequency_comb(comb, wave, linelist)
 
         self.save(wave, comb)
 
@@ -635,23 +605,26 @@ class LaserFrequencyComb(Step):
         try:
             data = np.load(self.savefile)
         except FileNotFoundError:
-            logging.warning("No data for Laser Frequency Comb found, using regular wavelength calibration instead")
+            logging.warning(
+                "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
+            )
             wave, thar, coef, linelist = wavecal
-            data = {"wave":wave, "comb":None}
+            data = {"wave": wave, "comb": None}
         wave = data["wave"]
         comb = data["comb"]
         return wave, comb
 
 
 class SlitCurvatureDetermination(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["orders", "wavecal", "mask"]
-        self.order_range = config["order_range"]
-        self.extraction_width = config["curvature.extraction_width"]
-        self.fit_degree = config["curvature.degree"]
-        self.max_iter = config["curvature.number_of_iterations"]
-        self.sigma_cutoff = config["curvature.sigma_cutoff"]
+
+        self.extraction_width = config["extraction_width"]
+        self.fit_degree = config["degree"]
+        self.max_iter = config["iterations"]
+        self.sigma_cutoff = config["sigma_cutoff"]
+        self.curvature_mode = config["dimensionality"]
 
     @property
     def savefile(self):
@@ -667,9 +640,8 @@ class SlitCurvatureDetermination(Step):
         orig, _ = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
         )
-        tilt, shear = make_shear(
-            thar,
-            orig,
+
+        module = CurvatureModule(
             orders,
             column_range=column_range,
             extraction_width=self.extraction_width,
@@ -677,8 +649,19 @@ class SlitCurvatureDetermination(Step):
             fit_degree=self.fit_degree,
             max_iter=self.max_iter,
             sigma_cutoff=self.sigma_cutoff,
+            mode=self.curvature_mode,
             plot=self.plot,
         )
+        tilt, shear = module.execute(thar, orig)
+
+        # tilt, shear = make_shear(thar, orig, orders,
+        #     column_range=column_range,
+        #     extraction_width=self.extraction_width,
+        #     order_range=self.order_range,
+        #     fit_degree=self.fit_degree,
+        #     max_iter=self.max_iter,
+        #     sigma_cutoff=self.sigma_cutoff,
+        #     plot=self.plot,)
 
         self.save(tilt, shear)
 
@@ -692,7 +675,7 @@ class SlitCurvatureDetermination(Step):
             data = np.load(self.savefile)
         except FileNotFoundError:
             logging.warning("No data for slit curvature found, setting it to 0.")
-            data = {"tilt":None, "shear":None}
+            data = {"tilt": None, "shear": None}
 
         tilt = data["tilt"]
         shear = data["shear"]
@@ -700,16 +683,16 @@ class SlitCurvatureDetermination(Step):
 
 
 class ScienceExtraction(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
         self._loadDependsOn += []
 
-        self.extraction_width = config["science.extraction_width"]
-        self.smooth_slitfunction = config["science.smooth_slitfunction"]
-        self.smooth_spectrum = config["science.smooth_spectrum"]
-        self.oversampling = config["science.oversampling"]
-        self.swath_width = config["science.swath_width"]
+        self.extraction_width = config["extraction_width"]
+        self.smooth_slitfunction = config["smooth_slitfunction"]
+        self.smooth_spectrum = config["smooth_spectrum"]
+        self.oversampling = config["oversampling"]
+        self.swath_width = config["swath_width"]
 
     def science_file(self, name):
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
@@ -787,8 +770,8 @@ class ScienceExtraction(Step):
 
 
 class ContinuumNormalization(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["science", "freq_comb", "norm_flat"]
 
     @property
@@ -836,8 +819,8 @@ class ContinuumNormalization(Step):
 
 
 class Finalize(Step):
-    def __init__(self, instrument, mode, extension, target, night, config):
-        super().__init__(instrument, mode, extension, target, night, config)
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb"]
 
     def output_file(self, number):
@@ -954,22 +937,29 @@ class Reducer:
         """
         #:dict(str:str): Filenames sorted by usecase
         self.files = files
-        output_dir = output_dir.format(
+        self.output_dir = output_dir.format(
             instrument=instrument, target=target, night=night, mode=mode
         )
-        config["output_dir"] = output_dir
-        config["order_range"] = order_range
 
         info = instruments.instrument_info.get_instrument_info(instrument)
         imode = util.find_first_index(info["modes"], mode)
         extension = info["extension"][imode]
 
         self.data = {}
-        self.inputs = (instrument, mode, extension, target, night, config)
+        self.inputs = (
+            instrument,
+            mode,
+            extension,
+            target,
+            night,
+            output_dir,
+            order_range,
+        )
+        self.config = config
 
     def run_module(self, step, load=False):
         # The Module this step is based on (An object of the Step class)
-        module = self.modules[step](*self.inputs)
+        module = self.modules[step](*self.inputs, **self.config.get(step, {}))
 
         # Load the dependencies necessary for loading/running this step
         dependencies = module.dependsOn if not load else module.loadDependsOn
@@ -1001,8 +991,7 @@ class Reducer:
 
     def prepare_output_dir(self):
         # create output folder structure if necessary
-        instrument, mode, extension, target, night, config = self.inputs
-        output_dir = config["output_dir"]
+        output_dir = self.output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
