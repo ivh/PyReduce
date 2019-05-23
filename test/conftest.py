@@ -181,33 +181,7 @@ def data(dataset):
 
 
 @pytest.fixture
-def config(dataset):
-    """
-    Configuration settings for this run of PyReduce
-
-    Parameters
-    ----------
-    dataset : tuple(str, str)
-        instrument, target
-
-    Returns
-    -------
-    config : dict(str:obj)
-        run specific configuration
-    """
-
-    instrument, target = dataset
-    folder = dirname(__file__)
-    filename = join(folder, "settings", f"settings_{instrument.upper()}.json")
-
-    with open(filename) as f:
-        conf = json.load(f)
-
-    return conf
-
-
-@pytest.fixture
-def settings(config):
+def settings(dataset):
     """Combine run specific configuration with default settings
 
     Parameters
@@ -221,8 +195,11 @@ def settings(config):
         updated settings
     """
 
-    setti = configuration.read_config()
-    setti.update(config)
+    instrument, target = dataset
+    folder = dirname(__file__)
+    filename = join(folder, "settings", f"settings_{instrument.upper()}.json")
+
+    setti = configuration.load_config(filename, instrument)
     return setti
 
 

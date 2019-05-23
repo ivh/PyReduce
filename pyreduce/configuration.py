@@ -4,7 +4,7 @@ import json
 import jsonschema
 
 
-def load_config(configuration, instrument, j):
+def load_config(configuration, instrument, j=0):
     if configuration is None:
         config = "settings_%s.json" % instrument.upper()
     elif isinstance(configuration, dict):
