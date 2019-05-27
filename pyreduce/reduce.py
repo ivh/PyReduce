@@ -388,10 +388,10 @@ class OrderTracing(Step):
         return orders, column_range
 
     def save(self, orders, column_range):
-        np.savez(self.savefile, orders=orders, column_range=column_range)
+        np.savez(self.savefile, orders=orders, column_range=column_range, allow_pickle=True)
 
     def load(self):
-        data = np.load(self.savefile)
+        data = np.load(self.savefile, allow_pickle=True)
         orders = data["orders"]
         column_range = data["column_range"]
         return orders, column_range
@@ -448,11 +448,11 @@ class NormalizeFlatField(Step):
         return norm, blaze
 
     def save(self, norm, blaze):
-        np.savez(self.savefile, blaze=blaze, norm=norm)
+        np.savez(self.savefile, blaze=blaze, norm=norm, allow_pickle=True)
 
     def load(self):
         logging.info("Loading normalized flat field")
-        data = np.load(self.savefile)
+        data = np.load(self.savefile, allow_pickle=True)
         blaze = data["blaze"]
         norm = data["norm"]
         return norm, blaze
@@ -525,10 +525,9 @@ class WavelengthCalibration(Step):
         reference = instruments.instrument_info.get_wavecal_filename(
             thead, self.instrument, self.mode
         )
-        reference = np.load(reference)
+        reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
 
-        # Create wavelength calibration fit
         module = WavelengthCalibrationModule(
             plot=self.plot,
             manual=self.manual,
@@ -545,10 +544,10 @@ class WavelengthCalibration(Step):
         return wave, thar, coef, linelist
 
     def save(self, wave, thar, coef, linelist):
-        np.savez(self.savefile, wave=wave, thar=thar, coef=coef, linelist=linelist)
+        np.savez(self.savefile, wave=wave, thar=thar, coef=coef, linelist=linelist, allow_pickle=True)
 
     def load(self):
-        data = np.load(self.savefile)
+        data = np.load(self.savefile, allow_pickle=True)
         wave = data["wave"]
         thar = data["thar"]
         coef = data["coef"]
@@ -629,11 +628,11 @@ class LaserFrequencyComb(Step):
         return wave, comb
 
     def save(self, wave, comb):
-        np.savez(self.savefile, wave=wave, comb=comb)
+        np.savez(self.savefile, wave=wave, comb=comb, allow_pickle=True)
 
     def load(self, wavecal):
         try:
-            data = np.load(self.savefile)
+            data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
             logging.warning(
                 "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
@@ -688,11 +687,11 @@ class SlitCurvatureDetermination(Step):
         return tilt, shear
 
     def save(self, tilt, shear):
-        np.savez(self.savefile, tilt=tilt, shear=shear)
+        np.savez(self.savefile, tilt=tilt, shear=shear, allow_pickle=True)
 
     def load(self):
         try:
-            data = np.load(self.savefile)
+            data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
             logging.warning("No data for slit curvature found, setting it to 0.")
             data = {"tilt": None, "shear": None}

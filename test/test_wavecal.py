@@ -43,7 +43,7 @@ def test_wavecal(
     reference = instruments.instrument_info.get_wavecal_filename(
         thead, instrument, mode
     )
-    reference = np.load(reference)
+    reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]
 
     module = WavelengthCalibration(

@@ -578,7 +578,7 @@ def wave(
     settings = settings["wavecal"]
 
     if os.path.exists(wavefile):
-        data = np.load(wavefile)
+        data = np.load(wavefile, allow_pickle=True)
 
         thar = data["thar"]
         wave = data["wave"]
@@ -605,13 +605,13 @@ def wave(
         reference = instruments.instrument_info.get_wavecal_filename(
             thead, instrument, mode
         )
-        reference = np.load(reference)
+        reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
 
         module = WavelengthCalibration(plot=False, manual=False)
         wave, solution = module.execute(thar, linelist)
 
-        np.savez(wavefile, thar=thar, wave=wave, solution=solution)
+        np.savez(wavefile, thar=thar, wave=wave, solution=solution, allow_pickle=True)
 
     return wave, thar
 

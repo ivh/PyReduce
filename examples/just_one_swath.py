@@ -10,7 +10,7 @@ hdu = fits.open(input_dir + "uves_middle.flat.fits")
 img = hdu[0].data
 nrow, ncol = img.shape
 
-data = np.load(input_dir + "uves_middle.ord_default.npz")
+data = np.load(input_dir + "uves_middle.ord_default.npz", allow_pickle=True)
 orders = data["orders"]
 column_range = data["column_range"]
 
