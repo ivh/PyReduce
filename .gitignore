@@ -34,3 +34,4 @@ plot_paper.py
 pyreduce/settings/check_settings.py
 build/*
 dist/*
+pyreduce_astro.egg-info/*

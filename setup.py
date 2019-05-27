@@ -9,7 +9,12 @@ from setuptools import setup, find_packages
 this = os.path.dirname(__file__)
 that = os.path.join(this, "pyreduce")
 sys.path.append(that)
-from clib import build_extract
+try:
+    from clib import build_extract
+except ModuleNotFoundError:
+    # Wait for pip to install CFFI first
+    print("Install CFFI")
+    pass
 
 
 # from pyreduce.clib import build_cluster
@@ -26,8 +31,8 @@ with open("requirements.txt", "r") as fh:
     requirements = fh.read().split("\n")
 
 setup(
-    name="pyreduce",
-    version="0.12",
+    name="pyreduce-astro",
+    version="0.02",
     author="Ansgar Wehrhahn",
     author_email="ansgar.wehrhahn@physics.uu.se",
     description="A data reduction package for echelle spectrographs",
