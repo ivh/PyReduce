@@ -1,3 +1,5 @@
+include requirements.txt
+
 include pyreduce/clib/slit_func_bd.c
 include pyreduce/clib/slit_func_bd.h
 include pyreduce/clib/slit_func_2d_xi_zeta_bd.c

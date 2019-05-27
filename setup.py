@@ -27,7 +27,7 @@ with open("requirements.txt", "r") as fh:
 
 setup(
     name="pyreduce",
-    version="0.0",
+    version="0.12",
     author="Ansgar Wehrhahn",
     author_email="ansgar.wehrhahn@physics.uu.se",
     description="A data reduction package for echelle spectrographs",
@@ -39,9 +39,9 @@ setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-        "Operating System :: OS Independent",
+        "Operating System :: POSIX :: Linux",
     ],
-    setup_requires=requirements,
+    # setup_requires=["cffi>=1.0.0"],
     cffi_modules=[
         "pyreduce/clib/build_extract.py:ffibuilder_vertical",
         "pyreduce/clib/build_extract.py:ffibuilder_curved",
