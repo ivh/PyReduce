@@ -10,6 +10,4 @@ Documentation is available at [ReadTheDocs](https://pyreduce-astro.readthedocs.i
 
 Installation
 ------------
-PyReduce can be installed using pip using the following command.
-
->>> pip install pyreduce-astro
+PyReduce can be installed using pip using the following command: ``pip install pyreduce-astro``
