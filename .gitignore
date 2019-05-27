@@ -32,3 +32,5 @@ pyreduce/datasets/HD132205/UVES.2010-04-02T09_28_05.650.xml
 pyreduce/wavecal/old/*
 plot_paper.py
 pyreduce/settings/check_settings.py
+build/*
+dist/*

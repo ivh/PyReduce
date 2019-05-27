@@ -1,0 +1,13 @@
+include pyreduce/clib/slit_func_bd.c
+include pyreduce/clib/slit_func_bd.h
+include pyreduce/clib/slit_func_2d_xi_zeta_bd.c
+include pyreduce/clib/slit_func_2d_xi_zeta_bd.h
+
+include pyreduce/instruments/*.json
+include pyreduce/settings/*.json
+include examples/*.json
+include test/settings/*.json
+
+include pyreduce/masks/*.gz
+
+include pyreduce/wavecal/*npz

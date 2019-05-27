@@ -15,7 +15,7 @@ try:
     # from .clib._cluster import lib as clusterlib
     from .clib._slitfunc_bd import ffi
 except ImportError:
-    raise ImportError("Use setup.py to compile the C libraries")
+    raise ImportError("Use build_extract.py to compile the C libraries")
 
 
 c_double = np.ctypeslib.ctypes.c_double
