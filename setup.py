@@ -27,9 +27,6 @@ except ModuleNotFoundError:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r") as fh:
-    requirements = fh.read().split("\n")
-
 setup(
     name="pyreduce-astro",
     version="0.02",
@@ -51,5 +48,16 @@ setup(
         "pyreduce/clib/build_extract.py:ffibuilder_vertical",
         "pyreduce/clib/build_extract.py:ffibuilder_curved",
     ],
-    install_requires=requirements,
+    install_requires=[
+        "cffi>=1.0.0",
+        "numpy",
+        "scipy",
+        "astropy",
+        "matplotlib",
+        "scikit-image",
+        "python-dateutil",
+        "wget",
+        "joblib",
+        "jsonschema>=3.0.1",
+    ],
 )
