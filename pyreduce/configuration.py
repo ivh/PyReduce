@@ -10,8 +10,10 @@ def load_config(configuration, instrument, j=0):
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():
             config = configuration[instrument]
-        else:
+        elif configuration["__instrument__"] == instrument.upper():
             config = configuration
+        else:
+            raise KeyError
     elif isinstance(configuration, list):
         config = configuration[j]
     elif isinstance(configuration, str):
