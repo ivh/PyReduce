@@ -26,26 +26,23 @@ import sys
 import time
 from os.path import join
 
-from astropy.io import fits
+import joblib
 import matplotlib.pyplot as plt
 import numpy as np
-import joblib
-
-from . import echelle, instruments, util
+from astropy.io import fits
 
 # PyReduce subpackages
-from .configuration import load_config
+from . import echelle, instruments, util
 from .combine_frames import combine_bias, combine_flat
+from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
+from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 
-from .extraction_width import estimate_extraction_width
-
-# TODO turn dicts into numpy structured array
 # TODO Naming of functions and modules
 # TODO License
 
@@ -147,7 +144,13 @@ def main(
                         input_dir, t, n, i, m, **config["instrument"]
                     )
                     if len(files) == 0:
-                        logging.warning("No files found for instrument:%s, target:%s, night:%s, mode:%s", i, t, n, m)
+                        logging.warning(
+                            "No files found for instrument:%s, target:%s, night:%s, mode:%s",
+                            i,
+                            t,
+                            n,
+                            m,
+                        )
                     for f, k in zip(files, nights):
                         logging.info("Instrument: %s", i)
                         logging.info("Target: %s", t)
@@ -177,6 +180,8 @@ def main(
 
 
 class Step:
+    """ Parent class for all steps """
+
     def __init__(
         self,
         instrument,
@@ -190,30 +195,68 @@ class Step:
     ):
         self._dependsOn = []
         self._loadDependsOn = []
+        #:str: Name of the instrument
         self.instrument = instrument
+        #:str: Name of the instrument mode
         self.mode = mode
+        #:int: Number of the FITS extension to use
         self.extension = extension
+        #:str: Name of the observation target
         self.target = target
+        #:str: Date of the observation (as a string)
         self.night = night
+        #:tuple(int, int): First and Last(+1) order to process
         self.order_range = order_range
-        self.plot = config.get("plot", False)
         self._output_dir = output_dir
 
     def run(self, files, *args):
+        """Execute the current step
+
+        Parameters
+        ----------
+        files : list(str)
+            data files required for this step
+
+        Raises
+        ------
+        NotImplementedError
+            needs to be implemented for each step
+        """
         raise NotImplementedError
 
     def save(self, *args):
+        """Save the results of this step
+        
+        Parameters
+        ----------
+        *args : obj
+            things to save
+
+        Raises
+        ------
+        NotImplementedError
+            Needs to be implemented for each step
+        """
         raise NotImplementedError
 
     def load(self):
+        """Load results from a previous execution
+        
+        Raises
+        ------
+        NotImplementedError
+            Needs to be implemented for each step
+        """
         raise NotImplementedError
 
     @property
     def dependsOn(self):
+        """list(str): Steps that are required before running this step"""
         return self._dependsOn
 
     @property
     def loadDependsOn(self):
+        """list(str): Steps that are required before loading data from this step"""
         return self._loadDependsOn
 
     @property
@@ -235,6 +278,8 @@ class Step:
 
 
 class Mask(Step):
+    """Load the bad pixel mask for the given instrument/mode"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self.extension = 0
@@ -242,23 +287,35 @@ class Mask(Step):
 
     @property
     def mask_dir(self):
+        """str: Directory containing the mask data file"""
         this = os.path.dirname(__file__)
         return self._mask_dir.format(reduce=this)
 
     @property
     def mask_file(self):
+        """str: Name of the mask data file"""
         i = self.instrument.lower()
         m = self.mode
         return f"mask_{i}_{m}.fits.gz"
 
     def run(self):
+        """Load the mask file from disk
+
+        Returns
+        -------
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask for this setting
+        """
         return self.load()
 
-    def save(self, mask):
-        mask_file = join(self.mask_dir, self.mask_file)
-        fits.writeto(mask_file, data=(~mask).astype(int))
-
     def load(self):
+        """Load the mask file from disk
+
+        Returns
+        -------
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask for this setting
+        """
         mask_file = join(self.mask_dir, self.mask_file)
         mask, _ = util.load_fits(
             mask_file, self.instrument, self.mode, extension=self.extension
@@ -268,6 +325,8 @@ class Mask(Step):
 
 
 class Bias(Step):
+    """Calculates the master bias"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask"]
@@ -279,6 +338,15 @@ class Bias(Step):
         return join(self.output_dir, self.prefix + ".bias.fits")
 
     def save(self, bias, bhead):
+        """Save the master bias to a FITS file
+        
+        Parameters
+        ----------
+        bias : array of shape (nrow, ncol)
+            bias data
+        bhead : FITS header
+            bias header
+        """
         bias = np.asarray(bias, dtype=np.float32)
         fits.writeto(
             self.savefile,
@@ -289,6 +357,22 @@ class Bias(Step):
         )
 
     def run(self, files, mask):
+        """Calculate the master bias
+        
+        Parameters
+        ----------
+        files : list(str)
+            bias files
+        mask : array of shape (nrow, ncol)
+            bad pixel map
+        
+        Returns
+        -------
+        bias : masked array of shape (nrow, ncol)
+            master bias data, with the bad pixel mask applied
+        bhead : FITS header
+            header of the master bias
+        """
         bias, bhead = combine_bias(
             files,
             self.instrument,
@@ -303,6 +387,20 @@ class Bias(Step):
         return bias, bhead
 
     def load(self, mask):
+        """Load the master bias from a previous run
+
+        Parameters
+        ----------
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        bias : masked array of shape (nrow, ncol)
+            master bias data, with the bad pixel mask applied
+        bhead : FITS header
+            header of the master bias
+        """
         bias = fits.open(self.savefile)[0]
         bias, bhead = bias.data, bias.header
         bias = np.ma.masked_array(bias, mask=mask)
@@ -310,6 +408,8 @@ class Bias(Step):
 
 
 class Flat(Step):
+    """Calculates the master flat"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias"]
@@ -321,6 +421,15 @@ class Flat(Step):
         return join(self.output_dir, self.prefix + ".flat.fits")
 
     def save(self, flat, fhead):
+        """Save the master flat to a FITS file
+
+        Parameters
+        ----------
+        flat : array of shape (nrow, ncol)
+            master flat data
+        fhead : FITS header
+            master flat header
+        """
         flat = np.asarray(flat, dtype=np.float32)
         fits.writeto(
             self.savefile,
@@ -331,6 +440,24 @@ class Flat(Step):
         )
 
     def run(self, files, bias, mask):
+        """Calculate the master flat, with the bias already subtracted
+        
+        Parameters
+        ----------
+        files : list(str)
+            flat files
+        bias : tuple(array of shape (nrow, ncol), FITS header)
+            master bias and header
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+        
+        Returns
+        -------
+        flat : masked array of shape (nrow, ncol)
+            Master flat with bad pixel map applied
+        fhead : FITS header
+            Master flat FITS header
+        """
         bias, bhead = bias
         flat, fhead = combine_flat(
             files,
@@ -346,6 +473,20 @@ class Flat(Step):
         return flat, fhead
 
     def load(self, mask):
+        """Load master flat from disk
+
+        Parameters
+        ----------
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        flat : masked array of shape (nrow, ncol)
+            Master flat with bad pixel map applied
+        fhead : FITS header
+            Master flat FITS header
+        """
         flat = fits.open(self.savefile)[0]
         flat, fhead = flat.data, flat.header
         flat = np.ma.masked_array(flat, mask=mask)
@@ -353,15 +494,23 @@ class Flat(Step):
 
 
 class OrderTracing(Step):
+    """Determine the polynomial fits describing the pixel locations of each order"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask"]
 
+        #:int: Minimum size of each cluster to be included in further processing
         self.min_cluster = config["min_cluster"]
+        #:int: Size of the gaussian filter for smoothing
         self.filter_size = config["filter_size"]
+        #:int: Background noise value threshold
         self.noise = config["noise"]
+        #:int: Polynomial degree of the fit to each order
         self.fit_degree = config["degree"]
+        #:int: Number of pixels at the edge of the detector to ignore
         self.border_width = config["border_width"]
+        #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
     @property
@@ -370,6 +519,22 @@ class OrderTracing(Step):
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
     def run(self, files, mask):
+        """Determine polynomial coefficients describing order locations
+        
+        Parameters
+        ----------
+        files : list(str)
+            Observation used for order tracing (should only have one element)
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+        
+        Returns
+        -------
+        orders : array of shape (nord, ndegree+1)
+            polynomial coefficients for each order
+        column_range : array of shape (nord, 2)
+            first and last(+1) column that carries signal in each order
+        """
         order_img, _ = util.load_fits(
             files[0], self.instrument, self.mode, self.extension, mask=mask
         )
@@ -390,9 +555,29 @@ class OrderTracing(Step):
         return orders, column_range
 
     def save(self, orders, column_range):
-        np.savez(self.savefile, orders=orders, column_range=column_range, allow_pickle=True)
+        """Save order tracing results to disk
+
+        Parameters
+        ----------
+        orders : array of shape (nord, ndegree+1)
+            polynomial coefficients
+        column_range : array of shape (nord, 2)
+            first and last(+1) column that carry signal in each order
+        """
+        np.savez(
+            self.savefile, orders=orders, column_range=column_range, allow_pickle=True
+        )
 
     def load(self):
+        """Load order tracing results
+        
+        Returns
+        -------
+        orders : array of shape (nord, ndegree+1)
+            polynomial coefficients for each order
+        column_range : array of shape (nord, 2)
+            first and last(+1) column that carries signal in each order
+        """
         data = np.load(self.savefile, allow_pickle=True)
         orders = data["orders"]
         column_range = data["column_range"]
@@ -400,23 +585,29 @@ class OrderTracing(Step):
 
 
 class NormalizeFlatField(Step):
+    """Calculate the 'normalized' flat field image"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["flat", "orders"]
 
+        #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
         if self.extraction_method == "normalize":
+            #:dict: arguments for the extraction
             self.extraction_kwargs = {
                 "extraction_width": config["extraction_width"],
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
-                "swath_width": config["swath_width"]
+                "swath_width": config["swath_width"],
             }
         else:
-            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'norm_flat'")
-
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'norm_flat'"
+            )
+        #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
+        #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
 
     @property
@@ -425,6 +616,22 @@ class NormalizeFlatField(Step):
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
     def run(self, flat, orders):
+        """Calculate the 'normalized' flat field
+
+        Parameters
+        ----------
+        flat : tuple(array, header)
+            Master flat, and its FITS header
+        orders : tuple(array, array)
+            Polynomial coefficients for each order, and the first and last(+1) column containing signal
+
+        Returns
+        -------
+        norm : array of shape (nrow, ncol)
+            normalized flat field
+        blaze : array of shape (nord, ncol)
+            Continuum level as determined from the flat field for each order
+        """
         flat, fhead = flat
         orders, column_range = orders
 
@@ -439,7 +646,7 @@ class NormalizeFlatField(Step):
             scatter_degree=self.scatter_degree,
             threshold=self.threshold,
             plot=self.plot,
-            **self.extraction_kwargs
+            **self.extraction_kwargs,
         )
 
         blaze = np.ma.filled(blaze, 0)
@@ -450,9 +657,27 @@ class NormalizeFlatField(Step):
         return norm, blaze
 
     def save(self, norm, blaze):
+        """Save normalized flat field results to disk
+        
+        Parameters
+        ----------
+        norm : array of shape (nrow, ncol)
+            normalized flat field
+        blaze : array of shape (nord, ncol)
+            Continuum level as determined from the flat field for each order
+        """
         np.savez(self.savefile, blaze=blaze, norm=norm, allow_pickle=True)
 
     def load(self):
+        """Load normalized flat field results from disk
+
+        Returns
+        -------
+        norm : array of shape (nrow, ncol)
+            normalized flat field
+        blaze : array of shape (nord, ncol)
+            Continuum level as determined from the flat field for each order
+        """
         logging.info("Loading normalized flat field")
         data = np.load(self.savefile, allow_pickle=True)
         blaze = data["blaze"]
@@ -461,13 +686,15 @@ class NormalizeFlatField(Step):
 
 
 class WavelengthCalibration(Step):
+    """Perform wavelength calibration"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "orders"]
 
+        #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
-
         if self.extraction_method == "arc":
+            #:dict: arguments for the extraction
             self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
@@ -475,16 +702,24 @@ class WavelengthCalibration(Step):
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
-                "swath_width": config["swath_width"]
+                "swath_width": config["swath_width"],
             }
         else:
-            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'wavecal'")
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
+            )
 
+        #:tuple(int, int): Polynomial degree of the wavelength calibration in order, column direction
         self.degree = config["degree"]
+        #:bool: Whether to use manual alignment instead of cross correlation
         self.manual = config["manual"]
+        #:float: residual threshold in m/s
         self.threshold = config["threshold"]
+        #:int: Number of iterations in the remove lines, auto id cycle
         self.iterations = config["iterations"]
+        #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.wavecal_mode = config["dimensionality"]
+        #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
 
     @property
@@ -493,10 +728,33 @@ class WavelengthCalibration(Step):
         return join(self.output_dir, self.prefix + ".thar.npz")
 
     def run(self, files, orders, mask):
+        """Perform wavelength calibration
+
+        This consists of extracting the wavelength image
+        and fitting a polynomial the the known spectral lines
+        
+        Parameters
+        ----------
+        files : list(str)
+            wavelength calibration files
+        orders : tuple(array, array)
+            Polynomial coefficients of each order, and columns with signal of each order
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        wave : array of shape (nord, ncol)
+            wavelength for each point in the spectrum
+        thar : array of shape (nrow, ncol)
+            extracted wavelength calibration image
+        coef : array of shape (*ndegrees,)
+            polynomial coefficients of the wavelength fit
+        linelist : record array of shape (nlines,)
+            Updated line information for all lines
+        """
         orders, column_range = orders
 
-        if len(files) == 0:
-            raise FileNotFoundError("No wavecal files given")
         f = files[0]
         if len(files) > 1:
             # TODO: Give the user the option to select one?
@@ -546,9 +804,42 @@ class WavelengthCalibration(Step):
         return wave, thar, coef, linelist
 
     def save(self, wave, thar, coef, linelist):
-        np.savez(self.savefile, wave=wave, thar=thar, coef=coef, linelist=linelist, allow_pickle=True)
+        """Save the results of the wavelength calibration
+
+        Parameters
+        ----------
+        wave : array of shape (nord, ncol)
+            wavelength for each point in the spectrum
+        thar : array of shape (nrow, ncol)
+            extracted wavelength calibration image
+        coef : array of shape (*ndegrees,)
+            polynomial coefficients of the wavelength fit
+        linelist : record array of shape (nlines,)
+            Updated line information for all lines
+        """
+        np.savez(
+            self.savefile,
+            wave=wave,
+            thar=thar,
+            coef=coef,
+            linelist=linelist,
+            allow_pickle=True,
+        )
 
     def load(self):
+        """Load the results of the wavelength calibration
+
+        Returns
+        -------
+        wave : array of shape (nord, ncol)
+            wavelength for each point in the spectrum
+        thar : array of shape (nrow, ncol)
+            extracted wavelength calibration image
+        coef : array of shape (*ndegrees,)
+            polynomial coefficients of the wavelength fit
+        linelist : record array of shape (nlines,)
+            Updated line information for all lines
+        """
         data = np.load(self.savefile, allow_pickle=True)
         wave = data["wave"]
         thar = data["thar"]
@@ -556,17 +847,17 @@ class WavelengthCalibration(Step):
         linelist = data["linelist"]
         return wave, thar, coef, linelist
 
-
-# TODO somehow this is part of the wavelength calibration, and not its own step
 class LaserFrequencyComb(Step):
+    """Improve the precision of the wavelength calibration with a laser frequency comb"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["wavecal", "orders", "mask"]
         self._loadDependsOn += ["wavecal"]
 
+        #:{'arc', 'optimal'}: extraction method
         self.extraction_method = config["extraction_method"]
-
         if self.extraction_method == "arc":
+            #:dict: keywords for the extraction
             self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
@@ -574,16 +865,21 @@ class LaserFrequencyComb(Step):
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
-                "swath_width": config["swath_width"]
+                "swath_width": config["swath_width"],
             }
         else:
-            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'freq_comb'")
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'freq_comb'"
+            )
 
+        #:tuple(int, int): polynomial degree of the wavelength fit
         self.degree = config["degree"]
-        self.extraction_width = config["extraction_width"]
+        #:float: residual threshold in m/s above which to remove lines
         self.threshold = config["threshold"]
+        #:{'1D', '2D'}: Whether to use 1D or 2D polynomials
         self.wavecal_mode = config["dimensionality"]
-        self.lfc_peak_width = config["peak_width"]
+        #:int: Width of the peaks for finding them in the spectrum
+        self.peak_width = config["peak_width"]
 
     @property
     def savefile(self):
@@ -591,6 +887,26 @@ class LaserFrequencyComb(Step):
         return join(self.output_dir, self.prefix + ".comb.npz")
 
     def run(self, files, wavecal, orders, mask):
+        """Improve the wavelength calibration with a laser frequency comb (or similar)
+
+        Parameters
+        ----------
+        files : list(str)
+            observation files
+        wavecal : tuple()
+            results from the wavelength calibration step
+        orders : tuple
+            results from the order tracing step
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        wave : array of shape (nord, ncol)
+            improved wavelength solution
+        comb : array of shape (nord, ncol)
+            extracted frequency comb image
+        """
         wave, thar, coef, linelist = wavecal
         orders, column_range = orders
 
@@ -609,7 +925,7 @@ class LaserFrequencyComb(Step):
             column_range=column_range,
             order_range=self.order_range,
             plot=self.plot,
-            **self.extraction_kwargs
+            **self.extraction_kwargs,
         )
 
         # for i in range(len(comb)):
@@ -621,7 +937,7 @@ class LaserFrequencyComb(Step):
             degree=self.degree,
             threshold=self.threshold,
             mode=self.wavecal_mode,
-            lfc_peak_width=self.lfc_peak_width,
+            lfc_peak_width=self.peak_width,
         )
         wave = module.frequency_comb(comb, wave, linelist)
 
@@ -630,9 +946,33 @@ class LaserFrequencyComb(Step):
         return wave, comb
 
     def save(self, wave, comb):
+        """Save the results of the frequency comb improvement
+        
+        Parameters
+        ----------
+        wave : array of shape (nord, ncol)
+            improved wavelength solution
+        comb : array of shape (nord, ncol)
+            extracted frequency comb image
+        """
         np.savez(self.savefile, wave=wave, comb=comb, allow_pickle=True)
 
     def load(self, wavecal):
+        """Load the results of the frequency comb improvement if possible,
+        otherwise just use the normal wavelength solution
+
+        Parameters
+        ----------
+        wavecal : tuple
+            results from the wavelength calibration step
+
+        Returns
+        -------
+        wave : array of shape (nord, ncol)
+            improved wavelength solution
+        comb : array of shape (nord, ncol)
+            extracted frequency comb image
+        """
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
@@ -647,14 +987,20 @@ class LaserFrequencyComb(Step):
 
 
 class SlitCurvatureDetermination(Step):
+    """Determine the curvature of the slit"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["orders", "wavecal", "mask"]
 
+        #:tuple(int, 2): Number of pixels around each order to use in an extraction
         self.extraction_width = config["extraction_width"]
+        #:int: Polynimal degree of the overall fit
         self.fit_degree = config["degree"]
+        #:int: Number of iterations in the removal of bad lines loop
         self.max_iter = config["iterations"]
+        #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["sigma_cutoff"]
+        #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
 
     @property
@@ -663,6 +1009,26 @@ class SlitCurvatureDetermination(Step):
         return join(self.output_dir, self.prefix + ".shear.npz")
 
     def run(self, files, orders, wavecal, mask):
+        """Determine the curvature of the slit
+
+        Parameters
+        ----------
+        files : list(str)
+            files to use for this
+        orders : tuple
+            results of the order tracing
+        wavecal : tuple
+            results from the wavelength calibration
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        tilt : array of shape (nord, ncol)
+            first order slit curvature at each point
+        shear : array of shape (nord, ncol)
+            second order slit curvature at each point
+        """
         orders, column_range = orders
         wave, thar, coef, linelist = wavecal
 
@@ -689,9 +1055,27 @@ class SlitCurvatureDetermination(Step):
         return tilt, shear
 
     def save(self, tilt, shear):
+        """Save results from the curvature
+        
+        Parameters
+        ----------
+        tilt : array of shape (nord, ncol)
+            first order slit curvature at each point
+        shear : array of shape (nord, ncol)
+            second order slit curvature at each point
+        """
         np.savez(self.savefile, tilt=tilt, shear=shear, allow_pickle=True)
 
     def load(self):
+        """Load the curvature if possible, otherwise return None, None, i.e. use vertical extraction
+
+        Returns
+        -------
+        tilt : array of shape (nord, ncol)
+            first order slit curvature at each point
+        shear : array of shape (nord, ncol)
+            second order slit curvature at each point
+        """
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
@@ -704,13 +1088,16 @@ class SlitCurvatureDetermination(Step):
 
 
 class ScienceExtraction(Step):
+    """Extract the science spectra"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
         self._loadDependsOn += []
 
+        #:{'arc', 'optimal'}: Extraction method
         self.extraction_method = config["extraction_method"]
         if self.extraction_method == "arc":
+            #:dict: Keywords for the extraction algorithm
             self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
@@ -718,15 +1105,57 @@ class ScienceExtraction(Step):
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
-                "swath_width": config["swath_width"]
+                "swath_width": config["swath_width"],
             }
         else:
-            raise ValueError(f"Extraction method {self.extraction_method} not supported for step 'science'")
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'science'"
+            )
 
     def science_file(self, name):
+        """Name of the science file in disk, based on the input file
+
+        Parameters
+        ----------
+        name : str
+            name of the observation file
+
+        Returns
+        -------
+        name : str
+            science file name
+        """
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
 
     def run(self, files, bias, orders, norm_flat, curvature, mask):
+        """Extract Science spectra from observation
+
+        Parameters
+        ----------
+        files : list(str)
+            list of observations
+        bias : tuple
+            results from master bias step
+        orders : tuple
+            results from order tracing step
+        norm_flat : tuple
+            results from flat normalization
+        curvature : tuple
+            results from slit curvature step
+        mask : array of shape (nrow, ncol)
+            bad pixel map
+
+        Returns
+        -------
+        heads : list(FITS header)
+            FITS headers of each observation
+        specs : list(array of shape (nord, ncol))
+            extracted spectra
+        sigmas : list(array of shape (nord, ncol))
+            uncertainties of the extracted spectra
+        columns : list(array of shape (nord, 2))
+            column ranges for each spectra
+        """
         bias, bhead = bias
         norm, blaze = norm_flat
         orders, column_range = orders
@@ -759,7 +1188,7 @@ class ScienceExtraction(Step):
                 column_range=column_range,
                 order_range=self.order_range,
                 plot=self.plot,
-                **self.extraction_kwargs
+                **self.extraction_kwargs,
             )
 
             # save spectrum to disk
@@ -772,10 +1201,38 @@ class ScienceExtraction(Step):
         return heads, specs, sigmas, columns
 
     def save(self, fname, head, spec, sigma, column_range):
+        """Save the results of one extraction
+        
+        Parameters
+        ----------
+        fname : str
+            filename to save to
+        head : FITS header
+            FITS header
+        spec : array of shape (nord, ncol)
+            extracted spectrum
+        sigma : array of shape (nord, ncol)
+            uncertainties of the extracted spectrum
+        column_range : array of shape (nord, 2)
+            range of columns that have spectrum
+        """
         nameout = self.science_file(fname)
         echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
 
     def load(self):
+        """Load all science spectra from disk
+
+        Returns
+        -------
+        heads : list(FITS header)
+            FITS headers of each observation
+        specs : list(array of shape (nord, ncol))
+            extracted spectra
+        sigmas : list(array of shape (nord, ncol))
+            uncertainties of the extracted spectra
+        columns : list(array of shape (nord, 2))
+            column ranges for each spectra
+        """
         files = [s for s in os.listdir(self.output_dir) if s.endswith(".science.ech")]
 
         heads, specs, sigmas, columns = [], [], [], []
@@ -796,15 +1253,42 @@ class ScienceExtraction(Step):
 
 
 class ContinuumNormalization(Step):
+    """Determine the continuum to each observation"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["science", "freq_comb", "norm_flat"]
 
     @property
     def savefile(self):
+        """str: savefile name"""
         return join(self.output_dir, self.prefix + ".cont.npz")
 
     def run(self, science, freq_comb, norm_flat):
+        """Determine the continuum to each observation
+        Also splices the orders together
+        
+        Parameters
+        ----------
+        science : tuple
+            results from science step
+        freq_comb : tuple
+            results from freq_comb step (or wavecal if those don't exist)
+        norm_flat : tuple
+            results from the normalized flatfield step
+        
+        Returns
+        -------
+        heads : list(FITS header)
+            FITS headers of each observation
+        specs : list(array of shape (nord, ncol))
+            extracted spectra
+        sigmas : list(array of shape (nord, ncol))
+            uncertainties of the extracted spectra
+        conts : list(array of shape (nord, ncol))
+            continuum for each spectrum
+        columns : list(array of shape (nord, 2))
+            column ranges for each spectra
+        """
         wave, comb = freq_comb
         heads, specs, sigmas, columns = science
         norm, blaze = norm_flat
@@ -825,6 +1309,21 @@ class ContinuumNormalization(Step):
         return heads, specs, sigmas, conts, columns
 
     def save(self, heads, specs, sigmas, conts, columns):
+        """Save the results from the continuum normalization
+        
+        Parameters
+        ----------
+        heads : list(FITS header)
+            FITS headers of each observation
+        specs : list(array of shape (nord, ncol))
+            extracted spectra
+        sigmas : list(array of shape (nord, ncol))
+            uncertainties of the extracted spectra
+        conts : list(array of shape (nord, ncol))
+            continuum for each spectrum
+        columns : list(array of shape (nord, 2))
+            column ranges for each spectra
+        """
         value = {
             "heads": heads,
             "specs": specs,
@@ -835,6 +1334,21 @@ class ContinuumNormalization(Step):
         joblib.dump(value, self.savefile)
 
     def load(self):
+        """Load the results from the continuum normalization
+        
+        Returns
+        -------
+        heads : list(FITS header)
+            FITS headers of each observation
+        specs : list(array of shape (nord, ncol))
+            extracted spectra
+        sigmas : list(array of shape (nord, ncol))
+            uncertainties of the extracted spectra
+        conts : list(array of shape (nord, ncol))
+            continuum for each spectrum
+        columns : list(array of shape (nord, 2))
+            column ranges for each spectra
+        """
         data = joblib.load(self.savefile)
         heads = data["heads"]
         specs = data["specs"]
@@ -845,15 +1359,30 @@ class ContinuumNormalization(Step):
 
 
 class Finalize(Step):
+    """Create the final output files"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb"]
 
     def output_file(self, number):
+        """str: output file name"""
         out = f"{self.instrument.upper()}.{self.night}_{number}.ech"
         return os.path.join(self.output_dir, out)
 
     def run(self, continuum, freq_comb):
+        """Create the final output files
+
+        this is includes:
+         - heliocentric corrections
+         - creating one echelle file
+
+        Parameters
+        ----------
+        continuum : tuple
+            results from the continuum normalization
+        freq_comb : tuple
+            results from the frequency comb step (or wavelength calibration)
+        """
         heads, specs, sigmas, conts, columns = continuum
         wave, comb = freq_comb
 
@@ -888,6 +1417,30 @@ class Finalize(Step):
             logging.info("science file: %s", os.path.basename(fname))
 
     def save(self, i, head, spec, sigma, cont, wave, columns):
+        """Save one output spectrum to disk
+
+        Parameters
+        ----------
+        i : int
+            individual number of each file
+        head : FITS header
+            FITS header
+        spec : array of shape (nord, ncol)
+            final spectrum
+        sigma : array of shape (nord, ncol)
+            final uncertainties
+        cont : array of shape (nord, ncol)
+            final continuum scales
+        wave : array of shape (nord, ncol)
+            wavelength solution
+        columns : array of shape (nord, 2)
+            columns that carry signal
+
+        Returns
+        -------
+        out_file : str
+            name of the output file
+        """
         out_file = self.output_file(i)
         echelle.save(
             out_file, head, spec=spec, sig=sigma, cont=cont, wave=wave, columns=columns
