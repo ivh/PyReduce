@@ -35,6 +35,9 @@ base_dir = "/DATA/ESO_Archive/"
 input_dir = "{instrument}/FrequencyComb/raw"
 output_dir = "{instrument}/FrequencyComb/reduced_{mode}"
 
+# Path to the configuration parameters, that are to be used for this reduction
+config = os.path.join(os.path.dirname(__file__), "settings_HARPS.json")
+
 pyreduce.reduce.main(
     instrument,
     target,
@@ -44,6 +47,6 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=os.path.join(os.path.dirname(__file__), "settings_HARPS.json"),
+    configuration=config,
     # order_range=(0, 25),
 )

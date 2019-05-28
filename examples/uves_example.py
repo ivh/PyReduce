@@ -34,6 +34,8 @@ base_dir = datasets.UVES_HD132205()
 input_dir = "{target}/"
 output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
 
+config = os.path.join(os.path.dirname(__file__), "settings_UVES.json")
+
 pyreduce.reduce.main(
     instrument,
     target,
@@ -43,6 +45,6 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json"),
-    # order_range=(1, 21),
+    configuration=config,
+    order_range=(1, 21),
 )
