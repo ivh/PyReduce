@@ -889,6 +889,21 @@ class WavelengthCalibration:
 
         return new_wave
 
+    def calculate_AIC(self, lines, wave_solution):
+        m_pix = lines["posc"]
+        m_wave = lines["wll"]
+        m_ord = lines["order"]
+        p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
+
+        k = np.size(wave_solution) + 1
+        n = len(p_wave)
+        rss = np.sum((p_wave - m_wave) ** 2)
+        logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
+        aic = 2 * k - 2 * logl
+        self.aicc = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
+        self.aic = aic
+        return aic
+
     def execute(self, obs, lines):
         """
         Perform the whole wavelength calibration procedure with the current settings
@@ -918,6 +933,9 @@ class WavelengthCalibration:
         # Step 1: align obs and reference
         lines = self.align(obs, lines)
 
+        # Keep original positions for reference
+        lines["posc"] = np.copy(lines["posm"])
+
         # Step 2: Locate the lines on the detector, and update the pixel position
         lines["flag"] = True
         lines = self.fit_lines(obs, lines)
@@ -943,28 +961,5 @@ class WavelengthCalibration:
 
         if self.plot:
             self.plot_results(wave_img, obs)
-
-        # m_wave = lines["wll"]
-        # m_pix = lines["posm"]
-        # m_ord = lines["order"]
-        # p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
-
-        # k = np.size(wave_solution) + 1
-        # n = len(p_wave)
-        # rss = np.sum((p_wave - m_wave) ** 2)
-        # logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
-        # aic = 2 * k - 2 * logl
-        # aicc_1d = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
-
-        # self.mode = "2D" if self.mode == "1D" else "1D"
-        # wave_solution_1d = self.build_2d_solution(lines, plot=self.plot)
-        # p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution_1d)
-
-        # k = np.size(wave_solution_1d) + 1
-        # n = len(p_wave)
-        # rss = np.sum((p_wave - m_wave) ** 2)
-        # logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
-        # aic = 2 * k - 2 * logl
-        # aicc_2d = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
 
         return wave_img, wave_solution
