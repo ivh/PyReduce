@@ -8,7 +8,10 @@ def load_config(configuration, instrument, j=0):
     if configuration is None:
         config = "settings_%s.json" % instrument.upper()
     elif isinstance(configuration, dict):
-        config = configuration[instrument]
+        if instrument in configuration.keys():
+            config = configuration[instrument]
+        else:
+            config = configuration
     elif isinstance(configuration, list):
         config = configuration[j]
     elif isinstance(configuration, str):

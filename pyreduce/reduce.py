@@ -146,6 +146,8 @@ def main(
                     files, nights = instruments.instrument_info.sort_files(
                         input_dir, t, n, i, m, **config["instrument"]
                     )
+                    if len(files) == 0:
+                        logging.warning("No files found for instrument:%s, target:%s, night:%s, mode:%s", i, t, n, m)
                     for f, k in zip(files, nights):
                         logging.info("Instrument: %s", i)
                         logging.info("Target: %s", t)

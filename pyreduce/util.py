@@ -148,7 +148,7 @@ def start_logging(log_file="log.log"):
 
     # Command Line output
     # only if not running in notebook
-    if not in_ipynb() and not hasStream:
+    if not hasStream:
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
         ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
