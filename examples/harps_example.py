@@ -9,16 +9,17 @@ from pyreduce import datasets
 
 
 # define parameters
-instrument = "UVES"
-target = "HD132205"
-night = "2010-04-01"
-mode = "middle"
+instrument = "HARPS"
+target = "HD109200"
+night = "2015-04-09"
+mode = "red"
 steps = (
     "bias",
     "flat",
     "orders",
     "norm_flat",
     "wavecal",
+    "freq_comb",
     "curvature",
     "science",
     "continuum",
@@ -30,9 +31,9 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.UVES_HD132205()
-input_dir = "{target}/"
-output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
+base_dir = "/DATA/ESO_Archive/"
+input_dir = "{instrument}/FrequencyComb/raw"
+output_dir = "{instrument}/FrequencyComb/reduced_{mode}"
 
 pyreduce.reduce.main(
     instrument,
@@ -43,6 +44,6 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=os.path.join(os.path.dirname(__file__), "settings_UVES.json"),
-    # order_range=(1, 21),
+    configuration=os.path.join(os.path.dirname(__file__), "settings_HARPS.json"),
+    # order_range=(0, 25),
 )

@@ -7,6 +7,7 @@ import logging
 import os
 from itertools import product
 import json
+import jsonschema
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -15,7 +16,7 @@ from astropy.io import fits
 from astropy import time, coordinates as coord, units as u
 import scipy.constants
 import scipy.interpolate
-from scipy.linalg import solve, solve_banded
+from scipy.linalg import solve, solve_banded, lstsq
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 
@@ -30,17 +31,6 @@ except ImportError:
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
-
-def read_config(fname="settings_pyreduce.json"):
-    this_dir = os.path.dirname(__file__)
-    fname = os.path.join(this_dir, "settings", fname)
-
-    if os.path.exists(fname):
-        with open(fname) as file:
-            settings = json.load(file)
-            return settings
-    else:
-        return None
 
 
 def checkGitRepo(remote_name="origin"):
@@ -334,6 +324,11 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     # Define the indices for the pixels between two y arrays, e.g. pixels in an order
     # in x: the rows between ymin and ymax
     # in y: the column, but n times to match the x index
+    ymin = np.asarray(ymin, dtype=int)
+    ymax = np.asarray(ymax, dtype=int)
+    xmin = int(xmin)
+    xmax = int(xmax)
+
     if zero:
         zero = xmin
 
@@ -371,7 +366,7 @@ def gaussfit(x, y):
     """
 
     gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2) ** 2 / 2)
-    popt, _ = curve_fit(gauss, x, y, p0=[max(y), 1, 1])
+    popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 
 
@@ -399,36 +394,31 @@ def gaussfit2(x, y):
     y = np.ma.compressed(y)
 
     if len(x) == 0 or len(y) == 0:
-        return [0, 0, 0, 0]
+        raise ValueError("All values masked")
 
     if len(x) != len(y):
         raise ValueError("The masks of x and y are different")
 
-    # Find the peak in the center (middle half) of the image
-    i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
+    # Find the peak in the center of the image
+    weights = np.ones(len(y), dtype=y.dtype)
+    midpoint = len(y) // 2
+    weights[:midpoint] = np.linspace(0, 1, midpoint, dtype=weights.dtype)
+    weights[midpoint:] = np.linspace(1, 0, len(y) - midpoint, dtype=weights.dtype)
+
+    i = np.argmax(y * weights)
     p0 = [y[i], x[i], 1]
     with np.warnings.catch_warnings():
         np.warnings.simplefilter("ignore")
-        try:
-            res = least_squares(
-                lambda c: gauss(x, *c, np.ma.min(y)) - y,
-                p0,
-                loss="soft_l1",
-                bounds=(
-                    [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
-                    [np.ma.max(y) * 1.5, np.ma.max(x), np.inf],
-                ),
-            )
-            popt = list(res.x) + [np.min(y)]
-            # popt, _ = curve_fit(gauss, x, y, p0=p0)
-        except (RuntimeError, FloatingPointError):
-            # Sometimes the data is really bad and no fit is found
-            # then revert to a bad guess
-            popt = p0 + [np.min(y)]
-        except ValueError:
-            # Somehow the bounds mess up?
-            res = least_squares(lambda c: gauss(x, *c, np.min(y)) - y, p0, loss="soft_l1")
-            popt = list(res.x) + [np.min(y)]
+        res = least_squares(
+            lambda c: gauss(x, *c, np.ma.min(y)) - y,
+            p0,
+            loss="soft_l1",
+            bounds=(
+                [min(np.ma.mean(y), y[i]), np.ma.min(x), 0],
+                [np.ma.max(y) * 1.5, np.ma.max(x), len(x) / 2],
+            ),
+        )
+        popt = list(res.x) + [np.min(y)]
     return popt
 
 
@@ -454,12 +444,35 @@ def gaussfit3(x, y):
 
     with np.warnings.catch_warnings():
         np.warnings.simplefilter("ignore")
-        try:
-            popt, _ = curve_fit(gauss, x, y, p0=p0)
-        except (RuntimeError, FloatingPointError):
-            # Sometimes the data is really bad and no fit is found
-            # then revert to a bad guess
-            popt = p0
+        popt, _ = curve_fit(gauss, x, y, p0=p0)
+
+    return popt
+
+def gaussfit4(x, y):
+    """ A very simple (and relatively fast) gaussian fit
+    gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
+
+    Assumes x is sorted
+
+    Parameters
+    ----------
+    x : array of shape (n,)
+        x data
+    y : array of shape (n,)
+        y data
+
+    Returns
+    -------
+    popt : list of shape (4,)
+        Parameters A, mu, sigma**2, offset
+    """
+    gauss = gaussval2
+    i = len(x)//2
+    p0 = [y[i], x[i], 1, np.min(y)]
+
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter("ignore")
+        popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
 
@@ -514,7 +527,7 @@ def gaussbroad(x, y, hwhm):
     return sout  # return broadened spectrum.
 
 
-def polyfit2d(x, y, z, degree=1, plot=False):
+def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     """A simple 2D plynomial fit to data x, y, z
 
     Parameters
@@ -548,23 +561,34 @@ def polyfit2d(x, y, z, degree=1, plot=False):
 
     # We only want the combinations with maximum order COMBINED power
     idx = np.array(idx)
-    idx = idx[idx[:, 0] + idx[:, 1] <= degree]
+    if max_degree is not None:
+        idx = idx[idx[:, 0] + idx[:, 1] <= max_degree]
+
+    if scale:
+        # Normalize x and y to avoid huge numbers
+        norm_x = np.max(x).astype(float)
+        norm_y = np.max(y).astype(float)
+        x = x / norm_x
+        y = y / norm_y
+    else:
+        norm_x = norm_y = 1
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
-    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx]).T
+    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx], dtype=float).T
     b = z.ravel()
 
-    # if np.ma.is_masked(z):
-    #     mask = z.mask
-    #     b = z.compressed()
-    #     A = A[~mask, :]
+    if np.ma.is_masked(z):
+        mask = z.mask
+        b = z.compressed()
+        A = A[~mask, :]
 
     # Do least squares fit
-    C, *_ = np.linalg.lstsq(A, b, rcond=-1)
+    C, *_ = lstsq(A, b)
+    # C, *_ = np.linalg.lstsq(A, b, rcond=-1)
 
     # Reorder coefficients into numpy compatible 2d array
     for k, (i, j) in enumerate(idx):
-        coeff[i, j] = C[k]
+        coeff[i, j] = C[k] / (norm_x**i * norm_y**j)
 
     if plot:
         # regular grid covering the domain of the data
@@ -573,6 +597,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
         else:
             choice = slice(None, None, None)
         x, y, z = x[choice], y[choice], z[choice]
+        x, y = x * norm_x, y * norm_y
         X, Y = np.meshgrid(
             np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
         )
@@ -590,7 +615,7 @@ def polyfit2d(x, y, z, degree=1, plot=False):
     return coeff
 
 
-def polyfit2d_2(x, y, z, degree=1, plot=False):
+def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
 
     if np.isscalar(degree):
         degree_x = degree_y = degree + 1
@@ -601,12 +626,16 @@ def polyfit2d_2(x, y, z, degree=1, plot=False):
     polyval2d = np.polynomial.polynomial.polyval2d
 
     def func(c):
-        c = np.reshape(c, (degree_x, degree_y))
+        c = c.reshape(degree_x, degree_y)
         value = polyval2d(x, y, c)
         return value - z
 
-    x0 = np.random.random_sample(degree_x * degree_y) * 0.1
-    res = least_squares(func, x0, loss="linear", method="lm", xtol=1e-12)
+    if x0 is None:
+        x0 = np.random.random_sample(degree_x * degree_y) * 0.1
+    else:
+        x0 = x0.ravel()
+
+    res = least_squares(func, x0, loss=loss, method=method)
     coef = res.x
     coef.shape = degree_x, degree_y
 

@@ -26,23 +26,24 @@ def test_orders(instrument, mode, extension, files, settings, mask):
         Bad pixel mask
     """
 
-    files = files["order"][0]
+    files = files["orders"][0]
     order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
+    settings = settings["orders"]
 
     orders, column_range = mark_orders(
         order_img,
-        min_cluster=settings["orders.min_cluster"],
-        filter_size=settings["orders.filter_size"],
-        noise=settings["orders.noise"],
-        opower=settings["orders.fit_degree"],
-        border_width=settings["orders.border_width"],
+        min_cluster=settings["min_cluster"],
+        filter_size=settings["filter_size"],
+        noise=settings["noise"],
+        opower=settings["degree"],
+        border_width=settings["border_width"],
         manual=False,
         plot=False,
     )
 
     assert isinstance(orders, np.ndarray)
     assert np.issubdtype(orders.dtype, np.floating)
-    assert orders.shape[1] == settings["orders.fit_degree"] + 1
+    assert orders.shape[1] == settings["degree"] + 1
 
     assert isinstance(column_range, np.ndarray)
     assert np.issubdtype(column_range.dtype, np.integer)
@@ -52,11 +53,14 @@ def test_orders(instrument, mode, extension, files, settings, mask):
 
     assert orders.shape[0] == column_range.shape[0]
 
+
 def test_simple():
     img = np.full((100, 100), 1)
     img[45:56, :] = 100
 
-    orders, column_range = mark_orders(img, manual=False, opower=1, plot=False, border_width=0)
+    orders, column_range = mark_orders(
+        img, manual=False, opower=1, plot=False, border_width=0
+    )
 
     assert orders.shape[0] == 1
     assert np.allclose(orders[0], [0, 50])
@@ -64,6 +68,7 @@ def test_simple():
     assert column_range.shape[0] == 1
     assert column_range[0, 0] == 0
     assert column_range[0, 1] == 100
+
 
 def test_parameters():
     img = np.full((100, 100), 1)

@@ -70,13 +70,12 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
         # TODO ask for confirmation
 
     # Get background scatter
-    xscatter, yscatter = estimate_background_scatter(img, orders, **kwargs)
+    scatter = estimate_background_scatter(img, orders, **kwargs)
 
     im_norm, im_ordr, blaze, _ = extract(
         img,
         orders,
-        xscatter=xscatter,
-        yscatter=yscatter,
+        scatter=scatter,
         threshold=threshold,
         extraction_type="normalize",
         tilt=0,

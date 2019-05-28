@@ -88,13 +88,15 @@ def test_sort_files(instrument, target, night, mode, input_dir):
     f = files[0][list(files[0].keys())[0]]
     assert "bias" in f.keys()
     assert "flat" in f.keys()
-    assert "wave" in f.keys()
-    assert "order" in f.keys()
-    assert "spec" in f.keys()
+    assert "wavecal" in f.keys()
+    assert "curvature" in f.keys()
+    assert "orders" in f.keys()
+    assert "science" in f.keys()
 
     assert len(f["bias"]) != 0
     assert len(f["flat"]) != 0
-    assert len(f["wave"]) != 0
-    assert len(f["order"]) != 0
-    assert len(f["spec"]) != 0
+    assert len(f["wavecal"]) != 0
+    assert len(f["curvature"]) != 0
+    assert len(f["orders"]) != 0
+    assert len(f["science"]) != 0
 

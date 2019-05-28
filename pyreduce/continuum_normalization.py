@@ -48,11 +48,8 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     nord, _ = spec.shape  # Number of sp. orders, Order length in pixels
 
     # Just to be extra safe that they are all the same
-    if np.ma.is_masked(spec):
-        mask = spec.mask
-    else:
-        mask = spec == 0
-        spec = np.ma.masked_array(spec, mask=mask)
+    mask = np.ma.getmaskarray(spec) | (spec == 0) | (cont == 0)
+    spec = np.ma.masked_array(spec, mask=mask)
     wave = np.ma.masked_array(np.ma.getdata(wave), mask=mask)
     cont = np.ma.masked_array(np.ma.getdata(cont), mask=mask)
     sigm = np.ma.masked_array(np.ma.getdata(sigm), mask=mask)
@@ -199,6 +196,9 @@ def continuum_normalize(
     """ Fit a continuum to a spectrum by slowly approaching it from the top.
     We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
 
+    TODO automatically find good parameters for smooth_initial and smooth_final
+    TODO give variables better names
+
     Parameters
     ----------
     spec : masked array of shape (nord, ncol)
@@ -257,11 +257,14 @@ def continuum_normalize(
         ([0], 2 * weight[1:-1] - weight[0:-2] - weight[2:], [0])
     )
     weight = np.clip(weight, 0, None)
-    weight = util.safe_interpolation(wsort, weight, new_wave)
+    # TODO for some reason the interpolation messes up, use linear instead for now
+    # weight = util.safe_interpolation(wsort, weight, new_wave)
+    weight = np.interp(new_wave, wsort, weight)
     weight /= np.max(weight)
 
     # Interpolate Spectrum onto the new grid
-    ssB = util.safe_interpolation(wsort, sB, new_wave)
+    # ssB = util.safe_interpolation(wsort, sB, new_wave)
+    ssB = np.interp(new_wave, wsort, sB)
     # Keep the scale of the continuum
     bbb = util.middle(cont.compressed()[j], 1)
 
@@ -296,7 +299,8 @@ def continuum_normalize(
         p.close()
 
     # Calculate the new continuum from intermediate values
-    new_cont = util.safe_interpolation(new_wave, contB, wsort)
+    # new_cont = util.safe_interpolation(new_wave, contB, wsort)
+    new_cont = np.interp(wsort, new_wave, contB)
     cont[~cont.mask] = (new_cont * bbb)[index]
 
     # Final output plot

@@ -8,12 +8,12 @@ import pickle
 
 import json
 import pytest
-from pyreduce import datasets, util, instruments
+from pyreduce import datasets, util, instruments, configuration
 from pyreduce.combine_frames import combine_bias, combine_flat
 from pyreduce.trace_orders import mark_orders
 from pyreduce.normalize_flat import normalize_flat
 from pyreduce.extract import extract
-from pyreduce.wavelength_calibration import wavecal
+from pyreduce.wavelength_calibration import WavelengthCalibration
 from pyreduce import echelle
 
 
@@ -86,7 +86,7 @@ def night(dataset):
 
     _, target = dataset
     if target == "HD132205":
-        return "2010-04-02"
+        return "2010-04-01"
 
 
 @pytest.fixture
@@ -154,7 +154,7 @@ def extension(info, mode):
 
 @pytest.fixture
 def order_range(dataset):
-    return (0, 2)
+    return (3, 5)
 
 
 @pytest.fixture
@@ -181,33 +181,7 @@ def data(dataset):
 
 
 @pytest.fixture
-def config(dataset):
-    """
-    Configuration settings for this run of PyReduce
-
-    Parameters
-    ----------
-    dataset : tuple(str, str)
-        instrument, target
-
-    Returns
-    -------
-    config : dict(str:obj)
-        run specific configuration
-    """
-
-    instrument, target = dataset
-    folder = dirname(__file__)
-    filename = join(folder, "settings", f"settings_{instrument.upper()}.json")
-
-    with open(filename) as f:
-        conf = json.load(f)
-
-    return conf
-
-
-@pytest.fixture
-def settings(config):
+def settings(dataset):
     """Combine run specific configuration with default settings
 
     Parameters
@@ -221,8 +195,11 @@ def settings(config):
         updated settings
     """
 
-    setti = util.read_config()
-    setti.update(config)
+    instrument, target = dataset
+    folder = dirname(__file__)
+    filename = join(folder, "settings", f"settings_{instrument.upper()}.json")
+
+    setti = configuration.load_config(filename, instrument)
     return setti
 
 
@@ -250,7 +227,7 @@ def input_dir(data, target):
 def output_dir(data, settings, instrument, target, night, mode):
     """Output data directory
     Also creates that directory if necessary
-    
+
     Parameters
     ----------
     data : str
@@ -265,14 +242,14 @@ def output_dir(data, settings, instrument, target, night, mode):
         observation night
     mode : str
         observing mode
-    
+
     Returns
     -------
     output_dir : str
         output directory
     """
 
-    odir = settings["reduce.output_dir"]
+    odir = settings["reduce"]["output_dir"]
     odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
     odir = join(data, "reduced", odir)
 
@@ -307,7 +284,7 @@ def files(input_dir, instrument, target, night, mode, settings):
     """
 
     files, _ = instruments.instrument_info.sort_files(
-        input_dir, target, night, instrument, mode, **settings
+        input_dir, target, night, instrument, mode, **settings["instrument"]
     )
     files = files[0][list(files[0].keys())[0]]
     return files
@@ -479,22 +456,23 @@ def orders(instrument, mode, extension, files, settings, mask, output_dir):
     column_range : array(int) of size (norders, 2)
         valid columns that include traces/data
     """
+    settings = settings["orders"]
 
     orderfile = os.path.join(output_dir, "test_orders.pkl")
     try:
         with open(orderfile, "rb") as file:
             orders, column_range = pickle.load(file)
     except FileNotFoundError:
-        files = files["order"][0]
+        files = files["orders"][0]
         order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
 
         orders, column_range = mark_orders(
             order_img,
-            min_cluster=settings["orders.min_cluster"],
-            filter_size=settings["orders.filter_size"],
-            noise=settings["orders.noise"],
-            opower=settings["orders.fit_degree"],
-            border_width=settings["orders.border_width"],
+            min_cluster=settings["min_cluster"],
+            filter_size=settings["filter_size"],
+            noise=settings["noise"],
+            opower=settings["degree"],
+            border_width=settings["border_width"],
             manual=False,
             plot=False,
         )
@@ -529,6 +507,8 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
     normflatfile = os.path.join(output_dir, "test_normflat.fits")
     blazefile = os.path.join(output_dir, "test_blaze.pkl")
 
+    settings = settings["norm_flat"]
+
     if os.path.exists(normflatfile) and os.path.exists(blazefile):
         norm = fits.open(normflatfile)[0]
         norm, fhead = norm.data, norm.header
@@ -548,12 +528,12 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
             dark=fhead["e_drk"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["normflat.extraction_width"],
-            degree=settings["normflat.scatter_degree"],
-            threshold=settings["normflat.threshold"],
-            lambda_sf=settings["normflat.smooth_slitfunction"],
-            lambda_sp=settings["normflat.smooth_spectrum"],
-            swath_width=settings["normflat.swath_width"],
+            extraction_width=settings["extraction_width"],
+            degree=settings["scatter_degree"],
+            threshold=settings["threshold"],
+            lambda_sf=settings["smooth_slitfunction"],
+            lambda_sp=settings["smooth_spectrum"],
+            swath_width=settings["swath_width"],
             plot=False,
         )
         with open(blazefile, "wb") as file:
@@ -595,20 +575,16 @@ def wave(
     """
     orders, column_range = orders
     wavefile = os.path.join(output_dir, "test_wavecal.thar.ech")
+    settings = settings["wavecal"]
 
     if os.path.exists(wavefile):
-        thar = echelle.read(wavefile, raw=True)
-        wave = thar["wave"]
-        thar = thar["spec"]
+        data = np.load(wavefile, allow_pickle=True)
 
-        mask = np.full(wave.shape, True)
-        for iord in range(wave.shape[0]):
-            cr = column_range[iord]
-            mask[iord, cr[0] : cr[1]] = False
-
-        wave = np.ma.array(wave, mask=mask)
+        thar = data["thar"]
+        wave = data["wave"]
+        solution = data["solution"]
     else:
-        files = files["wave"][0]
+        files = files["wavecal"][0]
         orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
         thead["obase"] = (0, "base order number")
 
@@ -619,22 +595,23 @@ def wave(
             gain=thead["e_gain"],
             readnoise=thead["e_readn"],
             dark=thead["e_drk"],
-            extraction_type="arc",
+            extraction_type=settings["extraction_method"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["wavecal.extraction_width"],
-            osample=settings["wavecal.oversampling"],
+            extraction_width=settings["extraction_width"],
             plot=False,
         )
 
         reference = instruments.instrument_info.get_wavecal_filename(
             thead, instrument, mode
         )
-        reference = np.load(reference)
-        cs_lines = reference["cs_lines"]
-        wave = wavecal(thar, cs_lines, plot=False, manual=False)
+        reference = np.load(reference, allow_pickle=True)
+        linelist = reference["cs_lines"]
 
-        echelle.save(wavefile, thead, spec=thar, wave=wave)
+        module = WavelengthCalibration(plot=False, manual=False)
+        wave, solution = module.execute(thar, linelist)
+
+        np.savez(wavefile, thar=thar, wave=wave, solution=solution, allow_pickle=True)
 
     return wave, thar
 
@@ -687,6 +664,7 @@ def spec(
     """
     orders, column_range = orders
     specfile = os.path.join(output_dir, "test_spec.ech")
+    settings = settings["science"]
 
     try:
         science = echelle.read(specfile, raw=True)
@@ -708,7 +686,7 @@ def spec(
         for i in range(blaze.shape[0]):
             column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
 
-        f = files["spec"][0]
+        f = files["science"][0]
 
         im, head = util.load_fits(
             f, instrument, mode, extension, mask=mask, dtype=np.float32
@@ -718,7 +696,7 @@ def spec(
         im /= flat
 
         # Optimally extract science spectrum
-        spec, sigma, _, _ = extract(
+        spec, sigma, _, columns = extract(
             im,
             orders,
             gain=head["e_gain"],
@@ -726,13 +704,14 @@ def spec(
             dark=head["e_drk"],
             column_range=column_range,
             order_range=order_range,
-            extraction_width=settings["science.extraction_width"],
-            lambda_sf=settings["science.smooth_slitfunction"],
-            lambda_sp=settings["science.smooth_spectrum"],
-            osample=settings["science.oversampling"],
-            swath_width=settings["science.swath_width"],
+            extraction_type=settings["extraction_method"],
+            extraction_width=settings["extraction_width"],
+            lambda_sf=settings["smooth_slitfunction"],
+            lambda_sp=settings["smooth_spectrum"],
+            osample=settings["oversampling"],
+            swath_width=settings["swath_width"],
             plot=False,
         )
-        echelle.save(specfile, head, spec=spec, sig=sigma)
+        echelle.save(specfile, head, spec=spec, sig=sigma, columns=columns)
 
     return spec, sigma

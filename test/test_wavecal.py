@@ -3,7 +3,7 @@ import numpy as np
 
 from pyreduce import util
 from pyreduce.extract import extract
-from pyreduce.wavelength_calibration import wavecal
+from pyreduce.wavelength_calibration import WavelengthCalibration
 
 from pyreduce import instruments
 
@@ -12,7 +12,8 @@ def test_wavecal(
     files, instrument, mode, extension, mask, orders, settings, order_range
 ):
     orders, column_range = orders
-    files = files["wave"][0]
+    settings = settings["wavecal"]
+    files = files["wavecal"][0]
     orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
     thead["obase"] = (0, "base order number")
 
@@ -26,8 +27,7 @@ def test_wavecal(
         extraction_type="arc",
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["wavecal.extraction_width"],
-        osample=settings["wavecal.oversampling"],
+        extraction_width=settings["extraction_width"],
         plot=False,
     )
 
@@ -43,17 +43,16 @@ def test_wavecal(
     reference = instruments.instrument_info.get_wavecal_filename(
         thead, instrument, mode
     )
-    reference = np.load(reference)
-    cs_lines = reference["cs_lines"]
-    wave = wavecal(
-        thar,
-        cs_lines,
+    reference = np.load(reference, allow_pickle=True)
+    linelist = reference["cs_lines"]
+
+    module = WavelengthCalibration(
         plot=False,
         manual=False,
-        threshold=settings["wavecal.threshold"],
-        degree_x=settings["wavecal.degree.x"],
-        degree_y=settings["wavecal.degree.y"],
+        threshold=settings["threshold"],
+        degree=settings["degree"],
     )
+    wave, solution = module.execute(thar, linelist)
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2

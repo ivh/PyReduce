@@ -13,8 +13,6 @@ from scipy.ndimage import morphology, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import peak_widths, find_peaks
 
-# from PyReduce.cwrappers import find_clusters
-
 
 def merge_clusters(
     img, orders, x, y, n_clusters, threshold=100, manual=True, plot=False

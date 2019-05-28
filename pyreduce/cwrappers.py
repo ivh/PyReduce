@@ -15,7 +15,7 @@ try:
     # from .clib._cluster import lib as clusterlib
     from .clib._slitfunc_bd import ffi
 except ImportError:
-    raise ImportError("Use setup.py to compile the C libraries")
+    raise ImportError("Use build_extract.py to compile the C libraries")
 
 
 c_double = np.ctypeslib.ctypes.c_double
@@ -288,8 +288,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     ycen_offset = ycen.astype(c_int)
     ycen = ycen - ycen_offset
 
-    y_lower_lim = nrows // 2 - np.min(ycen).astype(int)
-    y_lower_lim = int(y_lower_lim)
+    y_lower_lim = nrows // 2
 
     sl = np.zeros(ny, dtype=c_double)
 
@@ -316,7 +315,9 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
 
     tilt = np.ma.filled(tilt, 0)
     tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
-    shear = np.ma.filled(shear, 0)
+    # TODO DEBUG dont do this
+    shear = np.zeros(ncols)
+    # shear = np.ma.filled(shear, 0)
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     model = np.zeros((nrows, ncols), dtype=c_double)
