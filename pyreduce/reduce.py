@@ -939,8 +939,10 @@ class Reducer:
 
         Parameters
         ----------
+        files: dict{str:str}
+            Data files for each step
         output_dir : str
-
+            directory to place output files in
         target : str
             observed targets as used in directory names/fits headers
         instrument : str
@@ -953,13 +955,6 @@ class Reducer:
             numeric reduction specific settings, like pixel threshold, which may change between runs
         info : dict
             fixed instrument specific values, usually header keywords for gain, readnoise, etc.
-        steps : {tuple(str), "all"}, optional
-            which steps of the reduction process to perform
-            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"
-            alternatively set steps to "all", which is equivalent to setting all steps
-            Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
-        mask_dir : str, optional
-            directory containing the masks, defaults to predefined REDUCE masks
         """
         #:dict(str:str): Filenames sorted by usecase
         self.files = files
@@ -1022,6 +1017,17 @@ class Reducer:
             os.makedirs(output_dir)
 
     def run_steps(self, steps="all"):
+        """
+        Execute the steps as required
+
+        Parameters
+        ----------
+        steps : {tuple(str), "all"}, optional
+            which steps of the reduction process to perform
+            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "freq_comb", 
+            "curvature", "science", "continuum", "finalize"
+            alternatively set steps to "all", which is equivalent to setting all steps
+        """
         self.prepare_output_dir()
 
         if steps == "all":

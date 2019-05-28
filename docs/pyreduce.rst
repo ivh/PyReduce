@@ -76,14 +76,6 @@ pyreduce.extract module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.getxwd module
-----------------------
-
-.. automodule:: pyreduce.getxwd
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pyreduce.make\_shear module
 ---------------------------
 

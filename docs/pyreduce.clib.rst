@@ -4,14 +4,6 @@ pyreduce.clib package
 Submodules
 ----------
 
-pyreduce.clib.build\_cluster module
------------------------------------
-
-.. automodule:: pyreduce.clib.build_cluster
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pyreduce.clib.build\_extract module
 -----------------------------------
 
