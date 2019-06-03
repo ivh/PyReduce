@@ -176,11 +176,15 @@ class HARPS(instrument):
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == id_flat) & select],
                     "orders": files[(ty == id_orddef) & select],
-                    "wavecal": files[(ob == info["id_wave"]) & select],
-                    "curvature": files[(ob == info["id_wave"]) & select],
+                    "wavecal": files[(ty == info["id_wave"]) & select],
                     "freq_comb": files[(ty == info["id_comb"]) & select],
                     "science": files[match_ty & match_ob & select],
                 }
+                files_this_night[key]["curvature"] = (
+                    files_this_night[key]["freq_comb"]
+                    if len(files_this_night[key]["freq_comb"]) != 0
+                    else files_this_night[key]["wavecal"]
+                )
 
             if len(keys) != 0:
                 nights_out.append(ind_night)
