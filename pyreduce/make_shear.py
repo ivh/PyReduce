@@ -118,6 +118,7 @@ class Curvature:
         max_iter=None,
         mode="1D",
         plot=False,
+        verbose=0,
     ):
         self.orders = orders
         self.extraction_width = extraction_width
@@ -134,6 +135,7 @@ class Curvature:
         self.max_iter = max_iter
         self.mode = mode
         self.plot = plot
+        self.verbose = verbose
 
     @property
     def nord(self):
@@ -254,7 +256,7 @@ class Curvature:
             coef = (0, 0)
         tilt, shear = coef[1], coef[0]
 
-        if self.plot:
+        if self.plot and self.verbose >= 2:
             self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
         return tilt, shear
 
@@ -316,16 +318,12 @@ class Curvature:
             vec = extracted[j, cr[0] : cr[1]]
             vec, peaks = self._find_peaks(vec, cr)
             npeaks = len(peaks)
-            if npeaks < self.fit_degree + 1:
-                raise ValueError(
-                    f"Not enough peaks found to fit a polynomial of degree {self.fit_degree}"
-                )
 
             # Determine curvature for each line seperately
             tilt = np.zeros(npeaks)
             shear = np.zeros(npeaks)
             for ipeak, peak in enumerate(peaks):
-                if self.plot:
+                if self.plot and self.verbose >= 2:
                     self.progress.update_plot1(vec, peak, cr[0])
                 tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
                     original, peak, ycen, xwd
@@ -437,7 +435,7 @@ class Curvature:
 
         self._fix_inputs(original)
 
-        if self.plot:
+        if self.plot and self.verbose >= 2:
             height = np.sum(self.extraction_width, axis=1).max() + 1
             self.progress = ProgressPlot(ncol, self.width, height)
 

@@ -207,6 +207,7 @@ class Step:
         self.night = night
         #:tuple(int, int): First and Last(+1) order to process
         self.order_range = order_range
+        self.plot = config.get("plot", False)
         self._output_dir = output_dir
 
     def run(self, files, *args):
@@ -732,7 +733,7 @@ class WavelengthCalibration(Step):
 
         This consists of extracting the wavelength image
         and fitting a polynomial the the known spectral lines
-        
+
         Parameters
         ----------
         files : list(str)
@@ -763,13 +764,13 @@ class WavelengthCalibration(Step):
             )
 
         # Load wavecal image
-        thar, thead = util.load_fits(
+        orig, thead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
         )
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
-            thar,
+            orig,
             orders,
             gain=thead["e_gain"],
             readnoise=thead["e_readn"],
@@ -911,12 +912,12 @@ class LaserFrequencyComb(Step):
         orders, column_range = orders
 
         f = files[0]
-        comb, chead = util.load_fits(
+        orig, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
         )
 
         comb, _, _, _ = extract(
-            comb,
+            orig,
             orders,
             gain=chead["e_gain"],
             readnoise=chead["e_readn"],
@@ -979,8 +980,8 @@ class LaserFrequencyComb(Step):
             logging.warning(
                 "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
             )
-            wave, thar, coef, linelist = wavecal
-            data = {"wave": wave, "comb": None}
+            wave, thar, coef, linelist, orig = wavecal
+            data = {"wave": wave, "comb": thar, "orig": orig}
         wave = data["wave"]
         comb = data["comb"]
         return wave, comb
@@ -990,8 +991,10 @@ class SlitCurvatureDetermination(Step):
     """Determine the curvature of the slit"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["orders", "wavecal", "mask"]
+        self._dependsOn += ["orders", "mask"]
 
+        #:{"arc"}: Extraction method to use
+        self.extraction_method = "arc"
         #:tuple(int, 2): Number of pixels around each order to use in an extraction
         self.extraction_width = config["extraction_width"]
         #:int: Polynimal degree of the overall fit
@@ -1002,13 +1005,14 @@ class SlitCurvatureDetermination(Step):
         self.sigma_cutoff = config["sigma_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
+        self.verbose = config["verbose"]
 
     @property
     def savefile(self):
         """str: Name of the tilt/shear save file"""
         return join(self.output_dir, self.prefix + ".shear.npz")
 
-    def run(self, files, orders, wavecal, mask):
+    def run(self, files, orders, mask):
         """Determine the curvature of the slit
 
         Parameters
@@ -1030,12 +1034,24 @@ class SlitCurvatureDetermination(Step):
             second order slit curvature at each point
         """
         orders, column_range = orders
-        wave, thar, coef, linelist = wavecal
 
         # TODO: Pick best image / combine images ?
         f = files[0]
-        orig, _ = util.load_fits(
+        orig, head = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
+        )
+
+        extracted, _, _, _ = extract(
+            orig,
+            orders,
+            gain=head["e_gain"],
+            readnoise=head["e_readn"],
+            dark=head["e_drk"],
+            extraction_type=self.extraction_method,
+            column_range=column_range,
+            order_range=self.order_range,
+            plot=self.plot,
+            extraction_width=self.extraction_width,
         )
 
         module = CurvatureModule(
@@ -1048,8 +1064,9 @@ class SlitCurvatureDetermination(Step):
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             plot=self.plot,
+            verbose=self.verbose
         )
-        tilt, shear = module.execute(thar, orig)
+        tilt, shear = module.execute(extracted, orig)
         self.save(tilt, shear)
 
         return tilt, shear

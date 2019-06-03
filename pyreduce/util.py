@@ -477,6 +477,45 @@ def gaussfit4(x, y):
     return popt
 
 
+def gaussfit_linear(x, y):
+    """ Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
+    For efficiency reasons. (roughly 10 times faster than the curve fit)
+
+    Note, only works for positive values of y
+
+    Parameters
+    ----------
+    x : array of shape (n,)
+        x data
+    y : array of shape (n,)
+        y data
+
+    Returns
+    -------
+    coef : tuple
+        a, mu, sig, 0
+    """
+    x = x[y > 0]
+    y = y[y > 0]
+
+    offset = np.min(y)
+    y = y - offset + 1e-12
+
+    weights = y
+
+    d = np.log(y)
+    G = np.ones((x.size, 3), dtype=np.float)
+    G[:,0] = x**2
+    G[:,1] = x
+
+    beta,_,_,_ = np.linalg.lstsq((G.T*weights**2).T, d*weights**2, rcond=None)
+
+    a = np.exp(beta[2] - beta[1] ** 2 / (4 * beta[0]))
+    sig = -1 / (2 * beta[0])
+    mu = -beta[1] / (2 * beta[0])
+
+    return a, mu, sig, offset
+
 def gaussval2(x, a, mu, sig, const):
     return a * np.exp(-(x - mu) ** 2 / (2 * sig)) + const
 
