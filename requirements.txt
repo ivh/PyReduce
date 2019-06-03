@@ -9,3 +9,4 @@ wget==3.2
 joblib==0.13.2
 pytest==4.4.1
 jsonschema==3.0.1
+Pillow==7

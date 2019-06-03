@@ -16,13 +16,16 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
-from scipy.misc import imresize
+from PIL import Image
 
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index
 
 # TODO put the plotting somewhere else
 # np.seterr(all="raise")
+
+def imresize(img, newsize):
+    return np.array(Image.fromarray(img).resize(newsize))
 
 
 class ProgressPlot:
