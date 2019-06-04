@@ -8,7 +8,6 @@ import glob
 import logging
 from datetime import datetime
 import fnmatch
-import json
 import re
 
 import numpy as np
@@ -37,9 +36,6 @@ class MCDONALD(instrument):
         get = getter(header, info, mode)
 
         header["e_orient"] = get("orientation", 0)
-
-        naxis_x = get("naxis_x", 0)
-        naxis_y = get("naxis_y", 0)
 
         trimsec = get("trimsec")
 

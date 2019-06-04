@@ -4,23 +4,17 @@ by comparison to a reference spectrum
 Loosely bases on the IDL wavecal function
 """
 
-import datetime as dt
 import logging
 
-import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d, Polynomial
 
 from scipy import signal
 from scipy.constants import speed_of_light
-from scipy.optimize import curve_fit, least_squares
 from scipy.interpolate import interp1d
 
 from . import util
-from .instruments import instrument_info
-
-import warnings
 
 
 class AlignmentPlot:
@@ -28,7 +22,7 @@ class AlignmentPlot:
     Makes a plot which can be clicked to align the two spectra, reference and observed
     """
 
-    def __init__(self, ax, obs, lines, offset=[0, 0]):
+    def __init__(self, ax, obs, lines, offset=(0, 0)):
         self.im = ax
         self.first = True
         self.nord, self.ncol = obs.shape
@@ -510,7 +504,7 @@ class WavelengthCalibration:
         return wave_img
 
     def auto_id(self, obs, wave_img, lines):
-        """Automatically identify peaks that are close to known lines 
+        """Automatically identify peaks that are close to known lines
 
         Parameters
         ----------

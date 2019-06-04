@@ -6,8 +6,6 @@ import argparse
 import logging
 import os
 from itertools import product
-import json
-import jsonschema
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -992,7 +990,7 @@ def middle(
         ff_old = ff
         n = len(f)
 
-    for i in range(iterations):
+    for _ in range(iterations):
         if poly:
             param = round(param)
             if param > 0:
@@ -1209,57 +1207,57 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         bdiag = abs(par1)
 
         # Main diagonal first:
-        aa = np.zeros((nc, nr))
-        aa[0, 0] = 1. + adiag + bdiag
-        aa[1:-2, 0] = np.full(nc - 2, 1. + 2. * adiag + bdiag)
-        aa[-1, 0] = 1. + adiag + bdiag
+        # aa = np.zeros((nc, nr))
+        # aa[0, 0] = 1. + adiag + bdiag
+        # aa[1:-2, 0] = np.full(nc - 2, 1. + 2. * adiag + bdiag)
+        # aa[-1, 0] = 1. + adiag + bdiag
 
-        aa = np.array(
-            (
-                np.full(nc - 2, 1. + 2. * adiag + bdiag),
-                1. + adiag + bdiag,
-                np.full(n - 2 * nc, 1. + 2. * adiag + 2. * bdiag),
-                1. + adiag + bdiag,
-                np.full(nc - 2, 1. + 2. * adiag + bdiag),
-                1. + adiag + bdiag,
-                np.full(n - 1, -adiag),
-                np.full(n - 1, -adiag),
-                np.full(n - nc, -bdiag),
-                np.full(n - nc, -bdiag),
-            )
-        )
+        # aa = np.array(
+        #     (
+        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
+        #         1. + adiag + bdiag,
+        #         np.full(n - 2 * nc, 1. + 2. * adiag + 2. * bdiag),
+        #         1. + adiag + bdiag,
+        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
+        #         1. + adiag + bdiag,
+        #         np.full(n - 1, -adiag),
+        #         np.full(n - 1, -adiag),
+        #         np.full(n - nc, -bdiag),
+        #         np.full(n - nc, -bdiag),
+        #     )
+        # )
 
-        col = np.arange(nr - 2) * nc + nc  # special cases:
+        # col = np.arange(nr - 2) * nc + nc  # special cases:
         aaa = np.full(nr - 2, 1. + adiag + 2. * bdiag)
-        aa[col] = aaa  # last columns
-        aa[col + nc - 1] = aaa  # first column
-        col = n + np.arange(nr - 1) * nc + nc - 1
-        aa[col] = 0.
-        aa[col + n - 1] = 0.
+        # aa[col] = aaa  # last columns
+        # aa[col + nc - 1] = aaa  # first column
+        # col = n + np.arange(nr - 1) * nc + nc - 1
+        # aa[col] = 0.
+        # aa[col + n - 1] = 0.
 
-        col = np.array(
-            (
-                np.arange(n),
-                np.arange(n - 1) + 1,
-                np.arange(n - 1),
-                np.arange(n - nc) + nc,
-                np.arange(n - nc),
-            )
-        )  # lower sub-diagonal for y
+        # col = np.array(
+        #     (
+        #         np.arange(n),
+        #         np.arange(n - 1) + 1,
+        #         np.arange(n - 1),
+        #         np.arange(n - nc) + nc,
+        #         np.arange(n - nc),
+        #     )
+        # )  # lower sub-diagonal for y
 
-        row = np.array(
-            (
-                np.arange(n),
-                np.arange(n - 1),
-                np.arange(n - 1) + 1,
-                np.arange(n - nc),
-                np.arange(n - nc) + nc,
-            )
-        )  # lower sub-diagonal for y
+        # row = np.array(
+        #     (
+        #         np.arange(n),
+        #         np.arange(n - 1),
+        #         np.arange(n - 1) + 1,
+        #         np.arange(n - nc),
+        #         np.arange(n - nc) + nc,
+        #     )
+        # )  # lower sub-diagonal for y
 
         # aaa = sprsin(col, row, aa, n, thresh=-2. * (adiag > bdiag))
-        col = bdiag
-        row = adiag
+        # col = bdiag
+        # row = adiag
         # aa = np.reshape(y, n)  # start with an initial guess at the solution.
 
         aa = solve(aaa, y)  # solve the linear system ax=b.

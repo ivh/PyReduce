@@ -72,7 +72,7 @@ def normalize_flat(img, orders, threshold=0.5, **kwargs):
     # Get background scatter
     scatter = estimate_background_scatter(img, orders, **kwargs)
 
-    im_norm, im_ordr, blaze, _ = extract(
+    im_norm, _, blaze, _ = extract(
         img,
         orders,
         scatter=scatter,

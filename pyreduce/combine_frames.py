@@ -14,7 +14,7 @@ import numpy as np
 from dateutil import parser
 from scipy.ndimage.filters import median_filter
 
-from .clipnflip import clipnflip as clipnflip
+from .clipnflip import clipnflip
 from .instruments.instrument_info import get_instrument_info
 from .util import gaussbroad, gaussfit, load_fits
 
@@ -405,16 +405,16 @@ def combine_frames(
 
     if not linear:  # non-linearity was fixed. mark this in the header
         raise NotImplementedError()  # TODO Nonlinear
-        i = np.where(head["e_linear"] >= 0)
-        head[i] = np.array((head[0 : i - 1 + 1], head[i + 1 :]))
-        head["e_linear"] = ("t", " image corrected of non-linearity")
+        # i = np.where(head["e_linear"] >= 0)
+        # head[i] = np.array((head[0 : i - 1 + 1], head[i + 1 :]))
+        # head["e_linear"] = ("t", " image corrected of non-linearity")
 
-        ii = np.where(head["e_gain*"] >= 0)
-        if len(ii[0]) > 0:
-            for i in range(len(ii[0])):
-                k = ii[i]
-                head = np.array((head[0 : k - 1 + 1], head[k + 1 :]))
-        head["e_gain"] = (1, " image was converted to e-")
+        # ii = np.where(head["e_gain*"] >= 0)
+        # if len(ii[0]) > 0:
+        #     for i in range(len(ii[0])):
+        #         k = ii[i]
+        #         head = np.array((head[0 : k - 1 + 1], head[k + 1 :]))
+        # head["e_gain"] = (1, " image was converted to e-")
 
     return result, head
 

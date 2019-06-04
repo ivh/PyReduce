@@ -18,10 +18,8 @@ License
 
 """
 
-import json
 import logging
 import os.path
-import pickle
 import sys
 import time
 from os.path import join
@@ -41,7 +39,8 @@ from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
-from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
+from .wavelength_calibration import \
+    WavelengthCalibration as WavelengthCalibrationModule
 
 # TODO Naming of functions and modules
 # TODO License
@@ -1091,7 +1090,7 @@ class SlitCurvatureDetermination(Step):
 
     def save(self, tilt, shear):
         """Save results from the curvature
-        
+
         Parameters
         ----------
         tilt : array of shape (nord, ncol)
@@ -1237,7 +1236,7 @@ class ScienceExtraction(Step):
 
     def save(self, fname, head, spec, sigma, column_range):
         """Save the results of one extraction
-        
+
         Parameters
         ----------
         fname : str
@@ -1301,7 +1300,7 @@ class ContinuumNormalization(Step):
     def run(self, science, freq_comb, norm_flat):
         """Determine the continuum to each observation
         Also splices the orders together
-        
+
         Parameters
         ----------
         science : tuple
@@ -1310,7 +1309,7 @@ class ContinuumNormalization(Step):
             results from freq_comb step (or wavecal if those don't exist)
         norm_flat : tuple
             results from the normalized flatfield step
-        
+
         Returns
         -------
         heads : list(FITS header)
@@ -1345,7 +1344,7 @@ class ContinuumNormalization(Step):
 
     def save(self, heads, specs, sigmas, conts, columns):
         """Save the results from the continuum normalization
-        
+
         Parameters
         ----------
         heads : list(FITS header)
@@ -1370,7 +1369,7 @@ class ContinuumNormalization(Step):
 
     def load(self):
         """Load the results from the continuum normalization
-        
+
         Returns
         -------
         heads : list(FITS header)
@@ -1615,7 +1614,7 @@ class Reducer:
         ----------
         steps : {tuple(str), "all"}, optional
             which steps of the reduction process to perform
-            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "freq_comb", 
+            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "freq_comb",
             "curvature", "science", "continuum", "finalize"
             alternatively set steps to "all", which is equivalent to setting all steps
         """

@@ -1,20 +1,19 @@
+import json
 import os
+import pickle
+import tempfile
 from os.path import dirname, join
 
 import numpy as np
-from astropy.io import fits
-import tempfile
-import pickle
-
-import json
 import pytest
-from pyreduce import datasets, util, instruments, configuration
+from astropy.io import fits
+
+from pyreduce import configuration, datasets, echelle, instruments, util
 from pyreduce.combine_frames import combine_bias, combine_flat
-from pyreduce.trace_orders import mark_orders
-from pyreduce.normalize_flat import normalize_flat
 from pyreduce.extract import extract
+from pyreduce.normalize_flat import normalize_flat
+from pyreduce.trace_orders import mark_orders
 from pyreduce.wavelength_calibration import WavelengthCalibration
-from pyreduce import echelle
 
 
 @pytest.fixture(scope="function")
