@@ -10,10 +10,12 @@ import logging
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.polynomial.polynomial import polyval2d
+from numpy.polynomial.polynomial import polyval2d, Polynomial
+
 from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.optimize import curve_fit, least_squares
+from scipy.interpolate import interp1d
 
 from . import util
 from .instruments import instrument_info
@@ -804,13 +806,15 @@ class WavelengthCalibration:
             # Determine the n-offset of this order, relative to the anchor frequency
             # Use the existing absolute wavelength calibration as reference
             y_ord = np.full(len(peaks), i)
-            w_old = np.interp(peaks, np.arange(len(wave[i])), wave[i])
+            w_old = interp1d(np.arange(len(wave[i])), wave[i], kind="cubic")(peaks)
+            # w_old = np.interp(peaks, np.arange(len(wave[i])), wave[i])
             # w_old = self.evaluate_solution(peaks, y_ord, wave_solution)
             f_old = speed_of_light / w_old
 
             # fr: repeating frequency
             # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
-            fr, fd = np.polyfit(n, f_old, deg=1)
+            res = Polynomial.fit(n, f_old, deg=1, domain=[])
+            fd, fr = res.coef
 
             # The first order is used as the baseline for all other orders
             # The choice is arbitrary and doesn't matter
@@ -819,17 +823,18 @@ class WavelengthCalibration:
 
             # n0: shift in n, relative to the absolute reference
             # shift n to the absolute grid, so that all peaks are given by the same f0
-            n0 = (f0 - fd) / fr
-            n0 = int(round(n0))
-            n -= n0
+            n_offset = (f0 - fd) / fr
+            n_offset = int(round(n_offset))
+            n -= n_offset
 
             n_all += [n]
             f_all += [f_old]
             pixel += [peaks]
             order += [y_ord]
 
+            fd += n_offset * fr
             logging.debug(
-                "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd + n0 * fr, fr, n0
+                "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd, fr, n_offset
             )
 
         # Merge Data
@@ -837,7 +842,10 @@ class WavelengthCalibration:
         f_all = np.concatenate(f_all)
 
         # Fit f0 and fr to all data
-        fr, f0 = np.polyfit(n_all, f_all, deg=1)
+        # (fr, f0), cov = np.polyfit(n_all, f_all, deg=1, cov=True)
+        res = Polynomial.fit(n_all, f_all, deg=1, domain=[])
+        f0, fr = res.coef
+
         logging.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
         logging.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
 
@@ -847,7 +855,8 @@ class WavelengthCalibration:
         order = np.concatenate(order)
         flag = np.full(len(wavelengths), True)
         laser_lines = np.rec.fromarrays(
-            (wavelengths, pixel, order, flag), names=("wll", "posm", "order", "flag")
+            (wavelengths, pixel, pixel, order, flag),
+            names=("wll", "posm", "posc", "order", "flag"),
         )
 
         # Use now better resolution to find the new solution
@@ -859,6 +868,9 @@ class WavelengthCalibration:
 
         coef = self.build_2d_solution(laser_lines)
         new_wave = self.make_wave(coef)
+
+        residual = self.calculate_residual(coef, lines)
+        aic = self.calculate_AIC(lines, coef)
 
         ngood = np.count_nonzero(laser_lines["flag"])
         logging.info(f"Laser Frequency Comb solution based on {ngood} lines.")
