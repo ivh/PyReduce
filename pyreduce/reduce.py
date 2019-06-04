@@ -227,7 +227,7 @@ class Step:
 
     def save(self, *args):
         """Save the results of this step
-        
+
         Parameters
         ----------
         *args : obj
@@ -242,7 +242,7 @@ class Step:
 
     def load(self):
         """Load results from a previous execution
-        
+
         Raises
         ------
         NotImplementedError
@@ -318,10 +318,14 @@ class Mask(Step):
             Bad pixel mask for this setting
         """
         mask_file = join(self.mask_dir, self.mask_file)
-        mask, _ = util.load_fits(
+        try:
+            mask, _ = util.load_fits(
             mask_file, self.instrument, self.mode, extension=self.extension
-        )
-        mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+            )
+            mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+        except FileNotFoundError:
+            logging.error("Bad Pixel Mask datafile %s not found. Using all pixels instead.", mask_file)
+            mask = False
         return mask
 
 
@@ -340,7 +344,7 @@ class Bias(Step):
 
     def save(self, bias, bhead):
         """Save the master bias to a FITS file
-        
+
         Parameters
         ----------
         bias : array of shape (nrow, ncol)
@@ -359,14 +363,14 @@ class Bias(Step):
 
     def run(self, files, mask):
         """Calculate the master bias
-        
+
         Parameters
         ----------
         files : list(str)
             bias files
         mask : array of shape (nrow, ncol)
             bad pixel map
-        
+
         Returns
         -------
         bias : masked array of shape (nrow, ncol)
@@ -374,15 +378,17 @@ class Bias(Step):
         bhead : FITS header
             header of the master bias
         """
+        if len(files) == 0:
+            logging.error("No bias files found. Using bias 0 instead.")
+            return 0, []
         bias, bhead = combine_bias(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            extension=self.extension,
-            plot=self.plot,
+                files,
+                self.instrument,
+                self.mode,
+                mask=mask,
+                extension=self.extension,
+                plot=self.plot,
         )
-
         self.save(bias.data, bhead)
 
         return bias, bhead
@@ -442,7 +448,7 @@ class Flat(Step):
 
     def run(self, files, bias, mask):
         """Calculate the master flat, with the bias already subtracted
-        
+
         Parameters
         ----------
         files : list(str)
@@ -451,7 +457,7 @@ class Flat(Step):
             master bias and header
         mask : array of shape (nrow, ncol)
             Bad pixel mask
-        
+
         Returns
         -------
         flat : masked array of shape (nrow, ncol)
@@ -509,6 +515,12 @@ class OrderTracing(Step):
         self.noise = config["noise"]
         #:int: Polynomial degree of the fit to each order
         self.fit_degree = config["degree"]
+
+        self.degree_before_merge = config["degree_before_merge"]
+        self.regularization = config["regularization"]
+        self.closing_shape = config["closing_shape"]
+        self.auto_merge_threshold = config["auto_merge_threshold"]
+        self.merge_min_threshold = config["merge_min_threshold"]
         #:int: Number of pixels at the edge of the detector to ignore
         self.border_width = config["border_width"]
         #:bool: Whether to use manual alignment
@@ -521,14 +533,14 @@ class OrderTracing(Step):
 
     def run(self, files, mask):
         """Determine polynomial coefficients describing order locations
-        
+
         Parameters
         ----------
         files : list(str)
             Observation used for order tracing (should only have one element)
         mask : array of shape (nrow, ncol)
             Bad pixel mask
-        
+
         Returns
         -------
         orders : array of shape (nord, ndegree+1)
@@ -546,8 +558,13 @@ class OrderTracing(Step):
             filter_size=self.filter_size,
             noise=self.noise,
             opower=self.fit_degree,
+            degree_before_merge = self.degree_before_merge,
+            regularization=self.regularization,
+            closing_shape=self.closing_shape,
             border_width=self.border_width,
             manual=self.manual,
+            auto_merge_threshold=self.auto_merge_threshold,
+            merge_min_threshold=self.merge_min_threshold,
             plot=self.plot,
         )
 
@@ -566,12 +583,12 @@ class OrderTracing(Step):
             first and last(+1) column that carry signal in each order
         """
         np.savez(
-            self.savefile, orders=orders, column_range=column_range, allow_pickle=True
+            self.savefile, orders=orders, column_range=column_range
         )
 
     def load(self):
         """Load order tracing results
-        
+
         Returns
         -------
         orders : array of shape (nord, ndegree+1)
@@ -610,6 +627,7 @@ class NormalizeFlatField(Step):
         self.scatter_degree = config["scatter_degree"]
         #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
+        self.sigma_cutoff = config["sigma_cutoff"]
 
     @property
     def savefile(self):
@@ -646,6 +664,7 @@ class NormalizeFlatField(Step):
             order_range=self.order_range,
             scatter_degree=self.scatter_degree,
             threshold=self.threshold,
+            sigma_cutoff=self.sigma_cutoff,
             plot=self.plot,
             **self.extraction_kwargs,
         )
@@ -659,7 +678,7 @@ class NormalizeFlatField(Step):
 
     def save(self, norm, blaze):
         """Save normalized flat field results to disk
-        
+
         Parameters
         ----------
         norm : array of shape (nrow, ncol)
@@ -667,7 +686,7 @@ class NormalizeFlatField(Step):
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
         """
-        np.savez(self.savefile, blaze=blaze, norm=norm, allow_pickle=True)
+        np.savez(self.savefile, blaze=blaze, norm=norm)
 
     def load(self):
         """Load normalized flat field results from disk
@@ -824,7 +843,6 @@ class WavelengthCalibration(Step):
             thar=thar,
             coef=coef,
             linelist=linelist,
-            allow_pickle=True,
         )
 
     def load(self):
@@ -948,7 +966,7 @@ class LaserFrequencyComb(Step):
 
     def save(self, wave, comb):
         """Save the results of the frequency comb improvement
-        
+
         Parameters
         ----------
         wave : array of shape (nord, ncol)
@@ -956,7 +974,7 @@ class LaserFrequencyComb(Step):
         comb : array of shape (nord, ncol)
             extracted frequency comb image
         """
-        np.savez(self.savefile, wave=wave, comb=comb, allow_pickle=True)
+        np.savez(self.savefile, wave=wave, comb=comb)
 
     def load(self, wavecal):
         """Load the results of the frequency comb improvement if possible,
@@ -1081,7 +1099,7 @@ class SlitCurvatureDetermination(Step):
         shear : array of shape (nord, ncol)
             second order slit curvature at each point
         """
-        np.savez(self.savefile, tilt=tilt, shear=shear, allow_pickle=True)
+        np.savez(self.savefile, tilt=tilt, shear=shear)
 
     def load(self):
         """Load the curvature if possible, otherwise return None, None, i.e. use vertical extraction
@@ -1533,8 +1551,11 @@ class Reducer:
         )
 
         info = instruments.instrument_info.get_instrument_info(instrument)
-        imode = util.find_first_index(info["modes"], mode)
-        extension = info["extension"][imode]
+        extension = info["extension"]
+        if isinstance(extension, list):
+            imode = util.find_first_index(info["modes"], mode)
+            extension = extension[imode]
+
 
         self.data = {}
         self.inputs = (
@@ -1568,7 +1589,7 @@ class Reducer:
                 data = module.load(**args)
             except FileNotFoundError:
                 logging.warning(
-                    "Intermediate File(s) for loading step {step} not found. Running it instead."
+                    "Intermediate File(s) for loading step %s not found. Running it instead.", step
                 )
                 data = self.run_module(step, load=False)
         else:

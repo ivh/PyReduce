@@ -179,7 +179,7 @@ def combine_frames(
         >>> prob[iCol,iFil]=2*prob[nCol-win-1,iFil]-prob[2*(nCol-win-1)-iCol,iFil]
 
     fix_bad_pixels::
-        
+
         Once the probailities are constructed we can do the fitting, measure scatter and detect outliers.
         We ignore negative or zero probabilities as it should not happen. For each iCol with (some)
         positive probabilities we compute tha ratios of the original data to the probabilities and get
@@ -498,7 +498,7 @@ def combine_bias(
 
     n = len(files)
     if n == 0:
-        raise ValueError("No bias file found")
+        raise FileNotFoundError("No bias file(s) given")
     elif n == 1:
         # if there is just one element compare it with itself, not really useful, but it works
         list1 = list2 = files
