@@ -611,7 +611,7 @@ def wave(
         module = WavelengthCalibration(plot=False, manual=False)
         wave, solution = module.execute(thar, linelist)
 
-        np.savez(wavefile, thar=thar, wave=wave, solution=solution, allow_pickle=True)
+        np.savez(wavefile, thar=thar, wave=wave, solution=solution)
 
     return wave, thar
 

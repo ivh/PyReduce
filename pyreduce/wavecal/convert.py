@@ -35,5 +35,5 @@ for f in files:
     data["cs_lines"] = cs_lines
 
     new_name = f[:-4]
-    np.savez(new_name, **data, allow_pickle=True)
+    np.savez(new_name, **data)
     print(f"Converted {f} to {new_name}.npz")
