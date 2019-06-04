@@ -32,7 +32,6 @@ from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
 
-
 def checkGitRepo(remote_name="origin"):
     # TODO currently this runs everytime PyReduce is called
     if not hasGit:
@@ -448,6 +447,7 @@ def gaussfit3(x, y):
 
     return popt
 
+
 def gaussfit4(x, y):
     """ A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
@@ -467,7 +467,7 @@ def gaussfit4(x, y):
         Parameters A, mu, sigma**2, offset
     """
     gauss = gaussval2
-    i = len(x)//2
+    i = len(x) // 2
     p0 = [y[i], x[i], 1, np.min(y)]
 
     with np.warnings.catch_warnings():
@@ -505,16 +505,19 @@ def gaussfit_linear(x, y):
 
     d = np.log(y)
     G = np.ones((x.size, 3), dtype=np.float)
-    G[:,0] = x**2
-    G[:,1] = x
+    G[:, 0] = x ** 2
+    G[:, 1] = x
 
-    beta,_,_,_ = np.linalg.lstsq((G.T*weights**2).T, d*weights**2, rcond=None)
+    beta, _, _, _ = np.linalg.lstsq(
+        (G.T * weights ** 2).T, d * weights ** 2, rcond=None
+    )
 
     a = np.exp(beta[2] - beta[1] ** 2 / (4 * beta[0]))
     sig = -1 / (2 * beta[0])
     mu = -beta[1] / (2 * beta[0])
 
     return a, mu, sig, offset
+
 
 def gaussval2(x, a, mu, sig, const):
     return a * np.exp(-(x - mu) ** 2 / (2 * sig)) + const
@@ -564,6 +567,22 @@ def gaussbroad(x, y, hwhm):
     sout = np.convolve(spad, gpro)  # convolve with gaussian
     sout = sout[npad : npad + nw]  # trim to original data / length
     return sout  # return broadened spectrum.
+
+
+def polyfit1d(x, y, degree=1, regularization=0):
+    idx = np.arange(degree + 1)
+    coeff = np.zeros(degree + 1)
+
+    A = np.array([np.power(x, i) for i in idx], dtype=float).T
+    b = y.ravel()
+
+    L = np.array([regularization * i**2 for i in idx])
+    I = np.linalg.inv(A.T @ A + np.diag(L))
+    coeff = I @ A.T @ b
+
+    coeff = coeff[::-1]
+
+    return coeff
 
 
 def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
@@ -627,7 +646,7 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
 
     # Reorder coefficients into numpy compatible 2d array
     for k, (i, j) in enumerate(idx):
-        coeff[i, j] = C[k] / (norm_x**i * norm_y**j)
+        coeff[i, j] = C[k] / (norm_x ** i * norm_y ** j)
 
     if plot:
         # regular grid covering the domain of the data

@@ -64,6 +64,38 @@
                             "type": "integer",
                             "minimum": 0
                         },
+                        "degree_before_merge": {
+                            "description": "Polynomial degree of the first fit to the orders, before merging clusters",
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "regularization": {
+                            "description": "Regularization parameter for the order fitting (before merging)",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "closing_shape": {
+                            "description": "Shape for the binary closing",
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "auto_merge_threshold": {
+                            "description": "Fractional threshold, for automatic merging",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "merge_min_threshold": {
+                            "description": "Minimum merge probabilty to consider",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
                         "filter_size": {
                             "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
                             "type": [
@@ -141,6 +173,11 @@
                                 "type": "integer",
                                 "minimum": 0
                             }
+                        },
+                        "sigma_cutoff": {
+                            "description": "Number of sigmas around the mean to include in the background scatter fit",
+                            "type": "number",
+                            "exclusiveMinimum": 0
                         }
                     },
                     "required": [

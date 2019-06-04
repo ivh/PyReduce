@@ -5,16 +5,18 @@
         "degree": 4,
         "degree_before_merge": 2,
         "regularization": 0,
-        "closing_shape": [3, 30],
+        "closing_shape": [3, 10],
         "filter_size": 30,
-        "min_cluster": 20,
-        "noise": 1,
+        "min_cluster": 200,
+        "auto_merge_threshold": 0,
+        "merge_min_threshold": 0,
+        "noise": 50,
         "manual": true
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 10,
+        "extraction_width": 0.3,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000

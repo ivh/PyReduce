@@ -5,20 +5,153 @@ And combine them into continous orders
 
 import logging
 from itertools import combinations
+from functools import cmp_to_key
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.polynomial.polynomial import Polynomial
 
 from scipy.ndimage import morphology, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import peak_widths, find_peaks
 
+from .util import polyfit1d
+
+
+def fit(x, y, deg, regularization=0):
+    # order = polyfit1d(y, x, deg, regularization)
+    order = Polynomial.fit(y, x, deg=deg, domain=[]).coef[::-1]
+    return order
+
+
+def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol, deg=2):
+    i_left, i_right = yi.min(), yi.max()
+    j_left, j_right = yj.min(), yj.max()
+
+    order_i = fit(xi, yi, deg)
+    order_j = fit(xj, yj, deg)
+
+    # Get polynomial points inside cluster limits for each
+    y_ii = np.polyval(order_i, np.arange(i_left, i_right))
+    y_ij = np.polyval(order_i, np.arange(j_left, j_right))
+    y_jj = np.polyval(order_j, np.arange(j_left, j_right))
+    y_ji = np.polyval(order_j, np.arange(i_left, i_right))
+
+    # difference of polynomials within each cluster limit
+    diff_i = np.abs(y_ii - y_ji)
+    diff_j = np.abs(y_ij - y_jj)
+
+    ind_i = np.where((diff_i < mean_cluster_thickness) & (y_ji >= 0) & (y_ji < nrow))
+    ind_j = np.where((diff_j < mean_cluster_thickness) & (y_ij >= 0) & (y_ij < nrow))
+
+    overlap = len(ind_i[0]) + len(ind_j[0])
+    overlap = overlap / ((i_right - i_left) + (j_right - j_left))
+    if i_right < j_left:
+        overlap *= 1 - (i_right - j_left) / ncol
+    elif j_right < i_left:
+        overlap *= 1 - (j_right - i_left) / ncol
+
+    overlap_region = [-1, -1]
+    if len(ind_i[0]) > 0:
+        overlap_region[0] = np.min(ind_i[0]) + i_left
+    if len(ind_j[0]) > 0:
+        overlap_region[1] = np.max(ind_j[0]) + j_left
+
+    return overlap, overlap_region
+
+
+def create_merge_array(x, y, mean_cluster_thickness, nrow, ncol, deg, threshold):
+    n_clusters = list(x.keys())
+    merge = []
+    for i, j in combinations(n_clusters, 2):
+        overlap, region = determine_overlap_rating(
+            x[i], y[i], x[j], y[j], mean_cluster_thickness, nrow, ncol, deg=deg
+        )
+        if overlap <= threshold:
+            # no , or little overlap
+            continue
+        merge += [[i, j, overlap, *region]]
+    merge = np.array(merge)
+
+    if len(merge) == 0:
+        # No merging necessary
+        return x, y, n_clusters
+
+    merge = merge[np.argsort(merge[:, 2])[::-1]]
+    return merge
+
+
+def update_merge_array(
+    merge, x, y, j, mean_cluster_thickness, nrow, ncol, deg, threshold
+):
+    j = int(j)
+    n_clusters = np.array(list(x.keys()))
+    update = []
+    for i in n_clusters[n_clusters != j]:
+        overlap, region = determine_overlap_rating(
+            x[i], y[i], x[j], y[j], mean_cluster_thickness, nrow, ncol, deg=deg
+        )
+        if overlap <= threshold:
+            # no , or little overlap
+            continue
+        update += [[i, j, overlap, *region]]
+    if len(update) == 0:
+        return merge
+    update = np.array(update)
+    merge = np.concatenate((merge, update))
+    merge = merge[np.argsort(merge[:, 2])[::-1]]
+    return merge
+
+
+def calculate_mean_cluster_thickness(x, y):
+    # Calculate mean cluster thickness
+    # TODO optimize
+    n_clusters = list(x.keys())
+    mean_cluster_thickness = 10
+    for cluster in n_clusters:
+        # individual columns of this cluster
+        columns = np.unique(y[cluster])
+        delta = 0
+        for col in columns:
+            # thickness of the cluster in each column
+            tmp = x[cluster][y[cluster] == col]
+            delta += np.max(tmp) - np.min(tmp)
+        mean_cluster_thickness += delta / len(columns)
+
+    mean_cluster_thickness *= 1.5 / len(n_clusters)
+    return mean_cluster_thickness
+
+
+def delete(i, x, y, merge):
+    del x[i], y[i]
+    merge = merge[(merge[:, 0] != i) & (merge[:, 1] != i)]
+    return x, y, merge
+
+
+def combine(i, j, x, y, merge, mct, nrow, ncol, deg, threshold):
+    # Merge pixels
+    y[j] = np.concatenate((y[j], y[i]))
+    x[j] = np.concatenate((x[j], x[i]))
+    # Delete obsolete data
+    x, y, merge = delete(i, x, y, merge)
+    merge = merge[(merge[:, 0] != j) & (merge[:, 1] != j)]
+    # Update merge array
+    merge = update_merge_array(merge, x, y, j, mct, nrow, ncol, deg, threshold)
+    return x, y, merge
+
 
 def merge_clusters(
-    img, orders, x, y, n_clusters, threshold=100, manual=True, plot=False
+    img,
+    x,
+    y,
+    n_clusters,
+    manual=True,
+    deg=2,
+    auto_merge_threshold=0.9,
+    merge_min_threshold=0.1,
 ):
     """Merge clusters that belong together
-    
+
     Parameters
     ----------
     img : array[nrow, ncol]
@@ -46,94 +179,23 @@ def merge_clusters(
         number of identified clusters
     """
 
-    n_row, n_col = img.shape
+    nrow, ncol = img.shape
+    mct = calculate_mean_cluster_thickness(x, y)
 
-    x_poly = np.arange(n_col, dtype=int)
-    y_poly = {i: np.polyval(order, x_poly) for i, order in orders.items()}
+    merge = create_merge_array(x, y, mct, nrow, ncol, deg, merge_min_threshold)
 
-    # Calculate mean cluster thickness
-    # TODO optimize
-    mean_cluster_thickness = 10
-    for cluster in n_clusters:
-        # individual columns of this cluster
-        columns = np.unique(y[cluster])
-
-        delta = 0
-        for col in columns:
-            # thickness of the cluster in each column
-            tmp = x[cluster][y[cluster] == col]
-            delta += np.max(tmp) - np.min(tmp)
-
-        mean_cluster_thickness += delta / len(columns)
-
-    mean_cluster_thickness *= 1.5 / len(n_clusters)
-
-    # determine cluster limits
-    cluster_limit = {i: (np.min(y[i]), np.max(y[i])) for i in n_clusters}
-
-    # TODO: Optimize this, quite slow for many clusters
-    # for each pair of clusters
-    # merge = [[cluster1, cluster2, overlap, overlap region limits[2]]]
-    merge = []
-    for i, j in combinations(n_clusters, 2):
-        # Get cluster limits
-        i_left, i_right = cluster_limit[i]
-        j_left, j_right = cluster_limit[j]
-
-        # Get polynomial points inside cluster limits for each
-        y_ii = y_poly[i][i_left:i_right]
-        y_ij = y_poly[i][j_left:j_right]
-        y_jj = y_poly[j][j_left:j_right]
-        y_ji = y_poly[j][i_left:i_right]
-
-        # difference of polynomials within each cluster limit
-        diff_i = np.abs(y_ii - y_ji)
-        diff_j = np.abs(y_ij - y_jj)
-
-        ind_i = np.where(
-            (diff_i < mean_cluster_thickness) & (y_ji >= 0) & (y_ji < n_row)
-        )
-        ind_j = np.where(
-            (diff_j < mean_cluster_thickness) & (y_ij >= 0) & (y_ij < n_row)
-        )
-
-        overlap = len(ind_i[0]) + len(ind_j[0])
-        overlap_region = [-1, -1]
-        if len(ind_i[0]) > 0:
-            overlap_region[0] = np.min(ind_i[0]) + i_left
-        if len(ind_j[0]) > 0:
-            overlap_region[1] = np.max(ind_j[0]) + j_left
-
-        if overlap == 0:
-            continue
-        merge += [[i, j, overlap, *overlap_region]]
-
-    merge = np.array(merge)
-
-    if len(merge) == 0:
-        # No merging necessary
-        return x, y, n_clusters
-
-    # Cut small overlaps
-    # TODO: convert overlap into percentage
-    merge = merge[merge[:, 2] > threshold]
-    # TODO fix merges, so that everycluster ends up in the right group
-    # e.g. if more than 3 groups merge together, they should all end up in the same one
-    merge = merge[np.argsort(merge[:, 2])]
-    delete = []
     if manual:
         plt.ion()
-    for before, after, overlap, region0, region1 in merge:
-        if region1 - region0 > 0.9 * (
-            cluster_limit[before][1] - cluster_limit[before][0]
-        ) or region1 - region0 > 0.9 * (
-            cluster_limit[after][1] - cluster_limit[after][0]
-        ):
-            # merge automatically
+
+    k = 0
+    while k < len(merge):
+        i, j, overlap, _, _ = merge[k]
+        i, j = int(i), int(j)
+
+        if overlap >= auto_merge_threshold:
             answer = "y"
         elif manual:
-            plot_order(before, after, x, y, x_poly, y_poly, img)
-
+            plot_order(i, j, x, y, img, deg, title=f"Probability: {overlap}")
             while True:
                 if manual:
                     answer = input("Merge? [y/n]")
@@ -142,32 +204,28 @@ def merge_clusters(
         else:
             answer = "y"
 
-        if answer == "n":
-            pass
-        elif answer == "y":
-            logging.info("Merging orders %i and %i", before, after)
-            y[after] = np.concatenate((y[after], y[before]))
-            x[after] = np.concatenate((x[after], x[before]))
-            delete += [before]
+        if answer == "y":
+            # just merge automatically
+            logging.info("Merging orders %i and %i", i, j)
+            x, y, merge = combine(
+                i, j, x, y, merge, mct, nrow, ncol, deg, merge_min_threshold
+            )
+        elif answer == "n":
+            k += 1
         elif answer == "r":
-            delete += [before]
+            x, y, merge = delete(i, x, y, merge)
         elif answer == "g":
-            delete += [after]
+            x, y, merge = delete(j, x, y, merge)
 
     if manual:
         plt.close()
         plt.ioff()
 
-    delete = np.unique(delete)
-    for d in delete:
-        del x[d]
-        del y[d]
-        n_clusters = n_clusters[n_clusters != d]
-
+    n_clusters = list(x.keys())
     return x, y, n_clusters
 
 
-def fit_polynomials_to_clusters(x, y, clusters, degree):
+def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
     """Fits a polynomial of degree opower to points x, y in cluster clusters
 
     Parameters
@@ -185,19 +243,20 @@ def fit_polynomials_to_clusters(x, y, clusters, degree):
     orders : dict(int, array[degree+1])
         coefficients of polynomial fit for each cluster
     """
-    orders = {c: np.polyfit(y[c], x[c], degree) for c in clusters}
+
+    orders = {c: fit(x[c], y[c], degree, regularization) for c in clusters}
     return orders
 
 
 def plot_orders(im, x, y, clusters, orders, order_range):
     """ Plot orders and image """
 
-    cluster_img = np.zeros_like(im)
+    cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
         cluster_img[x[c], y[c]] = c
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
-    plt.subplot(211)
+    plt.subplot(121)
     bot, top = np.percentile(im, (1, 99))
     plt.imshow(im, origin="lower", vmin=bot, vmax=top)
     plt.title("Input Image + Order polynomials")
@@ -210,7 +269,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
             y = np.polyval(order, x)
             plt.plot(x, y)
 
-    plt.subplot(212)
+    plt.subplot(122)
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
     plt.title("Detected Clusters + Order Polynomials")
     plt.xlabel("x [pixel]")
@@ -226,16 +285,25 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     plt.show()
 
 
-def plot_order(i, j, x, y, x_poly, y_poly, img):
+def plot_order(i, j, x, y, img, deg, title=""):
     """ Plot a single order """
+    _, ncol = img.shape
+
+    order_i = fit(x[i], y[i], deg)
+    order_j = fit(x[j], y[j], deg)
+
+    xp = np.arange(ncol)
+    yi = np.polyval(order_i, xp)
+    yj = np.polyval(order_j, xp)
+
     plt.clf()
+    plt.title(title)
     plt.imshow(img)
-    plt.plot(x_poly, y_poly[i], "r")
-    plt.plot(x_poly, y_poly[j], "g")
+    plt.plot(xp, yi, "r")
+    plt.plot(xp, yj, "g")
     plt.plot(y[i], x[i], "r.")
     plt.plot(y[j], x[j], "g.")
 
-    n_row, n_col = img.shape
     xmin = min(np.min(x[i]), np.min(x[j])) - 50
     xmax = max(np.max(x[i]), np.max(x[j])) + 50
 
@@ -255,8 +323,15 @@ def mark_orders(
     noise=8,
     opower=4,
     border_width=5,
+    degree_before_merge=2,
+    regularization=0,
+    closing_shape=(5, 5),
+    opening_shape=(2, 2),
     plot=False,
     manual=True,
+    auto_merge_threshold=0.9,
+    merge_min_threshold=0.1,
+    sigma=2,
 ):
     """ Identify and trace orders
 
@@ -287,7 +362,7 @@ def mark_orders(
 
     # Convert to signed integer, to avoid underflow problems
     im = np.asarray(im)
-    im = im.astype(np.int16)
+    im = im.astype(int)
 
     if filter_size is None:
         col = im[:, im.shape[0] // 2]
@@ -334,9 +409,10 @@ def mark_orders(
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
-    struct = np.full((5, 5), 1)
+    struct = np.full(closing_shape, 1)
     mask = morphology.binary_closing(mask, struct, border_value=1)
     # remove small lonely clusters
+    struct = np.full(opening_shape, 1)
     # struct = morphology.generate_binary_structure(2, 1)
     mask = morphology.binary_opening(mask, struct)
 
@@ -350,14 +426,6 @@ def mark_orders(
     for i in np.arange(len(sizes))[~mask_sizes]:
         clusters[clusters == i] = 0
 
-    if plot:
-        plt.title("Identified clusters")
-        plt.xlabel("x [pixel]")
-        plt.ylabel("y [pixel]")
-        _clusters = np.ma.masked_array(clusters, mask=clusters == 0)
-        plt.imshow(_clusters, origin="lower", cmap="prism")
-        plt.show()
-
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
     # # x, y become dictionaries, with an entry for each order
     # # n is just a list of all orders (ignore cluster == 0)
@@ -365,23 +433,110 @@ def mark_orders(
     n = n[n != 0]
     x = {i: np.where(clusters == c)[0] for i, c in enumerate(n)}
     y = {i: np.where(clusters == c)[1] for i, c in enumerate(n)}
-    n = np.arange(len(n))
+    del x[0], y[0]
 
-    # if plot:
-    #     plot_orders(im, x, y, n, None, None)
+    def best_fit_degree(x, y):
+        L1 = np.sum((np.polyval(np.polyfit(y, x, 1), y) - x) ** 2)
+        L2 = np.sum((np.polyval(np.polyfit(y, x, 2), y) - x) ** 2)
 
-    # fit polynomials
-    orders = fit_polynomials_to_clusters(x, y, n, 2)
+        aic1 = 2 + 2 * np.log(L1) + 4 / (x.size - 2)
+        aic2 = 4 + 2 * np.log(L2) + 12 / (x.size - 3)
+
+        if aic1 < aic2:
+            return 1
+        else:
+            return 2
+
+    degree = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
+    bias = {i: np.polyfit(y[i], x[i], deg=degree[i])[-1] for i in x.keys()}
+    n = list(x.keys())
+    yt = np.concatenate([y[i] for i in n])
+    xt = np.concatenate([x[i] - bias[i] for i in n])
+    coef = np.polyfit(yt, xt, deg=degree_before_merge)
+
+    res = np.polyval(coef, yt)
+    cutoff = sigma * (res - xt).std()
+
+    # uy = np.unique(yt)
+    # mask = np.abs(res - xt) > cutoff
+    # plt.plot(yt, xt, ".")
+    # plt.plot(yt[mask], xt[mask], "r.")
+    # plt.plot(uy, np.polyval(coef, uy))
+    # plt.show()
+
+    m = {
+        i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff for i in x.keys()
+    }
+
+    k = max(x.keys()) + 1
+    for i in range(1, k):
+        new_img = np.zeros(im.shape, dtype=int)
+        new_img[x[i][~m[i]], y[i][~m[i]]] = 1
+        clusters, _ = label(new_img)
+
+        x[i] = x[i][m[i]]
+        y[i] = y[i][m[i]]
+        if len(x[i]) == 0:
+            del x[i], y[i]
+
+        nnew = np.max(clusters)
+        if nnew != 0:
+            xidx, yidx = np.indices(im.shape)
+            for j in range(1, nnew + 1):
+                xn = xidx[clusters == j]
+                yn = yidx[clusters == j]
+                if xn.size >= min_cluster:
+                    x[k] = xn
+                    y[k] = yn
+                    k += 1
+            # plt.imshow(clusters, origin="lower")
+            # plt.show()
+
+    if plot:
+        plt.title("Identified clusters")
+        plt.xlabel("x [pixel]")
+        plt.ylabel("y [pixel]")
+        clusters = np.ma.zeros(im.shape, dtype=int)
+        for i in x.keys():
+            clusters[x[i], y[i]] = i
+        clusters[clusters == 0] = np.ma.masked
+
+        plt.imshow(clusters, origin="lower", cmap="prism")
+        plt.show()
 
     # Merge clusters, if there are even any possible mergers left
-    x, y, n = merge_clusters(im, orders, x, y, n, plot=plot, manual=manual)
+    x, y, n = merge_clusters(
+        im,
+        x,
+        y,
+        n,
+        manual=manual,
+        deg=degree_before_merge,
+        auto_merge_threshold=auto_merge_threshold,
+        merge_min_threshold=merge_min_threshold,
+    )
 
     orders = fit_polynomials_to_clusters(x, y, n, opower)
 
-    # sort orders from bottom to top, using mean coordinate
-    # TODO: better metric for position?
-    key = np.array([[i, np.mean(x[i])] for i in n])
-    key = key[np.argsort(key[:, 1]), 0]
+    # sort orders from bottom to top, using relative position
+
+    def compare(i, j):
+        _, xi, i_left, i_right = i
+        _, xj, j_left, j_right = j
+
+        if i_right < j_left or j_right < i_left:
+            return xi.mean() - xj.mean()
+
+        left = max(i_left, j_left)
+        right = min(i_right, j_right)
+
+        return xi[left:right].mean() - xj[left:right].mean()
+
+    xp = np.arange(im.shape[1])
+    keys = [(c, np.polyval(orders[c], xp), y[c].min(), y[c].max()) for c in x.keys()]
+    keys = sorted(keys, key=cmp_to_key(compare))
+    key = [k[0] for k in keys]
+
     n = np.arange(len(n), dtype=int)
     x = {c: x[key[c]] for c in n}
     y = {c: y[key[c]] for c in n}

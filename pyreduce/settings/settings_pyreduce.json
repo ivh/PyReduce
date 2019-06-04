@@ -18,6 +18,11 @@
     },
     "orders": {
         "degree": 4,
+        "degree_before_merge": 2,
+        "regularization": 0,
+        "closing_shape": [5, 5],
+        "auto_merge_threshold": 0.9,
+        "merge_min_threshold": 0.1,
         "filter_size": null,
         "min_cluster": null,
         "noise": null,
@@ -34,6 +39,7 @@
         "extraction_width": 0.2,
         "scatter_degree": 4,
         "threshold": 0.6,
+        "sigma_cutoff": 2,
         "plot": true
     },
     "wavecal": {
