@@ -62,21 +62,14 @@ def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol,
 
 def create_merge_array(x, y, mean_cluster_thickness, nrow, ncol, deg, threshold):
     n_clusters = list(x.keys())
-    merge = []
-    for i, j in combinations(n_clusters, 2):
+    nmax = len(n_clusters) ** 2
+    merge = np.zeros((nmax, 5))
+    for k, (i, j) in enumerate(combinations(n_clusters, 2)):
         overlap, region = determine_overlap_rating(
             x[i], y[i], x[j], y[j], mean_cluster_thickness, nrow, ncol, deg=deg
         )
-        if overlap <= threshold:
-            # no , or little overlap
-            continue
-        merge += [[i, j, overlap, *region]]
-    merge = np.array(merge)
-
-    if len(merge) == 0:
-        # No merging necessary
-        return x, y, n_clusters
-
+        merge[k] = [i, j, overlap, *region]
+    merge = merge[merge[:, 2] > threshold]
     merge = merge[np.argsort(merge[:, 2])[::-1]]
     return merge
 
@@ -433,7 +426,6 @@ def mark_orders(
     n = n[n != 0]
     x = {i: np.where(clusters == c)[0] for i, c in enumerate(n)}
     y = {i: np.where(clusters == c)[1] for i, c in enumerate(n)}
-    del x[0], y[0]
 
     def best_fit_degree(x, y):
         L1 = np.sum((np.polyval(np.polyfit(y, x, 1), y) - x) ** 2)

@@ -121,18 +121,21 @@ def estimate_background_scatter(
         y_above = y_order + extraction_width[i, 1]
         y_below = y_order - extraction_width[i, 0]
 
-        y_above = np.clip(np.floor(y_above), 0, nrow - 1)
-        y_below = np.clip(np.ceil(y_below), 0, nrow - 1)
+        y_above = np.floor(y_above)
+        y_below = np.ceil(y_below)
 
         index = make_index(y_below, y_above, left, right, zero=True)
+        np.clip(index[0], 0, nrow - 1, out=index[0])
 
         mask[index] = False
+
+    mask &= ~np.ma.getmask(img)
 
     y, x = np.indices(mask.shape)
     y, x = y[mask].ravel(), x[mask].ravel()
     z = np.ma.getdata(img[mask]).ravel()
 
-    mask = z < np.median(z) + sigma_cutoff * z.std()
+    mask = z <= np.median(z) + sigma_cutoff * z.std()
     y, x, z = y[mask], x[mask], z[mask]
 
     # Method 2: Select only points known to be inbetween orders

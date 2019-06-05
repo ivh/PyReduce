@@ -88,7 +88,7 @@ def test_parameters():
         mark_orders(img, border_width="bla")
     with pytest.raises(ValueError):
         mark_orders(img, border_width=-1)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         mark_orders(img, opower="bla")
     with pytest.raises(ValueError):
         mark_orders(img, opower=-1)

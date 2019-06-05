@@ -34,7 +34,7 @@ def test_only_one_file(instrument, mode, files, extension):
 
 
 def test_no_data_files():
-    with pytest.raises(ValueError):
+    with pytest.raises(FileNotFoundError):
         combine_bias([], "", "")
 
 
