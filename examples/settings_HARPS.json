@@ -21,18 +21,24 @@
     },
     "wavecal": {
         "threshold": 100,
-        "dimensionality": "2D",
+        "dimensionality": "1D",
+        "degree": 2,
         "manual": false,
         "extraction_width": 10
     },
     "freq_comb": {
+        "threshold": 100,
         "dimensionality": "2D",
+        "nstep": 0,
+        "degree": [19, 10],
         "extraction_width": 10
     },
     "curvature": {
         "extraction_width": 10,
-        "dimensionality": "1D",
-        "degree": 2
+        "dimensionality": "2D",
+        "degree": [3, 6],
+        "plot": true,
+        "verbose": 1
     },
     "science": {
         "oversampling": 1,

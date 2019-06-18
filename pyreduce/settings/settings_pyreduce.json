@@ -50,6 +50,7 @@
         "iterations": 3,
         "dimensionality": "2D",
         "degree": [6, 6],
+        "nstep": 0,
         "shift_window": 0.01,
         "plot": true
     },
@@ -58,6 +59,7 @@
         "extraction_width": 0.5,
         "peak_width": 3,
         "dimensionality": "2D",
+        "nstep": 0,
         "degree": [6, 6],
         "threshold": 100,
         "plot": true

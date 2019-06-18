@@ -13,6 +13,7 @@ from numpy.polynomial.polynomial import polyval2d, Polynomial
 from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
 
 from . import util
 
@@ -118,6 +119,7 @@ class WavelengthCalibration:
         degree=(6, 6),
         iterations=3,
         mode="2D",
+        nstep=0,
         shift_window=0.01,
         manual=False,
         polarim=False,
@@ -126,13 +128,18 @@ class WavelengthCalibration:
     ):
         #:float: Residual threshold in m/s above which to remove lines
         self.threshold = threshold
-        if np.isscalar(degree):
-            degree = (degree, degree)
         #:tuple(int, int): polynomial degree of the wavelength fit in (pixel, order) direction
         self.degree = degree
+        if mode == "1D":
+            self.degree = int(degree)
+        elif mode == "2D":
+            self.degree = (int(degree[0]), int(degree[1]))
         #:int: Number of iterations in the remove residuals, auto id, loop
         self.iterations = iterations
+        #:{"1D", "2D"}: Whether to use 1d or 2d fit
         self.mode = mode
+        #:bool: Whether to fit for pixel steps (offsets) in the detector
+        self.nstep = nstep
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
         self.shift_window = shift_window
         #:bool: Wether to manually align the reference instead of using cross correlation
@@ -149,6 +156,10 @@ class WavelengthCalibration:
         self.nord = None
         #:int: Number of columns in the observation
         self.ncol = None
+
+    @property
+    def step_mode(self):
+        return self.nstep > 0
 
     @property
     def mode(self):
@@ -416,6 +427,9 @@ class WavelengthCalibration:
             2d polynomial coefficients
         """
 
+        if self.step_mode:
+            return self.build_step_solution(lines, plot=plot)
+
         # Only use flagged data
         mask = lines["flag"]  # True: use line, False: dont use line
         m_wave = lines["wll"][mask]
@@ -424,10 +438,10 @@ class WavelengthCalibration:
 
         if self.mode == "1D":
             nord = m_ord.max() + 1
-            coef = np.zeros((nord, self.degree[0] + 1))
+            coef = np.zeros((nord, self.degree + 1))
             for i in range(nord):
                 select = m_ord == i
-                coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=self.degree[0])
+                coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=self.degree)
         elif self.mode == "2D":
             # 2d polynomial fit with: x = column, y = order, z = wavelength
             coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
@@ -440,6 +454,111 @@ class WavelengthCalibration:
             self.plot_residuals(lines, coef)
 
         return coef
+
+    def g(self, x, step_coef):
+        try:
+            bins = step_coef[:, 0]
+            digits = np.digitize(x, bins) - 1
+        except ValueError as e:
+            return np.inf
+
+        cumsum = np.cumsum(step_coef[:, 1])
+        x = x + cumsum[digits]
+        return x
+
+    def f(self, x, poly_coef, step_coef):
+        xdash = self.g(x, step_coef)
+        if np.all(np.isinf(xdash)):
+            return np.inf
+        y = np.polyval(poly_coef, xdash)
+        return y
+
+    def build_step_solution(self, lines, plot=False):
+        mask = lines["flag"]  # True: use line, False: dont use line
+        m_wave = lines["wll"][mask]
+        m_pix = lines["posm"][mask]
+        m_ord = lines["order"][mask]
+
+        nstep = self.nstep
+        ncol = self.ncol
+
+        if self.mode == "1D":
+            coef = {}
+            for order in np.unique(m_ord):
+                select = m_ord == order
+                x = m_pix[select]
+                y = m_wave[select]
+
+                poly_coef = np.polyfit(x, y, self.degree)
+                step_coef = np.zeros((nstep, 2))
+                step_coef[:, 0] = np.linspace(ncol/nstep, ncol, nstep)
+
+                def func(x, *param):
+                    poly_coef = param[:self.degree + 1]
+                    step_coef = np.asarray(param[self.degree + 1:]).reshape((nstep, 2))
+                    return self.f(x, poly_coef, step_coef)
+
+                bounds = ([[-np.inf, np.inf]] * (self.degree+1)) + ([[0, ncol], [-1, 1]] * nstep)
+                bounds = np.array(bounds).T
+
+                res, _ = curve_fit(func, x, y, p0=[*poly_coef, *step_coef.ravel()])
+                poly_coef = res[:self.degree + 1]
+                step_coef = res[self.degree + 1:].reshape((nstep, 2))
+                coef[order] = [poly_coef, step_coef]
+        elif self.mode == "2D":
+            unique = np.unique(m_ord)
+            nord = len(unique)
+            shape = (self.degree[0] + 1, self.degree[1] + 1)
+            poly_coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
+            step_coef = np.zeros((nord, nstep, 2))
+            step_coef[:, :, 0] = np.linspace(ncol/nstep, ncol, nstep)
+            n = np.prod(shape)
+
+            def func(x, *param):
+                x, y = x[:len(x)//2], x[len(x)//2:]
+                poly_coef = np.asarray(param[:n]).reshape(shape)
+                step_coef = np.asarray(param[n:]).reshape((nord, nstep, 2))
+
+                x = np.copy(x)
+                for j, i in enumerate(unique):
+                    x[m_ord == i] = self.g(x[m_ord == i], step_coef[j])
+                if np.all(np.isinf(x)):
+                    return np.inf
+                z = polyval2d(x, y, poly_coef)
+                return z
+
+            p0 = np.concatenate([poly_coef.ravel(), step_coef.ravel()])
+            res, _ = curve_fit(func, np.concatenate((m_pix, m_ord)), m_wave, p0=p0)
+            poly_coef = res[:n].reshape(shape)
+            step_coef = res[n:].reshape((nord, nstep, 2))
+            step_coef = {i: step_coef[j] for j, i in enumerate(unique)}
+            coef = (poly_coef, step_coef)
+        else:
+            raise ValueError(
+                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
+            )
+
+        return coef
+
+    def evaluate_step_solution(self, pos, order, solution):
+        if not np.array_equal(np.shape(pos), np.shape(order)):
+            raise ValueError("pos and order must have the same shape")
+        if self.mode == "1D":
+            result = np.zeros(pos.shape)
+            for i in np.unique(order):
+                select = order == i
+                result[select] = self.f(pos[select], solution[i][0], solution[i][1])
+        elif self.mode == "2D":
+            poly_coef, step_coef = solution
+            pos = np.copy(pos)
+            for i in np.unique(order):
+                pos[order == i] = self.g(pos[order == i], step_coef[i])
+            result = polyval2d(pos, order, poly_coef)
+        else:
+            raise ValueError(
+                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.mode}"
+            )
+        return result
 
     def evaluate_solution(self, pos, order, solution):
         """
@@ -469,6 +588,10 @@ class WavelengthCalibration:
         """
         if not np.array_equal(np.shape(pos), np.shape(order)):
             raise ValueError("pos and order must have the same shape")
+
+        if self.step_mode:
+            return self.evaluate_step_solution(pos, order, solution)
+
         if self.mode == "1D":
             result = np.zeros(pos.shape)
             for i in np.unique(order):
@@ -785,7 +908,7 @@ class WavelengthCalibration:
 
         return n, new_peaks
 
-    def frequency_comb(self, comb, wave, lines):
+    def frequency_comb(self, comb, wave, lines=None):
         self.nord, self.ncol = comb.shape
 
         # TODO give everything better names
@@ -863,17 +986,28 @@ class WavelengthCalibration:
         coef = self.build_2d_solution(laser_lines)
         new_wave = self.make_wave(coef)
 
-        residual = self.calculate_residual(coef, lines)
-        aic = self.calculate_AIC(lines, coef)
+        aic = self.calculate_AIC(laser_lines, coef)
 
         ngood = np.count_nonzero(laser_lines["flag"])
         logging.info(f"Laser Frequency Comb solution based on {ngood} lines.")
         if self.plot:
-            self.plot_residuals(
-                lines,
-                coef,
-                title="GasLamp Line Residuals in the Laser Frequency Comb Solution",
-            )
+            residual = wave - new_wave
+            residual = residual.ravel()
+
+            area = np.percentile(residual, (0.1, 99.9))
+            plt.hist(residual, bins=100, range=area)
+            plt.title("ThAr - LFC")
+            plt.xlabel(r"$\Delta\lambda$ [Å]")
+            plt.ylabel("N")
+            plt.show()
+
+        if self.plot:
+            if lines is not None:
+                self.plot_residuals(
+                    lines,
+                    coef,
+                    title="GasLamp Line Residuals in the Laser Frequency Comb Solution",
+                )
             self.plot_residuals(
                 laser_lines,
                 coef,
@@ -901,11 +1035,25 @@ class WavelengthCalibration:
         m_ord = lines["order"]
         p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
 
-        k = np.size(wave_solution) + 1
+        if self.step_mode:
+            if self.mode == "1D":
+                k = 1
+                for _, v in wave_solution.items():
+                    k += np.size(v[0])
+                    k += np.size(v[1])
+            elif self.mode == "2D":
+                k = 1
+                poly_coef, steps_coef = wave_solution
+                for _, v in steps_coef.items():
+                    k += np.size(v)
+                k += np.size(poly_coef)
+        else:
+            k = np.size(wave_solution) + 1
         n = len(p_wave)
         rss = np.sum((p_wave - m_wave) ** 2)
         logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
         aic = 2 * k - 2 * logl
+        self.logl = logl
         self.aicc = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
         self.aic = aic
         return aic
@@ -961,11 +1109,20 @@ class WavelengthCalibration:
             np.count_nonzero(lines["flag"]),
         )
 
+        # order = 4
+        # prob = 0.5
+        # for i in range(len(lines)):
+        #     if lines[i]["order"] == order:
+        #         if lines[i]["posm"] < 2048:
+        #             lines[i]["flag"] = False
+
         # Step 6: build final 2d solution
         wave_solution = self.build_2d_solution(lines, plot=self.plot)
         wave_img = self.make_wave(wave_solution)
 
         if self.plot:
             self.plot_results(wave_img, obs)
+
+        aic = self.calculate_AIC(lines, wave_solution)
 
         return wave_img, wave_solution

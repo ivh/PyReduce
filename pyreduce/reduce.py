@@ -738,6 +738,7 @@ class WavelengthCalibration(Step):
         self.iterations = config["iterations"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.wavecal_mode = config["dimensionality"]
+        self.nstep = config["nstep"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
 
@@ -814,12 +815,11 @@ class WavelengthCalibration(Step):
             threshold=self.threshold,
             iterations=self.iterations,
             mode=self.wavecal_mode,
+            nstep=self.nstep,
             shift_window=self.shift_window,
         )
         wave, coef = module.execute(thar, linelist)
-
         self.save(wave, thar, coef, linelist)
-
         return wave, thar, coef, linelist
 
     def save(self, wave, thar, coef, linelist):
@@ -896,6 +896,7 @@ class LaserFrequencyComb(Step):
         self.threshold = config["threshold"]
         #:{'1D', '2D'}: Whether to use 1D or 2D polynomials
         self.wavecal_mode = config["dimensionality"]
+        self.nstep = config["nstep"]
         #:int: Width of the peaks for finding them in the spectrum
         self.peak_width = config["peak_width"]
 
@@ -955,6 +956,7 @@ class LaserFrequencyComb(Step):
             degree=self.degree,
             threshold=self.threshold,
             mode=self.wavecal_mode,
+            nstep=self.nstep,
             lfc_peak_width=self.peak_width,
         )
         wave = module.frequency_comb(comb, wave, linelist)
