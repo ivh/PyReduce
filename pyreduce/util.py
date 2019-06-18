@@ -342,6 +342,22 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
 
     return index
 
+def gridsearch(func, grid, args=(), kwargs={}):
+    matrix = np.zeros(grid.shape[:-1])
+
+    for idx in np.ndindex(grid.shape[:-1]):
+        value = grid[idx]
+        print(f"Value: {value}")
+        try:
+            result = func(value, *args, **kwargs)
+            print(f"Success: {result}")
+        except Exception as e:
+            result = np.nan
+            print(f"Failed: {e}")
+        finally:
+            matrix[idx] = result
+
+    return matrix
 
 def gaussfit(x, y):
     """
@@ -608,9 +624,11 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     # Create combinations of degree of x and y
     # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
     if np.isscalar(degree):
+        degree = int(degree)
         idx = [[i, j] for i, j in product(range(degree + 1), repeat=2)]
         coeff = np.zeros((degree + 1, degree + 1))
     else:
+        degree = [int(degree[0]), int(degree[1])]
         idx = [[i, j] for i, j in product(range(degree[0] + 1), range(degree[1] + 1))]
         coeff = np.zeros((degree[0] + 1, degree[1] + 1))
         degree = max(degree)
