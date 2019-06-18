@@ -1,0 +1,48 @@
+{
+    "__instrument__": "HARPS",
+    "instrument": {
+    },
+    "orders": {
+        "degree": 4,
+        "filter_size": 80,
+        "min_cluster": 2000,
+        "noise": 8,
+        "manual": false
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 10,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "1D",
+        "degree": 2,
+        "manual": false,
+        "extraction_width": 10
+    },
+    "freq_comb": {
+        "threshold": 100,
+        "dimensionality": "1D",
+        "nstep": 8,
+        "degree": 8,
+        "extraction_width": 10
+    },
+    "curvature": {
+        "extraction_width": 10,
+        "dimensionality": "2D",
+        "degree": [3, 6],
+        "plot": true,
+        "verbose": 1
+    },
+    "science": {
+        "oversampling": 1,
+        "extraction_width": 10,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0
+    }
+}
