@@ -96,7 +96,12 @@
                             "minimum": 0,
                             "maximum": 1
                         },
-                        "filter_size": {
+                        "split_sigma":{
+                            "description": "Number of standard deviations around the best fit polyonomial of all orders, to split data points of of. Set to 0 to disable splitting.",
+                            "type":"number",
+                            "minimum": 0
+                        }
+,                        "filter_size": {
                             "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
                             "type": [
                                 "integer",
@@ -178,6 +183,11 @@
                             "description": "Number of sigmas around the mean to include in the background scatter fit",
                             "type": "number",
                             "exclusiveMinimum": 0
+                        },
+                        "border_width":{
+                            "description": "Border Width to ignore for background fit.",
+                            "type": ["number", "null"],
+                            "minimum": 0
                         }
                     },
                     "required": [

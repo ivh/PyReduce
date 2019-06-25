@@ -1,16 +1,18 @@
 {
     "__instrument__": "UVES",
     "orders": {
-        "degree": 4,
+        "degree": 5,
         "filter_size": 80,
         "min_cluster": 2000,
         "noise": 8,
-        "manual": true
+        "manual": true,
+        "split_sigma": 5
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
         "extraction_width": 0.45,
+        "border_width": 20,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
