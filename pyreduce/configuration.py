@@ -11,7 +11,7 @@ def load_config(configuration, instrument, j=0):
         if instrument in configuration.keys():
             config = configuration[instrument]
         elif "__instrument__" in configuration.keys() and configuration["__instrument__"] != instrument.upper():
-            raise ValueError("This configuration is for a different instrument")
+            raise KeyError("This configuration is for a different instrument")
         else:
             config = configuration
     elif isinstance(configuration, list):
