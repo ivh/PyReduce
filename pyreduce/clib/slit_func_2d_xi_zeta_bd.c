@@ -11,6 +11,7 @@
 #define zeta_index(x, y, z) (z * ncols * nrows) + (y * ncols) + x
 #define mzeta_index(x, y) (y * ncols) + x
 #define xi_index(x, y, z) (z * ncols * ny) + (y * ncols) + x
+#define psf_index(x, y) (y * ncols) + x
 
 /*----------------------------------------------------------------------------*/
 /**
@@ -91,7 +92,7 @@ static int xi_zeta_tensors(
     int *ycen_offset,
     int y_lower_lim,
     int osample,
-    double PSF_curve[ncols][3],
+    double *PSF_curve,
     xi_ref *xi,
     zeta_ref *zeta,
     int *m_zeta)
@@ -160,7 +161,7 @@ static int xi_zeta_tensors(
            we only need to initialize iy1 and iy2 and keep incrementing them
            by osample.
          */
-        iy2 = osample - floor(ycen[x] / step) - 1;
+        iy2 = osample - (int)floor(ycen[x] / step) - 1;
         iy1 = iy2 - osample;
 
         /*
@@ -242,8 +243,8 @@ static int xi_zeta_tensors(
                 else
                     w = step;
                 dy += step;
-                delta = (PSF_curve[x][1] + PSF_curve[x][2] * dy) * dy;
-                ix1 = delta;
+                delta = (PSF_curve[psf_index(x, 1)] + PSF_curve[psf_index(x, 2)] * dy) * dy;
+                ix1 = (int) delta;
                 ix2 = ix1 + signum(delta);
 
                 /* Three cases: bottom boundary of row y, intermediate i
@@ -564,13 +565,15 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     /* The actual number of contributing elements in zeta  [ncols][nrows]  */
     int *m_zeta = malloc(ncols * nrows * sizeof(int));
 
-    double PSF_curve[ncols][3]; /* Parabolic fit to the slit image curvature. [ncols][3]           */
-                                /* For column d_x = PSF_curve[ncols][0] +                */
-                                /*                  PSF_curve[ncols][1] *d_y +           */
-                                /*                  PSF_curve[ncols][2] *d_y^2,          */
-                                /* where d_y is the offset from the central line ycen.   */
-                                /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
-                                /* does not stick out of column x.                       */
+    //[ncols][3];
+    double *PSF_curve = malloc(ncols * 3 * sizeof(double));         
+    /* Parabolic fit to the slit image curvature.            */
+    /* For column d_x = PSF_curve[ncols][0] +                */
+    /*                  PSF_curve[ncols][1] *d_y +           */
+    /*                  PSF_curve[ncols][2] *d_y^2,          */
+    /* where d_y is the offset from the central line ycen.   */
+    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
+    /* does not stick out of column x.                       */
 
     y_upper_lim = nrows - 1 - y_lower_lim;
     delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
@@ -580,9 +583,9 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
         tmp = (0.5 / osample + y_upper_lim + (1. - ycen[i]));
         delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
-        PSF_curve[i][0] = 0.;
-        PSF_curve[i][1] = -tilt[i];
-        PSF_curve[i][2] = -shear[i];
+        PSF_curve[psf_index(i, 0)] = 0.;
+        PSF_curve[psf_index(i, 1)] = -tilt[i];
+        PSF_curve[psf_index(i, 2)] = -shear[i];
     }
 
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
@@ -760,7 +763,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         isum = 0;
         for (y = 0; y < nrows; y++)
         {
-            for (x = delta_x; x < ncols - delta_x; x++)
+            for (x = (int) delta_x; x < ncols - delta_x; x++)
             {
                 sum += mask[y * ncols + x] * (model[y * ncols + x] - im[y * ncols + x]) * (model[y * ncols + x] - im[y * ncols + x]);
                 isum += mask[y * ncols + x];
@@ -770,7 +773,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         /* Adjust the mask marking outlyers */
         for (y = 0; y < nrows; y++)
         {
-            for (x = delta_x; x < ncols - delta_x; x++)
+            for (x = (int) delta_x; x < ncols - delta_x; x++)
             {
                 if (fabs(model[y * ncols + x] - im[y * ncols + x]) > 6. * dev)
                     mask[y * ncols + x] = 0;
@@ -831,5 +834,6 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     free(xi);
     free(zeta);
     free(m_zeta);
+    free(PSF_curve);
     return 0;
 }
