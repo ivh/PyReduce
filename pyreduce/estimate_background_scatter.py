@@ -89,17 +89,6 @@ def estimate_background_scatter(
             % scatter_degree
         )
 
-    if border_width is None:
-        # find width of orders, based on central column
-        col = im[:, im.shape[0] // 2]
-        col = median_filter(col, 5)
-        idx = np.argmax(col)
-        width = peak_widths(col, [idx])[0][0]
-        border_width = int(np.ceil(width))
-        logging.info("Image border width, estimated: %i", border_width)
-    elif border_width < 0:
-        raise ValueError(f"Expected border width > 0, but got {border_width}")
-
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
@@ -125,9 +114,9 @@ def estimate_background_scatter(
 
     # Method 1: Select all pixels, but those known to be in orders
     bw = border_width
-    mask = np.full(img.shape, False)
-    if bw != 0:
-        mask[bw:-bw, bw:-bw] = True
+    mask = np.full(img.shape, True)
+    if bw is not None and bw != 0:
+        mask[:bw] = mask[-bw:] = mask[:, :bw] = mask[:, -bw:] = False
     for i in range(nord):
         left, right = column_range[i]
         left -= extraction_width[i, 1] * 2

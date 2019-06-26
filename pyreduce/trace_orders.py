@@ -246,7 +246,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
 
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
-        cluster_img[x[c], y[c]] = c
+        cluster_img[x[c], y[c]] = c + 1
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
     plt.subplot(121)
@@ -494,7 +494,7 @@ def mark_orders(
         plt.ylabel("y [pixel]")
         clusters = np.ma.zeros(im.shape, dtype=int)
         for i in x.keys():
-            clusters[x[i], y[i]] = i
+            clusters[x[i], y[i]] = i + 1
         clusters[clusters == 0] = np.ma.masked
 
         plt.imshow(clusters, origin="lower", cmap="prism")
