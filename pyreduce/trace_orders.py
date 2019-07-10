@@ -246,7 +246,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
 
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
-        cluster_img[x[c], y[c]] = c
+        cluster_img[x[c], y[c]] = c + 1
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
     plt.subplot(121)
@@ -255,6 +255,7 @@ def plot_orders(im, x, y, clusters, orders, order_range):
     plt.title("Input Image + Order polynomials")
     plt.xlabel("x [pixel]")
     plt.ylabel("y [pixel]")
+    plt.ylim([0, im.shape[0]])
 
     if orders is not None:
         for i, order in enumerate(orders):
@@ -431,58 +432,61 @@ def mark_orders(
         L1 = np.sum((np.polyval(np.polyfit(y, x, 1), y) - x) ** 2)
         L2 = np.sum((np.polyval(np.polyfit(y, x, 2), y) - x) ** 2)
 
-        aic1 = 2 + 2 * np.log(L1) + 4 / (x.size - 2)
-        aic2 = 4 + 2 * np.log(L2) + 12 / (x.size - 3)
+        # aic1 = 2 + 2 * np.log(L1) + 4 / (x.size - 2)
+        # aic2 = 4 + 2 * np.log(L2) + 12 / (x.size - 3)
 
-        if aic1 < aic2:
+        if L1 < L2:
             return 1
         else:
             return 2
 
-    degree = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
-    bias = {i: np.polyfit(y[i], x[i], deg=degree[i])[-1] for i in x.keys()}
-    n = list(x.keys())
-    yt = np.concatenate([y[i] for i in n])
-    xt = np.concatenate([x[i] - bias[i] for i in n])
-    coef = np.polyfit(yt, xt, deg=degree_before_merge)
+    if sigma > 0:
+        degree = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
+        bias = {i: np.polyfit(y[i], x[i], deg=degree[i])[-1] for i in x.keys()}
+        n = list(x.keys())
+        yt = np.concatenate([y[i] for i in n])
+        xt = np.concatenate([x[i] - bias[i] for i in n])
+        coef = np.polyfit(yt, xt, deg=degree_before_merge)
 
-    res = np.polyval(coef, yt)
-    cutoff = sigma * (res - xt).std()
+        res = np.polyval(coef, yt)
+        cutoff = sigma * (res - xt).std()
 
-    # uy = np.unique(yt)
-    # mask = np.abs(res - xt) > cutoff
-    # plt.plot(yt, xt, ".")
-    # plt.plot(yt[mask], xt[mask], "r.")
-    # plt.plot(uy, np.polyval(coef, uy))
-    # plt.show()
+        # DEBUG plot
+        # uy = np.unique(yt)
+        # mask = np.abs(res - xt) > cutoff
+        # plt.plot(yt, xt, ".")
+        # plt.plot(yt[mask], xt[mask], "r.")
+        # plt.plot(uy, np.polyval(coef, uy))
+        # plt.show()
+        #
 
-    m = {
-        i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff for i in x.keys()
-    }
+        m = {
+            i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff for i in x.keys()
+        }
 
-    k = max(x.keys()) + 1
-    for i in range(1, k):
-        new_img = np.zeros(im.shape, dtype=int)
-        new_img[x[i][~m[i]], y[i][~m[i]]] = 1
-        clusters, _ = label(new_img)
+        k = max(x.keys()) + 1
+        for i in range(1, k):
+            new_img = np.zeros(im.shape, dtype=int)
+            new_img[x[i][~m[i]], y[i][~m[i]]] = 1
+            clusters, _ = label(new_img)
 
-        x[i] = x[i][m[i]]
-        y[i] = y[i][m[i]]
-        if len(x[i]) == 0:
-            del x[i], y[i]
+            x[i] = x[i][m[i]]
+            y[i] = y[i][m[i]]
+            if len(x[i]) == 0:
+                del x[i], y[i]
 
-        nnew = np.max(clusters)
-        if nnew != 0:
-            xidx, yidx = np.indices(im.shape)
-            for j in range(1, nnew + 1):
-                xn = xidx[clusters == j]
-                yn = yidx[clusters == j]
-                if xn.size >= min_cluster:
-                    x[k] = xn
-                    y[k] = yn
-                    k += 1
-            # plt.imshow(clusters, origin="lower")
-            # plt.show()
+            nnew = np.max(clusters)
+            if nnew != 0:
+                xidx, yidx = np.indices(im.shape)
+                for j in range(1, nnew + 1):
+                    xn = xidx[clusters == j]
+                    yn = yidx[clusters == j]
+                    if xn.size >= min_cluster:
+                        x[k] = xn
+                        y[k] = yn
+                        k += 1
+                # plt.imshow(clusters, origin="lower")
+                # plt.show()
 
     if plot:
         plt.title("Identified clusters")
@@ -490,7 +494,7 @@ def mark_orders(
         plt.ylabel("y [pixel]")
         clusters = np.ma.zeros(im.shape, dtype=int)
         for i in x.keys():
-            clusters[x[i], y[i]] = i
+            clusters[x[i], y[i]] = i + 1
         clusters[clusters == 0] = np.ma.masked
 
         plt.imshow(clusters, origin="lower", cmap="prism")

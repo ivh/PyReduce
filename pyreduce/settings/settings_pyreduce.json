@@ -23,6 +23,7 @@
         "closing_shape": [5, 5],
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.1,
+        "split_sigma": 0,
         "filter_size": null,
         "min_cluster": null,
         "noise": null,
@@ -40,6 +41,7 @@
         "scatter_degree": 4,
         "threshold": 0.6,
         "sigma_cutoff": 2,
+        "border_width": null,
         "plot": true
     },
     "wavecal": {

@@ -520,6 +520,7 @@ class OrderTracing(Step):
         self.closing_shape = config["closing_shape"]
         self.auto_merge_threshold = config["auto_merge_threshold"]
         self.merge_min_threshold = config["merge_min_threshold"]
+        self.sigma = config["split_sigma"]
         #:int: Number of pixels at the edge of the detector to ignore
         self.border_width = config["border_width"]
         #:bool: Whether to use manual alignment
@@ -564,6 +565,7 @@ class OrderTracing(Step):
             manual=self.manual,
             auto_merge_threshold=self.auto_merge_threshold,
             merge_min_threshold=self.merge_min_threshold,
+            sigma=self.sigma,
             plot=self.plot,
         )
 
@@ -627,6 +629,7 @@ class NormalizeFlatField(Step):
         #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
         self.sigma_cutoff = config["sigma_cutoff"]
+        self.border_width = config["border_width"]
 
     @property
     def savefile(self):
@@ -664,6 +667,7 @@ class NormalizeFlatField(Step):
             scatter_degree=self.scatter_degree,
             threshold=self.threshold,
             sigma_cutoff=self.sigma_cutoff,
+            border_width=self.border_width,
             plot=self.plot,
             **self.extraction_kwargs,
         )

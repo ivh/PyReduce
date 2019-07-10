@@ -9,20 +9,20 @@ from pyreduce import datasets
 
 
 # define parameters
-instrument = "UVES"
-target = "HD132205"
-night = "2010-04-01"
-mode = "middle"
+instrument = "JWST_NIRISS"
+target = "GJ436"
+night = "????-??-??"
+mode = "GR700XD"
 steps = (
     # "bias",
     # "flat",
-    # "orders",
+    "orders",
     "norm_flat",
-    "wavecal",
-    "curvature",
+    # "wavecal",
+    # "curvature",
     "science",
-    "continuum",
-    "finalize",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
@@ -30,11 +30,12 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.UVES_HD132205()
-input_dir = "{target}/"
-output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
+base_dir = os.path.expanduser("~/Documents/Visual Studio Code/PyReduce/datasets")
+input_dir = "{instrument}/raw"
+output_dir = "{instrument}/reduced"
 
-config = os.path.join(os.path.dirname(__file__), "settings_UVES.json")
+# Path to the configuration parameters, that are to be used for this reduction
+config = os.path.join(os.path.dirname(__file__), "settings_JWST_NIRISS.json")
 
 pyreduce.reduce.main(
     instrument,
@@ -46,5 +47,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    order_range=(1, 21),
+    # order_range=(0, 25),
 )

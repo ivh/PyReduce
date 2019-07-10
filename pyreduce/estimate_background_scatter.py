@@ -31,6 +31,7 @@ def estimate_background_scatter(
     extraction_width=0.1,
     scatter_degree=4,
     sigma_cutoff=2,
+    border_width=10,
     plot=False,
     **kwargs
 ):
@@ -112,9 +113,17 @@ def estimate_background_scatter(
     extraction_width = extraction_width[1:-1]
 
     # Method 1: Select all pixels, but those known to be in orders
+    bw = border_width
     mask = np.full(img.shape, True)
+    if bw is not None and bw != 0:
+        mask[:bw] = mask[-bw:] = mask[:, :bw] = mask[:, -bw:] = False
     for i in range(nord):
         left, right = column_range[i]
+        left -= extraction_width[i, 1] * 2
+        right += extraction_width[i, 0] * 2
+        left = max(0, left)
+        right = min(ncol, right)
+
         x_order = np.arange(left, right)
         y_order = np.polyval(orders[i], x_order)
 
