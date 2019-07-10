@@ -133,7 +133,7 @@ def main(
             mode = modes
 
         for t in target:
-            log_file = join(base_dir, "logs/%s.log" % t)
+            log_file = join(base_dir.format(instrument=i, mode=mode, target=t), "logs/%s.log" % t)
             util.start_logging(log_file)
 
             for n in night:

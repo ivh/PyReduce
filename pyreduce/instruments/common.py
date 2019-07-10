@@ -98,7 +98,7 @@ class instrument:
     """
 
     def __init__(self):
-        self.instrument = "common"
+        self.instrument = self.__class__.__name__.lower()
         # raise NotImplementedError("This is an abstract class")
 
     def load_info(self):

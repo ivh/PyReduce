@@ -9,21 +9,21 @@ from pyreduce import datasets
 
 
 # define parameters
-instrument = "HARPS"
-target = "HD109200"
-night = "2015-04-09"
-mode = "red"
+instrument = "NIRSPEC"
+target = "GJ1214"
+night = "all"
+mode = "NIRSPEC"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "norm_flat",
-    # "wavecal",
+    "bias",
+    "flat",
+    "orders",
+    "norm_flat",
+    "wavecal",
     "freq_comb",
-    # "curvature",
-    # "science",
-    # "continuum",
-    # "finalize",
+    "curvature",
+    "science",
+    "continuum",
+    "finalize",
 )
 
 # some basic settings
@@ -31,12 +31,12 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/PyReduce/"
-input_dir = "FrequencyComb/raw"
-output_dir = "FrequencyComb/reduced_{mode}"
+base_dir = "/DATA/Keck/{instrument}/GJ1214_b/"
+input_dir = "raw/sci/"
+output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_HARPS.json")
+config = os.path.join(os.path.dirname(__file__), "settings_NIRSPEC.json")
 
 pyreduce.reduce.main(
     instrument,
