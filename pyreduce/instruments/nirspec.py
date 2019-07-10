@@ -23,6 +23,25 @@ class NIRSPEC(instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
+
+        echlpos = header["ECHLPOS"]
+        disppos = header["DISPPOS"]
+
+        if echlpos == 61.57 and disppos == 36.47:
+            setting = 1
+        elif echlpos == 63.08 and disppos == 36.63:
+            setting = 2
+        elif echlpos == 64.51 and disppos == 36.78:
+            setting = 3
+        elif echlpos == 62.25 and disppos == 34.46:
+            setting = 4
+        elif echlpos == 63.87 and disppos == 34.60:
+            setting = 5
+        else:
+            ValueError
+        
+        header["e_setting"] = setting
+
         return header
 
     def sort_files(self, input_dir, target, night, mode, calibration_dir, **kwargs):
@@ -157,11 +176,20 @@ class NIRSPEC(instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         info = self.load_info()
-        specifier = int(header[info["wavecal_specifier"]])
+        if header[info["id_neon"]] == 1:
+            element = "neon"
+        elif header[info["id_argon"]] == 1:
+            element = "argon"
+        elif header[info["id_krypton"]] == 1:
+            element = "krypton"
+        elif header[info["id_xenon"]] == 1:
+            element = "xenon"
+        else:
+            raise ValueError("Wavelength calibration element not recognised")
+
+        echelle_setting = "K3"
 
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_{specifier}nm_2D.npz".format(
-            instrument="uves", mode=mode, specifier=specifier
-        )
+        fname = f"nirspec_{echelle_setting}_{element}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
