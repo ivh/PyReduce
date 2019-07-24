@@ -138,13 +138,20 @@ class ProgressPlot:
         self.mask_slit.set_ydata(mask_slit)
 
         self.im_obs.set_norm(
-            mcolors.Normalize(vmin=np.nanmin(img), vmax=np.nanmax(img))
+            mcolors.Normalize(vmin=np.nanpercentile(img, 5), vmax=np.nanpercentile(img, 95))
         )
         self.im_model.set_norm(
             mcolors.Normalize(vmin=np.nanmin(model), vmax=np.nanmax(model))
         )
-        self.ax2.set_ylim((0, np.nanmax(y_spec) * 1.1))
-        self.ax3.set_ylim((0, np.nanmax(y_slit) * 1.1))
+
+
+        limit = np.nanpercentile(y_spec, 95) * 1.1
+        if not np.isnan(limit):
+            self.ax2.set_ylim((0, limit))
+        
+        limit = np.nanpercentile(y_slit, 95) * 1.1
+        if not np.isnan(limit):
+            self.ax3.set_ylim((0, limit))
 
         self.fig.suptitle("Order %i, Columns %i - %i" % (ord_num, left, right))
         self.fig.canvas.draw()
@@ -406,6 +413,8 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
+    if tilt is None:
+        tilt = np.zeros(ncol)
     if shear is None:
         shear = np.zeros(ncol)
 
@@ -455,32 +464,19 @@ def extract_spectrum(
         swath_img = np.clip(swath_img, 0, None)
 
         # Do Slitfunction extraction
-        if tilt is None:
-            # No tilt given, use vertical extraction
-            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
-                ihalf
-            ], swath_mask = slitfunc(
-                swath_img,
-                swath_ycen,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-            )
-        else:
-            # tilt is given, use curved extraction
-            swath_tilt = tilt[ibeg:iend]
-            swath_shear = shear[ibeg:iend]
-            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
-                ihalf
-            ], swath_mask = slitfunc_curved(
-                swath_img,
-                swath_ycen,
-                swath_tilt,
-                swath_shear,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-            )
+        swath_tilt = tilt[ibeg:iend]
+        swath_shear = shear[ibeg:iend]
+        swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
+            ihalf
+        ], swath_mask = slitfunc_curved(
+            swath_img,
+            swath_ycen,
+            swath_tilt,
+            swath_shear,
+            lambda_sp=lambda_sp,
+            lambda_sf=lambda_sf,
+            osample=osample,
+        )
 
         if not np.all(np.isfinite(swath_spec[ihalf])):
             # TODO: Why does this happen?
@@ -1068,6 +1064,11 @@ def extract(
         column_range = np.tile([0, ncol], (nord, 1))
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
+    else:
+        extraction_width = np.asarray(extraction_width)
+        if extraction_width.ndim == 1:
+            extraction_width = np.tile(extraction_width, (nord, 1))
+        
 
     # Limit orders (and related properties) to orders in range
     nord = order_range[1] - order_range[0]

@@ -244,7 +244,7 @@ def expand_polynomial(ncol, poly):
         number of columns in the image
     poly : array[nord, ...]
         polynomial coefficients to expand, or already expanded data
-    
+
     Returns
     -------
     poly : array[nord, ncol]

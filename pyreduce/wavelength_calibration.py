@@ -46,8 +46,8 @@ class AlignmentPlot:
             ref_image[iord * 2, :, self.RED] = 10 * np.ma.filled(self.obs[iord], 0)
             if 0 <= iord + self.offset[0] < self.nord:
                 for line in self.lines[self.lines["order"] == iord]:
-                    first = np.clip(line["xfirst"] + self.offset[1], 0, self.ncol)
-                    last = np.clip(line["xlast"] + self.offset[1], 0, self.ncol)
+                    first = int(np.clip(line["xfirst"] + self.offset[1], 0, self.ncol))
+                    last = int(np.clip(line["xlast"] + self.offset[1], 0, self.ncol))
                     ref_image[
                         (iord + self.offset[0]) * 2 + 1, first:last, self.GREEN
                     ] = (
@@ -227,17 +227,17 @@ class WavelengthCalibration:
         img : array of shape (nord, ncol)
             New reference image
         """
-        min_order = np.min(lines["order"])
-        max_order = np.max(lines["order"])
+        min_order = int(np.min(lines["order"]))
+        max_order = int(np.max(lines["order"]))
         img = np.zeros((max_order - min_order + 1, self.ncol))
         for line in lines:
             if line["order"] < 0:
                 continue
             if line["xlast"] < 0 or line["xfirst"] > self.ncol:
                 continue
-            first = max(line["xfirst"], 0)
-            last = min(line["xlast"], self.ncol)
-            img[line["order"] - min_order, first:last] = line[
+            first = int(max(line["xfirst"], 0))
+            last = int(min(line["xlast"], self.ncol))
+            img[int(line["order"]) - min_order, first:last] = line[
                 "height"
             ] * signal.gaussian(last - first, line["width"])
         return img
@@ -383,9 +383,9 @@ class WavelengthCalibration:
             low = int(line["posm"] - line["width"] * 5)
             low = max(low, 0)
             high = int(line["posm"] + line["width"] * 5)
-            high = min(high, len(obs[line["order"]]))
+            high = min(high, len(obs[int(line["order"])]))
 
-            section = obs[line["order"], low:high]
+            section = obs[int(line["order"]), low:high]
             x = np.arange(low, high, 1)
             x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
 
@@ -660,7 +660,7 @@ class WavelengthCalibration:
             if line["order"] < 0 or line["order"] >= self.nord:
                 # Line outside order range
                 continue
-            iord = line["order"]
+            iord = int(line["order"])
             if line["wll"] < wave_img[iord][0] or line["wll"] >= wave_img[iord][-1]:
                 # Line outside pixel range
                 continue

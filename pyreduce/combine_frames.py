@@ -90,7 +90,8 @@ def calculate_probability(buffer, window, method="sum"):
         sum_of_weights = np.sum(weights, axis=0)
 
     # norm probability
-    weights = np.where(sum_of_weights > 0, weights / sum_of_weights, weights)
+    np.divide(weights, sum_of_weights, where=sum_of_weights > 0, out=weights)
+    # weights = np.where(sum_of_weights > 0, weights / sum_of_weights, weights)
     return weights
 
 
@@ -117,13 +118,17 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
         input buffer, with bad pixels fixed
     """
     # Fit signal
-    ratio = np.where(probability > 0, buffer / probability, 0.)
+    ratio = np.zeros_like(probability)
+    np.divide(buffer, probability, where=probability > 0, out=ratio)
+    # ratio = np.where(probability > 0, buffer / probability, 0.)
     amplitude = (
         np.sum(ratio, axis=0) - np.min(ratio, axis=0) - np.max(ratio, axis=0)
     ) / (buffer.shape[0] - 2)
 
     fitted_signal = np.where(probability > 0, amplitude[None, :] * probability, 0)
-    predicted_noise = np.sqrt(readnoise ** 2 + (fitted_signal / gain))
+    predicted_noise = np.zeros_like(fitted_signal)
+    tmp = readnoise ** 2 + (fitted_signal / gain)
+    np.sqrt(tmp, where=tmp >= 0, out=predicted_noise)
 
     # Identify outliers
     badpixels = buffer - fitted_signal > threshold * predicted_noise

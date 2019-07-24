@@ -22,6 +22,7 @@ import logging
 import os.path
 import sys
 import time
+import glob
 from os.path import join
 
 import joblib
@@ -174,8 +175,13 @@ def main(
                                 k,
                                 config,
                                 order_range=order_range,
+                                skip_existing=config.get("__skip_existing__", False),
                             )
-                            reducer.run_steps(steps=steps)
+                            try:
+                                reducer.run_steps(steps=steps)
+                            except Exception as e:
+                                logging.error("Reduction failed with error message: %s", str(e))
+                                logging.info("------------")
 
 
 class Step:
@@ -295,7 +301,7 @@ class Mask(Step):
     def mask_file(self):
         """str: Name of the mask data file"""
         i = self.instrument.lower()
-        m = self.mode
+        m = self.mode.lower()
         return f"mask_{i}_{m}.fits.gz"
 
     def run(self):
@@ -357,7 +363,7 @@ class Bias(Step):
             data=bias,
             header=bhead,
             overwrite=True,
-            output_verify="fix+warn",
+            output_verify="silentfix+ignore",
         )
 
     def run(self, files, mask):
@@ -442,7 +448,7 @@ class Flat(Step):
             data=flat,
             header=fhead,
             overwrite=True,
-            output_verify="fix+warn",
+            output_verify="silentfix+ignore",
         )
 
     def run(self, files, bias, mask):
@@ -779,6 +785,8 @@ class WavelengthCalibration(Step):
         """
         orders, column_range = orders
 
+        if len(files) == 0:
+            raise ValueError("No files found for wavelength calibration.")
         f = files[0]
         if len(files) > 1:
             # TODO: Give the user the option to select one?
@@ -933,6 +941,12 @@ class LaserFrequencyComb(Step):
         wave, thar, coef, linelist = wavecal
         orders, column_range = orders
 
+        if len(files) == 0:
+            logging.warning(
+                "No files for Laser Frequency Comb found, using regular wavelength calibration instead"
+            )
+            return wave, thar
+
         f = files[0]
         orig, chead = util.load_fits(
             f, self.instrument, self.mode, self.extension, mask=mask
@@ -1003,8 +1017,8 @@ class LaserFrequencyComb(Step):
             logging.warning(
                 "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
             )
-            wave, thar, coef, linelist, orig = wavecal
-            data = {"wave": wave, "comb": thar, "orig": orig}
+            wave, thar, coef, linelist = wavecal
+            data = {"wave": wave, "comb": thar}
         wave = data["wave"]
         comb = data["comb"]
         return wave, comb
@@ -1126,13 +1140,12 @@ class SlitCurvatureDetermination(Step):
         shear = data["shear"]
         return tilt, shear
 
-
 class ScienceExtraction(Step):
     """Extract the science spectra"""
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
-        self._loadDependsOn += []
+        self._loadDependsOn += ["files"]
 
         #:{'arc', 'optimal'}: Extraction method
         self.extraction_method = config["extraction_method"]
@@ -1147,6 +1160,8 @@ class ScienceExtraction(Step):
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
             }
+            self.tilt = config.get("tilt", None)
+
         else:
             raise ValueError(
                 f"Extraction method {self.extraction_method} not supported for step 'science'"
@@ -1200,6 +1215,9 @@ class ScienceExtraction(Step):
         norm, blaze = norm_flat
         orders, column_range = orders
         tilt, shear = curvature
+
+        if self.tilt is not None and tilt is None:
+            tilt = self.tilt
 
         heads, specs, sigmas, columns = [], [], [], []
         for fname in files:
@@ -1259,7 +1277,7 @@ class ScienceExtraction(Step):
         nameout = self.science_file(fname)
         echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
 
-    def load(self):
+    def load(self, files):
         """Load all science spectra from disk
 
         Returns
@@ -1273,11 +1291,12 @@ class ScienceExtraction(Step):
         columns : list(array of shape (nord, 2))
             column ranges for each spectra
         """
-        files = [s for s in os.listdir(self.output_dir) if s.endswith(".science.ech")]
+        files = files["science"]
+        files = [self.science_file(fname) for fname in files]
 
         heads, specs, sigmas, columns = [], [], [], []
         for fname in files:
-            fname = join(self.output_dir, fname)
+            # fname = join(self.output_dir, fname)
             science = echelle.read(
                 fname,
                 continuum_normalization=False,
@@ -1297,6 +1316,7 @@ class ContinuumNormalization(Step):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["science", "freq_comb", "norm_flat"]
+        self._loadDependsOn += ["norm_flat", "science"]
 
     @property
     def savefile(self):
@@ -1373,7 +1393,7 @@ class ContinuumNormalization(Step):
         }
         joblib.dump(value, self.savefile)
 
-    def load(self):
+    def load(self, norm_flat, science):
         """Load the results from the continuum normalization
 
         Returns
@@ -1389,7 +1409,15 @@ class ContinuumNormalization(Step):
         columns : list(array of shape (nord, 2))
             column ranges for each spectra
         """
-        data = joblib.load(self.savefile)
+        try:
+            data = joblib.load(self.savefile)
+        except FileNotFoundError:
+            # Use science files instead
+            logging.warning("No continuum normalized data found. Using unnormalized results instead.")
+            heads, specs, sigmas, columns = science
+            norm, blaze = norm_flat
+            conts = [blaze for _ in specs]
+            data = dict(heads=heads, specs=specs, sigmas=sigmas, conts=conts, columns=columns)
         heads = data["heads"]
         specs = data["specs"]
         sigmas = data["sigmas"]
@@ -1404,9 +1432,11 @@ class Finalize(Step):
         super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb"]
 
-    def output_file(self, number):
+        self.filename = config["filename"]
+
+    def output_file(self, number, name):
         """str: output file name"""
-        out = f"{self.instrument.upper()}.{self.night}_{number}.ech"
+        out = self.filename.format(instrument=self.instrument, night=self.night, mode=self.mode, number=number, input=name)
         return os.path.join(self.output_dir, out)
 
     def run(self, continuum, freq_comb):
@@ -1427,8 +1457,8 @@ class Finalize(Step):
         wave, comb = freq_comb
 
         # Combine science with wavecal and continuum
-        for i, (head, spec, sigma, blaze) in enumerate(
-            zip(heads, specs, sigmas, conts)
+        for i, (head, spec, sigma, blaze, column) in enumerate(
+            zip(heads, specs, sigmas, conts, columns)
         ):
             head["e_erscle"] = ("absolute", "error scale")
 
@@ -1453,7 +1483,7 @@ class Finalize(Step):
                     plt.plot(wave[j], spec[j] / blaze[j])
                 plt.show()
 
-            fname = self.save(i, head, spec, sigma, blaze, wave, columns[i])
+            fname = self.save(i, head, spec, sigma, blaze, wave, column)
             logging.info("science file: %s", os.path.basename(fname))
 
     def save(self, i, head, spec, sigma, cont, wave, columns):
@@ -1481,7 +1511,8 @@ class Finalize(Step):
         out_file : str
             name of the output file
         """
-        out_file = self.output_file(i)
+        original_name = os.path.splitext(head["e_input"])[0]
+        out_file = self.output_file(i, original_name)
         echelle.save(
             out_file, head, spec=spec, sig=sigma, cont=cont, wave=wave, columns=columns
         )
@@ -1527,6 +1558,7 @@ class Reducer:
         night,
         config,
         order_range=None,
+        skip_existing=False,
     ):
         """Reduce all observations from a single night and instrument mode
 
@@ -1548,6 +1580,8 @@ class Reducer:
             numeric reduction specific settings, like pixel threshold, which may change between runs
         info : dict
             fixed instrument specific values, usually header keywords for gain, readnoise, etc.
+        skip_existing : bool
+            Whether to skip reductions with existing output
         """
         #:dict(str:str): Filenames sorted by usecase
         self.files = files
@@ -1562,7 +1596,7 @@ class Reducer:
             extension = extension[imode]
 
 
-        self.data = {}
+        self.data = {"files": files}
         self.inputs = (
             instrument,
             mode,
@@ -1573,6 +1607,7 @@ class Reducer:
             order_range,
         )
         self.config = config
+        self.skip_existing = skip_existing
 
     def run_module(self, step, load=False):
         # The Module this step is based on (An object of the Step class)
@@ -1628,8 +1663,21 @@ class Reducer:
 
         if steps == "all":
             steps = list(self.step_order.keys())
-
         steps = list(steps)
+
+        if self.skip_existing and "finalize" in steps:
+            module = self.modules["finalize"](*self.inputs, **self.config.get("finalize", {}))
+            exists = [False] * len(self.files["science"])
+            for i, f in enumerate(self.files["science"]):
+                fname_in = os.path.basename(f)
+                fname_in = os.path.splitext(fname_in)[0]
+                fname_out = module.output_file("?", fname_in)
+                exists[i] = len(glob.glob(fname_out)) != 0
+            if all(exists):
+                logging.info("All science files already exist, skipping this set")
+                logging.debug("--------------------------------")
+                return
+
         steps.sort(key=lambda x: self.step_order[x])
 
         for step in steps:

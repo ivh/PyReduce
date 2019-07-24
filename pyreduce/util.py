@@ -209,6 +209,7 @@ def load_fits(
     header = hdu[extension].header
     header.extend(hdu[0].header, strip=False)
     header = modeinfo(header, instrument, mode)
+    header["e_input"] = (os.path.basename(fname), "Original input filename")
 
     if header_only:
         hdu.close()

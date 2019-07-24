@@ -119,6 +119,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
             u1[i1] = c1[i1] * utmp ** -0.5
         else:  # Orders dont overlap
+            continue
             raise NotImplementedError("Orders don't overlap, please test")
             c0 *= util.top(s0 / c0, 1, poly=True)
             scale0 = util.top(s0 / c0, 1, poly=True)

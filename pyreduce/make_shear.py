@@ -269,27 +269,31 @@ class Curvature:
         tilt = np.ma.masked_array(tilt, mask=mask)
         shear = np.ma.masked_array(shear, mask=mask)
 
-        # Fit a 2nd order polynomial through all individual lines
-        # And discard obvious outliers
-        iteration = 0
-        while iteration < self.max_iter:
-            iteration += 1
-            coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
-            coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
+        if len(peaks) <= self.fit_degree:
+            coef_tilt = np.ma.polyfit(peaks, tilt, len(peaks) - 1)
+            coef_shear = np.ma.polyfit(peaks, shear, len(peaks) - 1)
+        else:
+            # Fit a 2nd order polynomial through all individual lines
+            # And discard obvious outliers
+            iteration = 0
+            while iteration < self.max_iter:
+                iteration += 1
+                coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
+                coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
 
-            diff = np.polyval(coef_tilt, peaks) - tilt
-            idx1 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
-            mask |= idx1
+                diff = np.polyval(coef_tilt, peaks) - tilt
+                idx1 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
+                mask |= idx1
 
-            diff = np.polyval(coef_shear, peaks) - shear
-            idx2 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
-            mask |= idx2
+                diff = np.polyval(coef_shear, peaks) - shear
+                idx2 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
+                mask |= idx2
 
-            # if no maximum iteration is given, go on forever
-            if np.ma.all(~idx1) and np.ma.all(~idx2):
-                break
-            if np.all(mask):
-                raise ValueError("Could not fit polynomial to the data")
+                # if no maximum iteration is given, go on forever
+                if np.ma.all(~idx1) and np.ma.all(~idx2):
+                    break
+                if np.all(mask):
+                    raise ValueError("Could not fit polynomial to the data")
 
         coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
         coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
@@ -379,11 +383,11 @@ class Curvature:
     def plot_results(
         self, ncol, plot_peaks, plot_vec, plot_tilt, plot_shear, tilt_x, shear_x
     ):
-        fig, axes = plt.subplots(nrows=self.n // 2, ncols=2, squeeze=False)
+        fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
-        fig1, axes1 = plt.subplots(nrows=self.n // 2, ncols=2, squeeze=False)
+        fig1, axes1 = plt.subplots(nrows=self.n // 2+ self.n % 2, ncols=2, squeeze=False)
         fig1.suptitle("1st Order Curvature")
-        fig2, axes2 = plt.subplots(nrows=self.n // 2, ncols=2, squeeze=False)
+        fig2, axes2 = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
         fig2.suptitle("2nd Order Curvature")
         plt.subplots_adjust(hspace=0)
 

@@ -199,7 +199,7 @@ def estimate_background_scatter(
     # y = np.concatenate(y_inbetween)
     # z = np.concatenate(z_inbetween)
 
-    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
+    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=False)
     logging.debug("Background scatter coefficients: %s", str(coeff))
 
     if plot:
