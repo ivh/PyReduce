@@ -96,12 +96,12 @@
                             "minimum": 0,
                             "maximum": 1
                         },
-                        "split_sigma":{
+                        "split_sigma": {
                             "description": "Number of standard deviations around the best fit polyonomial of all orders, to split data points of of. Set to 0 to disable splitting.",
-                            "type":"number",
+                            "type": "number",
                             "minimum": 0
-                        }
-,                        "filter_size": {
+                        },
+                        "filter_size": {
                             "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
                             "type": [
                                 "integer",
@@ -184,7 +184,7 @@
                             "type": "number",
                             "exclusiveMinimum": 0
                         },
-                        "border_width":{
+                        "border_width": {
                             "description": "Border Width to ignore for background fit.",
                             "type": ["number", "null"],
                             "minimum": 0
@@ -339,7 +339,16 @@
             "$ref": "#/definitions/step"
         },
         "finalize": {
-            "$ref": "#/definitions/step"
+            "allOf": [{
+                "$ref": "#/definitions/step"
+            }, {
+                "properties": {
+                    "filename": {
+                        "description": "Name of the output file. Can include placeholders for instrument, mode, night and observation this night",
+                        "type": "string"
+                    }
+                }
+            }]
         }
     },
     "required": [

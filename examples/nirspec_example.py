@@ -14,15 +14,15 @@ target = "GJ1214"
 night = "all"
 mode = "NIRSPEC"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "norm_flat",
+    "bias",
+    "flat",
+    "orders",
+    "norm_flat",
     "wavecal",
     "freq_comb",
-    "curvature",
+    # "curvature",
     "science",
-    "continuum",
+    # "continuum",
     "finalize",
 )
 

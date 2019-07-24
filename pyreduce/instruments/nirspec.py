@@ -11,6 +11,7 @@ from datetime import datetime
 from tqdm import tqdm
 import numpy as np
 from astropy.io import fits
+from astropy.coordinates import EarthLocation
 from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
@@ -18,30 +19,42 @@ from .common import getter, instrument, observation_date_to_night
 
 class NIRSPEC(instrument):
 
+    @staticmethod
+    def get_mode(header):
+        # TODO figure out the parameters to use for this
+        try:
+            fil1pos = header["FIL1POS"]
+            fil2pos = header["FIL2POS"]
+            filter = header["FILNAME"]
+        except KeyError:
+            return ""
+
+        # TODO get other settings
+        if filter == "NIRSPEC-1":
+            raise ValueError
+        elif filter == "NIRSPEC-2":
+            raise ValueError
+        elif filter == "NIRSPEC-4":
+            raise ValueError
+        elif filter == "NIRSPEC-5":
+            raise ValueError
+        elif filter == "NIRSPEC-7":
+            if fil1pos == 11 and fil2pos == 18:
+                setting = "K2"
+            else:
+                raise ValueError
+        else:
+            raise ValueError
+
+        return setting
+
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
-
-        echlpos = header["ECHLPOS"]
-        disppos = header["DISPPOS"]
-
-        if echlpos == 61.57 and disppos == 36.47:
-            setting = 1
-        elif echlpos == 63.08 and disppos == 36.63:
-            setting = 2
-        elif echlpos == 64.51 and disppos == 36.78:
-            setting = 3
-        elif echlpos == 62.25 and disppos == 34.46:
-            setting = 4
-        elif echlpos == 63.87 and disppos == 34.60:
-            setting = 5
-        else:
-            ValueError
-        
-        header["e_setting"] = setting
-
+        # header["e_setting"] = NIRSPEC.get_mode(header)
+        header["EXPTIME"] = header["ITIME"] * header["COADDS"]
         return header
 
     def sort_files(self, input_dir, target, night, mode, calibration_dir, **kwargs):
@@ -130,15 +143,12 @@ class NIRSPEC(instrument):
                 & (ob == target)
                 )
 
-            files_this_observation = {}
-            for f in tqdm(files[selection]):
+            for file in files[selection]:
 
                 # Read caliblist
-                caliblist = f[:-8] + ".caliblist"
+                caliblist = file[:-8] + ".caliblist"
                 caliblist = np.genfromtxt(caliblist, skip_header=8, dtype=str, delimiter=" ", usecols=(0))
                 caliblist = np.array([os.path.join(input_dir, calibration_dir, c) + ".gz" for c in caliblist])
-
-                # Cache calibration file types
 
                 tp = np.zeros(len(caliblist), dtype="U20")
                 for i, c in enumerate(caliblist):
@@ -152,19 +162,17 @@ class NIRSPEC(instrument):
                             tp[i] = "wavecal"
                         elif h[info["id_etalon"]] == 1:
                             tp[i] = "freq_comb"
-                        elif h["OBJECT"] != "test":
-                            tp[i] = "bias"
                         else:
-                            tp[i] = "-"
+                            tp[i] = "bias"
                         cache[c] = tp[i]
-
+                files_this_observation = {}
                 files_this_observation["NIRSPEC"] = {
                     "bias": caliblist[tp == "bias"],
                     "flat": caliblist[tp == "flat"],
                     "orders": caliblist[tp == "flat"],
                     "wavecal": caliblist[tp == "wavecal"],
                     "freq_comb": caliblist[tp == "freq_comb"],
-                    "science": [f]
+                    "science": [file,]
                 }
                 files_this_observation["NIRSPEC"]["curvature"] = files_this_observation["NIRSPEC"]["freq_comb"] if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0 else files_this_observation["NIRSPEC"]["wavecal"]
 
@@ -187,9 +195,9 @@ class NIRSPEC(instrument):
         else:
             raise ValueError("Wavelength calibration element not recognised")
 
-        echelle_setting = "K3"
+        echelle_setting = "K2"
 
         cwd = os.path.dirname(__file__)
-        fname = f"nirspec_{echelle_setting}_{element}.npz"
+        fname = f"nirspec_{echelle_setting}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
