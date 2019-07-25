@@ -3,8 +3,8 @@
     "instrument": {},
     "orders": {
         "degree": 4,
-        "filter_size": 72,
-        "min_cluster": 100,
+        "filter_size": 1,
+        "min_cluster": 0,
         "noise": 0,
         "border_width": 0,
         "auto_merge_threshold": 0,
@@ -14,7 +14,7 @@
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 30,
+        "extraction_width": 15,
         "oversampling": 12,
         "swath_width": 100,
         "threshold": 1000
@@ -42,7 +42,7 @@
     },
     "science": {
         "oversampling": 5,
-        "extraction_width": 30,
+        "extraction_width": 25,
         "swath_width": 100,
         "smooth_slitfunction": 1,
         "smooth_spectrum": 0,

@@ -14,10 +14,10 @@ target = ""
 night = "????-??-??"
 mode = "LRS_SLITLESS"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "norm_flat",
+    "bias",
+    "flat",
+    "orders",
+    "norm_flat",
     # "wavecal",
     # "curvature",
     "science",

@@ -16,33 +16,9 @@ class SelectorWindow:
         self.connect()
 
     def first_guess(self):
-        self.mask[self.data > np.percentile(self.data, 99.)] = True
-        self.mask[self.data < np.percentile(self.data, 1.)] = True
-
-        self.mask[1::4, :512] = True
-        
-
-        # struct = np.full((1, 3), 1)
-        # self.mask = morphology.binary_opening(self.mask, struct, border_value=0)
-
-        struct = np.full((1, 3), 1)
-        self.mask = morphology.binary_closing(self.mask, struct, border_value=1)
-
-        # struct = np.full((1, 5), 1)
-        # self.mask = morphology.binary_opening(self.mask, struct, border_value=0)
-
-        # struct = np.full((1, 100), 1)
-        # self.mask = morphology.binary_closing(self.mask, struct, border_value=1)
-
-        # # struct = np.full((1, 3), 1)
-        # # self.mask = morphology.binary_opening(self.mask, struct, border_value=0)
-
-        # # struct = np.full((1, 300), 1)
-        # # self.mask = morphology.binary_closing(self.mask, struct, border_value=1)
-
-
-
-
+        # self.mask[self.data > np.percentile(self.data, 99.)] = True
+        # self.mask[self.data < np.percentile(self.data, 1.)] = True
+        pass
 
     def plot(self):
         if len(self.ax.images) != 0:
@@ -53,7 +29,8 @@ class SelectorWindow:
             xlim = 0, self.data.shape[1]
         self.ax.clear()
         tmp = np.ma.masked_array(self.data, mask=self.mask)
-        self.ax.imshow(tmp, origin="lower", vmin=self.data.min(), vmax=self.data.max())
+        low, hig = np.nanpercentile(self.data, (5, 95))
+        self.ax.imshow(tmp, origin="lower", vmin=low, vmax=hig)
         self.ax.set_xlim(xlim)
         self.ax.set_ylim(ylim)
         self.fig.canvas.draw()
@@ -88,14 +65,14 @@ if __name__ == "__main__":
     # base_dir = os.path.expanduser(f"/DATA/Keck/{instrument}/GJ1214_b/")
     # fname = os.path.join(base_dir, "raw", "cal", "NS.20100805.07223.fits.gz")
     
-    fname = ["/DATA/Keck/NIRSPEC/GJ1214_b/raw/cal/NS.20100816.08690.fits.gz",
-             "/DATA/Keck/NIRSPEC/GJ1214_b/raw/cal/NS.20100816.08704.fits.gz",
-             "/DATA/Keck/NIRSPEC/GJ1214_b/raw/cal/NS.20100816.08718.fits.gz"]
+    fname = ["/DATA/JWST/MIRI/MIRIsim/raw/det_image_seq1_MIRIMAGE_P750Lexp1.fits"]
     fname_out = f"mask_{instrument.lower()}_{mode.lower()}.fits.gz"
     extension = 0
 
     data = [load(f) for f in fname]
     data = np.sum(data, axis=0)
+    while data.ndim > 2:
+        data = np.sum(data, axis=0)
 
     header = fits.getheader(fname[0])
 
