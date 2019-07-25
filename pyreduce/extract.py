@@ -183,7 +183,10 @@ class ProgressPlot:
         x = np.indices(img.shape)[0].ravel()
         if np.any(spec == 0):
             i = np.arange(len(spec))
-            spec = interp1d(i[spec != 0], spec[spec != 0], fill_value="extrapolate")(i)
+            try:
+                spec = interp1d(i[spec != 0], spec[spec != 0], fill_value="extrapolate")(i)
+            except ValueError:
+                spec[spec == 0] = np.mean(spec)
         y = img / spec[None, :]
         y = y.ravel() * np.mean(slitf) / np.mean(y)
         return x, y

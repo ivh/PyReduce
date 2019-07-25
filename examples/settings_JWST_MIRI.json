@@ -1,22 +1,22 @@
 {
-    "__instrument__": "JWST_NIRISS",
+    "__instrument__": "JWST_MIRI",
     "instrument": {},
     "orders": {
         "degree": 4,
-        "filter_size": 30,
+        "filter_size": 72,
         "min_cluster": 100,
-        "noise": 2,
+        "noise": 0,
         "border_width": 0,
-        "auto_merge_threshold": 1,
-        "merge_min_threshold": 1,
+        "auto_merge_threshold": 0,
+        "merge_min_threshold": 0,
         "manual": false
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 15,
+        "extraction_width": 30,
         "oversampling": 12,
-        "swath_width": 200,
+        "swath_width": 100,
         "threshold": 1000
     },
     "wavecal": {
@@ -42,10 +42,10 @@
     },
     "science": {
         "oversampling": 5,
-        "extraction_width": 15,
-        "swath_width": 300,
-        "smooth_slitfunction": 0.1,
+        "extraction_width": 30,
+        "swath_width": 100,
+        "smooth_slitfunction": 1,
         "smooth_spectrum": 0,
-        "plot": false
+        "plot": true
     }
 }

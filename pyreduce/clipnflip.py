@@ -36,12 +36,6 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     NotImplementedError
         nonlinear images are not supported yet
     """
-    """
-    History:
-    --------
-    2000-Aug-25 Valenti  Adapted from getimage.pro.
-    2018-Jul-10 Wehrhahn Ported to Python
-    """
 
     # This part depends on how many amplifiers were used for the readout
     n_amp = header.get("e_ampl", 1)
@@ -115,17 +109,22 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
         ylo, yhi = yrange if yrange is not None else (header["e_ylo"], header["e_yhi"])
 
         # Make sure trim region is a subset of actual image.
-        sz = image.shape
+        sz = image.shape[-2:]
         if not (0 <= xlo < xhi <= sz[1] and 0 <= ylo < yhi <= sz[0]):
             raise IndexError(
                 "Image Clipping Indices are not within the image (or in inverse order)"
             )
 
         # Trim image to leave only the subimage containing valid image data.
-        timage = image[ylo:yhi, xlo:xhi]  # trimmed image
+        timage = image[..., ylo:yhi, xlo:xhi]  # trimmed image
 
     # Flip image (if necessary) to achieve standard image orientation.
     orientation = orientation if orientation is not None else header.get("e_orient")
     if orientation is not None:
-        timage = np.rot90(timage, -1 * orientation)
+        timage = np.rot90(timage, -1 * orientation, axes=(-2, -1))
+
+    # TODO just sum up groups and stuff?
+    while timage.ndim > 2:
+        timage = np.sum(timage, axis=0)
+
     return timage

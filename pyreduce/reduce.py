@@ -177,11 +177,11 @@ def main(
                                 order_range=order_range,
                                 skip_existing=config.get("__skip_existing__", False),
                             )
-                            try:
-                                reducer.run_steps(steps=steps)
-                            except Exception as e:
-                                logging.error("Reduction failed with error message: %s", str(e))
-                                logging.info("------------")
+                            # try:
+                            reducer.run_steps(steps=steps)
+                            # except Exception as e:
+                                # logging.error("Reduction failed with error message: %s", str(e))
+                                # logging.info("------------")
 
 
 class Step:
