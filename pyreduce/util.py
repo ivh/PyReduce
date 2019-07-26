@@ -17,6 +17,8 @@ import scipy.interpolate
 from scipy.linalg import solve, solve_banded, lstsq
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
+from scipy.special import binom
+
 
 try:
     import git
@@ -600,8 +602,89 @@ def polyfit1d(x, y, degree=1, regularization=0):
     return coeff
 
 
+def _get_coeff_idx(coeff):
+    idx = np.indices(coeff.shape)
+    idx = idx.T.swapaxes(0, 1).reshape((-1, 2))
+    # degree = coeff.shape
+    # idx = [[i, j] for i, j in product(range(degree[0]), range(degree[1]))]
+    # idx = np.asarray(idx)
+    return idx
+
+
+def _scale(x, y):
+    # Normalize x and y to avoid huge numbers
+    # Mean 0, Variation 1
+    offset_x, offset_y = np.mean(x), np.mean(y)
+    norm_x, norm_y = np.std(x), np.std(y)
+    x = (x - offset_x) / norm_x
+    y = (y - offset_y) / norm_y
+    return x, y, (norm_x, norm_y), (offset_x, offset_y)
+
+
+def _unscale(x, y, norm, offset):
+    x = x * norm[0] + offset[0]
+    y = y * norm[1] + offset[1]
+    return x, y
+
+
+def polyvander2d(x, y, degree):
+    # A = np.array([x ** i * y ** j for i, j in idx], dtype=float).T
+    A = np.polynomial.polynomial.polyvander2d(x, y, degree)
+    return A
+
+
+def polyscale2d(coeff, scale_x, scale_y, copy=True):
+    if copy:
+        coeff = np.copy(coeff)
+    idx = _get_coeff_idx(coeff)
+    for k, (i, j) in enumerate(idx):
+        coeff[i, j] /= scale_x ** i * scale_y ** j
+    return coeff
+
+
+def polyshift2d(coeff, offset_x, offset_y, copy=True):
+    if copy:
+        coeff = np.copy(coeff)
+    idx = _get_coeff_idx(coeff)
+    # Copy coeff because it changes during the loop
+    coeff2 = np.copy(coeff)
+    for k, m in idx:
+        not_the_same = ~((idx[:, 0] == k) & (idx[:, 1] == m))
+        above = (idx[:, 0] >= k) & (idx[:, 1] >= m) & not_the_same
+        for i, j in idx[above]:
+            b = binom(i, k) * binom(j, m)
+            sign = (-1) ** ((i - k) + (j - m))
+            offset = offset_x ** (i - k) * offset_y ** (j - m)
+            coeff[k, m] += sign * b * coeff2[i, j] * offset
+    return coeff
+
+
+def plot2d(x, y, z, coeff):
+    # regular grid covering the domain of the data
+    if x.size > 500:
+        choice = np.random.choice(x.size, size=500, replace=False)
+    else:
+        choice = slice(None, None, None)
+    x, y, z = x[choice], y[choice], z[choice]
+    X, Y = np.meshgrid(
+        np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
+    )
+    Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
+    fig = plt.figure()
+    ax = fig.gca(projection="3d")
+    ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
+    ax.scatter(x, y, z, c="r", s=50)
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    ax.set_zlabel("Z")
+    # ax.axis("equal")
+    # ax.axis("tight")
+    plt.show()
+
+
 def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     """A simple 2D plynomial fit to data x, y, z
+    The polynomial can be evaluated with numpy.polynomial.polynomial.polyval2d
 
     Parameters
     ----------
@@ -613,6 +696,11 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
         data values
     degree : int, optional
         degree of the polynomial fit (default: 1)
+    max_degree : {int, None}, optional
+        if given the maximum combined degree of the coefficients is limited to this value
+    scale : bool, optional
+        Wether to scale the input arrays x and y to mean 0 and variance 1, to avoid numerical overflows.
+        Especially useful at higher degrees. (default: True)
     plot : bool, optional
         wether to plot the fitted surface and data (slow) (default: False)
 
@@ -621,74 +709,54 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     coeff : array[degree+1, degree+1]
         the polynomial coefficients in numpy 2d format, i.e. coeff[i, j] for x**i * y**j
     """
+    # Flatten input
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    z = np.asarray(z).ravel()
+
+    # Removed masked values
+    mask = ~(np.ma.getmask(z) | np.ma.getmask(x) | np.ma.getmask(y))
+    x, y, z = x[mask].ravel(), y[mask].ravel(), z[mask].ravel()
+
+    if scale:
+        x, y, norm, offset = _scale(x, y)
 
     # Create combinations of degree of x and y
     # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
     if np.isscalar(degree):
-        degree = int(degree)
-        idx = [[i, j] for i, j in product(range(degree + 1), repeat=2)]
-        coeff = np.zeros((degree + 1, degree + 1))
-    else:
-        degree = [int(degree[0]), int(degree[1])]
-        idx = [[i, j] for i, j in product(range(degree[0] + 1), range(degree[1] + 1))]
-        coeff = np.zeros((degree[0] + 1, degree[1] + 1))
-        degree = max(degree)
-
-    # We only want the combinations with maximum order COMBINED power
-    idx = np.array(idx)
-    if max_degree is not None:
-        idx = idx[idx[:, 0] + idx[:, 1] <= max_degree]
-
-    if scale:
-        # Normalize x and y to avoid huge numbers
-        norm_x = np.max(x).astype(float)
-        norm_y = np.max(y).astype(float)
-        x = x / norm_x
-        y = y / norm_y
-    else:
-        norm_x = norm_y = 1
+        degree = (int(degree), int(degree))
+    degree = [int(degree[0]), int(degree[1])]
+    # idx = [[i, j] for i, j in product(range(degree[0] + 1), range(degree[1] + 1))]
+    coeff = np.zeros((degree[0] + 1, degree[1] + 1))
+    idx = _get_coeff_idx(coeff)
 
     # Calculate elements 1, x, y, x*y, x**2, y**2, ...
-    A = np.array([np.power(x, i) * np.power(y, j) for i, j in idx], dtype=float).T
-    b = z.ravel()
+    A = polyvander2d(x, y, degree)
 
-    if np.ma.is_masked(z):
-        mask = z.mask
-        b = z.compressed()
-        A = A[~mask, :]
+    # We only want the combinations with maximum order COMBINED power
+    if max_degree is not None:
+        mask = idx[:, 0] + idx[:, 1] <= int(max_degree)
+        idx = idx[mask]
+        A = A[:, mask]
 
     # Do least squares fit
-    C, *_ = lstsq(A, b)
-    # C, *_ = np.linalg.lstsq(A, b, rcond=-1)
+    C, *_ = lstsq(A, z)
 
     # Reorder coefficients into numpy compatible 2d array
     for k, (i, j) in enumerate(idx):
-        coeff[i, j] = C[k] / (norm_x ** i * norm_y ** j)
+        coeff[i, j] = C[k]
+
+    # # Backup copy of coeff
+    if scale:
+        coeff = polyscale2d(coeff, *norm, copy=False)
+        coeff = polyshift2d(coeff, *offset, copy=False)
 
     if plot:
-        # regular grid covering the domain of the data
-        if x.size > 500:
-            choice = np.random.choice(x.size, size=500, replace=False)
-        else:
-            choice = slice(None, None, None)
-        x, y, z = x[choice], y[choice], z[choice]
-        x, y = x * norm_x, y * norm_y
-        X, Y = np.meshgrid(
-            np.linspace(np.min(x), np.max(x), 20), np.linspace(np.min(y), np.max(y), 20)
-        )
-        Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
-        fig = plt.figure()
-        ax = fig.gca(projection="3d")
-        ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
-        ax.scatter(x, y, z, c="r", s=50)
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        ax.set_zlabel("Z")
-        ax.axis("equal")
-        ax.axis("tight")
-        plt.show()
-    return coeff
+        if scale:
+            x, y = _unscale(x, y, norm, offset)
+        plot2d(x, y, z, coeff)
 
+    return coeff
 
 def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
 

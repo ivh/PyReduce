@@ -147,59 +147,7 @@ def estimate_background_scatter(
     mask = z <= np.median(z) + sigma_cutoff * z.std()
     y, x, z = y[mask], x[mask], z[mask]
 
-    # Method 2: Select only points known to be inbetween orders
-    # # determine points inbetween orders
-    # x_inbetween = [None for _ in range(nord + 1)]
-    # y_inbetween = [None for _ in range(nord + 1)]
-    # z_inbetween = [None for _ in range(nord + 1)]
-
-    # for i, j in zip(range(nord + 1), range(1, nord + 2)):
-    #     left = max(column_range[[i, j], 0])
-    #     right = min(column_range[[i, j], 1])
-
-    #     x_order = np.arange(left, right)
-    #     y_below = np.polyval(orders[i], x_order)
-    #     y_above = np.polyval(orders[j], x_order)
-
-    #     y_below += extraction_width[i, 1]
-    #     y_above -= extraction_width[j, 0]
-
-    #     y_above = np.floor(y_above)
-    #     y_below = np.ceil(y_below)
-
-    #     within_img = (y_below < nrow) & (y_above >= 0)
-    #     if not np.any(within_img):
-    #         x_inbetween[i] = []
-    #         y_inbetween[i] = []
-    #         z_inbetween[i] = []
-    #         continue
-    #     left, right = x_order[within_img][[0, -1]]
-    #     y_below = np.clip(y_below[within_img], 0, nrow - 1)
-    #     y_above = np.clip(y_above[within_img], 0, nrow - 1)
-
-    #     index = make_index(y_below, y_above, left, right, zero=True)
-
-    #     y = np.concatenate(index[0])
-    #     x = np.concatenate(index[1])
-    #     sub_img = img[(y, x)]
-
-    #     threshold = np.ma.median(sub_img) + 5 * np.ma.std(sub_img)
-
-    #     mask = (~np.ma.getmaskarray(sub_img)) & (sub_img <= threshold)
-    #     x_inbetween[i] = x[mask]
-    #     y_inbetween[i] = y[mask]
-    #     z_inbetween[i] = np.ma.getdata(sub_img[mask]).ravel()
-
-    #     # plt.title("Between %i and %i" % (i, j))
-    #     # plt.imshow(sub_img, aspect="auto")
-    #     # plt.show()
-
-    # # Sanitize input into desired flat shape
-    # x = np.concatenate(x_inbetween)
-    # y = np.concatenate(y_inbetween)
-    # z = np.concatenate(z_inbetween)
-
-    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=False)
+    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
     logging.debug("Background scatter coefficients: %s", str(coeff))
 
     if plot:
