@@ -73,7 +73,7 @@ def validate_config(config):
     try:
         jsonschema.validate(schema=schema, instance=config)
     except jsonschema.ValidationError as ve:
-        logging.error("Configuration failed validation check.\n%s", str(ve))
+        logging.error("Configuration failed validation check.\n%s", ve.message)
         raise ve
 
 

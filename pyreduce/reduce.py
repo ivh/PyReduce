@@ -843,7 +843,7 @@ class WavelengthCalibration(Step):
             wavelength for each point in the spectrum
         thar : array of shape (nrow, ncol)
             extracted wavelength calibration image
-        coef : array of shape (*ndegrees,)
+        coef : array of shape (ndegrees,)
             polynomial coefficients of the wavelength fit
         linelist : record array of shape (nlines,)
             Updated line information for all lines

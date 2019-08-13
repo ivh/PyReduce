@@ -13,6 +13,7 @@ Welcome to PyReduce's documentation!
    modules
    howto
    examples
+   configuration_file
 
 Indices and tables
 ==================

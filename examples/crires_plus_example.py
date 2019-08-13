@@ -31,7 +31,7 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/ESO_Archive/CRIRES+"
+base_dir = "/DATA/ESO/CRIRES+"
 input_dir = "demodata/"
 output_dir = "reduced/{mode}/"
 

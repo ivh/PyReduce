@@ -383,6 +383,7 @@
             "type": "object",
             "$comment": "There are two options for the extraction. Each has its own set of parameters that need to be present",
             "oneOf": [{
+                    "title": "Optimal Extraction",
                     "properties": {
                         "extraction_method": {
                             "description": "The method to use for extraction",
@@ -437,6 +438,7 @@
                     ]
                 },
                 {
+                    "title": "Arc Extraction",
                     "properties": {
                         "extraction_method": {
                             "description": "The method to use for extraction",

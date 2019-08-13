@@ -1,7 +1,9 @@
 How To use PyReduce
--------------------
+===================
 
-Using PyReduce is easy. Simply specify the instrument and where to find the data, and the rest should take care of itself. Of course you can also set all parameters yourself if you want more control over what is happening.
+Using PyReduce is easy. Simply specify the instrument and where to find the
+data, and the rest should take care of itself. Of course you can also set all
+parameters yourself if you want more control over what is happening.
 
 A good starting point is the examples section. But here is what you need.
 
@@ -10,10 +12,14 @@ A good starting point is the examples section. But here is what you need.
 
 Define parameters
 
->>> instrument = "UVES" # The instrument name as specified in the supported instruments, in all caps
->>> target = "HD132205" # The name of the observation target as specified in the file structure / Fits header
->>> night = "2010-04-02" # The observation night as a string, as specified in the file structure / Fits header
->>> mode = "middle" # The instrument mode/setting that is used (e.g. red, middle, or blue for UVES), depends on the instrument
+>>> # The instrument name as specified in the supported instruments
+>>> instrument = "UVES"
+>>> # The name of the observation target as specified in the file structure
+>>> target = "HD132205"
+>>> # The observation night as a string, as specified in the file structure
+>>> night = "2010-04-02"
+>>> # The instrument mode/setting that is used, depends on the instrument
+>>> mode = "middle"
 >>> # The data reduction steps to run
 >>> steps = (
     "bias",
@@ -21,6 +27,7 @@ Define parameters
     "orders",
     "norm_flat",
     "wavecal",
+    "freq_comb",
     "shear",
     "science",
     "continuum",
@@ -28,8 +35,9 @@ Define parameters
     )
 
 Some basic settings
-Expected Folder Structure: base_dir/datasets/HD132205/*.fits.gz
-Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
+Expected Folder Structure: ``base_dir/datasets/HD132205/*.fits.gz``
+Feel free to change this to your own preference, values in curly brackets
+will be replaced with the actual values {}
 
 >>> input_dir = "{target}/"
 >>> output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
@@ -50,5 +58,5 @@ Start the extraction
     input_dir=input_dir,
     output_dir=output_dir,
     configuration="settings_UVES.json",
-)
+    )
 
