@@ -40,8 +40,7 @@ from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
-from .wavelength_calibration import \
-    WavelengthCalibration as WavelengthCalibrationModule
+from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 
 # TODO Naming of functions and modules
 # TODO License
@@ -134,7 +133,9 @@ def main(
             mode = modes
 
         for t in target:
-            log_file = join(base_dir.format(instrument=i, mode=mode, target=t), "logs/%s.log" % t)
+            log_file = join(
+                base_dir.format(instrument=i, mode=mode, target=t), "logs/%s.log" % t
+            )
             util.start_logging(log_file)
 
             for n in night:
@@ -145,11 +146,7 @@ def main(
                     )
                     if len(files) == 0:
                         logging.warning(
-                            "No files found for instrument:%s, target:%s, night:%s, mode:%s",
-                            i,
-                            t,
-                            n,
-                            m,
+                            f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m}"
                         )
                     for f, k in zip(files, nights):
                         logging.info("Instrument: %s", i)
@@ -180,8 +177,8 @@ def main(
                             # try:
                             reducer.run_steps(steps=steps)
                             # except Exception as e:
-                                # logging.error("Reduction failed with error message: %s", str(e))
-                                # logging.info("------------")
+                            # logging.error("Reduction failed with error message: %s", str(e))
+                            # logging.info("------------")
 
 
 class Step:
@@ -325,11 +322,14 @@ class Mask(Step):
         mask_file = join(self.mask_dir, self.mask_file)
         try:
             mask, _ = util.load_fits(
-            mask_file, self.instrument, self.mode, extension=self.extension
+                mask_file, self.instrument, self.mode, extension=self.extension
             )
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
         except FileNotFoundError:
-            logging.error("Bad Pixel Mask datafile %s not found. Using all pixels instead.", mask_file)
+            logging.error(
+                "Bad Pixel Mask datafile %s not found. Using all pixels instead.",
+                mask_file,
+            )
             mask = False
         return mask
 
@@ -387,12 +387,12 @@ class Bias(Step):
             logging.error("No bias files found. Using bias 0 instead.")
             return 0, []
         bias, bhead = combine_bias(
-                files,
-                self.instrument,
-                self.mode,
-                mask=mask,
-                extension=self.extension,
-                plot=self.plot,
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            extension=self.extension,
+            plot=self.plot,
         )
         self.save(bias.data, bhead)
 
@@ -477,6 +477,7 @@ class Flat(Step):
             self.mode,
             mask=mask,
             extension=self.extension,
+            bhead=bhead,
             bias=bias,
             plot=self.plot,
         )
@@ -510,7 +511,7 @@ class OrderTracing(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask"]
+        self._dependsOn += ["mask", "bias"]
 
         #:int: Minimum size of each cluster to be included in further processing
         self.min_cluster = config["min_cluster"]
@@ -537,7 +538,7 @@ class OrderTracing(Step):
         """str: Name of the order tracing file"""
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
-    def run(self, files, mask):
+    def run(self, files, mask, bias):
         """Determine polynomial coefficients describing order locations
 
         Parameters
@@ -554,9 +555,12 @@ class OrderTracing(Step):
         column_range : array of shape (nord, 2)
             first and last(+1) column that carries signal in each order
         """
-        order_img, _ = util.load_fits(
+        order_img, ohead = util.load_fits(
             files[0], self.instrument, self.mode, self.extension, mask=mask
         )
+        b_exptime = bias[1]["EXPTIME"]
+        o_exptime = ohead["EXPTIME"]
+        order_img -= bias[0] * o_exptime / b_exptime
 
         orders, column_range = mark_orders(
             order_img,
@@ -564,7 +568,7 @@ class OrderTracing(Step):
             filter_size=self.filter_size,
             noise=self.noise,
             opower=self.fit_degree,
-            degree_before_merge = self.degree_before_merge,
+            degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,
             closing_shape=self.closing_shape,
             border_width=self.border_width,
@@ -589,9 +593,7 @@ class OrderTracing(Step):
         column_range : array of shape (nord, 2)
             first and last(+1) column that carry signal in each order
         """
-        np.savez(
-            self.savefile, orders=orders, column_range=column_range
-        )
+        np.savez(self.savefile, orders=orders, column_range=column_range)
 
     def load(self):
         """Load order tracing results
@@ -611,6 +613,7 @@ class OrderTracing(Step):
 
 class NormalizeFlatField(Step):
     """Calculate the 'normalized' flat field image"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["flat", "orders"]
@@ -716,6 +719,7 @@ class NormalizeFlatField(Step):
 
 class WavelengthCalibration(Step):
     """Perform wavelength calibration"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "orders"]
@@ -848,13 +852,7 @@ class WavelengthCalibration(Step):
         linelist : record array of shape (nlines,)
             Updated line information for all lines
         """
-        np.savez(
-            self.savefile,
-            wave=wave,
-            thar=thar,
-            coef=coef,
-            linelist=linelist,
-        )
+        np.savez(self.savefile, wave=wave, thar=thar, coef=coef, linelist=linelist)
 
     def load(self):
         """Load the results of the wavelength calibration
@@ -877,8 +875,10 @@ class WavelengthCalibration(Step):
         linelist = data["linelist"]
         return wave, thar, coef, linelist
 
+
 class LaserFrequencyComb(Step):
     """Improve the precision of the wavelength calibration with a laser frequency comb"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["wavecal", "orders", "mask"]
@@ -1026,6 +1026,7 @@ class LaserFrequencyComb(Step):
 
 class SlitCurvatureDetermination(Step):
     """Determine the curvature of the slit"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["orders", "mask"]
@@ -1101,7 +1102,7 @@ class SlitCurvatureDetermination(Step):
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             plot=self.plot,
-            verbose=self.verbose
+            verbose=self.verbose,
         )
         tilt, shear = module.execute(extracted, orig)
         self.save(tilt, shear)
@@ -1140,8 +1141,10 @@ class SlitCurvatureDetermination(Step):
         shear = data["shear"]
         return tilt, shear
 
+
 class ScienceExtraction(Step):
     """Extract the science spectra"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
@@ -1230,7 +1233,7 @@ class ScienceExtraction(Step):
                 dtype=np.floating,
             )
             # Correct for bias and flat field
-            im -= bias
+            im -= bias * head["exptime"] / bhead["exptime"]
             im /= norm
 
             # Optimally extract science spectrum
@@ -1313,6 +1316,7 @@ class ScienceExtraction(Step):
 
 class ContinuumNormalization(Step):
     """Determine the continuum to each observation"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["science", "freq_comb", "norm_flat"]
@@ -1413,11 +1417,15 @@ class ContinuumNormalization(Step):
             data = joblib.load(self.savefile)
         except FileNotFoundError:
             # Use science files instead
-            logging.warning("No continuum normalized data found. Using unnormalized results instead.")
+            logging.warning(
+                "No continuum normalized data found. Using unnormalized results instead."
+            )
             heads, specs, sigmas, columns = science
             norm, blaze = norm_flat
             conts = [blaze for _ in specs]
-            data = dict(heads=heads, specs=specs, sigmas=sigmas, conts=conts, columns=columns)
+            data = dict(
+                heads=heads, specs=specs, sigmas=sigmas, conts=conts, columns=columns
+            )
         heads = data["heads"]
         specs = data["specs"]
         sigmas = data["sigmas"]
@@ -1428,6 +1436,7 @@ class ContinuumNormalization(Step):
 
 class Finalize(Step):
     """Create the final output files"""
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb"]
@@ -1436,7 +1445,13 @@ class Finalize(Step):
 
     def output_file(self, number, name):
         """str: output file name"""
-        out = self.filename.format(instrument=self.instrument, night=self.night, mode=self.mode, number=number, input=name)
+        out = self.filename.format(
+            instrument=self.instrument,
+            night=self.night,
+            mode=self.mode,
+            number=number,
+            input=name,
+        )
         return os.path.join(self.output_dir, out)
 
     def run(self, continuum, freq_comb):
@@ -1463,24 +1478,29 @@ class Finalize(Step):
             head["e_erscle"] = ("absolute", "error scale")
 
             # Add heliocentric correction
-            rv_corr, bjd = util.helcorr(
-                head["e_obslon"],
-                head["e_obslat"],
-                head["e_obsalt"],
-                head["ra"],
-                head["dec"],
-                head["e_jd"],
-            )
+            try:
+                rv_corr, bjd = util.helcorr(
+                    head["e_obslon"],
+                    head["e_obslat"],
+                    head["e_obsalt"],
+                    head["ra"],
+                    head["dec"],
+                    head["e_jd"],
+                )
 
-            logging.debug("Heliocentric correction: %f km/s", rv_corr)
-            logging.debug("Heliocentric Julian Date: %s", str(bjd))
+                logging.debug("Heliocentric correction: %f km/s", rv_corr)
+                logging.debug("Heliocentric Julian Date: %s", str(bjd))
+            except KeyError:
+                logging.warning("Could not calculate heliocentric correction")
+                # logging.warning("Telescope is in space?")
+                rv_corr = 0
+                bjd = head["e_jd"]
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
 
             if self.plot:
-                for j in range(spec.shape[0]):
-                    plt.plot(wave[j], spec[j] / blaze[j])
+                plt.plot(wave.T, (spec / blaze).T)
                 plt.show()
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
@@ -1595,7 +1615,6 @@ class Reducer:
             imode = util.find_first_index(info["modes"], mode)
             extension = extension[imode]
 
-
         self.data = {"files": files}
         self.inputs = (
             instrument,
@@ -1629,7 +1648,8 @@ class Reducer:
                 data = module.load(**args)
             except FileNotFoundError:
                 logging.warning(
-                    "Intermediate File(s) for loading step %s not found. Running it instead.", step
+                    "Intermediate File(s) for loading step %s not found. Running it instead.",
+                    step,
                 )
                 data = self.run_module(step, load=False)
         else:
@@ -1666,7 +1686,9 @@ class Reducer:
         steps = list(steps)
 
         if self.skip_existing and "finalize" in steps:
-            module = self.modules["finalize"](*self.inputs, **self.config.get("finalize", {}))
+            module = self.modules["finalize"](
+                *self.inputs, **self.config.get("finalize", {})
+            )
             exists = [False] * len(self.files["science"])
             for i, f in enumerate(self.files["science"]):
                 fname_in = os.path.basename(f)

@@ -424,7 +424,7 @@ def combine_frames(
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwargs):
+def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, plot=False, **kwargs):
     """
     Combine several flat files into one master flat
 
@@ -452,8 +452,11 @@ def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwa
     """
 
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
-    # Subtract master dark. We have to scale it by the number of Flats
-    flat -= bias * len(files)  # subtract bias, if passed
+    # Subtract master dark. We have to scale it by the total exposure time
+    if bias is not None:
+        b_exptime = bhead["EXPTIME"]
+        f_exptime = fhead["EXPTIME"]
+        flat -= bias * f_exptime / b_exptime
 
     if plot:
         plt.title("Master Flat - Bias")
