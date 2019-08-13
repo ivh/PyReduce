@@ -3,9 +3,9 @@
     "instrument": {},
     "orders": {
         "degree": 4,
-        "filter_size": 30,
-        "min_cluster": 100,
-        "noise": 2,
+        "filter_size": 50,
+        "min_cluster": 500,
+        "noise": 10,
         "border_width": 0,
         "auto_merge_threshold": 1,
         "merge_min_threshold": 1,

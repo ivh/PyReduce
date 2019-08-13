@@ -33,6 +33,9 @@ class JWST_NIRISS(instrument):
         header["e_readn"] = 18.32
         header["e_dark"] = 0.0257
 
+        # total exposure time
+        header["exptime"] = header["TFRAME"] * header["NFRAMES"]
+
         return header
 
     def sort_files(self, input_dir, target, night, mode):
@@ -131,10 +134,10 @@ class JWST_NIRISS(instrument):
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
-            match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
-            match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
+            # match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
+            # match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
 
-            keys = se[match_ty & match_ob & selection]
+            keys = se[selection]
             keys = np.unique(keys)
 
             files_this_night = {}
@@ -143,16 +146,20 @@ class JWST_NIRISS(instrument):
 
                 # find all relevant files for this setting
                 # bias ignores the setting
-                files_this_night[key] = {
-                    "bias": files[(ty == info["id_bias"]) & selection],
-                    "flat": files[(ty == info["id_flat"]) & select],
-                    "orders": files[(ty == info["id_flat"]) & select],
-                    "wavecal": files[(ty == info["id_wave"]) & select],
-                    "science": files[match_ty & match_ob & select],
-                }
+                # files_this_night[key] = {
+                #     "bias": files[(ty == info["id_bias"]) & selection],
+                #     "flat": files[(ty == info["id_flat"]) & select],
+                #     "orders": files[(ty == info["id_flat"]) & select],
+                #     "wavecal": []],
+                #     "science": files[select],
+                # }
                 # TODO find actual flat files
-                files_this_night[key]["flat"] = [files_this_night[key]["science"][0]]
-                files_this_night[key]["orders"] = [files_this_night[key]["science"][0]]
+                files_this_night[key] = {}
+                files_this_night[key]["bias"] = [f for f in files if f.endswith("bias.fits")]
+                files_this_night[key]["flat"] = [f for f in files if f.endswith("flat.fits")]
+                files_this_night[key]["orders"] = [files_this_night[key]["flat"][0]]
+                files_this_night[key]["wavecal"] = []
+                files_this_night[key]["science"] = [f for f in files if not (f.endswith("flat.fits") or f.endswith("bias.fits"))]
                 
                 # DEBUG
                 # files_this_night[key]["science"] = [files_this_night[key]["science"][1]]
