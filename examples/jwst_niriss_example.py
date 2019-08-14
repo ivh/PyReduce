@@ -21,7 +21,7 @@ steps = (
     # "wavecal",
     # "curvature",
     "science",
-    # "continuum",
+    "continuum",
     "finalize",
 )
 
@@ -35,7 +35,7 @@ input_dir = "awesimsoss"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_JWST_NIRISS.json")
+config = pyreduce.util.get_configuration_for_instrument(instrument)
 
 pyreduce.reduce.main(
     instrument,

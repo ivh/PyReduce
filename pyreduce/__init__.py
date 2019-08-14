@@ -17,7 +17,7 @@ if not os.path.exists(fname):
 
     build_extract.build()
 
-from . import reduce, datasets, instruments
+from . import reduce, datasets, instruments, util, configuration
 
 
 # from . import util, reduce

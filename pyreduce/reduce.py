@@ -104,6 +104,7 @@ def main(
         "input_dir": input_dir is None,
         "output_dir": output_dir is None,
     }
+    output = []
 
     # Loop over everything
     for j, i in enumerate(instrument):
@@ -172,13 +173,15 @@ def main(
                                 k,
                                 config,
                                 order_range=order_range,
-                                skip_existing=config.get("__skip_existing__", False),
+                                skip_existing=config["__skip_existing__"],
                             )
                             # try:
-                            reducer.run_steps(steps=steps)
+                            data = reducer.run_steps(steps=steps)
+                            output.append(data)
                             # except Exception as e:
                             # logging.error("Reduction failed with error message: %s", str(e))
                             # logging.info("------------")
+    return output
 
 
 class Step:
@@ -1471,6 +1474,7 @@ class Finalize(Step):
         heads, specs, sigmas, conts, columns = continuum
         wave, comb = freq_comb
 
+        fnames = []
         # Combine science with wavecal and continuum
         for i, (head, spec, sigma, blaze, column) in enumerate(
             zip(heads, specs, sigmas, conts, columns)
@@ -1504,7 +1508,9 @@ class Finalize(Step):
                 plt.show()
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
+            fnames.append(fname)
             logging.info("science file: %s", os.path.basename(fname))
+        return fnames
 
     def save(self, i, head, spec, sigma, cont, wave, columns):
         """Save one output spectrum to disk
@@ -1690,15 +1696,19 @@ class Reducer:
                 *self.inputs, **self.config.get("finalize", {})
             )
             exists = [False] * len(self.files["science"])
+            data = {"finalize": [None] * len(self.files["science"])}
             for i, f in enumerate(self.files["science"]):
                 fname_in = os.path.basename(f)
                 fname_in = os.path.splitext(fname_in)[0]
                 fname_out = module.output_file("?", fname_in)
-                exists[i] = len(glob.glob(fname_out)) != 0
+                fname_out = glob.glob(fname_out)
+                exists[i] = len(fname_out) != 0
+                if exists[i]:
+                    data["finalize"][i] = fname_out[0]
             if all(exists):
                 logging.info("All science files already exist, skipping this set")
                 logging.debug("--------------------------------")
-                return
+                return data
 
         steps.sort(key=lambda x: self.step_order[x])
 
@@ -1706,6 +1716,7 @@ class Reducer:
             self.run_module(step)
 
         logging.debug("--------------------------------")
+        return self.data
 
 
 if __name__ == "__main__":

@@ -3,6 +3,23 @@ import logging
 import json
 import jsonschema
 
+if int(jsonschema.__version__[0]) < 3:
+    logging.warning(f"Jsonschema {jsonschema.__version__} found, but at least 3.0.0 is required to check configuration. Skipping the check.")
+    hasJsonSchema = False
+else:
+    hasJsonSchema = True
+
+def get_configuration_for_instrument(instrument, plot=True):
+    local = os.path.dirname(__file__)
+    fname = os.path.join(local, "settings", f"settings_{instrument.upper()}.json")
+
+    config = load_config(fname, instrument)
+
+    for key, value in config.items():
+        if isinstance(config[key], dict) and "plot" in config[key].keys():
+            config[key]["plot"] = plot
+
+    return config
 
 def load_config(configuration, instrument, j=0):
     if configuration is None:
@@ -64,6 +81,9 @@ def read_config(fname="settings_pyreduce.json"):
 
 
 def validate_config(config):
+    if not hasJsonSchema:
+        # Can't check with old version
+        return
     fname = "settings_schema.json"
     this_dir = os.path.dirname(__file__)
     fname = os.path.join(this_dir, "settings", fname)
