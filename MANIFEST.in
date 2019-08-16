@@ -13,3 +13,6 @@ include test/settings/*.json
 include pyreduce/masks/*.gz
 
 include pyreduce/wavecal/*npz
+
+include setup.cfginclude versioneer.py
+include pyreduce/_version.py

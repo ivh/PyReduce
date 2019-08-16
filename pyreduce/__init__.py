@@ -25,3 +25,7 @@ from . import reduce, datasets, instruments, util, configuration
 # settings = util.read_config()
 # git_remote = settings["git.remote"] if "git.remote" in settings.keys() else "origin"
 # util.checkGitRepo(remote_name=git_remote)
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions

@@ -6,6 +6,8 @@ import sys
 import os.path
 from setuptools import setup, find_packages
 
+import versioneer
+
 this = os.path.dirname(__file__)
 that = os.path.join(this, "pyreduce")
 sys.path.append(that)
@@ -29,7 +31,8 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyreduce-astro",
-    version="0.02",
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     author="Ansgar Wehrhahn",
     author_email="ansgar.wehrhahn@physics.uu.se",
     description="A data reduction package for echelle spectrographs",
