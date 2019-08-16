@@ -10,6 +10,7 @@ import json
 
 import numpy as np
 from astropy.io import fits
+from astropy.time import Time
 from dateutil import parser
 
 
@@ -176,6 +177,15 @@ class instrument:
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
         header["e_obsalt"] = get("altitude")
+
+        if "mjd-obs" not in header:
+            t = header["DATE-OBS"]
+            if len(t) <= 10 and "time-obs" in header:
+                t += "T" + header["TIME-OBS"]
+
+            t = Time(t)
+            header["mjd-obs"] = t.mjd
+
 
         return header
 

@@ -12,6 +12,8 @@ import json
 
 import numpy as np
 from astropy.io import fits
+from astropy import units as q
+from astropy.time import Time
 from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
@@ -34,9 +36,46 @@ class JWST_NIRISS(instrument):
         header["e_dark"] = 0.0257
 
         # total exposure time
-        header["exptime"] = header["TFRAME"] * header["NFRAMES"]
+        header["exptime"] = header["TFRAME"]
 
         return header
+
+    def split_observation(self, fname, mode):
+        hdu = fits.open(fname)
+        dirname = os.path.dirname(fname)
+        fname = os.path.basename(fname)
+        
+        header = hdu[0].header
+        if "mjd-obs" not in header:
+            if len(header["DATE-OBS"]) <= 10:
+                time = header["DATE-OBS"] + "T" + header["TIME-OBS"]
+            else:
+                time = header["DATE-OBS"]
+            header["MJD-OBS"] = Time(time).mjd
+
+        header2 = fits.Header()
+        header2["EXTNAME"] = "SCI"
+        shape = hdu["SCI"].data.shape
+        
+        nframes = shape[0]
+        ngroups = shape[1]
+
+        data = hdu["SCI"].data.reshape((-1, *shape[-2:]))
+        bias = data[0]
+        primary = fits.PrimaryHDU(header=header)
+        files = []
+        os.makedirs(os.path.join(dirname, "split"), exist_ok=True)
+        for i in range(1, nframes * ngroups):
+            this = data[i] - bias
+            bias = data[i]
+            fname_this = os.path.join(dirname, "split", f"pyreduce_{i}_{fname}")
+
+            header["MJD-OBS"] += header["TFRAME"] * q.s.to(q.day)
+            secondary = fits.ImageHDU(data=data, header=header2)
+            hdu_this = fits.HDUList([primary, secondary])
+            hdu_this.writeto(fname_this, overwrite=True)
+            files.append(fname_this)
+        return files
 
     def sort_files(self, input_dir, target, night, mode):
         """
@@ -155,16 +194,17 @@ class JWST_NIRISS(instrument):
                 # }
                 # TODO find actual flat files
                 files_this_night[key] = {}
-                files_this_night[key]["bias"] = [f for f in files if f.endswith("bias.fits")]
+                files_this_night[key]["bias"] = []
                 files_this_night[key]["flat"] = [f for f in files if f.endswith("flat.fits")]
                 files_this_night[key]["orders"] = [files_this_night[key]["flat"][0]]
                 files_this_night[key]["wavecal"] = []
-                files_this_night[key]["science"] = [f for f in files if not (f.endswith("flat.fits") or f.endswith("bias.fits"))]
-                
-                # DEBUG
-                # files_this_night[key]["science"] = [files_this_night[key]["science"][1]]
-
                 files_this_night[key]["curvature"] = files_this_night[key]["wavecal"]
+                files_this_night[key]["science"] = []
+
+                f_science = [f for f in files if not (f.endswith("flat.fits") or f.endswith("bias.fits"))]
+                for f in f_science:
+                    files_this_night[key]["science"] += self.split_observation(f, mode)
+
                 
 
             if len(keys) != 0:

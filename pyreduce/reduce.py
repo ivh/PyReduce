@@ -388,7 +388,7 @@ class Bias(Step):
         """
         if len(files) == 0:
             logging.error("No bias files found. Using bias 0 instead.")
-            return 0, []
+            return None, []
         bias, bhead = combine_bias(
             files,
             self.instrument,
@@ -561,9 +561,10 @@ class OrderTracing(Step):
         order_img, ohead = util.load_fits(
             files[0], self.instrument, self.mode, self.extension, mask=mask
         )
-        b_exptime = bias[1]["EXPTIME"]
-        o_exptime = ohead["EXPTIME"]
-        order_img -= bias[0] * o_exptime / b_exptime
+        if bias[0] is not None:
+            b_exptime = bias[1]["EXPTIME"]
+            o_exptime = ohead["EXPTIME"]
+            order_img -= bias[0] * o_exptime / b_exptime
 
         orders, column_range = mark_orders(
             order_img,
@@ -1236,8 +1237,10 @@ class ScienceExtraction(Step):
                 dtype=np.floating,
             )
             # Correct for bias and flat field
-            im -= bias * head["exptime"] / bhead["exptime"]
-            im /= norm
+            if bias is not None:
+                im -= bias * head["exptime"] / bhead["exptime"]
+            if norm is not None:
+                im /= norm
 
             # Optimally extract science spectrum
             spec, sigma, _, column_range = extract(

@@ -89,7 +89,7 @@
         "plot": true
     },
     "finalize": {
-        "filename": "{instrument}.{night}_{number}.ech",
+        "filename": "{instrument}.{night}_{number}.final.ech",
         "plot": true
     }
 }
