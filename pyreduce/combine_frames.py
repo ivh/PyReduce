@@ -16,7 +16,7 @@ from scipy.ndimage.filters import median_filter
 
 from .clipnflip import clipnflip
 from .instruments.instrument_info import get_instrument_info
-from .util import gaussbroad, gaussfit, load_fits
+from .util import gaussbroad, gaussfit, load_fits, remove_bias
 
 
 def running_median(arr, size):
@@ -257,7 +257,7 @@ def combine_frames(
         exp1 = head1.get("exptime", 0)
 
         bias2, head2 = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+            files[1], instrument, mode, extension, dtype=dtype, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -453,10 +453,7 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
 
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark. We have to scale it by the total exposure time
-    if bias is not None:
-        b_exptime = bhead["EXPTIME"]
-        f_exptime = fhead["EXPTIME"]
-        flat -= bias * f_exptime / b_exptime
+    flat = remove_bias(flat, fhead, bias, bhead, len(files))
 
     if plot:
         plt.title("Master Flat - Bias")

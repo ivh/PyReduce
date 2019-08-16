@@ -32,6 +32,16 @@ from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
 
+def remove_bias(img, ihead, bias, bhead, nfiles=1):
+    if bias is not None and bhead is not None:
+        b_exptime = bhead["EXPTIME"]
+        i_exptime = ihead["EXPTIME"]
+        if b_exptime == 0 or i_exptime == 0:
+            b_exptime = 1
+            i_exptime = nfiles
+        img -= bias * i_exptime / b_exptime
+    return img
+
 def checkGitRepo(remote_name="origin"):
     # TODO currently this runs everytime PyReduce is called
     if not hasGit:

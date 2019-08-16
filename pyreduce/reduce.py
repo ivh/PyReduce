@@ -561,10 +561,7 @@ class OrderTracing(Step):
         order_img, ohead = util.load_fits(
             files[0], self.instrument, self.mode, self.extension, mask=mask
         )
-        if bias[0] is not None:
-            b_exptime = bias[1]["EXPTIME"]
-            o_exptime = ohead["EXPTIME"]
-            order_img -= bias[0] * o_exptime / b_exptime
+        order_img = util.remove_bias(order_img, ohead, bias[0], bias[1])
 
         orders, column_range = mark_orders(
             order_img,
@@ -1237,8 +1234,7 @@ class ScienceExtraction(Step):
                 dtype=np.floating,
             )
             # Correct for bias and flat field
-            if bias is not None:
-                im -= bias * head["exptime"] / bhead["exptime"]
+            im = util.remove_bias(im, head, bias, bhead)
             if norm is not None:
                 im /= norm
 
