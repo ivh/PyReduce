@@ -179,12 +179,16 @@ class instrument:
         header["e_obsalt"] = get("altitude")
 
         if "mjd-obs" not in header:
-            t = header["DATE-OBS"]
-            if len(t) <= 10 and "time-obs" in header:
-                t += "T" + header["TIME-OBS"]
+            try:
+                t = header["DATE-OBS"]
+                if len(t) <= 10 and "time-obs" in header:
+                    t += "T" + header["TIME-OBS"]
 
-            t = Time(t)
-            header["mjd-obs"] = t.mjd
+                t = Time(t)
+                header["mjd-obs"] = t.mjd
+            except KeyError:
+                logging.warning("Unable to determine the MJD date of the observation")
+                header["MJD-OBS"] = 0
 
 
         return header

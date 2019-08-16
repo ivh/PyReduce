@@ -14,7 +14,6 @@ def test_flat(instrument, mode, files, extension, mask):
         instrument,
         mode,
         extension=extension,
-        bias=0,
         window=50,
         mask=mask,
     )
