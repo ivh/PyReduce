@@ -412,13 +412,14 @@ def flat(instrument, mode, files, extension, mask, bias, output_dir):
         fhead, flat = flat[0].header, flat[0].data
         flat = np.ma.masked_array(flat, mask=mask)
     except FileNotFoundError:
-        bias, _ = bias
+        bias, bhead = bias
         flat, fhead = combine_flat(
             files["flat"],
             instrument,
             mode,
             extension=extension,
             bias=bias,
+            bhead=bhead,
             window=50,
             mask=mask,
         )
