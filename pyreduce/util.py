@@ -19,15 +19,6 @@ from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 from scipy.special import binom
 
-
-try:
-    import git
-
-    hasGit = True
-except ImportError:
-    hasGit = False
-
-
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
@@ -41,46 +32,6 @@ def remove_bias(img, ihead, bias, bhead, nfiles=1):
             i_exptime = nfiles
         img -= bias * i_exptime / b_exptime
     return img
-
-def checkGitRepo(remote_name="origin"):
-    # TODO currently this runs everytime PyReduce is called
-    if not hasGit:
-        print("Install GitPython to check the git repository for updates")
-        return
-
-    try:
-        repo = git.Repo()
-        # branch = repo.active_branch
-        if len(repo.remotes) == 0:
-            print("No remotes found in Git repository")
-            return
-        if len(repo.remotes) == 1:
-            remote = repo.remotes[0]
-            remote_name = remote.name
-        else:
-            remote = repo.remotes[remote_name]
-        info = remote.fetch()
-        remote_commit = info[0].commit
-        current_commit = repo.commit()
-    except Exception:
-        print("Couldn't read remote Git repository %s", remote_name)
-
-    if remote_commit.authored_date > current_commit.authored_date:
-        print("A newer commit is available from remote Git %s", remote_name)
-        # while True:
-        #     install = input("Install it? [Y/n]")
-        #     if install.lower() in ["", "y", "yes", "1"]:
-        #         install = True
-        #         break
-        #     elif install.lower in ["n", "no", "0"]:
-        #         install = False
-        #         break
-
-        # if install:
-        #     print("Pulling newest commit")
-        #     remote.pull()
-        #     repo.status()
-
 
 def parse_args():
     """Parse command line arguments"""
