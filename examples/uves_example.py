@@ -14,9 +14,9 @@ target = "HD132205"
 night = "2010-04-01"
 mode = "middle"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
+    "bias",
+    "flat",
+    "orders",
     "norm_flat",
     "wavecal",
     "curvature",
@@ -34,7 +34,7 @@ base_dir = datasets.UVES_HD132205()
 input_dir = "{target}/"
 output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
 
-config = os.path.join(os.path.dirname(__file__), "settings_UVES.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
 
 pyreduce.reduce.main(
     instrument,
