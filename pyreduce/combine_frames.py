@@ -535,8 +535,8 @@ def combine_bias(
 
     # Construct normalized sum.
     bias = (bias1 * n1 + bias2 * n2) / n
-    exptime_1 = head1["exptime"]
-    exptime_2 = head["exptime"]
+    exptime_1 = head1.get("exptime", 0)
+    exptime_2 = head.get("exptime", 0)
     head["exptime"] = (exptime_1 + exptime_2) / n
 
     # Compute noise in difference image by fitting Gaussian to distribution.
