@@ -14,5 +14,6 @@ include pyreduce/masks/*.gz
 
 include pyreduce/wavecal/*npz
 
-include setup.cfginclude versioneer.py
+include setup.cfg
+include versioneer.py
 include pyreduce/_version.py

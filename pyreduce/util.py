@@ -21,6 +21,7 @@ from scipy.special import binom
 
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
+from . import __version__
 
 
 def remove_bias(img, ihead, bias, bhead, nfiles=1):
@@ -129,6 +130,7 @@ def start_logging(log_file="log.log"):
     logging.captureWarnings(True)
 
     logging.debug("----------------------")
+    logging.debug("PyReduce version: %s", __version__)
 
 
 def load_fits(
