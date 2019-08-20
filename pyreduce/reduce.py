@@ -31,7 +31,7 @@ import numpy as np
 from astropy.io import fits
 
 # PyReduce subpackages
-from . import echelle, instruments, util
+from . import echelle, instruments, util, __version__
 from .combine_frames import combine_bias, combine_flat
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
@@ -1448,7 +1448,7 @@ class Finalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["continuum", "freq_comb"]
+        self._dependsOn += ["continuum", "freq_comb", "config"]
 
         self.filename = config["filename"]
 
@@ -1463,7 +1463,22 @@ class Finalize(Step):
         )
         return os.path.join(self.output_dir, out)
 
-    def run(self, continuum, freq_comb):
+    def save_config_to_header(self, head, config, prefix="PR"):
+        for key, value in config.items():
+            if isinstance(value, dict):
+                head = self.save_config_to_header(head, value, prefix=f"{prefix} {key.upper()}")
+            else:
+                if key in ["plot", "$schema", "__skip_existing__"]:
+                    # Skip values that are not relevant to the file product
+                    continue
+                if value is None:
+                    value = "null"
+                elif not np.isscalar(value):
+                    value = str(value)
+                head[f"{prefix} {key.upper()}"] = value
+        return head
+
+    def run(self, continuum, freq_comb, config):
         """Create the final output files
 
         this is includes:
@@ -1508,6 +1523,9 @@ class Finalize(Step):
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
+            head["PR_version"] = __version__
+
+            head = self.save_config_to_header(head, config)
 
             if self.plot:
                 plt.plot(wave.T, (spec / blaze).T)
@@ -1627,7 +1645,7 @@ class Reducer:
             imode = util.find_first_index(info["modes"], mode)
             extension = extension[imode]
 
-        self.data = {"files": files}
+        self.data = {"files": files, "config": config}
         self.inputs = (
             instrument,
             mode,

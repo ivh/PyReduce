@@ -9,15 +9,16 @@ if int(jsonschema.__version__[0]) < 3:
 else:
     hasJsonSchema = True
 
-def get_configuration_for_instrument(instrument, plot=True):
+def get_configuration_for_instrument(instrument, plot=None):
     local = os.path.dirname(__file__)
     fname = os.path.join(local, "settings", f"settings_{instrument.upper()}.json")
 
     config = load_config(fname, instrument)
 
-    for key, value in config.items():
-        if isinstance(config[key], dict) and "plot" in config[key].keys():
-            config[key]["plot"] = plot
+    if plot is not None:
+        for key, value in config.items():
+            if isinstance(config[key], dict) and "plot" in config[key].keys():
+                config[key]["plot"] = plot
 
     return config
 
