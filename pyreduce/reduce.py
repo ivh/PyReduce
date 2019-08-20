@@ -159,11 +159,7 @@ def main(
                             f = {1: f}
                         for key, _ in f.items():
                             logging.info("Group Identifier: %s", key)
-                            logging.debug("Bias files:\n%s", f[key]["bias"])
-                            logging.debug("Flat files:\n%s", f[key]["flat"])
-                            logging.debug("Wavecal files:\n%s", f[key]["wavecal"])
-                            logging.debug("Orderdef files:\n%s", f[key]["orders"])
-                            logging.debug("Science files:\n%s", f[key]["science"])
+                            logging.debug("Files:\n%s", f[key])
                             reducer = Reducer(
                                 f[key],
                                 output_dir,
@@ -503,9 +499,14 @@ class Flat(Step):
         fhead : FITS header
             Master flat FITS header
         """
-        flat = fits.open(self.savefile)[0]
-        flat, fhead = flat.data, flat.header
-        flat = np.ma.masked_array(flat, mask=mask)
+        try:
+            flat = fits.open(self.savefile)[0]
+            flat, fhead = flat.data, flat.header
+            flat = np.ma.masked_array(flat, mask=mask)
+        except FileNotFoundError:
+            logging.warning("No intermediate file for the flat field found. Using Flat == 1 instead")
+            flat = 1
+            fhead = None
         return flat, fhead
 
 
@@ -666,6 +667,12 @@ class NormalizeFlatField(Step):
         flat, fhead = flat
         orders, column_range = orders
 
+        if fhead is None:
+            logging.warning("No flat field found, using flat == 1 as normalization instead")
+            norm = flat
+            blaze = 1
+            return norm, blaze
+
         norm, blaze = normalize_flat(
             flat,
             orders,
@@ -711,7 +718,6 @@ class NormalizeFlatField(Step):
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
         """
-        logging.info("Loading normalized flat field")
         data = np.load(self.savefile, allow_pickle=True)
         blaze = data["blaze"]
         norm = data["norm"]
@@ -1234,7 +1240,8 @@ class ScienceExtraction(Step):
                 dtype=np.floating,
             )
             # Correct for bias and flat field
-            im = util.remove_bias(im, head, bias, bhead)
+            if bias is not None:
+                im -= bias
             if norm is not None:
                 im /= norm
 

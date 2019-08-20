@@ -290,23 +290,27 @@ def plot_order(i, j, x, y, img, deg, title=""):
     yi = np.polyval(order_i, xp)
     yj = np.polyval(order_j, xp)
 
+    xmin = min(np.min(x[i]), np.min(x[j])) - 50
+    xmax = max(np.max(x[i]), np.max(x[j])) + 50
+    ymin = min(np.min(y[i]), np.min(y[j])) - 50
+    ymax = max(np.max(y[i]), np.max(y[j])) + 50
+
+    yymin = min(max(0, ymin), img.shape[0]-2)
+    yymax = min(ymax, img.shape[0]-1)
+    xxmin = min(max(0, xmin), img.shape[1]-2)
+    xxmax = min(xmax, img.shape[1]-1)
+
+    vmin, vmax = np.percentile(img[yymin:yymax, xxmin:xxmax], (5, 95))
+
     plt.clf()
     plt.title(title)
-    plt.imshow(img)
+    plt.imshow(img, vmin=vmin, vmax=vmax)
     plt.plot(xp, yi, "r")
     plt.plot(xp, yj, "g")
     plt.plot(y[i], x[i], "r.")
     plt.plot(y[j], x[j], "g.")
-
-    xmin = min(np.min(x[i]), np.min(x[j])) - 50
-    xmax = max(np.max(x[i]), np.max(x[j])) + 50
-
-    ymin = min(np.min(y[i]), np.min(y[j])) - 50
-    ymax = max(np.max(y[i]), np.max(y[j])) + 50
-
     plt.xlim([ymin, ymax])
     plt.ylim([xmin, xmax])
-
     plt.show()
 
 

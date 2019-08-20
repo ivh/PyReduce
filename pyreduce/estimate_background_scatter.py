@@ -94,6 +94,10 @@ def estimate_background_scatter(
 
     if np.isscalar(extraction_width):
         extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
+    else:
+        extraction_width = np.asarray(extraction_width)
+        if extraction_width.ndim == 1:
+            extraction_width = np.tile(extraction_width, (nord, 1))
     if column_range is None:
         column_range = np.tile([0, ncol], (nord, 1))
     # Extend orders above and below orders

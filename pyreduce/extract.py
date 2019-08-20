@@ -24,6 +24,7 @@ from .util import make_index
 # TODO put the plotting somewhere else
 # np.seterr(all="raise")
 
+
 def imresize(img, newsize):
     return np.array(Image.fromarray(img).resize(newsize))
 
@@ -138,17 +139,18 @@ class ProgressPlot:
         self.mask_slit.set_ydata(mask_slit)
 
         self.im_obs.set_norm(
-            mcolors.Normalize(vmin=np.nanpercentile(img, 5), vmax=np.nanpercentile(img, 95))
+            mcolors.Normalize(
+                vmin=np.nanpercentile(img, 5), vmax=np.nanpercentile(img, 95)
+            )
         )
         self.im_model.set_norm(
             mcolors.Normalize(vmin=np.nanmin(model), vmax=np.nanmax(model))
         )
 
-
         limit = np.nanpercentile(y_spec, 95) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
-        
+
         limit = np.nanpercentile(y_slit, 95) * 1.1
         if not np.isnan(limit):
             self.ax3.set_ylim((0, limit))
@@ -184,12 +186,37 @@ class ProgressPlot:
         if np.any(spec == 0):
             i = np.arange(len(spec))
             try:
-                spec = interp1d(i[spec != 0], spec[spec != 0], fill_value="extrapolate")(i)
+                spec = interp1d(
+                    i[spec != 0], spec[spec != 0], fill_value="extrapolate"
+                )(i)
             except ValueError:
                 spec[spec == 0] = np.mean(spec)
         y = img / spec[None, :]
         y = y.ravel() * np.mean(slitf) / np.mean(y)
         return x, y
+
+
+class Swath:
+    def __init__(self, nswath):
+        self.nswath = nswath
+        self.spec = [None] * nswath
+        self.slitf = [None] * nswath
+        self.model = [None] * nswath
+        self.unc = [None] * nswath
+        self.mask = [None] * nswath
+
+    def __len__(self):
+        return self.nswath
+
+    def __getitem__(self, key):
+        return self.spec[key], self.slitf[key], self.model[key], self.unc[key], self.mask[key]
+
+    def __setitem__(self, key, value):
+        self.spec[key] = value[0]
+        self.slitf[key] = value[1]
+        self.model[key] = value[2]
+        self.unc[key] = value[3]
+        self.mask[key] = value[4]
 
 
 def make_bins(swath_width, xlow, xhigh, ycen, ncol):
@@ -380,7 +407,7 @@ def extract_spectrum(
     scatter : {array, None}, optional
         background scatter as 2d polynomial coefficients (default: None, no correction)
     normalize : bool, optional
-        wether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
+        whether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
     threshold : int, optional
         threshold for normalization (default: 0)
     tilt : array[ncol], optional
@@ -432,11 +459,9 @@ def extract_spectrum(
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen, ncol)
     nswath = 2 * nbin - 1
-    swath_slitf = np.zeros((nswath, nslitf))
+    swath = Swath(nswath)
     margin = np.zeros((nswath, 2), int)
 
-    swath_spec = [None] * nswath
-    swath_unc = [None] * nswath
     if normalize:
         norm_img = [None] * nswath
         norm_model = [None] * nswath
@@ -465,13 +490,12 @@ def extract_spectrum(
 
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
+        # swath_img += np.min(swath_img)
 
         # Do Slitfunction extraction
         swath_tilt = tilt[ibeg:iend]
         swath_shear = shear[ibeg:iend]
-        swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
-            ihalf
-        ], swath_mask = slitfunc_curved(
+        swath[ihalf] = slitfunc_curved(
             swath_img,
             swath_ycen,
             swath_tilt,
@@ -481,12 +505,11 @@ def extract_spectrum(
             osample=osample,
         )
 
-        if not np.all(np.isfinite(swath_spec[ihalf])):
+        if not np.all(np.isfinite(swath.spec[ihalf])):
             # TODO: Why does this happen?
+            # Happens when input image is all 0 (or constant?)
             logging.warning("Curved extraction failed, using Tilt=Shear=0 instead")
-            swath_spec[ihalf], swath_slitf[ihalf], swath_model, swath_unc[
-                ihalf
-            ], swath_mask = slitfunc_curved(
+            swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
                 0,
@@ -496,13 +519,26 @@ def extract_spectrum(
                 osample=osample,
             )
 
+        if not np.all(np.isfinite(swath.spec[ihalf])):
+            logging.warning("Vertical extraction failed, using arc extraction instead")
+            swath.spec[ihalf] = np.ma.filled(np.ma.mean(swath_img, axis=0))
+            tmp_slitf = np.ma.filled(np.ma.mean(swath_img, axis=1))
+            swath.slitf[ihalf] = np.interp(
+                np.arange(nslitf), np.linspace(0, nslitf, len(tmp_slitf)), tmp_slitf
+            )
+            swath.model[ihalf] = swath.spec[ihalf][None, :] * tmp_slitf[:, None]
+            swath.unc[ihalf] = np.full(
+                swath_img.shape[1], 1 / np.sqrt(swath_img.shape[0])
+            )
+            swath.mask[ihalf] = np.full(swath_img.shape, False)
+
         if normalize:
             # Save image and model for later
             # Use np.divide to avoid divisions by zero
-            where = swath_model > threshold / gain
-            norm_img[ihalf] = np.ones_like(swath_model)
-            np.divide(swath_img, swath_model, where=where, out=norm_img[ihalf])
-            norm_model[ihalf] = swath_model
+            where = swath.model[ihalf] > threshold / gain
+            norm_img[ihalf] = np.ones_like(swath.model[ihalf])
+            np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
+            norm_model[ihalf] = swath.model[ihalf]
 
         if plot:
             if not np.all(np.isnan(swath_img)):
@@ -510,11 +546,11 @@ def extract_spectrum(
                     progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
                 progress.plot(
                     swath_img,
-                    swath_spec[ihalf],
-                    swath_slitf[ihalf],
-                    swath_model,
+                    swath.spec[ihalf],
+                    swath.slitf[ihalf],
+                    swath.model[ihalf],
                     swath_ycen,
-                    swath_mask,
+                    swath.mask[ihalf],
                     ord_num,
                     ibeg,
                     iend,
@@ -576,8 +612,8 @@ def extract_spectrum(
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-        spec[ibeg:iend] += swath_spec[i] * weight[i]
-        sunc[ibeg:iend] += swath_unc[i] * weight[i]
+        spec[ibeg:iend] += swath.spec[i] * weight[i]
+        sunc[ibeg:iend] += swath.unc[i] * weight[i]
 
     if normalize:
         for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -585,7 +621,7 @@ def extract_spectrum(
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
-    slitf = np.mean(swath_slitf, axis=0)
+    slitf = np.mean(swath.slitf, axis=0)
     if out_slitf is not None:
         out_slitf[:] = slitf
 
@@ -1071,7 +1107,6 @@ def extract(
         extraction_width = np.asarray(extraction_width)
         if extraction_width.ndim == 1:
             extraction_width = np.tile(extraction_width, (nord, 1))
-        
 
     # Limit orders (and related properties) to orders in range
     nord = order_range[1] - order_range[0]
@@ -1381,7 +1416,7 @@ class Extraction:
             else:
                 return None
         else:
-            return self._column_range[self.order_range[0]:self.order_range[1]]
+            return self._column_range[self.order_range[0] : self.order_range[1]]
 
     @property
     def extraction_width(self):
@@ -1503,13 +1538,14 @@ class Extraction:
 
             spectrum[i, x_left_lim:x_right_lim] = arc  # store total counts
             uncertainties[i, x_left_lim:x_right_lim] = (
-                np.sqrt(np.abs(arc * self.gain + self.dark + self.readnoise ** 2)) / self.gain
+                np.sqrt(np.abs(arc * self.gain + self.dark + self.readnoise ** 2))
+                / self.gain
             )  # estimate uncertainty
 
             if self.plot:
-                output[pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim] = img[
-                    index
-                ]
+                output[
+                    pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim
+                ] = img[index]
                 pos += [pos[i] + index[0].shape[0]]
 
         if self.plot:

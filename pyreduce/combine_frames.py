@@ -524,7 +524,7 @@ def combine_bias(
     n2 = len(list2)
 
     # Separately images in two groups.
-    bias1, _ = combine_frames(list1, instrument, mode, extension, **kwargs)
+    bias1, head1 = combine_frames(list1, instrument, mode, extension, **kwargs)
     bias1 /= n1
 
     bias2, head = combine_frames(list2, instrument, mode, extension, **kwargs)
@@ -535,6 +535,9 @@ def combine_bias(
 
     # Construct normalized sum.
     bias = (bias1 * n1 + bias2 * n2) / n
+    exptime_1 = head1["exptime"]
+    exptime_2 = head["exptime"]
+    head["exptime"] = (exptime_1 + exptime_2) / n
 
     # Compute noise in difference image by fitting Gaussian to distribution.
     diff = 0.5 * (bias1 - bias2)

@@ -30,7 +30,7 @@ def remove_bias(img, ihead, bias, bhead, nfiles=1):
         if b_exptime == 0 or i_exptime == 0:
             b_exptime = 1
             i_exptime = nfiles
-        img -= bias * i_exptime / b_exptime
+        img = img - bias * i_exptime / b_exptime
     return img
 
 def parse_args():
