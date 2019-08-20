@@ -21,15 +21,16 @@ sys.path.insert(0, path)
 
 
 # -- Project information -----------------------------------------------------
+from pyreduce import __version__
 
 project = "PyReduce"
 copyright = "2019, Ansgar Wehrhahn"
 author = "Ansgar Wehrhahn"
 
 # The short X.Y version
-version = ""
+version = __version__.split("+")[0]
 # The full version, including alpha/beta/rc tags
-release = "0.1"
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
