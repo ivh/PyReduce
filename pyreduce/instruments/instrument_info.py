@@ -88,6 +88,10 @@ def sort_files(input_dir, target, night, instrument, mode, **kwargs):
     return instrument.sort_files(input_dir, target, night, mode, **kwargs)
 
 
+def get_supported_modes(instrument):
+    instrument = load_instrument(instrument)
+    return instrument.get_supported_modes()
+
 def modeinfo(header, instrument, mode, **kwargs):
     """Add instrument specific information to a header/dict
 

@@ -161,7 +161,7 @@ class instrument:
 
         header["e_gain"] = get("gain", 1)
         header["e_readn"] = get("readnoise", 0)
-        header["e_exptim"] = get("exposure_time", 0)
+        header["EXPTIME"] = get("exposure_time", 0)
 
         header["e_sky"] = get("sky", 0)
         header["e_drk"] = get("dark", 0)
@@ -170,9 +170,9 @@ class instrument:
         header["e_imtype"] = get("image_type")
         header["e_ctg"] = get("category")
 
-        header["e_ra"] = get("ra")
-        header["e_dec"] = get("dec")
-        header["e_jd"] = get("jd")
+        header["e_ra"] = get("ra", 0)
+        header["e_dec"] = get("dec", 0)
+        header["e_jd"] = get("jd", 0)
 
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
@@ -189,7 +189,6 @@ class instrument:
             except KeyError:
                 logging.warning("Unable to determine the MJD date of the observation")
                 header["MJD-OBS"] = 0
-
 
         return header
 
@@ -338,6 +337,10 @@ class instrument:
         )
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
+
+    def get_supported_modes(self):
+        info = self.load_info()
+        return info["modes"]
 
 
 class COMMON(instrument):

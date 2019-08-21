@@ -6,7 +6,7 @@
     "id_mode": "ESO INS MODE",
     "id_band": "ESO INS CDU BAND",
     "id_decker": "ESO INS SLIT2 DECKER",
-    "modes": "Unknown",
+    "modes": [""],
     "deckers": ["OPEN", "pos1", "pos2"],
     "bands": ["H", "J", "K"],
     "chips": ["chip1", "chip2", "chip3"],

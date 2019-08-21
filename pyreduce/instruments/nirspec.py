@@ -54,7 +54,7 @@ class NIRSPEC(instrument):
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
         # header["e_setting"] = NIRSPEC.get_mode(header)
-        header["EXPTIME"] = header["ITIME"] * header["COADDS"]
+        header["EXPTIME"] = header.get("ITIME", 0) * header.get("COADDS", 0)
         return header
 
     def sort_files(self, input_dir, target, night, mode, calibration_dir, **kwargs):

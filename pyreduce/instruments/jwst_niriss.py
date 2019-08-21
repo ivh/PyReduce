@@ -36,7 +36,7 @@ class JWST_NIRISS(instrument):
         header["e_dark"] = 0.0257
 
         # total exposure time
-        header["exptime"] = header["TFRAME"]
+        header["exptime"] = header.get("TFRAME", 0)
 
         return header
 

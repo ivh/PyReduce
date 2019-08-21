@@ -79,10 +79,18 @@ class MCDONALD(instrument):
         ra = get("ra")
         dec = get("dec")
 
-        ra = self._convert_time_deg(ra)
-        dec = self._convert_time_deg(dec)
-        tmid = self._convert_time_deg(ut) + dark_time / 2
-        jd = Time(obs_date).mjd + tmid + 0.5
+        if ra is not None:
+            ra = self._convert_time_deg(ra)
+        if dec is not None:
+            dec = self._convert_time_deg(dec)
+        if ut is not None and dark_time is not None:
+            tmid = self._convert_time_deg(ut) + dark_time / 2
+        else:
+            tmid = 0
+        if obs_date is not None:
+            jd = Time(obs_date).mjd + tmid + 0.5
+        else:
+            jd = 0
 
         header["e_ra"] = ra
         header["e_dec"] = dec
