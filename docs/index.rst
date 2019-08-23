@@ -10,10 +10,12 @@ Welcome to PyReduce's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   installation
    howto
    examples
    configuration_file
+   modules
+
 
 Indices and tables
 ==================

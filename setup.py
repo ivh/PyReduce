@@ -62,5 +62,6 @@ setup(
         "wget",
         "joblib",
         "jsonschema>=3.0.1",
+        "tqdm",
     ],
 )
