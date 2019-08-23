@@ -209,7 +209,13 @@ class Swath:
         return self.nswath
 
     def __getitem__(self, key):
-        return self.spec[key], self.slitf[key], self.model[key], self.unc[key], self.mask[key]
+        return (
+            self.spec[key],
+            self.slitf[key],
+            self.model[key],
+            self.unc[key],
+            self.mask[key],
+        )
 
     def __setitem__(self, key, value):
         self.spec[key] = value[0]
@@ -777,6 +783,8 @@ def arc_extraction(
     readnoise=0,
     dark=0,
     plot=False,
+    tilt=None,
+    shear=None,
     **kwargs,
 ):
     """ Use "simple" arc extraction to get a spectrum
@@ -836,10 +844,25 @@ def arc_extraction(
 
         ycen = np.polyval(orders[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
+        height = extraction_width[i, 0] +  extraction_width[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
 
+        # Correct for tilt and shear
+        if tilt is not None and shear is not None:
+            img_order = np.copy(img[index])
+            xt = np.arange(x_left_lim, x_right_lim)
+            arc_tilt = tilt[i, x_left_lim:x_right_lim]
+            arc_shear = shear[i, x_left_lim:x_right_lim]
+            for y in range(height):
+                # TODO: Why need the factor 1/2 here?
+                yt = (y - extraction_width[i, 0]) / 2
+                xi = xt + yt * arc_tilt + yt**2 * arc_shear
+                img_order[y] = np.interp(xi, xt, img_order[y])
+        else:
+            img_order = img[index]
+
         # Sum over the prepared index
-        arc = np.sum(img[index], axis=0)
+        arc = np.sum(img_order, axis=0)
 
         spectrum[i, x_left_lim:x_right_lim] = arc  # store total counts
         uncertainties[i, x_left_lim:x_right_lim] = (
@@ -1168,7 +1191,13 @@ def extract(
     elif extraction_type == "arc":
         # Simpler extraction, just summing along the arc of the order
         spectrum, uncertainties = arc_extraction(
-            img, orders, extraction_width, column_range, **kwargs
+            img,
+            orders,
+            extraction_width,
+            column_range,
+            tilt=tilt,
+            shear=shear,
+            **kwargs,
         )
         slitfunction = None
     else:
@@ -1483,7 +1512,9 @@ class Extraction:
         im_ordr[im_ordr == 0] = 1
         return im_norm, im_ordr, blaze, column_range
 
-    def execute_arc(self, img, orders, extraction_width, column_range, **kwargs):
+    def execute_arc(
+        self, img, orders, extraction_width, column_range, tilt, shear, **kwargs
+    ):
         """ Use "simple" arc extraction to get a spectrum
         Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
 
@@ -1608,7 +1639,13 @@ class Extraction:
         elif self.extraction_type == "arc":
             # Simpler extraction, just summing along the arc of the order
             return self.execute_arc(
-                img, orders, extraction_width, column_range, **kwargs
+                img,
+                orders,
+                extraction_width,
+                column_range,
+                tilt=self.tilt,
+                shear=self.shear,
+                **kwargs,
             )
         else:
             raise ValueError(
