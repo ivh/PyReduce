@@ -2,6 +2,7 @@
     "__comment__": "red and middle are in the same fits file, with different extensions, i.e. share the same mode identifier, but have different extensions",
     "__instrument__": "JWST_NIRISS",
     "instrument": "INSTRUME",
+    "telescope": "JWST",
     "date": "DATE-OBS",
     "instrument_mode": "PUPIL",
     "modes": ["GR700XD"],

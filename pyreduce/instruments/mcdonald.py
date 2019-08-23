@@ -32,6 +32,7 @@ class MCDONALD(instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
 
+        header = super().add_header_info(header, mode, **kwargs)
         info = self.load_info()
         get = getter(header, info, mode)
 

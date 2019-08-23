@@ -1,6 +1,7 @@
 {
     "__instrument__": "JWST_MIRI",
     "instrument": "INSTRUME",
+    "telescope": "JWST",
     "date": "DATE-OBS",
     "time": "TIME-OBS",
     "instrument_mode": "EXP_TYPE",

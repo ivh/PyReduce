@@ -55,12 +55,9 @@ class CRIRES_PLUS(instrument):
         """
 
         info = self.load_info()
-        target = target.upper()
-        instrument = info["__instrument__"].upper()
+        target = target.upper().replace("-", "")
+        instrument = "CRIRES_PLUS"
 
-        id_orddef = info["id_orddef"]
-        id_flat = info["id_flat"]
-        id_spec = info["id_spec"]
 
         # Try matching with nights
         try:
@@ -78,11 +75,6 @@ class CRIRES_PLUS(instrument):
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
         files = np.array(files)
-
-        # Load the mode identifier for the current mode from the header
-        # This could be anything really, e.g. the size of the data axis
-        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
-        mode_id = info["modes_id"][i].upper()
 
         # Initialize arrays
         # observed object
@@ -126,11 +118,11 @@ class CRIRES_PLUS(instrument):
         nights_out = []
         for ind_night in individual_nights:
             # Select files for this night, this instrument, this instrument mode
-            selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
+            selection = (ni == ind_night) & (it == instrument)
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
-            match_ty = np.array([fnmatch.fnmatch(t, id_spec) for t in ty])
+            match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
             match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
 
             keys = se[match_ty & match_ob & selection]
@@ -144,8 +136,8 @@ class CRIRES_PLUS(instrument):
                 # bias ignores the setting
                 files_this_night[key] = {
                     "bias": files[(ty == info["id_bias"]) & selection],
-                    "flat": files[(ty == id_flat) & select],
-                    "orders": files[(ty == id_orddef) & select],
+                    "flat": files[(ty == info["id_flat"]) & select],
+                    "orders": files[(ty == info["id_flat"]) & select],
                     "wavecal": files[(ty == info["id_wave"]) & select],
                     "freq_comb": files[(ty == info["id_comb"]) & select],
                     "science": files[match_ty & match_ob & select],

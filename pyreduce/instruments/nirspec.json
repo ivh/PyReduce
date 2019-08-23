@@ -1,6 +1,7 @@
 {
     "__instrument__": "NIRSPEC",
     "instrument": "CURRINST",
+    "telescope": "Keck",
     "date": "DATE-OBS",
     "modes": ["NIRSPEC"],
     "extension": 0,

@@ -143,6 +143,17 @@ class instrument:
         info = self.load_info()
         get = getter(header, info, mode)
 
+        header["INSTRUME"] = get("instrument", self.__class__.__name__)
+        header["TELESCOP"] = get("telescope", "")
+        header["EXPTIME"] = get("exposure_time", 0)
+        header["MJD-OBS"] = get("date", 0)
+
+        if isinstance(header["MJD-OBS"], str):
+            try:
+                header["MJD-OBS"] = Time(header["MJD-OBS"]).mjd
+            except:
+                logging.warning("Unable to determine the MJD date of the observation")
+
         header["e_orient"] = get("orientation", 0)
 
         naxis_x = get("naxis_x", 0)
@@ -161,7 +172,6 @@ class instrument:
 
         header["e_gain"] = get("gain", 1)
         header["e_readn"] = get("readnoise", 0)
-        header["EXPTIME"] = get("exposure_time", 0)
 
         header["e_sky"] = get("sky", 0)
         header["e_drk"] = get("dark", 0)
@@ -177,19 +187,6 @@ class instrument:
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
         header["e_obsalt"] = get("altitude")
-
-        if "mjd-obs" not in header:
-            try:
-                t = header["DATE-OBS"]
-                if len(t) <= 10 and "time-obs" in header:
-                    t += "T" + header["TIME-OBS"]
-
-                t = Time(t)
-                header["mjd-obs"] = t.mjd
-            except KeyError:
-                logging.warning("Unable to determine the MJD date of the observation")
-                header["MJD-OBS"] = 0
-
         return header
 
     def sort_files(self, input_dir, target, night, mode, **kwargs):

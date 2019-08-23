@@ -1,6 +1,7 @@
 {
     "__instrument__": "MCDONALD",
     "instrument": "OBSERVAT",
+    "telescope": "OBSERVAT",
     "date": "DATE-OBS",
     "modes": ["R60", "R240"],
     "modes_id": ["cs21-e2", "cs23-e2"],

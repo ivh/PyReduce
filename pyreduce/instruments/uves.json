@@ -1,6 +1,7 @@
 {
     "__instrument__": "UVES",
     "instrument": "INSTRUME",
+    "telescope": "VLT",
     "date": "DATE-OBS",
     "modes": ["blue", "middle", "red"],
     "modes_id": ["blue", "red", "red"],
