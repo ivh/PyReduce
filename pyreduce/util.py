@@ -417,6 +417,8 @@ def gaussfit3(x, y):
     popt : list of shape (4,)
         Parameters A, mu, sigma**2, offset
     """
+    x = np.ma.compressed(x)
+    y = np.ma.compressed(y)
     gauss = gaussval2
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1, np.min(y)]
@@ -447,7 +449,9 @@ def gaussfit4(x, y):
         Parameters A, mu, sigma**2, offset
     """
     gauss = gaussval2
-    i = len(x) // 2
+    x = np.ma.compressed(x)
+    y = np.ma.compressed(y)
+    i = np.argmax(y)
     p0 = [y[i], x[i], 1, np.min(y)]
 
     with np.warnings.catch_warnings():
@@ -460,8 +464,6 @@ def gaussfit4(x, y):
 def gaussfit_linear(x, y):
     """ Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
     For efficiency reasons. (roughly 10 times faster than the curve fit)
-
-    Note, only works for positive values of y
 
     Parameters
     ----------

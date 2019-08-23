@@ -93,6 +93,11 @@ class ProgressPlot:
         self.line3.set_xdata(x)
         self.line3.set_ydata(y)
 
+        if positions.size > self.height:
+            positions = positions[:self.height]
+        elif positions.size < self.height:
+            positions = np.concatenate((positions, np.zeros(self.height - positions.size)))
+
         self.line4.set_xdata(positions)
         self.line4.set_ydata(l4_y)
 
@@ -207,6 +212,7 @@ class Curvature:
         #:array of shape (height,): stores the peak positions of the fits to each row
         xcen = np.zeros(height)
         vcen = np.zeros(height)
+        wcen = np.zeros(height)
         #:array of shape (height,): indices of the rows in the order, with 0 being the central row
         xind = np.arange(-xwd[0], xwd[1] + 1)
         #:array of shape (height,): Scatter of the values within the row, to seperate in order and out of order rows
@@ -218,12 +224,14 @@ class Curvature:
         # Then fit a gaussian to each row, to find the center of the line
         x = peak + index_x
         x = x[(x >= 0) & (x < ncol)]
+        xmin, xmax = x[0], x[-1] + 1
+        x = np.ma.masked_array(x)
         for i, irow in enumerate(xind):
             # Trying to access values outside the image
-            assert not np.any((ycen + irow)[x[0] : x[-1] + 1] >= nrow)
+            assert not np.any((ycen + irow)[xmin : xmax] >= nrow)
 
             # Just cutout this one row
-            idx = make_index(ycen + irow, ycen + irow, x[0], x[-1] + 1)
+            idx = make_index(ycen + irow, ycen + irow, xmin, xmax)
             segment = original[idx][0]
             segments += [segment]
 
@@ -234,14 +242,16 @@ class Curvature:
                 deviation[i] = 0
             else:
                 try:
+                    x.mask = segment.mask
                     coef = gaussfit(x, segment)
                     # Store line center
                     xcen[i] = coef[1]
+                    wcen[i] = coef[2]
                     vcen[i] = coef[0] + coef[3]
                     # Store the variation within the row
                     deviation[i] = np.ma.std(segment)
                 except RuntimeError:
-                    xcen[i] = np.mean(x)
+                    xcen[i] = np.ma.mean(x)
                     deviation[i] = 0
 
         # Seperate in order pixels from out of order pixels
@@ -252,7 +262,8 @@ class Curvature:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree)
+                w = np.sqrt(1/wcen[idx])
+                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
         except:
             logging.warning("Could not fit curvature to line, using 0 instead.")
             coef = [0] * self.curv_degree

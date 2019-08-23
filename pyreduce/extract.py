@@ -844,19 +844,18 @@ def arc_extraction(
 
         ycen = np.polyval(orders[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-        height = extraction_width[i, 0] +  extraction_width[i, 1] + 1
+        height = extraction_width[i, 0] + extraction_width[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
 
         # Correct for tilt and shear
         if tilt is not None and shear is not None:
-            img_order = np.copy(img[index])
+            img_order = np.ma.filled(np.ma.copy(img[index]), 0)
             xt = np.arange(x_left_lim, x_right_lim)
             arc_tilt = tilt[i, x_left_lim:x_right_lim]
             arc_shear = shear[i, x_left_lim:x_right_lim]
             for y in range(height):
-                # TODO: Why need the factor 1/2 here?
-                yt = (y - extraction_width[i, 0]) / 2
-                xi = xt + yt * arc_tilt + yt**2 * arc_shear
+                yt = y - extraction_width[i, 0]
+                xi = xt + yt * arc_tilt + yt ** 2 * arc_shear
                 img_order[y] = np.interp(xi, xt, img_order[y])
         else:
             img_order = img[index]

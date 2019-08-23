@@ -23,6 +23,7 @@
     "curvature": {
         "dimensionality": "2D",
         "curv_degree": 1,
+        "extraction_width": 0.45,
         "degree": [1, 1]
     },
     "wavecal": {
