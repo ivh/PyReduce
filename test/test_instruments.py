@@ -1,4 +1,4 @@
-from os.path import dirname, join, basename
+from os.path import dirname, join, basename, exists
 from glob import glob
 
 import pytest
@@ -40,13 +40,15 @@ def test_modeinfo(supported_instrument, supported_modes):
         assert isinstance(header, dict)
 
 
-def test_sort_files():
-    files, nights = instrument_info.sort_files(".", "", "", None, "")
+def test_sort_files(supported_instrument, supported_modes):
+    for mode in supported_modes:
+        files, nights = instrument_info.sort_files(".", "", "", supported_instrument, mode)
+        assert isinstance(files, list)
+        assert isinstance(nights, list)
 
-    assert isinstance(files, list)
-    assert isinstance(nights, list)
 
-
-def test_get_wavecal_name():
-    wname = instrument_info.get_wavecal_filename({}, None, "")
-    assert isinstance(wname, str)
+def test_get_wavecal_name(supported_instrument, supported_modes):
+    for mode in supported_modes:
+        wname = instrument_info.get_wavecal_filename({}, supported_instrument, mode)
+        assert isinstance(wname, str)
+        assert exists(wname)
