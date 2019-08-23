@@ -34,7 +34,7 @@ int _nd = 0;
 
 // If we want to check the index use functions to represent the index
 // Otherwise a simpler define will do, which should be faster ?
-#define CHECK_INDEX 1
+#define CHECK_INDEX 0
 
 #if CHECK_INDEX
 static int zeta_index(int x, int y, int z)
@@ -136,18 +136,18 @@ static int sl_index(int i)
     return i;
 }
 #else
-#define zeta_index(x, y, z) ((z)*_ncols * _nrows) + ((y)*_ncols) + (x)
-#define mzeta_index(x, y) ((y)*_ncols) + (x)
-#define xi_index(x, y, z) ((z)*_ncols * _ny) + ((y)*_ncols) + (x)
-#define psf_index(x, y) ((y)*_ncols) + (x)
-#define a_index(x, y) ((x) + _n * (y))
+#define zeta_index(x, y, z) ((z)*ncols * nrows) + ((y)*ncols) + (x)
+#define mzeta_index(x, y) ((y)*ncols) + (x)
+#define xi_index(x, y, z) ((z)*ncols * ny) + ((y)*ncols) + (x)
+#define psf_index(x, y) ((y)*ncols) + (x)
+#define a_index(x, y) ((x) + n * (y))
 #define r_index(i) (i)
 #define sp_index(i) (i)
-#define laij_index(x, y) ((y)*_ny) + (x)
-#define paij_index(x, y) ((y)*_ncols) + (x)
+#define laij_index(x, y) ((y)*ny) + (x)
+#define paij_index(x, y) ((y)*ncols) + (x)
 #define lbj_index(i) (i)
 #define pbj_index(i) (i)
-#define im_index(x, y) ((y)*_ncols) + (x)
+#define im_index(x, y) ((y)*ncols) + (x)
 #define sl_index(i) (i)
 #endif
 

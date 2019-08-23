@@ -147,11 +147,11 @@ class ProgressPlot:
             mcolors.Normalize(vmin=np.nanmin(model), vmax=np.nanmax(model))
         )
 
-        limit = np.nanpercentile(y_spec, 95) * 1.1
+        limit = np.nanmax(spec) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
 
-        limit = np.nanpercentile(y_slit, 95) * 1.1
+        limit = np.nanmax(sf) * 1.1
         if not np.isnan(limit):
             self.ax3.set_ylim((0, limit))
 
