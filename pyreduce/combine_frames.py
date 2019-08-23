@@ -452,15 +452,17 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
     """
 
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
-    # Subtract master dark. We have to scale it by the total exposure time
-    flat = remove_bias(flat, fhead, bias, bhead, len(files))
+    # Subtract master dark
+    # TODO: Why do we scale with number of files and not exposure time?
+    if bias is not None:
+        flat = flat - bias * len(files)
 
     if plot:
         plt.title("Master Flat - Bias")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        top = np.percentile(flat, 90)
-        plt.imshow(flat, vmax=top, origin="lower")
+        bot, top = np.percentile(flat, (10, 90))
+        plt.imshow(flat, vmin = bot, vmax=top, origin="lower")
         plt.show()
 
     return flat, fhead
