@@ -8,10 +8,148 @@
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
 
-#define zeta_index(x, y, z) (z * ncols * nrows) + (y * ncols) + x
-#define mzeta_index(x, y) (y * ncols) + x
-#define xi_index(x, y, z) (z * ncols * ny) + (y * ncols) + x
-#define psf_index(x, y) (y * ncols) + x
+// Define the sizes of each array
+#define MAX_ZETA (_ncols * _nrows * 3 * (_osample + 1))
+#define MAX_MZETA (_ncols * _nrows)
+#define MAX_XI (_ncols * _ny * 4)
+#define MAX_PSF (_ncols * 3)
+#define MAX_A (_n * _nd)
+#define MAX_R (_n)
+#define MAX_SP (_ncols)
+#define MAX_SL (_ny)
+#define MAX_LAIJ (_ny * (4 * _osample + 1))
+#define MAX_PAIJ (_ncols * 5)
+#define MAX_LBJ (_ny)
+#define MAX_PBJ (_ncols)
+#define MAX_IM (_ncols * _nrows)
+
+// Store important sizes in global variables to make access easier
+// When calculating the proper indices
+int _ncols = 0;
+int _nrows = 0;
+int _ny = 0;
+int _osample = 0;
+int _n = 0;
+int _nd = 0;
+
+// If we want to check the index use functions to represent the index
+// Otherwise a simpler define will do, which should be faster ?
+#define CHECK_INDEX 1
+
+#if CHECK_INDEX
+static int zeta_index(int x, int y, int z)
+{
+    int i = ((z)*_ncols * _nrows) + ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_ZETA))
+        printf("INDEX OUT OF BOUNDS. Zeta[%i, %i, %i]\n", x, y, z);
+    return i;
+}
+
+static int mzeta_index(int x, int y)
+{
+    int i = ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_MZETA))
+        printf("INDEX OUT OF BOUNDS. Mzeta[%i, %i]\n", x, y);
+    return i;
+}
+
+static int xi_index(int x, int y, int z)
+{
+    int i = ((z)*_ncols * _ny) + ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_XI))
+        printf("INDEX OUT OF BOUNDS. Xi[%i, %i, %i]\n", x, y, z);
+    return i;
+}
+
+static int psf_index(int x, int y)
+{
+    int i = ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_PSF))
+        printf("INDEX OUT OF BOUNDS. PSF[%i, %i]\n", x, y);
+    return i;
+}
+
+static int a_index(int x, int y)
+{
+    int i = x + _n * y;
+    if ((i < 0) | (i >= MAX_A))
+        printf("INDEX OUT OF BOUNDS. a[%i, %i]\n", x, y);
+    return i;
+}
+
+static int r_index(int i)
+{
+    if ((i < 0) | (i >= MAX_R))
+        printf("INDEX OUT OF BOUNDS. r[%i]\n", i);
+    return i;
+}
+
+static int sp_index(int i)
+{
+    if ((i < 0) | (i >= MAX_SP))
+        printf("INDEX OUT OF BOUNDS. sP[%i]\n", i);
+    return i;
+}
+
+static int laij_index(int x, int y)
+{
+    int i = ((y)*_ny) + (x);
+    if ((i < 0) | (i >= MAX_LAIJ))
+        printf("INDEX OUT OF BOUNDS. l_Aij[%i, %i]\n", x, y);
+    return i;
+}
+
+static int paij_index(int x, int y)
+{
+    int i = ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_PAIJ))
+        printf("INDEX OUT OF BOUNDS. p_Aij[%i, %i]\n", x, y);
+    return i;
+}
+
+static int lbj_index(int i)
+{
+    if ((i < 0) | (i >= MAX_LBJ))
+        printf("INDEX OUT OF BOUNDS. l_bj[%i]\n", i);
+    return i;
+}
+
+static int pbj_index(int i)
+{
+    if ((i < 0) | (i >= MAX_PBJ))
+        printf("INDEX OUT OF BOUNDS. p_bj[%i]\n", i);
+    return i;
+}
+
+static int im_index(int x, int y)
+{
+    int i = ((y)*_ncols) + (x);
+    if ((i < 0) | (i >= MAX_IM))
+        printf("INDEX OUT OF BOUNDS. im[%i, %i]\n", x, y);
+    return i;
+}
+
+static int sl_index(int i)
+{
+    if ((i < 0) | (i >= MAX_SL))
+        printf("INDEX OUT OF BOUNDS. sL[%i]\n", i);
+    return i;
+}
+#else
+#define zeta_index(x, y, z) ((z)*_ncols * _nrows) + ((y)*_ncols) + (x)
+#define mzeta_index(x, y) ((y)*_ncols) + (x)
+#define xi_index(x, y, z) ((z)*_ncols * _ny) + ((y)*_ncols) + (x)
+#define psf_index(x, y) ((y)*_ncols) + (x)
+#define a_index(x, y) ((x) + _n * (y))
+#define r_index(i) (i)
+#define sp_index(i) (i)
+#define laij_index(x, y) ((y)*_ny) + (x)
+#define paij_index(x, y) ((y)*_ncols) + (x)
+#define lbj_index(i) (i)
+#define pbj_index(i) (i)
+#define im_index(x, y) ((y)*_ncols) + (x)
+#define sl_index(i) (i)
+#endif
 
 /*----------------------------------------------------------------------------*/
 /**
@@ -49,38 +187,41 @@ static int bandsol(
     double aa;
     int i, j, k;
 
+    _n = n;
+    _nd = nd;
+
     //if(fmod(nd,2)==0) return -1;
 
     /* Forward sweep */
     for (i = 0; i < n - 1; i++)
     {
-        aa = a[i + n * (nd / 2)];
+        aa = a[a_index(i, nd / 2)];
         //if(aa==0.e0) return -3;
-        r[i] /= aa;
+        r[r_index(i)] /= aa;
         for (j = 0; j < nd; j++)
-            a[i + j * n] /= aa;
+            a[a_index(i, j)] /= aa;
         for (j = 1; j < min(nd / 2 + 1, n - i); j++)
         {
-            aa = a[i + j + n * (nd / 2 - j)];
+            aa = a[a_index(i + j, nd / 2 - j)];
             //if(aa==0.e0) return -j;
-            r[i + j] -= r[i] * aa;
+            r[r_index(i + j)] -= r[r_index(i)] * aa;
             for (k = 0; k < n * (nd - j); k += n)
-                a[i + j + k] -= a[i + k + n * j] * aa;
+                a[a_index(i + j + k, 0)] -= a[a_index(i + k, j)] * aa;
         }
     }
 
     /* Backward sweep */
-    r[n - 1] /= a[n - 1 + n * (nd / 2)];
+    r[r_index(n - 1)] /= a[a_index(n - 1, nd / 2)];
     for (i = n - 1; i > 0; i--)
     {
         for (j = 1; j <= min(nd / 2, i); j++)
-            r[i - j] -= r[i] * a[i - j + n * (nd / 2 + j)];
+            r[r_index(i - j)] -= r[r_index(i)] * a[a_index(i - j, nd / 2 + j)];
         //if(a[i-1+n*(nd/2)]==0.e0) return -5;
-        r[i - 1] /= a[i - 1 + n * (nd / 2)];
+        r[r_index(i - 1)] /= a[a_index(i - 1, nd / 2)];
     }
 
     //if(a[n*(nd/2)]==0.e0) return -6;
-    r[0] /= a[n * (nd / 2)];
+    r[r_index(0)] /= a[a_index(0, nd / 2)];
     return 0;
 }
 
@@ -161,7 +302,7 @@ static int xi_zeta_tensors(
            we only need to initialize iy1 and iy2 and keep incrementing them
            by osample.
          */
-        iy2 = osample - (int)floor(ycen[x] / step) - 1;
+        iy2 = osample - (int)floor(ycen[sp_index(x)] / step) - 1;
         iy1 = iy2 - osample;
 
         /*
@@ -186,7 +327,7 @@ static int xi_zeta_tensors(
            dy=(iy-(y_lower_lim+ycen[x])*osample)*step-0.5*step
          */
 
-        d1 = fmod(ycen[x], step);
+        d1 = fmod(ycen[sp_index(x)], step);
         if (d1 == 0)
             d1 = step;
         d2 = step - d1;
@@ -215,7 +356,7 @@ static int xi_zeta_tensors(
             where y' = y - floor(yc).
          */
 
-        dy = -(y_lower_lim * osample + floor(ycen[x] / step) + 0.5) * step;
+        dy = -(y_lower_lim * osample + floor(ycen[sp_index(x)] / step) + 0.5) * step;
 
         /* Define initial distance from ycen       */
         /* ie the center of the first subpixel falling into pixel y_lower_lim */
@@ -244,7 +385,7 @@ static int xi_zeta_tensors(
                     w = step;
                 dy += step;
                 delta = (PSF_curve[psf_index(x, 1)] + PSF_curve[psf_index(x, 2)] * dy) * dy;
-                ix1 = (int) delta;
+                ix1 = (int)delta;
                 ix2 = ix1 + signum(delta);
 
                 /* Three cases: bottom boundary of row y, intermediate i
@@ -259,7 +400,7 @@ static int xi_zeta_tensors(
                         if (x + ix1 >= 0 && x + ix2 < ncols)
                         {
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 1)].x = xx;
                             xi[xi_index(x, iy, 1)].y = yy;
                             xi[xi_index(x, iy, 1)].w = w - fabs(delta - ix1) * w;
@@ -269,10 +410,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 1)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 0)].x = xx;
                             xi[xi_index(x, iy, 0)].y = yy;
                             xi[xi_index(x, iy, 0)].w = fabs(delta - ix1) * w;
@@ -282,7 +423,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 0)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -292,7 +433,7 @@ static int xi_zeta_tensors(
                         if (x + ix2 >= 0 && x + ix1 < ncols)
                         {
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 1)].x = xx;
                             xi[xi_index(x, iy, 1)].y = yy;
                             xi[xi_index(x, iy, 1)].w = fabs(delta - ix1) * w;
@@ -302,10 +443,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 1)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 0)].x = xx;
                             xi[xi_index(x, iy, 0)].y = yy;
                             xi[xi_index(x, iy, 0)].w = w - fabs(delta - ix1) * w;
@@ -316,7 +457,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 0)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -324,7 +465,7 @@ static int xi_zeta_tensors(
                     {
                         /* Subpixel iy stays inside column x */
                         xx = x + ix1;
-                        yy = y + ycen_offset[x] - ycen_offset[xx];
+                        yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                         xi[xi_index(x, iy, 0)].x = xx;
                         xi[xi_index(x, iy, 0)].y = yy;
                         xi[xi_index(x, iy, 0)].w = w;
@@ -334,7 +475,7 @@ static int xi_zeta_tensors(
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = w;
-                            m_zeta[mzeta_index(xx, yy)]++;
+                            (m_zeta[mzeta_index(xx, yy)])++;
                         }
                     }
                 }
@@ -347,7 +488,7 @@ static int xi_zeta_tensors(
                         if (x + ix1 >= 0 && x + ix2 < ncols)
                         {
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 3)].x = xx;
                             xi[xi_index(x, iy, 3)].y = yy;
                             xi[xi_index(x, iy, 3)].w = w - fabs(delta - ix1) * w;
@@ -357,10 +498,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 3)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 2)].x = xx;
                             xi[xi_index(x, iy, 2)].y = yy;
                             xi[xi_index(x, iy, 2)].w = fabs(delta - ix1) * w;
@@ -370,7 +511,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 2)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -380,7 +521,7 @@ static int xi_zeta_tensors(
                         if (x + ix2 >= 0 && x + ix1 < ncols)
                         {
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 3)].x = xx;
                             xi[xi_index(x, iy, 3)].y = yy;
                             xi[xi_index(x, iy, 3)].w = fabs(delta - ix1) * w;
@@ -390,10 +531,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 3)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 2)].x = xx;
                             xi[xi_index(x, iy, 2)].y = yy;
                             xi[xi_index(x, iy, 2)].w = w - fabs(delta - ix1) * w;
@@ -403,7 +544,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 2)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -411,7 +552,7 @@ static int xi_zeta_tensors(
                     {
                         /* Subpixel iy stays inside column x        */
                         xx = x + ix1;
-                        yy = y + ycen_offset[x] - ycen_offset[xx];
+                        yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                         xi[xi_index(x, iy, 2)].x = xx;
                         xi[xi_index(x, iy, 2)].y = yy;
                         xi[xi_index(x, iy, 2)].w = w;
@@ -421,7 +562,7 @@ static int xi_zeta_tensors(
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = w;
-                            m_zeta[mzeta_index(xx, yy)]++;
+                            (m_zeta[mzeta_index(xx, yy)])++;
                         }
                     }
                 }
@@ -434,7 +575,7 @@ static int xi_zeta_tensors(
                         if (x + ix1 >= 0 && x + ix2 < ncols)
                         {
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 1)].x = xx;
                             xi[xi_index(x, iy, 1)].y = yy;
                             xi[xi_index(x, iy, 1)].w = w - fabs(delta - ix1) * w;
@@ -444,10 +585,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 1)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 0)].x = xx;
                             xi[xi_index(x, iy, 0)].y = yy;
                             xi[xi_index(x, iy, 0)].w = fabs(delta - ix1) * w;
@@ -457,7 +598,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 0)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -467,7 +608,7 @@ static int xi_zeta_tensors(
                         if (x + ix2 >= 0 && x + ix1 < ncols)
                         {
                             xx = x + ix2;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 1)].x = xx;
                             xi[xi_index(x, iy, 1)].y = yy;
                             xi[xi_index(x, iy, 1)].w = fabs(delta - ix1) * w;
@@ -477,10 +618,10 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 1)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                             xx = x + ix1;
-                            yy = y + ycen_offset[x] - ycen_offset[xx];
+                            yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                             xi[xi_index(x, iy, 0)].x = xx;
                             xi[xi_index(x, iy, 0)].y = yy;
                             xi[xi_index(x, iy, 0)].w = w - fabs(delta - ix1) * w;
@@ -490,7 +631,7 @@ static int xi_zeta_tensors(
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                                 zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = xi[xi_index(x, iy, 0)].w;
-                                m_zeta[mzeta_index(xx, yy)]++;
+                                (m_zeta[mzeta_index(xx, yy)])++;
                             }
                         }
                     }
@@ -498,7 +639,7 @@ static int xi_zeta_tensors(
                     {
                         /* Subpixel iy stays inside column x */
                         xx = x + ix2;
-                        yy = y + ycen_offset[x] - ycen_offset[xx];
+                        yy = y + ycen_offset[sp_index(x)] - ycen_offset[sp_index(xx)];
                         xi[xi_index(x, iy, 0)].x = xx;
                         xi[xi_index(x, iy, 0)].y = yy;
                         xi[xi_index(x, iy, 0)].w = w;
@@ -508,7 +649,7 @@ static int xi_zeta_tensors(
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].x = x;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].iy = iy;
                             zeta[zeta_index(xx, yy, m_zeta[mzeta_index(xx, yy)])].w = w;
-                            m_zeta[mzeta_index(xx, yy)]++;
+                            (m_zeta[mzeta_index(xx, yy)])++;
                         }
                     }
                 }
@@ -545,28 +686,51 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
 
     ny = osample * (nrows + 1) + 1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
 
-    double *sP_old = malloc(ncols * sizeof(double));
-    double *l_Aij = malloc(ny * (4 * osample + 1) * sizeof(double));
-    double *p_Aij = malloc(ncols * 5 * sizeof(double));
-    double *l_bj = malloc(ny * sizeof(double));
-    double *p_bj = malloc(ncols * sizeof(double));
+    _ncols = ncols;
+    _nrows = nrows;
+    _ny = ny;
+    _osample = osample;
+
+    double *sP_old = malloc(MAX_SP * sizeof(double));
+    for (i = 0; i < MAX_SP; i++)
+        sP_old[i] = 0;
+    double *l_Aij = malloc(MAX_LAIJ * sizeof(double));
+    for (i = 0; i < MAX_LAIJ; i++)
+        l_Aij[i] = 0;
+    double *p_Aij = malloc(MAX_PAIJ * sizeof(double));
+    for (i = 0; i < MAX_PAIJ; i++)
+        p_Aij[i] = 0;
+    double *l_bj = malloc(MAX_LBJ * sizeof(double));
+    for (i = 0; i < MAX_LBJ; i++)
+        l_bj[i] = 0;
+    double *p_bj = malloc(MAX_PBJ * sizeof(double));
+    for (i = 0; i < MAX_PBJ; i++)
+        p_bj[i] = 0;
 
     /*
       Convolution tensor telling the coordinates of detector pixels on which
       {x, iy} element falls and the corresponding projections. [ncols][ny][4]
     */
-    xi_ref *xi = malloc(ncols * ny * 4 * sizeof(xi_ref));
-
+    xi_ref *xi = malloc(MAX_XI * sizeof(xi_ref));
+    for (i = 0; i < MAX_XI; i++)
+        xi[i].w = xi[i].x = xi[i].y = 0;
     /* Convolution tensor telling the coordinates of subpixels {x, iy}
       contributing to detector pixel {x, y}. [ncols][nrows][3*(osample+1)]
     */
-    zeta_ref *zeta = malloc(ncols * nrows * 3 * (osample + 1) * sizeof(zeta_ref));
+    zeta_ref *zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
+    for (i = 0; i < MAX_ZETA; i++)
+        zeta[i].w = zeta[i].x = zeta[i].iy = 0;
 
     /* The actual number of contributing elements in zeta  [ncols][nrows]  */
-    int *m_zeta = malloc(ncols * nrows * sizeof(int));
+    int *m_zeta = malloc(MAX_MZETA * sizeof(int));
+    for (i = 0; i < MAX_MZETA; i++)
+        m_zeta[i] = 0;
 
     //[ncols][3];
-    double *PSF_curve = malloc(ncols * 3 * sizeof(double));         
+    double *PSF_curve = malloc(MAX_PSF * sizeof(double));
+    for (i = 0; i < MAX_PSF; i++)
+        PSF_curve[i] = 0;
+
     /* Parabolic fit to the slit image curvature.            */
     /* For column d_x = PSF_curve[ncols][0] +                */
     /*                  PSF_curve[ncols][1] *d_y +           */
@@ -579,13 +743,13 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
     for (i = 0; i < ncols; i++)
     {
-        tmp = (0.5 / osample + y_lower_lim + ycen[i]);
-        delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
-        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[i]));
-        delta_x = max(delta_x, (int)(fabs(tilt[i] * tmp) + 1));
+        tmp = (0.5 / osample + y_lower_lim + ycen[sp_index(i)]);
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
+        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
         PSF_curve[psf_index(i, 0)] = 0.;
-        PSF_curve[psf_index(i, 1)] = -tilt[i];
-        PSF_curve[psf_index(i, 2)] = -shear[i];
+        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
+        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
     }
 
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
@@ -598,10 +762,10 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         /* Prepare the RHS and the matrix */
         for (iy = 0; iy < ny; iy++)
         {
-            l_bj[iy] = 0.e0;
+            l_bj[lbj_index(iy)] = 0.e0;
             /* Clean RHS                */
-            for (jy = 0; jy <= 4 * osample; jy++)
-                l_Aij[iy + ny * jy] = 0.e0;
+            for (jy = 0; jy < 4 * osample + 1; jy++)
+                l_Aij[laij_index(iy, jy)] = 0.e0;
         }
         /* Fill in SLE arrays for slit function */
         diag_tot = 0.e0;
@@ -616,44 +780,54 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                     {
                         xx = xi[xi_index(x, iy, n)].x;
                         yy = xi[xi_index(x, iy, n)].y;
-                        if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols &&
-                            yy >= 0 && yy < nrows)
+                        if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
                         {
-                            for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                            if (m_zeta[mzeta_index(xx, yy)] > 0)
                             {
-                                xxx = zeta[zeta_index(xx, yy, m)].x;
-                                jy = zeta[zeta_index(xx, yy, m)].iy;
-                                www = zeta[zeta_index(xx, yy, m)].w;
-                                l_Aij[iy + ny * (jy - iy + 2 * osample)] +=
-                                    sP[xxx] * sP[x] * www * ww * mask[yy * ncols + xx];
+                                for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                {
+                                    xxx = zeta[zeta_index(xx, yy, m)].x;
+                                    jy = zeta[zeta_index(xx, yy, m)].iy;
+                                    www = zeta[zeta_index(xx, yy, m)].w;
+                                    if (((jy - iy + 2 * osample) >= 0) && ((jy - iy + 2 * osample) < (4 * osample + 1)))
+                                    {
+                                        l_Aij[laij_index(iy, jy - iy + 2 * osample)] +=
+                                            sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+                                    }
+                                    else
+                                    {
+                                        // printf("ww = %f\n", ww);
+                                        // printf("www = %f\n", www);
+                                    }
+                                }
+                                l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                             }
-                            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sP[x] * ww;
                         }
                     }
                 }
             }
-            diag_tot += l_Aij[iy + ny * 2 * osample];
+            diag_tot += l_Aij[laij_index(iy, 2 * osample)];
         }
         /* Scale regularization parameters */
         lambda = lambda_sL * diag_tot / ny;
         /* Add regularization parts for the SLE matrix */
         /* Main diagonal  */
-        l_Aij[ny * 2 * osample] += lambda;
+        l_Aij[laij_index(0, 2 * osample)] += lambda;
         /* Upper diagonal */
-        l_Aij[ny * (2 * osample + 1)] -= lambda;
+        l_Aij[laij_index(0, 2 * osample + 1)] -= lambda;
         for (iy = 1; iy < ny - 1; iy++)
         {
             /* Lower diagonal */
-            l_Aij[iy + ny * (2 * osample - 1)] -= lambda;
+            l_Aij[laij_index(iy, 2 * osample - 1)] -= lambda;
             /* Main diagonal  */
-            l_Aij[iy + ny * 2 * osample] += lambda * 2.e0;
+            l_Aij[laij_index(iy, 2 * osample)] += lambda * 2.e0;
             /* Upper diagonal */
-            l_Aij[iy + ny * (2 * osample + 1)] -= lambda;
+            l_Aij[laij_index(iy, 2 * osample + 1)] -= lambda;
         }
         /* Lower diagonal */
-        l_Aij[ny - 1 + ny * (2 * osample - 1)] -= lambda;
+        l_Aij[laij_index(ny - 1, 2 * osample - 1)] -= lambda;
         /* Main diagonal  */
-        l_Aij[ny - 1 + ny * 2 * osample] += lambda;
+        l_Aij[laij_index(ny - 1, 2 * osample)] += lambda;
 
         /* Solve the system of equations */
         info = bandsol(l_Aij, l_bj, ny, 4 * osample + 1);
@@ -664,19 +838,19 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         norm = 0.e0;
         for (iy = 0; iy < ny; iy++)
         {
-            sL[iy] = l_bj[iy];
-            norm += sL[iy];
+            sL[sl_index(iy)] = l_bj[lbj_index(iy)];
+            norm += sL[sl_index(iy)];
         }
         norm /= osample;
         for (iy = 0; iy < ny; iy++)
-            sL[iy] /= norm;
+            sL[sl_index(iy)] /= norm;
 
         /*  Compute spectrum sP */
         for (x = 0; x < ncols; x++)
         {
             for (xx = 0; xx < 5; xx++)
-                p_Aij[xx * ncols + x] = 0.;
-            p_bj[x] = 0;
+                p_Aij[paij_index(x, xx)] = 0.;
+            p_bj[pbj_index(x)] = 0;
         }
         for (x = 0; x < ncols; x++)
         {
@@ -689,18 +863,27 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                     {
                         xx = xi[xi_index(x, iy, n)].x;
                         yy = xi[xi_index(x, iy, n)].y;
-                        if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols &&
-                            yy >= 0 && yy < nrows)
+                        if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
                         {
-                            for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                            if (m_zeta[mzeta_index(xx, yy)] > 0)
                             {
-                                xxx = zeta[zeta_index(xx, yy, m)].x;
-                                jy = zeta[zeta_index(xx, yy, m)].iy;
-                                www = zeta[zeta_index(xx, yy, m)].w;
-                                p_Aij[x + ncols * (xxx - x + 2)] += sL[jy] *
-                                                                    sL[iy] * www * ww * mask[yy * ncols + xx];
+                                for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                {
+                                    xxx = zeta[zeta_index(xx, yy, m)].x;
+                                    jy = zeta[zeta_index(xx, yy, m)].iy;
+                                    www = zeta[zeta_index(xx, yy, m)].w;
+                                    if ((xxx - x + 2 >= 0) && (xxx - x + 2 < 5))
+                                    {
+                                        p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+                                    }
+                                    else
+                                    {
+                                        // printf("ww = %f\n", ww);
+                                        // printf("www = %f\n", www);
+                                    }
+                                }
+                                p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
                             }
-                            p_bj[x] += im[yy * ncols + xx] * mask[yy * ncols + xx] * sL[iy] * ww;
                         }
                     }
                 }
@@ -708,26 +891,26 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         }
 
         for (x = 0; x < ncols; x++)
-            sP_old[x] = sP[x];
+            sP_old[sp_index(x)] = sP[sp_index(x)];
         if (lambda_sP > 0.e0)
         {
             norm = 0.e0;
             for (x = 0; x < ncols; x++)
             {
-                norm += sP[x];
+                norm += sP[sp_index(x)];
             }
             norm /= ncols;
-            lambda = lambda_sP * norm;  /* Scale regularization parameter */
-            p_Aij[ncols * 2] += lambda; /* Main diagonal  */
-            p_Aij[ncols * 3] -= lambda; /* Upper diagonal */
+            lambda = lambda_sP * norm;         /* Scale regularization parameter */
+            p_Aij[paij_index(0, 2)] += lambda; /* Main diagonal  */
+            p_Aij[paij_index(0, 3)] -= lambda; /* Upper diagonal */
             for (x = 1; x < ncols - 1; x++)
             {
-                p_Aij[x + ncols] -= lambda;            /* Lower diagonal */
-                p_Aij[x + ncols * 2] += lambda * 2.e0; /* Main diagonal  */
-                p_Aij[x + ncols * 3] -= lambda;        /* Upper diagonal */
+                p_Aij[paij_index(x, 1)] -= lambda;        /* Lower diagonal */
+                p_Aij[paij_index(x, 2)] += lambda * 2.e0; /* Main diagonal  */
+                p_Aij[paij_index(x, 3)] -= lambda;        /* Upper diagonal */
             }
-            p_Aij[ncols - 1 + ncols] -= lambda;     /* Lower diagonal */
-            p_Aij[ncols - 1 + ncols * 2] += lambda; /* Main diagonal  */
+            p_Aij[paij_index(ncols - 1, 1)] -= lambda; /* Lower diagonal */
+            p_Aij[paij_index(ncols - 1, 2)] += lambda; /* Main diagonal  */
         }
 
         /* Solve the system of equations */
@@ -735,14 +918,14 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         if (info)
             printf("info(sP)=%d\n", info);
         for (x = 0; x < ncols; x++)
-            sP[x] = p_bj[x];
+            sP[sp_index(x)] = p_bj[pbj_index(x)];
 
         /* Compute the model */
         for (y = 0; y < nrows; y++)
         {
             for (x = 0; x < ncols; x++)
             {
-                model[y * ncols + x] = 0.;
+                model[im_index(x, y)] = 0.;
             }
         }
         for (y = 0; y < nrows; y++)
@@ -754,7 +937,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                     xx = zeta[zeta_index(x, y, m)].x;
                     iy = zeta[zeta_index(x, y, m)].iy;
                     ww = zeta[zeta_index(x, y, m)].w;
-                    model[y * ncols + x] += sP[xx] * sL[iy] * ww;
+                    model[im_index(x, y)] += sP[sp_index(xx)] * sL[sl_index(iy)] * ww;
                 }
             }
         }
@@ -763,22 +946,22 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         isum = 0;
         for (y = 0; y < nrows; y++)
         {
-            for (x = (int) delta_x; x < ncols - delta_x; x++)
+            for (x = (int)delta_x; x < ncols - delta_x; x++)
             {
-                sum += mask[y * ncols + x] * (model[y * ncols + x] - im[y * ncols + x]) * (model[y * ncols + x] - im[y * ncols + x]);
-                isum += mask[y * ncols + x];
+                sum += mask[im_index(x, y)] * (model[im_index(x, y)] - im[im_index(x, y)]) * (model[im_index(x, y)] - im[im_index(x, y)]);
+                isum += mask[im_index(x, y)];
             }
         }
         dev = sqrt(sum / isum);
         /* Adjust the mask marking outlyers */
         for (y = 0; y < nrows; y++)
         {
-            for (x = (int) delta_x; x < ncols - delta_x; x++)
+            for (x = (int)delta_x; x < ncols - delta_x; x++)
             {
-                if (fabs(model[y * ncols + x] - im[y * ncols + x]) > 6. * dev)
-                    mask[y * ncols + x] = 0;
+                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) > 6. * dev)
+                    mask[im_index(x, y)] = 0;
                 else
-                    mask[y * ncols + x] = 1;
+                    mask[im_index(x, y)] = 1;
             }
         }
 
@@ -787,10 +970,10 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         sP_max = 1.e0;
         for (x = 0; x < ncols; x++)
         {
-            if (sP[x] > sP_max)
-                sP_max = sP[x];
-            if (fabs(sP[x] - sP_old[x]) > sP_change)
-                sP_change = fabs(sP[x] - sP_old[x]);
+            if (sP[sp_index(x)] > sP_max)
+                sP_max = sP[sp_index(x)];
+            if (fabs(sP[sp_index(x)] - sP_old[sp_index(x)]) > sP_change)
+                sP_change = fabs(sP[sp_index(x)] - sP_old[sp_index(x)]);
         }
         /* Check for convergence */
     } while (iter++ < maxiter && sP_change > 1e-6 * sP_max);
@@ -798,8 +981,8 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     /* Uncertainty estimate */
     for (x = 0; x < ncols; x++)
     {
-        unc[x] = 0.;
-        p_bj[x] = 0.;
+        unc[sp_index(x)] = 0.;
+        p_bj[pbj_index(x)] = 0.;
     }
     for (y = 0; y < nrows; y++)
     {
@@ -811,19 +994,19 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                 xx = zeta[zeta_index(x, y, m)].x;
                 iy = zeta[zeta_index(x, y, m)].iy;
                 ww = zeta[zeta_index(x, y, m)].w;
-                unc[xx] += (im[y * ncols + x] - model[y * ncols + x]) *
-                           (im[y * ncols + x] - model[y * ncols + x]) *
-                           ww * mask[y * ncols + x];
-                unc[xx] += pix_unc[y * ncols + x] * pix_unc[y * ncols + x] *
-                           ww * mask[y * ncols + x];
+                unc[sp_index(xx)] += (im[im_index(x, y)] - model[im_index(x, y)]) *
+                                     (im[im_index(x, y)] - model[im_index(x, y)]) *
+                                     ww * mask[im_index(x, y)];
+                unc[sp_index(xx)] += pix_unc[im_index(x, y)] * pix_unc[im_index(x, y)] *
+                                     ww * mask[im_index(x, y)];
                 // Norm
-                p_bj[xx] += ww * mask[y * ncols + x];
+                p_bj[pbj_index(xx)] += ww * mask[im_index(x, y)];
             }
         }
     }
     for (x = 0; x < ncols; x++)
     {
-        unc[x] = sqrt(unc[x] / p_bj[x] * nrows);
+        unc[sp_index(x)] = sqrt(unc[sp_index(x)] / p_bj[pbj_index(x)] * nrows);
     }
     free(sP_old);
     free(l_Aij);
@@ -835,5 +1018,6 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     free(zeta);
     free(m_zeta);
     free(PSF_curve);
+
     return 0;
 }
