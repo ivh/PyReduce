@@ -163,14 +163,15 @@ def estimate_background_scatter(
         plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(img - back, aspect="equal", origin="lower")
+        vmin, vmax = np.percentile(img - back, (5, 95))
+        plt.imshow(img - back, vmin=vmin, vmax=vmax, aspect="equal", origin="lower")
         plt.plot(x, y, ",")
 
         plt.subplot(122)
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(back, vmin=0, vmax=np.max(back), aspect="equal", origin="lower")
+        plt.imshow(back, vmin=0, vmax=abs(np.max(back)), aspect="equal", origin="lower")
         plt.show()
 
     return coeff

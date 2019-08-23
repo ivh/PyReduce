@@ -185,7 +185,7 @@ def merge_clusters(
         i, j, overlap, _, _ = merge[k]
         i, j = int(i), int(j)
 
-        if overlap >= auto_merge_threshold:
+        if overlap >= auto_merge_threshold and auto_merge_threshold != 1:
             answer = "y"
         elif manual:
             plot_order(i, j, x, y, img, deg, title=f"Probability: {overlap}")
@@ -359,7 +359,7 @@ def mark_orders(
     """
 
     # Convert to signed integer, to avoid underflow problems
-    im = np.asarray(im)
+    im = np.asanyarray(im)
     im = im.astype(int)
 
     if filter_size is None:
@@ -404,6 +404,7 @@ def mark_orders(
     # remove borders
     if border_width != 0:
         mask[:border_width, :] = mask[-border_width:, :] = False
+        mask[:, :border_width] = mask[:, -border_width:] = False
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
