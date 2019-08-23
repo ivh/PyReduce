@@ -559,10 +559,17 @@ class OrderTracing(Step):
         column_range : array of shape (nord, 2)
             first and last(+1) column that carries signal in each order
         """
-        order_img, ohead = util.load_fits(
-            files[0], self.instrument, self.mode, self.extension, mask=mask
+
+        order_img, ohead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            extension=self.extension,
+            bhead=bias[1],
+            bias=bias[0],
+            plot=False,
         )
-        order_img = util.remove_bias(order_img, ohead, bias[0], bias[1])
 
         orders, column_range = mark_orders(
             order_img,
@@ -729,7 +736,7 @@ class WavelengthCalibration(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders"]
+        self._dependsOn += ["mask", "orders", "curvature", "bias"]
 
         #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -768,7 +775,7 @@ class WavelengthCalibration(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar.npz")
 
-    def run(self, files, orders, mask):
+    def run(self, files, orders, mask, curvature, bias):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -795,6 +802,8 @@ class WavelengthCalibration(Step):
             Updated line information for all lines
         """
         orders, column_range = orders
+        tilt, shear = curvature
+        bias, bhead = bias
 
         if len(files) == 0:
             raise ValueError("No files found for wavelength calibration.")
@@ -806,9 +815,12 @@ class WavelengthCalibration(Step):
             )
 
         # Load wavecal image
-        orig, thead = util.load_fits(
-            f, self.instrument, self.mode, self.extension, mask=mask
-        )
+        orig, thead = combine_flat(files, self.instrument, self.mode, self.extension, mask=mask)
+        # orig, thead = util.load_fits(
+        #     f, self.instrument, self.mode, self.extension, mask=mask
+        # )
+        if bias is not None:
+            orig -= bias * thead["EXPTIME"] / bhead["EXPTIME"]
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
@@ -821,6 +833,8 @@ class WavelengthCalibration(Step):
             extraction_type=self.extraction_method,
             order_range=self.order_range,
             plot=self.plot,
+            tilt=tilt,
+            shear=shear,
             **self.extraction_kwargs,
         )
 
@@ -888,7 +902,7 @@ class LaserFrequencyComb(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["wavecal", "orders", "mask"]
+        self._dependsOn += ["wavecal", "orders", "mask", "curvature"]
         self._loadDependsOn += ["wavecal"]
 
         #:{'arc', 'optimal'}: extraction method
@@ -924,7 +938,7 @@ class LaserFrequencyComb(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".comb.npz")
 
-    def run(self, files, wavecal, orders, mask):
+    def run(self, files, wavecal, orders, mask, curvature):
         """Improve the wavelength calibration with a laser frequency comb (or similar)
 
         Parameters
@@ -1042,8 +1056,10 @@ class SlitCurvatureDetermination(Step):
         self.extraction_method = "arc"
         #:tuple(int, 2): Number of pixels around each order to use in an extraction
         self.extraction_width = config["extraction_width"]
-        #:int: Polynimal degree of the overall fit
+        #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
+        #:int: Orders of the curvature to fit, currently supports only 1 and 2
+        self.curv_degree = config["curv_degree"]
         #:int: Number of iterations in the removal of bad lines loop
         self.max_iter = config["iterations"]
         #:float: how many sigma of bad lines to cut away
@@ -1105,6 +1121,7 @@ class SlitCurvatureDetermination(Step):
             extraction_width=self.extraction_width,
             order_range=self.order_range,
             fit_degree=self.fit_degree,
+            curv_degree=self.curv_degree,
             max_iter=self.max_iter,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
@@ -1508,8 +1525,8 @@ class Finalize(Step):
                     head["e_obslon"],
                     head["e_obslat"],
                     head["e_obsalt"],
-                    head["ra"],
-                    head["dec"],
+                    head["e_ra"],
+                    head["e_dec"],
                     head["e_jd"],
                 )
 
@@ -1576,9 +1593,9 @@ class Reducer:
         "flat": 20,
         "orders": 30,
         "norm_flat": 40,
-        "wavecal": 50,
-        "freq_comb": 60,
-        "curvature": 70,
+        "curvature": 50,
+        "wavecal": 60,
+        "freq_comb": 70,
         "science": 80,
         "continuum": 90,
         "finalize": 100,

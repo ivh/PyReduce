@@ -119,6 +119,7 @@ class Curvature:
         mode="1D",
         plot=False,
         verbose=0,
+        curv_degree=2,
     ):
         self.orders = orders
         self.extraction_width = extraction_width
@@ -136,6 +137,7 @@ class Curvature:
         self.mode = mode
         self.plot = plot
         self.verbose = verbose
+        self.curv_degree = curv_degree
 
     @property
     def nord(self):
@@ -250,11 +252,17 @@ class Curvature:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                coef = np.polyfit(xind[idx], xcen[idx], 2)
+                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree)
         except:
             logging.warning("Could not fit curvature to line, using 0 instead.")
-            coef = (0, 0)
-        tilt, shear = coef[1], coef[0]
+            coef = [0] * self.curv_degree
+
+        if self.curv_degree == 1:
+            tilt, shear = coef[0], 0
+        elif self.curv_degree == 2:
+            tilt, shear = coef[1], coef[0]
+        else:
+            raise ValueError("Only curvature degrees 1 and 2 are supported")
 
         if self.plot and self.verbose >= 2:
             self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
@@ -293,7 +301,9 @@ class Curvature:
                 if np.ma.all(~idx1) and np.ma.all(~idx2):
                     break
                 if np.all(mask):
-                    raise ValueError("Could not fit polynomial to the data")
+                    logging.error("Could not fit polynomial to the data")
+                    mask[:] = False
+                    break
 
         coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
         coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
@@ -385,9 +395,13 @@ class Curvature:
     ):
         fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
-        fig1, axes1 = plt.subplots(nrows=self.n // 2+ self.n % 2, ncols=2, squeeze=False)
+        fig1, axes1 = plt.subplots(
+            nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False
+        )
         fig1.suptitle("1st Order Curvature")
-        fig2, axes2 = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
+        fig2, axes2 = plt.subplots(
+            nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False
+        )
         fig2.suptitle("2nd Order Curvature")
         plt.subplots_adjust(hspace=0)
 
@@ -403,8 +417,8 @@ class Curvature:
             t, s = self.eval(x, order, tilt_x, shear_x)
 
             # Figure Peaks found (and used)
-            axes[j // 2, j % 2].plot(vec)
-            axes[j // 2, j % 2].plot(peaks - cr[0], vec[peaks - cr[0]], "+")
+            axes[j // 2, j % 2].plot(np.arange(cr[0], cr[1]), vec)
+            axes[j // 2, j % 2].plot(peaks, vec[peaks - cr[0]], "+")
             axes[j // 2, j % 2].set_xlim([0, ncol])
             axes[j // 2, j % 2].set_yscale("log")
             if j not in (self.n - 1, self.n - 2):
@@ -434,6 +448,42 @@ class Curvature:
 
         plt.show()
 
+    def plot_comparison(self, original, tilt, shear, peaks):
+        _, ncol = original.shape
+        output = np.zeros((np.sum(self.extraction_width) + self.nord, ncol))
+        pos = [0]
+        x = np.arange(ncol)
+        for i in range(self.nord):
+            ycen = np.polyval(self.orders[i], x)
+            yb = ycen - self.extraction_width[i, 0]
+            yt = ycen + self.extraction_width[i, 1]
+            xl, xr = self.column_range[i]
+            index = make_index(yb, yt, xl, xr)
+            yl = pos[i]
+            yr = pos[i] + index[0].shape[0]
+            output[yl:yr, xl:xr] = original[index]
+            pos += [yr]
+
+        vmin, vmax = np.percentile(output[output != 0], (5, 95))
+        plt.imshow(output, vmin=vmin, vmax=vmax, origin="lower", aspect="auto")
+        
+        for i in range(self.nord):
+            for p in peaks[i]:
+                ew = self.extraction_width[i]
+                x = np.zeros(ew[0] + ew[1] + 1)
+                y = np.arange(-ew[0], ew[1] + 1)
+                for j, yt in enumerate(y):
+                    x[j] = p + yt * tilt[i, p] + yt**2 * shear[i, p]
+                y += pos[i] + ew[0]
+                plt.plot(x, y, "r")
+        
+        locs = np.sum(self.extraction_width, axis=1) + 1
+        locs = [0, *np.cumsum(locs)[:-1]]
+        plt.yticks(locs, range(len(locs)))
+        plt.xlabel("x [pixel]")
+        plt.ylabel("order")
+        plt.show()
+
     def execute(self, extracted, original):
         _, ncol = original.shape
 
@@ -451,6 +501,11 @@ class Curvature:
         if self.plot:
             self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)
 
-        order, peaks = np.indices(extracted.shape)
-        tilt, shear = self.eval(peaks, order, coef_tilt, coef_shear)
+        iorder, ipeaks = np.indices(extracted.shape)
+        tilt, shear = self.eval(ipeaks, iorder, coef_tilt, coef_shear)
+
+        if self.plot:
+            self.plot_comparison(original, tilt, shear, peaks)
+
+
         return tilt, shear
