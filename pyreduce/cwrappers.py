@@ -1,18 +1,15 @@
 """
 Wrapper for REDUCE C functions
-   locate_cluster
 """
-
 import logging
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 try:
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
 
-    # from .clib._cluster import lib as clusterlib
     from .clib._slitfunc_bd import ffi
 except ImportError:
     raise ImportError("Use build_extract.py to compile the C libraries")
@@ -20,87 +17,6 @@ except ImportError:
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
-
-
-# def find_clusters(img, min_cluster=4, filter_size=10, noise=1.0):
-#     """Wrapper for locate_clusters and cluster, which find clustered pixels
-
-#     Parameters
-#     ----------
-#     img : array[nrow, ncol]
-#         order definition image
-#     min_cluster : int, optional
-#         minimum size of cluster (default: 4)
-#     filter_size : int, optional
-#         size of the mean(?) filter (default: 10)
-#     noise : float, optional
-#         how much noise to filter out (default: 1.0)
-
-#     Returns
-#     -------
-#     y : array[n](int)
-#         y coordinates of pixels in clusters
-#     x : array[n](int)
-#         x coordinates of pixels in clusters
-#     clusters : array[n](int)
-#         cluster id of pixels in clusters
-#     nclusters : int
-#         number of clusters
-#     """
-
-#     nY, nX = img.shape
-#     nmax = nY * nX - np.ma.count_masked(img)
-
-#     min_cluster = int(min_cluster)
-#     filter_size = int(filter_size)
-#     noise = float(noise)
-
-#     mask = ~np.ma.getmaskarray(img).astype(int)
-#     mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
-
-#     img = np.ma.getdata(img)
-#     img = np.require(img, dtype=c_int, requirements=["C", "A", "W", "O"])
-
-#     x = np.zeros(nmax, dtype=c_int)
-#     y = np.zeros(nmax, dtype=c_int)
-
-#     # Find all pixels above the threshold
-#     n = clusterlib.locate_clusters(
-#         ffi.cast("int", nX),
-#         ffi.cast("int", nY),
-#         ffi.cast("int", filter_size),
-#         ffi.cast("int *", img.ctypes.data),
-#         ffi.cast("int", nmax),
-#         ffi.cast("int *", x.ctypes.data),
-#         ffi.cast("int *", y.ctypes.data),
-#         ffi.cast("float", noise),
-#         ffi.cast("int *", mask.ctypes.data),
-#     )
-
-#     # remove unnecessary memory
-#     x = x[:n]
-#     y = y[:n]
-
-#     # Not sure its necessay but the numbering is nicer if we do this
-#     sort = np.argsort(y)
-#     y = np.require(y[sort], dtype=c_int, requirements=["C", "A", "W", "O"])
-#     x = np.require(x[sort], dtype=c_int, requirements=["C", "A", "W", "O"])
-
-#     clusters = np.zeros(n, dtype=c_int)
-
-#     # Group the pixels into clusters
-#     nclus = clusterlib.cluster(
-#         ffi.cast("int *", x.ctypes.data),
-#         ffi.cast("int *", y.ctypes.data),
-#         ffi.cast("int", n),
-#         ffi.cast("int", nX),
-#         ffi.cast("int", nY),
-#         ffi.cast("int", min_cluster),
-#         ffi.cast("int *", clusters.ctypes.data),
-#     )
-
-#     # transpose output
-#     return y, x, clusters, nclus
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
@@ -343,6 +259,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
         ffi.cast("double *", model.ctypes.data),
         ffi.cast("double *", unc.ctypes.data),
     )
+
     mask = ~mask.astype(bool)
 
     return sp, sl, model, unc, mask
