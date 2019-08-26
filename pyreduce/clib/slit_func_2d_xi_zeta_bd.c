@@ -17,7 +17,9 @@
 #define MAX_R (_n)
 #define MAX_SP (_ncols)
 #define MAX_SL (_ny)
-#define MAX_LAIJ (_ny * (4 * _osample + 1))
+#define MAX_LAIJ_X _ny
+#define MAX_LAIJ_Y (4 * _osample + _nx)
+#define MAX_LAIJ (MAX_LAIJ_X * MAX_LAIJ_Y)
 #define MAX_PAIJ (_ncols * 5)
 #define MAX_LBJ (_ny)
 #define MAX_PBJ (_ncols)
@@ -28,6 +30,7 @@
 int _ncols = 0;
 int _nrows = 0;
 int _ny = 0;
+int _nx = 1;
 int _osample = 0;
 int _n = 0;
 int _nd = 0;
@@ -678,18 +681,44 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                      double *model,    /* Model constructed from sp and sf        [nrows][ncols]              */
                      double *unc)      /* Spectrum uncertainties based on data - model   [ncols]       */
 {
-    int x, xx, xxx, y, yy, iy, jy, n, m, ny, y_upper_lim, i;
+    int x, xx, xxx, y, yy, iy, jy, n, m, ny, y_upper_lim, i, maxiter, tmpi;
     double delta_x, tmp, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
     int info, iter, isum;
 
-    int maxiter = 5;
-
-    ny = osample * (nrows + 1) + 1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
-
+    maxiter = 5;
+    y_upper_lim = nrows - 1 - y_lower_lim;
+    /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
+    ny = osample * (nrows + 1) + 1;
     _ncols = ncols;
     _nrows = nrows;
     _ny = ny;
     _osample = osample;
+
+    //[ncols][3];
+    double *PSF_curve = malloc(MAX_PSF * sizeof(double));
+    for (i = 0; i < MAX_PSF; i++)
+        PSF_curve[i] = 0;
+
+    /* Parabolic fit to the slit image curvature.            */
+    /* For column d_x = PSF_curve[ncols][0] +                */
+    /*                  PSF_curve[ncols][1] *d_y +           */
+    /*                  PSF_curve[ncols][2] *d_y^2,          */
+    /* where d_y is the offset from the central line ycen.   */
+    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
+    /* does not stick out of column x.                       */
+
+    delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
+    for (i = 0; i < ncols; i++)
+    {
+        tmp = (0.5 / osample + y_lower_lim + ycen[sp_index(i)]);
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
+        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
+        PSF_curve[psf_index(i, 0)] = 0.;
+        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
+        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
+    }
+    _nx = (int) (2 * delta_x);
 
     double *sP_old = malloc(MAX_SP * sizeof(double));
     for (i = 0; i < MAX_SP; i++)
@@ -726,32 +755,6 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     for (i = 0; i < MAX_MZETA; i++)
         m_zeta[i] = 0;
 
-    //[ncols][3];
-    double *PSF_curve = malloc(MAX_PSF * sizeof(double));
-    for (i = 0; i < MAX_PSF; i++)
-        PSF_curve[i] = 0;
-
-    /* Parabolic fit to the slit image curvature.            */
-    /* For column d_x = PSF_curve[ncols][0] +                */
-    /*                  PSF_curve[ncols][1] *d_y +           */
-    /*                  PSF_curve[ncols][2] *d_y^2,          */
-    /* where d_y is the offset from the central line ycen.   */
-    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
-    /* does not stick out of column x.                       */
-
-    y_upper_lim = nrows - 1 - y_lower_lim;
-    delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
-    for (i = 0; i < ncols; i++)
-    {
-        tmp = (0.5 / osample + y_lower_lim + ycen[sp_index(i)]);
-        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
-        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
-        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
-        PSF_curve[psf_index(i, 0)] = 0.;
-        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
-        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
-    }
-
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
     /* Loop through sL , sP reconstruction until convergence is reached */
@@ -764,7 +767,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         {
             l_bj[lbj_index(iy)] = 0.e0;
             /* Clean RHS                */
-            for (jy = 0; jy < 4 * osample + 1; jy++)
+            for (jy = 0; jy < MAX_LAIJ_Y; jy++)
                 l_Aij[laij_index(iy, jy)] = 0.e0;
         }
         /* Fill in SLE arrays for slit function */
@@ -789,16 +792,22 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                                     xxx = zeta[zeta_index(xx, yy, m)].x;
                                     jy = zeta[zeta_index(xx, yy, m)].iy;
                                     www = zeta[zeta_index(xx, yy, m)].w;
-                                    if (((jy - iy + 2 * osample) >= 0) && ((jy - iy + 2 * osample) < (4 * osample + 1)))
+                                    tmpi = jy - iy + 2 * osample;
+#if CHECK_INDEX
+                                    if ((tmpi >= 0) && (tmpi < MAX_LAIJ_Y))
                                     {
-                                        l_Aij[laij_index(iy, jy - iy + 2 * osample)] +=
+#endif
+                                        l_Aij[laij_index(iy, tmpi)] +=
                                             sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+#if CHECK_INDEX
                                     }
                                     else
                                     {
-                                        // printf("ww = %f\n", ww);
-                                        // printf("www = %f\n", www);
+                                        printf("Index out of Bounds l_Aij[%i, %i]\n", iy, tmpi);
+                                        printf("ww = %f\n", ww);
+                                        printf("www = %f\n", www);
                                     }
+#endif
                                 }
                                 l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                             }
@@ -872,15 +881,21 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                                     xxx = zeta[zeta_index(xx, yy, m)].x;
                                     jy = zeta[zeta_index(xx, yy, m)].iy;
                                     www = zeta[zeta_index(xx, yy, m)].w;
-                                    if ((xxx - x + 2 >= 0) && (xxx - x + 2 < 5))
+                                    tmpi = xxx - x + 2;
+#if CHECK_INDEX
+                                    if ((tmpi >= 0) && (tmpi < 5))
                                     {
-                                        p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+#endif
+                                        p_Aij[paij_index(x, tmpi)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+#if CHECK_INDEX
                                     }
                                     else
                                     {
-                                        // printf("ww = %f\n", ww);
-                                        // printf("www = %f\n", www);
+                                        printf("Index out of Bounds p_Aij[%i, %i]\n", x, tmpi);
+                                        printf("ww = %f\n", ww);
+                                        printf("www = %f\n", www);
                                     }
+#endif
                                 }
                                 p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
                             }
