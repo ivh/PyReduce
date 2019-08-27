@@ -27,6 +27,7 @@
         "split_sigma": 0,
         "filter_size": null,
         "min_cluster": null,
+        "min_width": null,
         "noise": null,
         "border_width": null,
         "manual": true,

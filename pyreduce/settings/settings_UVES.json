@@ -21,6 +21,7 @@
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [6, 6],
+        "shift_window": 0.01,
         "manual": false
     },
     "freq_comb": {

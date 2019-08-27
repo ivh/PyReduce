@@ -3,13 +3,14 @@
     "orders": {
         "degree": 5,
         "degree_before_merge" : 5,
-        "filter_size": 60,
-        "min_cluster": 150,
-        "noise": 0,
-        "border_width": 40,
+        "filter_size": 50,
+        "min_cluster": 500,
+        "noise": 1,
+        "border_width": 20,
         "auto_merge_threshold": 1,
         "merge_min_threshold": 1,
-        "manual": true
+        "manual": true,
+        "min_width": null
     },
     "norm_flat": {
         "smooth_slitfunction": 1e3,
@@ -40,8 +41,8 @@
     "science": {
         "oversampling": 10,
         "extraction_width": 0.45,
-        "swath_width": 300,
-        "smooth_slitfunction": 0.1,
-        "smooth_spectrum": 0
+        "swath_width": 200,
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0.5e-5
     }
 }

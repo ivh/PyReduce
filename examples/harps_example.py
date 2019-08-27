@@ -36,7 +36,7 @@ input_dir = "FrequencyComb/raw"
 output_dir = "FrequencyComb/reduced_{mode}"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_HARPS.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
 
 pyreduce.reduce.main(
     instrument,

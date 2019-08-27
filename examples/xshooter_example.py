@@ -45,4 +45,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
+    order_range=(0, 15),
 )
