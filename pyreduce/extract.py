@@ -14,6 +14,7 @@ import logging
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from scipy.interpolate import interp1d
 from PIL import Image
@@ -40,26 +41,26 @@ class ProgressPlot:
         self.fig = plt.figure(figsize=(12, 4))
         self.fig.tight_layout(pad=0.05)
 
-        self.ax1 = self.fig.add_subplot(231)
+        self.ax1 = self.fig.add_subplot(231, projection="3d")
         self.ax1.set_title("Swath")
+        self.ax1.set_zscale("log")
         self.ax2 = self.fig.add_subplot(132)
         self.ax2.set_title("Spectrum")
         self.ax2.set_xlim((0, ncol))
         self.ax3 = self.fig.add_subplot(133)
         self.ax3.set_title("Slit")
         self.ax3.set_xlim((0, nrow))
-        self.ax4 = self.fig.add_subplot(234)
+        self.ax4 = self.fig.add_subplot(234, projection="3d")
         self.ax4.set_title("Model")
+        self.ax4.set_zscale("log")
 
         # Just plot empty pictures, to create the plots
         # Update the data later
-        self.im_obs = self.ax1.imshow(
-            np.zeros((nrow, ncol)), aspect="auto", origin="lower"
-        )
-        self.line_ycen, = self.ax1.plot(np.zeros(ncol), "-r")
-        self.im_model = self.ax4.imshow(
-            np.zeros((nrow, ncol)), aspect="auto", origin="lower"
-        )
+        img = np.ones((nrow, ncol))
+        y, x = np.indices((nrow, ncol))
+        self.im_obs = self.ax1.plot_surface(x, y, img)
+        self.im_model = self.ax4.plot_surface(x, y, img)
+
         self.dots_spec, = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
@@ -110,8 +111,8 @@ class ProgressPlot:
         mask_slit_x = self.fix_linear(x_slit[mask.ravel()], self.nbad, fill=np.nan)
         mask_slit = self.fix_linear(y_slit[mask.ravel()], self.nbad, fill=np.nan)
 
-        img = self.fix_image(img)
-        model = self.fix_image(model)
+        # img = self.fix_image(img)
+        # model = self.fix_image(model)
         ycen = self.fix_linear(ycen, self.ncol)
         x_spec = self.fix_linear(x_spec, self.ncol * self.nrow)
         y_spec = self.fix_linear(y_spec, self.ncol * self.nrow)
@@ -121,9 +122,16 @@ class ProgressPlot:
         sf = self.fix_linear(sf, self.nrow)
 
         # Update Data
-        self.im_obs.set_data(img)
-        self.im_model.set_data(model)
-        self.line_ycen.set_ydata(ycen)
+        self.im_obs.remove()
+        img = np.clip(img, 0, np.max(model) * 1.1)
+        y, x = np.indices(img.shape)
+        self.im_obs = self.ax1.plot_surface(x, y, img)
+
+        self.im_model.remove()
+        y, x = np.indices(model.shape)
+        self.im_model = self.ax4.plot_surface(x, y, model)
+
+        # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
         self.dots_spec.set_ydata(y_spec)
         self.line_spec.set_ydata(spec)
@@ -177,7 +185,7 @@ class ProgressPlot:
             sf[:, i] = np.interp(new, old, slitf)
 
         y = img / sf
-        y = y.ravel() * np.mean(spec) / np.mean(y)
+        y = y.ravel()
         return x, y
 
     def get_slitf(self, img, spec, slitf):
@@ -190,9 +198,9 @@ class ProgressPlot:
                     i[spec != 0], spec[spec != 0], fill_value="extrapolate"
                 )(i)
             except ValueError:
-                spec[spec == 0] = np.mean(spec)
+                spec[spec == 0] = np.median(spec)
         y = img / spec[None, :]
-        y = y.ravel() * np.mean(slitf) / np.mean(y)
+        y = y.ravel()
         return x, y
 
 
@@ -790,6 +798,9 @@ def arc_extraction(
     """ Use "simple" arc extraction to get a spectrum
     Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
 
+    This extraction makes a few rough assumptions and does not provide the most accurate results,
+    but rather a good approximation
+
     Parameters
     ----------
     img : array[nrow, ncol]
@@ -838,18 +849,23 @@ def arc_extraction(
 
     x = np.arange(ncol)
 
-    for i in range(nord):  # loop thru orders
-        x_left_lim = column_range[i, 0]  # First column to extract
-        x_right_lim = column_range[i, 1]  # Last column to extract
+    for i in range(nord):
+        x_left_lim = column_range[i, 0]
+        x_right_lim = column_range[i, 1]
 
+        # Rectify the image, i.e. remove the shape of the order
+        # Then the center of the order is within one pixel variations
         ycen = np.polyval(orders[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
         height = extraction_width[i, 0] + extraction_width[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
+        img_order = img[index]
 
         # Correct for tilt and shear
+        # For each row of the rectified order, interpolate onto the shifted row
+        # Masked pixels are set to 0, similar to the summation
         if tilt is not None and shear is not None:
-            img_order = np.ma.filled(np.ma.copy(img[index]), 0)
+            img_order = np.ma.filled(np.ma.copy(img_order), 0)
             xt = np.arange(x_left_lim, x_right_lim)
             arc_tilt = tilt[i, x_left_lim:x_right_lim]
             arc_shear = shear[i, x_left_lim:x_right_lim]
@@ -857,17 +873,15 @@ def arc_extraction(
                 yt = y - extraction_width[i, 0]
                 xi = xt + yt * arc_tilt + yt ** 2 * arc_shear
                 img_order[y] = np.interp(xi, xt, img_order[y])
-        else:
-            img_order = img[index]
 
-        # Sum over the prepared index
+        # Sum over the prepared image
         arc = np.sum(img_order, axis=0)
 
-        spectrum[i, x_left_lim:x_right_lim] = arc  # store total counts
+        # Store results
+        spectrum[i, x_left_lim:x_right_lim] = arc
         uncertainties[i, x_left_lim:x_right_lim] = (
             np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
-        )  # estimate uncertainty
-
+        )
         if plot:
             output[pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim] = img[
                 index
@@ -1205,448 +1219,3 @@ def extract(
         )
 
     return spectrum, uncertainties, slitfunction, column_range
-
-
-class Extraction:
-    def __init__(
-        self,
-        orders,
-        tilt=None,
-        shear=None,
-        column_range=None,
-        order_range=None,
-        extraction_width=0.5,
-        extraction_type="optimal",
-        oversampling=1,
-        gain=1,
-        readnoise=0,
-        dark=0,
-        plot=False,
-    ):
-        self.extraction_type = extraction_type
-        self.orders = orders
-        self._order_range = order_range
-        self._column_range = column_range
-        self._extraction_width = extraction_width
-        self._tilt = tilt
-        self._shear = shear
-
-        self.oversampling = oversampling
-        self.gain = gain
-        self.readnoise = readnoise
-        self.dark = dark
-        self.plot = plot
-
-        self.nrow = self.ncol = None
-
-    def _fix_column_range(
-        self, img, orders, extraction_width, column_range, no_clip=False
-    ):
-        """ Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
-
-        Parameters
-        ----------
-        img : array[nrow, ncol]
-            image
-        orders : array[nord, degree]
-            order tracing coefficients
-        extraction_width : array[nord, 2]
-            extraction width in pixels, (below, above)
-        column_range : array[nord, 2]
-            current column range
-        no_clip : bool, optional
-            if False, new column range will be smaller or equal to current column range, otherwise it can also be larger (default: False)
-
-        Returns
-        -------
-        column_range : array[nord, 2]
-            updated column range
-        """
-
-        nrow, ncol = img.shape
-        ix = np.arange(ncol)
-        # Loop over non extension orders
-        for i, order in zip(range(1, len(orders) - 1), orders[1:-1]):
-            # Shift order trace up/down by extraction_width
-            coeff_bot, coeff_top = np.copy(order), np.copy(order)
-            coeff_bot[-1] -= extraction_width[i, 0]
-            coeff_top[-1] += extraction_width[i, 1]
-
-            y_bot = np.polyval(coeff_bot, ix)  # low edge of arc
-            y_top = np.polyval(coeff_top, ix)  # high edge of arc
-
-            # find regions of pixels inside the image
-            # then use the region that most closely resembles the existing column range (from order tracing)
-            # but clip it to the existing column range (order tracing polynomials are not well defined outside the original range)
-            points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
-
-            if len(points_in_image) == 0:
-                raise ValueError(
-                    f"No pixels are completely within the extraction width for order {i}"
-                )
-
-            regions = np.where(np.diff(points_in_image) != 1)[0]
-            regions = [(r, r + 1) for r in regions]
-            regions = [
-                points_in_image[0],
-                *points_in_image[(regions,)].ravel(),
-                points_in_image[-1],
-            ]
-            regions = [
-                [regions[i], regions[i + 1] + 1] for i in range(0, len(regions), 2)
-            ]
-            overlap = [
-                min(reg[1], column_range[i, 1]) - max(reg[0], column_range[i, 0])
-                for reg in regions
-            ]
-            iregion = np.argmax(overlap)
-            if not no_clip:
-                column_range[i] = np.clip(
-                    regions[iregion], column_range[i, 0], column_range[i, 1]
-                )
-            else:
-                column_range[i] = regions[iregion]
-
-        column_range[0] = column_range[1]
-        column_range[-1] = column_range[-2]
-
-        return column_range
-
-    def _extend_orders(self, orders):
-        """Extrapolate extra orders above and below the existing ones
-
-        Parameters
-        ----------
-        orders : array[nord, degree]
-            order tracing coefficients
-        nrow : int
-            number of rows in the image
-
-        Returns
-        -------
-        orders : array[nord + 2, degree]
-            extended orders
-        """
-
-        nord, ncoef = orders.shape
-
-        if nord > 1:
-            order_low = 2 * orders[0] - orders[1]
-            order_high = 2 * orders[-1] - orders[-2]
-        else:
-            order_low = [0 for _ in range(ncoef)]
-            order_high = [0 for _ in range(ncoef - 1)] + [self.nrow]
-
-        return np.array([order_low, *orders, order_high])
-
-    def _extend_column_range(self, cr):
-        """ Pad the column range with the first and last element of itself """
-        return np.array([cr[0], *cr, cr[-1]])
-
-    def _extend_extraction_width(self, xwd):
-        return np.array([xwd[0], *xwd, xwd[-1]])
-
-    def _fix_extraction_width(
-        self, extraction_width, orders, column_range, img=None, plot=False
-    ):
-        """Convert fractional extraction width to pixel range
-
-        Parameters
-        ----------
-        extraction_width : array[nord, 2]
-            current extraction width, in pixels or fractions (for values below 1.5)
-        orders : array[nord, degree]
-            order tracing coefficients
-        column_range : array[nord, 2]
-            column range to use
-
-        Returns
-        -------
-        extraction_width : array[nord, 2]
-            updated extraction width in pixels
-        """
-
-        if not np.all(extraction_width > 1.5):
-            # if extraction width is in relative scale transform to pixel scale
-            x = np.arange(self.ncol)
-            for i in range(1, len(extraction_width) - 1):
-                for j in [0, 1]:
-                    if extraction_width[i, j] < 1.5:
-                        k = i - 1 if j == 0 else i + 1
-                        left = max(column_range[[i, k], 0])
-                        right = min(column_range[[i, k], 1])
-
-                        current = np.polyval(orders[i], x[left:right])
-                        below = np.polyval(orders[k], x[left:right])
-                        extraction_width[i, j] *= np.abs(np.mean(current - below))
-
-            extraction_width[0] = extraction_width[1]
-            extraction_width[-1] = extraction_width[-2]
-
-        extraction_width = np.ceil(extraction_width).astype(int)
-
-        if plot and img is not None:
-            plt.imshow(img, aspect="auto", origin="lower")
-            for i in range(len(extraction_width)):
-                left, right = column_range[i]
-                xwd = extraction_width[i]
-                current = np.polyval(orders[i], x[left:right])
-
-                plt.plot(x[left:right], current, "k-")
-                plt.plot(x[left:right], np.round(current - xwd[0]), "k--")
-                plt.plot(x[left:right], np.round(current + xwd[1]), "k--")
-            plt.show()
-
-        return extraction_width
-
-    def _fix(self, img):
-        self.nrow, self.ncol = img.shape
-
-        # Limit orders (and related properties) to orders in range
-        slices = slice(self.order_range[0], self.order_range[1], None)
-        orders = self.orders[slices]
-        cr = self.column_range[slices]
-        xwd = self.extraction_width[slices]
-
-        # Extend orders and related properties
-        # For extrapolation
-        orders = self._extend_orders(orders)
-        xwd = self._extend_extraction_width(xwd)
-        cr = self._extend_column_range(cr)
-
-        # Fix column range and extraction width, so that all extractions are fully within the image
-        xwd = self._fix_extraction_width(xwd, orders, cr)
-        cr = self._fix_column_range(img, orders, xwd, cr)
-
-        # Remove temporary extended orders
-        orders = orders[1:-1]
-        xwd = xwd[1:-1]
-        cr = cr[1:-1]
-
-        return orders, cr, xwd
-
-    @property
-    def nord(self):
-        return self.order_range[-1] - self.order_range[0]
-
-    @property
-    def order_range(self):
-        if self._order_range is None:
-            return (0, len(self.orders))
-        else:
-            return self._order_range
-
-    @property
-    def column_range(self):
-        if self._column_range is None:
-            if self.ncol is not None and self.nord is not None:
-                return np.tile([0, self.ncol], (self.nord, 1))
-            else:
-                return None
-        else:
-            return self._column_range[self.order_range[0] : self.order_range[1]]
-
-    @property
-    def extraction_width(self):
-        if np.isscalar(self._extraction_width):
-            if self.nord is not None:
-                return np.tile(
-                    [self._extraction_width, self._extraction_width], (self.nord, 1)
-                )
-        return self._extraction_width
-
-    @property
-    def tilt(self):
-        if np.isscalar(self._tilt):
-            if self.ncol is not None:
-                return np.full((self.nord, self.ncol), self._tilt)
-            else:
-                return self._tilt
-        else:
-            return self._tilt
-
-    @property
-    def shear(self):
-        if np.isscalar(self._shear):
-            if self.ncol is not None:
-                return np.full((self.nord, self.ncol), self._shear)
-            else:
-                return self._shear
-        else:
-            return self._shear
-
-    def execute_optimal(
-        self, img, orders, tilt, shear, extraction_width, column_range, **kwargs
-    ):
-        spectrum, slitfunction, uncertainties = optimal_extraction(
-            img,
-            orders,
-            extraction_width,
-            column_range,
-            tilt=tilt,
-            shear=shear,
-            **kwargs,
-        )
-        return spectrum, slitfunction, uncertainties
-
-    def execute_normalize(
-        self, img, orders, tilt, shear, extraction_width, column_range, **kwargs
-    ):
-        im_norm = np.zeros_like(img)
-        im_ordr = np.zeros_like(img)
-
-        blaze, _, _ = optimal_extraction(
-            img,
-            orders,
-            extraction_width,
-            column_range,
-            tilt=tilt,
-            shear=shear,
-            normalize=True,
-            im_norm=im_norm,
-            im_ordr=im_ordr,
-            **kwargs,
-        )
-        im_norm[im_norm == 0] = 1
-        im_ordr[im_ordr == 0] = 1
-        return im_norm, im_ordr, blaze, column_range
-
-    def execute_arc(
-        self, img, orders, extraction_width, column_range, tilt, shear, **kwargs
-    ):
-        """ Use "simple" arc extraction to get a spectrum
-        Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
-
-        Parameters
-        ----------
-        img : array[nrow, ncol]
-            image to extract
-        orders : array[nord, order]
-            order tracing coefficients
-        extraction_width : array[nord, 2]
-            extraction width in pixels
-        column_range : array[nord, 2]
-            column range to use
-
-        Returns
-        -------
-        spectrum : array[nord, ncol]
-            extracted spectrum
-        uncertainties : array[nord, ncol]
-            uncertainties on extracted spectrum
-        """
-
-        logging.info("Using arc extraction to produce spectrum.")
-
-        if self.plot:
-            # Prepare output image
-            output = np.zeros((np.sum(extraction_width) + self.nord, self.ncol))
-            pos = [0]
-
-        spectrum = np.zeros((self.nord, self.ncol))
-        uncertainties = np.zeros((self.nord, self.ncol))
-
-        # Add mask as defined by column ranges
-        mask = np.full((self.nord, self.ncol), True)
-        for i, onum in enumerate(range(1, self.nord - 1)):
-            mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
-        spectrum = np.ma.array(spectrum, mask=mask)
-        uncertainties = np.ma.array(uncertainties, mask=mask)
-
-        x = np.arange(self.ncol)
-
-        for i in range(self.nord):  # loop thru orders
-            x_left_lim = column_range[i, 0]  # First column to extract
-            x_right_lim = column_range[i, 1]  # Last column to extract
-
-            ycen = np.polyval(orders[i], x).astype(int)
-            yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-            index = make_index(yb, yt, x_left_lim, x_right_lim)
-
-            # Sum over the prepared index
-            arc = np.sum(img[index], axis=0)
-
-            spectrum[i, x_left_lim:x_right_lim] = arc  # store total counts
-            uncertainties[i, x_left_lim:x_right_lim] = (
-                np.sqrt(np.abs(arc * self.gain + self.dark + self.readnoise ** 2))
-                / self.gain
-            )  # estimate uncertainty
-
-            if self.plot:
-                output[
-                    pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim
-                ] = img[index]
-                pos += [pos[i] + index[0].shape[0]]
-
-        if self.plot:
-            plt.title("Extracted Spectrum vs. Input Image")
-            plt.xlabel("x [pixel]")
-            plt.ylabel("order")
-            locs = np.sum(extraction_width, axis=1) + 1
-            locs = [0, *np.cumsum(locs)[:-1]]
-            plt.yticks(locs, range(len(locs)))
-            plt.imshow(
-                output,
-                vmin=0,
-                vmax=np.mean(output) + 5 * np.std(output),
-                origin="lower",
-                aspect="auto",
-            )
-
-            for i in range(self.nord):
-                tmp = spectrum[i] - np.min(
-                    spectrum[i, column_range[i, 0] : column_range[i, 1]]
-                )
-                tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
-                tmp += pos[i]
-                tmp[tmp < pos[i]] = pos[i]
-                plt.plot(x, tmp)
-
-            plt.show()
-
-        slitfunction = None
-        return spectrum, slitfunction, uncertainties
-
-    def execute(self, img, **kwargs):
-        self.nrow, self.ncol = img.shape
-        orders, column_range, extraction_width = self._fix(img)
-
-        if self.extraction_type == "optimal":
-            # the "normal" case, except for wavelength calibration files
-            return self.execute_optimal(
-                img,
-                orders,
-                self.tilt,
-                self.shear,
-                extraction_width,
-                column_range,
-                **kwargs,
-            )
-        elif self.extraction_type == "normalize":
-            # Prepare normalized flat field image if necessary
-            # These will be passed and "returned" by reference
-            # I dont like it, but it works for now
-            return self.execute_normalize(
-                img,
-                orders,
-                self.tilt,
-                self.shear,
-                extraction_width,
-                column_range,
-                **kwargs,
-            )
-        elif self.extraction_type == "arc":
-            # Simpler extraction, just summing along the arc of the order
-            return self.execute_arc(
-                img,
-                orders,
-                extraction_width,
-                column_range,
-                tilt=self.tilt,
-                shear=self.shear,
-                **kwargs,
-            )
-        else:
-            raise ValueError(
-                f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'arc' bug got {self.extraction_type}."
-            )
