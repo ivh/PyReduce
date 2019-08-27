@@ -316,11 +316,12 @@ def plot_order(i, j, x, y, img, deg, title=""):
 
 def mark_orders(
     im,
-    min_cluster=500,
-    filter_size=120,
-    noise=8,
+    min_cluster=None,
+    min_width=None,
+    filter_size=None,
+    noise=None,
     opower=4,
-    border_width=5,
+    border_width=None,
     degree_before_merge=2,
     regularization=0,
     closing_shape=(5, 5),
@@ -388,6 +389,14 @@ def mark_orders(
         logging.info("Minimum cluster size, estimated: %i", min_cluster)
     elif not np.isscalar(min_cluster):
         raise TypeError(f"Expected scalar minimum cluster size, but got {min_cluster}")
+
+    if min_width is None:
+        min_width = 0.25
+    if min_width == 0:
+        pass
+    elif isinstance(min_width, (float, np.floating)):
+        min_width = int(min_width * im.shape[0])
+        logging.info("Minimum order width, estimated: %i", min_width)
 
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(im, filter_size, axis=0)
@@ -516,6 +525,15 @@ def mark_orders(
         auto_merge_threshold=auto_merge_threshold,
         merge_min_threshold=merge_min_threshold,
     )
+
+    if min_width > 0:
+        sizes = {k: v.max() - v.min() for k, v in y.items()}
+        mask_sizes = {k: v > min_width for k, v in sizes.items()}
+        for k, v in mask_sizes.items():
+            if not v:
+                del x[k]
+                del y[k]
+        n = x.keys()
 
     orders = fit_polynomials_to_clusters(x, y, n, opower)
 

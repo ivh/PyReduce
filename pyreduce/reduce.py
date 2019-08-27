@@ -519,6 +519,8 @@ class OrderTracing(Step):
 
         #:int: Minimum size of each cluster to be included in further processing
         self.min_cluster = config["min_cluster"]
+        #:int, float: Minimum width of each cluster after mergin
+        self.min_width = config["min_width"]
         #:int: Size of the gaussian filter for smoothing
         self.filter_size = config["filter_size"]
         #:int: Background noise value threshold
@@ -574,6 +576,7 @@ class OrderTracing(Step):
         orders, column_range = mark_orders(
             order_img,
             min_cluster=self.min_cluster,
+            min_width=self.min_width,
             filter_size=self.filter_size,
             noise=self.noise,
             opower=self.fit_degree,
