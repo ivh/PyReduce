@@ -45,8 +45,8 @@ def build(**kwargs):
     path = os.path.abspath(CWD)
     os.chdir(path)
     
-    ffibuilder_vertical.compile(verbose=True)
-    ffibuilder_curved.compile(verbose=True)
+    ffibuilder_vertical.compile(verbose=True, debug=False)
+    ffibuilder_curved.compile(verbose=True, debug=False)
 
     os.chdir(old_cwd)
 

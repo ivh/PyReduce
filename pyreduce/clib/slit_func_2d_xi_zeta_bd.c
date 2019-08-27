@@ -4,47 +4,62 @@
 #include <math.h>
 #include "slit_func_2d_xi_zeta_bd.h"
 
+#define CHECK_INDEX 1
+
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
 
-// Define the sizes of each array
-#define MAX_ZETA (_ncols * _nrows * 3 * (_osample + 1))
-#define MAX_MZETA (_ncols * _nrows)
-#define MAX_XI (_ncols * _ny * 4)
-#define MAX_PSF (_ncols * 3)
-#define MAX_A (_n * _nd)
-#define MAX_R (_n)
-#define MAX_SP (_ncols)
-#define MAX_SL (_ny)
-#define MAX_LAIJ_X _ny
-#define MAX_LAIJ_Y (4 * _osample + _nx)
-#define MAX_LAIJ (MAX_LAIJ_X * MAX_LAIJ_Y)
-#define MAX_PAIJ (_ncols * 5)
-#define MAX_LBJ (_ny)
-#define MAX_PBJ (_ncols)
-#define MAX_IM (_ncols * _nrows)
-
 // Store important sizes in global variables to make access easier
 // When calculating the proper indices
+// When not checking the indices just the variables directly
+#if CHECK_INDEX
 int _ncols = 0;
 int _nrows = 0;
 int _ny = 0;
-int _nx = 1;
 int _osample = 0;
 int _n = 0;
 int _nd = 0;
+#else
+#define _ncols ncols
+#define _nrows nrows
+#define _ny ny
+#define _osample osample
+#define _n n
+#define _nd nd
+#endif
+
+// Define the sizes of each array
+#define MAX_ZETA_Z (4 * ((_osample) + 1))
+#define MAX_ZETA ((_ncols) * (_nrows) * MAX_ZETA_Z)
+#define MAX_MZETA ((_ncols) * (_nrows))
+#define MAX_XI ((_ncols) * (_ny) * 4)
+#define MAX_PSF ((_ncols) * 3)
+#define MAX_A ((_n) * (_nd))
+#define MAX_R (_n)
+#define MAX_SP (_ncols)
+#define MAX_SL (_ny)
+#define MAX_LAIJ_X (_ny)
+#define MAX_LAIJ_Y (4 * (_osample) + 1)
+#define MAX_LAIJ (MAX_LAIJ_X * MAX_LAIJ_Y)
+#define MAX_PAIJ_X (_ncols)
+#define MAX_PAIJ_Y (5)
+#define MAX_PAIJ (MAX_PAIJ_X * MAX_PAIJ_Y)
+#define MAX_LBJ (_ny)
+#define MAX_PBJ (_ncols)
+#define MAX_IM ((_ncols) * (_nrows))
 
 // If we want to check the index use functions to represent the index
 // Otherwise a simpler define will do, which should be faster ?
-#define CHECK_INDEX 0
-
 #if CHECK_INDEX
 static int zeta_index(int x, int y, int z)
 {
     int i = ((z)*_ncols * _nrows) + ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_ZETA))
+    {
         printf("INDEX OUT OF BOUNDS. Zeta[%i, %i, %i]\n", x, y, z);
+        return 0;
+    }
     return i;
 }
 
@@ -52,7 +67,10 @@ static int mzeta_index(int x, int y)
 {
     int i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_MZETA))
+    {
         printf("INDEX OUT OF BOUNDS. Mzeta[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
@@ -60,7 +78,10 @@ static int xi_index(int x, int y, int z)
 {
     int i = ((z)*_ncols * _ny) + ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_XI))
+    {
         printf("INDEX OUT OF BOUNDS. Xi[%i, %i, %i]\n", x, y, z);
+        return 0;
+    }
     return i;
 }
 
@@ -68,7 +89,10 @@ static int psf_index(int x, int y)
 {
     int i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_PSF))
+    {
         printf("INDEX OUT OF BOUNDS. PSF[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
@@ -76,29 +100,41 @@ static int a_index(int x, int y)
 {
     int i = x + _n * y;
     if ((i < 0) | (i >= MAX_A))
+    {
         printf("INDEX OUT OF BOUNDS. a[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
 static int r_index(int i)
 {
     if ((i < 0) | (i >= MAX_R))
+    {
         printf("INDEX OUT OF BOUNDS. r[%i]\n", i);
+        return 0;
+    }
     return i;
 }
 
 static int sp_index(int i)
 {
     if ((i < 0) | (i >= MAX_SP))
+    {
         printf("INDEX OUT OF BOUNDS. sP[%i]\n", i);
+        return 0;
+    }
     return i;
 }
 
 static int laij_index(int x, int y)
 {
-    int i = ((y)*_ny) + (x);
+    int i = ((y)*MAX_LAIJ_X) + (x);
     if ((i < 0) | (i >= MAX_LAIJ))
+    {
         printf("INDEX OUT OF BOUNDS. l_Aij[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
@@ -106,21 +142,30 @@ static int paij_index(int x, int y)
 {
     int i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_PAIJ))
+    {
         printf("INDEX OUT OF BOUNDS. p_Aij[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
 static int lbj_index(int i)
 {
     if ((i < 0) | (i >= MAX_LBJ))
+    {
         printf("INDEX OUT OF BOUNDS. l_bj[%i]\n", i);
+        return 0;
+    }
     return i;
 }
 
 static int pbj_index(int i)
 {
     if ((i < 0) | (i >= MAX_PBJ))
+    {
         printf("INDEX OUT OF BOUNDS. p_bj[%i]\n", i);
+        return 0;
+    }
     return i;
 }
 
@@ -128,14 +173,20 @@ static int im_index(int x, int y)
 {
     int i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_IM))
+    {
         printf("INDEX OUT OF BOUNDS. im[%i, %i]\n", x, y);
+        return 0;
+    }
     return i;
 }
 
 static int sl_index(int i)
 {
     if ((i < 0) | (i >= MAX_SL))
+    {
         printf("INDEX OUT OF BOUNDS. sL[%i]\n", i);
+        return 0;
+    }
     return i;
 }
 #else
@@ -264,10 +315,10 @@ static int xi_zeta_tensors(
         for (y = 0; y < nrows; y++)
         {
             m_zeta[mzeta_index(x, y)] = 0;
-            for (ix = 0; ix < 3 * (osample + 1); ix++)
+            for (ix = 0; ix < MAX_ZETA_Z; ix++)
             {
-                zeta[zeta_index(x, y, ix)].x = 0;
-                zeta[zeta_index(x, y, ix)].iy = 0;
+                zeta[zeta_index(x, y, ix)].x = -1;
+                zeta[zeta_index(x, y, ix)].iy = -1;
                 zeta[zeta_index(x, y, ix)].w = 0.;
             }
         }
@@ -694,32 +745,6 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     _ny = ny;
     _osample = osample;
 
-    //[ncols][3];
-    double *PSF_curve = malloc(MAX_PSF * sizeof(double));
-    for (i = 0; i < MAX_PSF; i++)
-        PSF_curve[i] = 0;
-
-    /* Parabolic fit to the slit image curvature.            */
-    /* For column d_x = PSF_curve[ncols][0] +                */
-    /*                  PSF_curve[ncols][1] *d_y +           */
-    /*                  PSF_curve[ncols][2] *d_y^2,          */
-    /* where d_y is the offset from the central line ycen.   */
-    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
-    /* does not stick out of column x.                       */
-
-    delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
-    for (i = 0; i < ncols; i++)
-    {
-        tmp = (0.5 / osample + y_lower_lim + ycen[sp_index(i)]);
-        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
-        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
-        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
-        PSF_curve[psf_index(i, 0)] = 0.;
-        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
-        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
-    }
-    _nx = (int) (2 * delta_x);
-
     double *sP_old = malloc(MAX_SP * sizeof(double));
     for (i = 0; i < MAX_SP; i++)
         sP_old[i] = 0;
@@ -754,6 +779,31 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     int *m_zeta = malloc(MAX_MZETA * sizeof(int));
     for (i = 0; i < MAX_MZETA; i++)
         m_zeta[i] = 0;
+
+    //[ncols][3];
+    double *PSF_curve = malloc(MAX_PSF * sizeof(double));
+    for (i = 0; i < MAX_PSF; i++)
+        PSF_curve[i] = 0;
+
+    /* Parabolic fit to the slit image curvature.            */
+    /* For column d_x = PSF_curve[ncols][0] +                */
+    /*                  PSF_curve[ncols][1] *d_y +           */
+    /*                  PSF_curve[ncols][2] *d_y^2,          */
+    /* where d_y is the offset from the central line ycen.   */
+    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
+    /* does not stick out of column x.                       */
+
+    delta_x = 0.; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
+    for (i = 0; i < ncols; i++)
+    {
+        tmp = (0.5 / osample + y_lower_lim + ycen[sp_index(i)]);
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
+        tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
+        delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
+        PSF_curve[psf_index(i, 0)] = 0.;
+        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
+        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
+    }
 
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
@@ -794,20 +844,15 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                                     www = zeta[zeta_index(xx, yy, m)].w;
                                     tmpi = jy - iy + 2 * osample;
 #if CHECK_INDEX
-                                    if ((tmpi >= 0) && (tmpi < MAX_LAIJ_Y))
+                                    if ((tmpi < 0) || (tmpi >= MAX_LAIJ_Y))
                                     {
+                                        printf("Index out of Bounds l_Aij[%i, %i]\n", iy, tmpi);
+                                        printf("ww = %f, www = %f\n", ww, www);
+                                    }
+                                    else
 #endif
                                         l_Aij[laij_index(iy, tmpi)] +=
                                             sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
-#if CHECK_INDEX
-                                    }
-                                    else
-                                    {
-                                        printf("Index out of Bounds l_Aij[%i, %i]\n", iy, tmpi);
-                                        printf("ww = %f\n", ww);
-                                        printf("www = %f\n", www);
-                                    }
-#endif
                                 }
                                 l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                             }
@@ -821,22 +866,23 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         lambda = lambda_sL * diag_tot / ny;
         /* Add regularization parts for the SLE matrix */
         /* Main diagonal  */
-        l_Aij[laij_index(0, 2 * osample)] += lambda;
+        tmpi = 2 * osample; //Middle line
+        l_Aij[laij_index(0, tmpi)] += lambda;
         /* Upper diagonal */
-        l_Aij[laij_index(0, 2 * osample + 1)] -= lambda;
+        l_Aij[laij_index(0, tmpi + 1)] -= lambda;
         for (iy = 1; iy < ny - 1; iy++)
         {
             /* Lower diagonal */
-            l_Aij[laij_index(iy, 2 * osample - 1)] -= lambda;
+            l_Aij[laij_index(iy, tmpi - 1)] -= lambda;
             /* Main diagonal  */
-            l_Aij[laij_index(iy, 2 * osample)] += lambda * 2.e0;
+            l_Aij[laij_index(iy, tmpi)] += lambda * 2.e0;
             /* Upper diagonal */
-            l_Aij[laij_index(iy, 2 * osample + 1)] -= lambda;
+            l_Aij[laij_index(iy, tmpi + 1)] -= lambda;
         }
         /* Lower diagonal */
-        l_Aij[laij_index(ny - 1, 2 * osample - 1)] -= lambda;
+        l_Aij[laij_index(ny - 1, tmpi - 1)] -= lambda;
         /* Main diagonal  */
-        l_Aij[laij_index(ny - 1, 2 * osample)] += lambda;
+        l_Aij[laij_index(ny - 1, tmpi)] += lambda;
 
         /* Solve the system of equations */
         info = bandsol(l_Aij, l_bj, ny, 4 * osample + 1);
@@ -857,7 +903,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         /*  Compute spectrum sP */
         for (x = 0; x < ncols; x++)
         {
-            for (xx = 0; xx < 5; xx++)
+            for (xx = 0; xx < MAX_PAIJ_Y; xx++)
                 p_Aij[paij_index(x, xx)] = 0.;
             p_bj[pbj_index(x)] = 0;
         }
@@ -883,19 +929,14 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
                                     www = zeta[zeta_index(xx, yy, m)].w;
                                     tmpi = xxx - x + 2;
 #if CHECK_INDEX
-                                    if ((tmpi >= 0) && (tmpi < 5))
-                                    {
-#endif
-                                        p_Aij[paij_index(x, tmpi)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
-#if CHECK_INDEX
-                                    }
-                                    else
+                                    if ((tmpi < 0) || (tmpi >= MAX_PAIJ_Y))
                                     {
                                         printf("Index out of Bounds p_Aij[%i, %i]\n", x, tmpi);
-                                        printf("ww = %f\n", ww);
-                                        printf("www = %f\n", www);
+                                        printf("ww = %f, www = %f\n", ww, www);
                                     }
+                                    else
 #endif
+                                        p_Aij[paij_index(x, tmpi)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
                                 }
                                 p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
                             }
