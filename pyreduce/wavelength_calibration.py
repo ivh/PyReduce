@@ -746,9 +746,9 @@ class WavelengthCalibration:
                 threshold_of_peak_closeness = np.max(threshold_of_peak_closeness)
 
                 wmin, wmax = wave_obs[0], wave_obs[-1]
-                imin, imax = np.searchsorted(atlas.wave, (wmin, wmax))
-                wave_atlas = atlas.wave[imin:imax]
-                data_atlas = atlas.data[imin:imax]
+                imin, imax = np.searchsorted(self.atlas.wave, (wmin, wmax))
+                wave_atlas = self.atlas.wave[imin:imax]
+                data_atlas = self.atlas.data[imin:imax]
                 if len(data_atlas) == 0:
                     continue
                 data_atlas = data_atlas / data_atlas.max()
