@@ -256,7 +256,10 @@ class Curvature:
 
         # Seperate in order pixels from out of order pixels
         # TODO: actually we want to weight them by the slitfunction?
-        idx = deviation > threshold_otsu(deviation)
+        if not np.all(deviation == 0):
+            idx = deviation > threshold_otsu(deviation)
+        else:
+            idx = np.full(deviation.shape, True)
 
         # Linear fit to slit image
         try:
