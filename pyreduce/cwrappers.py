@@ -282,39 +282,37 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     unc = np.zeros(ncols, dtype=c_double)
 
     # Call the C function
-    f = io.BytesIO()
-    with stdout_redirector(f):
-        slitfunc_2dlib.slit_func_curved(
-            ffi.cast("int", ncols),
-            ffi.cast("int", nrows),
-            ffi.cast("double *", img.ctypes.data),
-            ffi.cast("double *", pix_unc.ctypes.data),
-            ffi.cast("int *", mask.ctypes.data),
-            ffi.cast("double *", ycen.ctypes.data),
-            ffi.cast("int *", ycen_offset.ctypes.data),
-            ffi.cast("double *", tilt.ctypes.data),
-            ffi.cast("double *", shear.ctypes.data),
-            ffi.cast("int", y_lower_lim),
-            ffi.cast("int", osample),
-            ffi.cast("double", lambda_sp),
-            ffi.cast("double", lambda_sf),
-            ffi.cast("double *", sp.ctypes.data),
-            ffi.cast("double *", sl.ctypes.data),
-            ffi.cast("double *", model.ctypes.data),
-            ffi.cast("double *", unc.ctypes.data),
-        )
-    output = f.getvalue().decode("utf-8")
-    if output != "":
-        img.tofile("debug_img.dat")
-        pix_unc.tofile("debug_pix_unc.dat")
-        mask.tofile("debug_mask.dat")
-        ycen.tofile("debug_ycen.dat")
-        ycen_offset.tofile("debug_ycen_offset.dat")
-        tilt.tofile("debug_tilt.dat")
-        shear.tofile("debug_shear.dat")
-        print(output)
-
-
+    # f = io.BytesIO()
+    # with stdout_redirector(f):
+    slitfunc_2dlib.slit_func_curved(
+        ffi.cast("int", ncols),
+        ffi.cast("int", nrows),
+        ffi.cast("double *", img.ctypes.data),
+        ffi.cast("double *", pix_unc.ctypes.data),
+        ffi.cast("int *", mask.ctypes.data),
+        ffi.cast("double *", ycen.ctypes.data),
+        ffi.cast("int *", ycen_offset.ctypes.data),
+        ffi.cast("double *", tilt.ctypes.data),
+        ffi.cast("double *", shear.ctypes.data),
+        ffi.cast("int", y_lower_lim),
+        ffi.cast("int", osample),
+        ffi.cast("double", lambda_sp),
+        ffi.cast("double", lambda_sf),
+        ffi.cast("double *", sp.ctypes.data),
+        ffi.cast("double *", sl.ctypes.data),
+        ffi.cast("double *", model.ctypes.data),
+        ffi.cast("double *", unc.ctypes.data),
+    )
+    # output = f.getvalue().decode("utf-8")
+    # if output != "":
+    #     img.tofile("debug_img.dat")
+    #     pix_unc.tofile("debug_pix_unc.dat")
+    #     mask.tofile("debug_mask.dat")
+    #     ycen.tofile("debug_ycen.dat")
+    #     ycen_offset.tofile("debug_ycen_offset.dat")
+    #     tilt.tofile("debug_tilt.dat")
+    #     shear.tofile("debug_shear.dat")
+    #     print(output)
 
     mask = ~mask.astype(bool)
 
