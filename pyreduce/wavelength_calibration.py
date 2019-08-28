@@ -762,7 +762,9 @@ class WavelengthCalibration:
                 peaks_atlas, peak_info_atlas = signal.find_peaks(
                     data_atlas, height=0.01, width=width_of_atlas_peaks
                 )
-                peaks_obs, peak_info_obs = signal.find_peaks(data_obs, height=0.01, width=0)
+                peaks_obs, peak_info_obs = signal.find_peaks(
+                    data_obs, height=0.01, width=0
+                )
 
                 for i, p in enumerate(peaks_atlas):
                     # Look for an existing line in the vicinityq
@@ -773,7 +775,9 @@ class WavelengthCalibration:
                         continue
                     else:
                         # Look for matching peak in observation
-                        diff = np.abs(wpeak - wave_obs[peaks_obs]) / wpeak * speed_of_light
+                        diff = (
+                            np.abs(wpeak - wave_obs[peaks_obs]) / wpeak * speed_of_light
+                        )
                         imin = np.argmin(diff)
 
                         if diff[imin] < threshold_of_peak_closeness:
@@ -1241,8 +1245,6 @@ class WavelengthCalibration:
                 self.atlas = None
         else:
             self.atlas = None
-
-
 
         obs, lines = self.normalize(obs, lines)
         # Step 1: align obs and reference
