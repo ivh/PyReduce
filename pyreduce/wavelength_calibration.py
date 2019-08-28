@@ -4,6 +4,7 @@ by comparison to a reference spectrum
 Loosely bases on the IDL wavecal function
 """
 
+from os.path import dirname, join
 import logging
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,8 @@ from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
+
+from astropy.io import fits
 
 from . import util
 
@@ -105,6 +108,77 @@ class AlignmentPlot:
                 self.make_ref_image()
 
 
+class LineAtlas:
+    def __init__(self, element):
+        fname = element + ".fits"
+        folder = dirname(__file__)
+        self.fname = join(folder, "wavecal", "atlas", fname)
+        hdu = fits.open(self.fname)
+        header = hdu[0].header
+        self.data = hdu[0].data.ravel()
+
+        rpix = header["CRPIX1"]
+        rval = header["CRVAL1"]
+        delt = header["CDELT1"]
+        self.wave = np.arange(self.data.size) * delt + rval
+
+
+class LineList:
+    dtype = np.dtype(
+        (
+            np.record,
+            [
+                (("wlc", "WLC"), ">f8"),
+                (("wll", "WLL"), ">f8"),
+                (("posc", "POSC"), ">f8"),
+                (("posm", "POSM"), ">f8"),
+                (("xfirst", "XFIRST"), ">i2"),
+                (("xlast", "XLAST"), ">i2"),
+                (("approx", "APPROX"), "O"),
+                (("width", "WIDTH"), ">f8"),
+                (("height", "HEIGHT"), ">f8"),
+                (("order", "ORDER"), ">i2"),
+                ("flag", "?"),
+            ],
+        )
+    )
+
+    def __init__(self, lines):
+        self.data = lines
+        self.dtype = self.data.dtype
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def __len__(self):
+        return len(self.data)
+
+    def append(self, linelist):
+        if isinstance(linelist, LineList):
+            linelist = linelist.data
+        self.data = np.append(self.data, linelist)
+
+    def add_line(self, wave, order, pos, width, height, flag):
+        lines = [
+            (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, f)
+            for w, p, wi, h, o, f in zip(wave, order, pos, width, height, flag)
+        ]
+        lines = np.array(lines, dtype=self.dtype)
+        self.data = np.append(self.data, lines)
+
+    @staticmethod
+    def from_list(wave, order, pos, width, height, flag):
+        lines = [
+            (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, f)
+            for w, o, p, wi, h, f in zip(wave, order, pos, width, height, flag)
+        ]
+        lines = np.array(lines, dtype=LineList.dtype)
+        return LineList(lines)
+
+
 class WavelengthCalibration:
     """
     Wavelength Calibration Module
@@ -124,6 +198,7 @@ class WavelengthCalibration:
         manual=False,
         polarim=False,
         lfc_peak_width=3,
+        element=None,
         plot=True,
     ):
         #:float: Residual threshold in m/s above which to remove lines
@@ -142,13 +217,14 @@ class WavelengthCalibration:
         self.nstep = nstep
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
         self.shift_window = shift_window
-        #:bool: Wether to manually align the reference instead of using cross correlation
+        #:bool: Whether to manually align the reference instead of using cross correlation
         self.manual = manual
-        #:bool: Wether to use polarimetric orders instead of the usual ones. I.e. Each pair of two orders represents the same data. Not Supported yet
+        #:bool: Whether to use polarimetric orders instead of the usual ones. I.e. Each pair of two orders represents the same data. Not Supported yet
         self.polarim = polarim
-        #:int: Wether to plot the results. Set to 2 to plot during all steps.
+        #:int: Whether to plot the results. Set to 2 to plot during all steps.
         self.plot = plot
-
+        #:str: Elements used in the wavelength calibration. Used in AutoId to find more lines from the Atlas
+        self.element = element
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
         self.lfc_peak_width = lfc_peak_width
 
@@ -491,31 +567,35 @@ class WavelengthCalibration:
 
                 poly_coef = np.polyfit(x, y, self.degree)
                 step_coef = np.zeros((nstep, 2))
-                step_coef[:, 0] = np.linspace(ncol/nstep, ncol, nstep)
+                step_coef[:, 0] = np.linspace(ncol / nstep, ncol, nstep)
 
                 def func(x, *param):
-                    poly_coef = param[:self.degree + 1]
-                    step_coef = np.asarray(param[self.degree + 1:]).reshape((nstep, 2))
+                    poly_coef = param[: self.degree + 1]
+                    step_coef = np.asarray(param[self.degree + 1 :]).reshape((nstep, 2))
                     return self.f(x, poly_coef, step_coef)
 
-                bounds = ([[-np.inf, np.inf]] * (self.degree+1)) + ([[0, ncol], [-1, 1]] * nstep)
+                bounds = ([[-np.inf, np.inf]] * (self.degree + 1)) + (
+                    [[0, ncol], [-1, 1]] * nstep
+                )
                 bounds = np.array(bounds).T
 
                 res, _ = curve_fit(func, x, y, p0=[*poly_coef, *step_coef.ravel()])
-                poly_coef = res[:self.degree + 1]
-                step_coef = res[self.degree + 1:].reshape((nstep, 2))
+                poly_coef = res[: self.degree + 1]
+                step_coef = res[self.degree + 1 :].reshape((nstep, 2))
                 coef[order] = [poly_coef, step_coef]
         elif self.mode == "2D":
             unique = np.unique(m_ord)
             nord = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
-            poly_coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
+            poly_coef = util.polyfit2d(
+                m_pix, m_ord, m_wave, degree=self.degree, plot=False
+            )
             step_coef = np.zeros((nord, nstep, 2))
-            step_coef[:, :, 0] = np.linspace(ncol/nstep, ncol, nstep)
+            step_coef[:, :, 0] = np.linspace(ncol / nstep, ncol, nstep)
             n = np.prod(shape)
 
             def func(x, *param):
-                x, y = x[:len(x)//2], x[len(x)//2:]
+                x, y = x[: len(x) // 2], x[len(x) // 2 :]
                 poly_coef = np.asarray(param[:n]).reshape(shape)
                 step_coef = np.asarray(param[n:]).reshape((nord, nstep, 2))
 
@@ -648,6 +728,74 @@ class WavelengthCalibration:
             line data with new flags
         """
 
+        new_lines = []
+        if self.atlas is not None:
+            # For each order, find the corresponding section in the Atlas
+            # Look for strong lines in the atlas and the spectrum that match in position
+            # Add new lines to the linelist
+            width_of_atlas_peaks = 3
+            for order in range(obs.shape[0]):
+                mask = ~np.ma.getmask(obs[order])
+                index_mask = np.arange(len(mask))[mask]
+                data_obs = obs[order, mask]
+                wave_obs = wave_img[order, mask]
+
+                threshold_of_peak_closeness = (
+                    np.diff(wave_obs) / wave_obs[:-1] * speed_of_light
+                )
+                threshold_of_peak_closeness = np.max(threshold_of_peak_closeness)
+
+                wmin, wmax = wave_obs[0], wave_obs[-1]
+                imin, imax = np.searchsorted(atlas.wave, (wmin, wmax))
+                wave_atlas = atlas.wave[imin:imax]
+                data_atlas = atlas.data[imin:imax]
+                if len(data_atlas) == 0:
+                    continue
+                data_atlas = data_atlas / data_atlas.max()
+
+                line = lines[
+                    (lines["order"] == order)
+                    & (lines["wll"] > wmin)
+                    & (lines["wll"] < wmax)
+                ]
+
+                peaks_atlas, peak_info_atlas = signal.find_peaks(
+                    data_atlas, height=0.01, width=width_of_atlas_peaks
+                )
+                peaks_obs, peak_info_obs = signal.find_peaks(data_obs, height=0.01, width=0)
+
+                for i, p in enumerate(peaks_atlas):
+                    # Look for an existing line in the vicinityq
+                    wpeak = wave_atlas[p]
+                    diff = np.abs(line["wll"] - wpeak) / wpeak * speed_of_light
+                    if np.any(diff < threshold_of_peak_closeness):
+                        # Line already in the linelist, ignore
+                        continue
+                    else:
+                        # Look for matching peak in observation
+                        diff = np.abs(wpeak - wave_obs[peaks_obs]) / wpeak * speed_of_light
+                        imin = np.argmin(diff)
+
+                        if diff[imin] < threshold_of_peak_closeness:
+                            # Add line to linelist
+                            # Location on the detector
+                            # Include the masked areas!!!
+                            ipeak = peaks_obs[imin]
+                            ipeak = index_mask[ipeak]
+
+                            # relative height of the peak
+                            hpeak = data_obs[peaks_obs[imin]]
+                            wipeak = peak_info_obs["widths"][imin]
+                            # wave, order, pos, width, height, flag
+                            new_lines.append([wpeak, order, ipeak, wipeak, hpeak, True])
+
+            # Add new lines to the linelist
+            if len(new_lines) != 0:
+                new_lines = np.array(new_lines).T
+                new_lines = LineList.from_list(*new_lines)
+                new_lines = self.fit_lines(obs, new_lines)
+                lines.append(new_lines)
+
         # Option 1:
         # Step 1: Loop over unused lines in lines
         # Step 2: find peaks in neighbourhood
@@ -696,7 +844,7 @@ class WavelengthCalibration:
                     lines["flag"][i] = True
                     lines["posm"][i] = low + peak_idx[idx]
 
-        logging.info("AutoID identified %i new lines", counter)
+        logging.info("AutoID identified %i new lines", counter + len(new_lines))
 
         return lines
 
@@ -1079,10 +1227,23 @@ class WavelengthCalibration:
         NotImplementedError
             If polarimitry flag is set
         """
+
         if self.polarim:
             raise NotImplementedError("polarized orders not implemented yet")
 
         self.nord, self.ncol = obs.shape
+        lines = LineList(lines)
+        if self.element is not None:
+            try:
+                self.atlas = LineAtlas(self.element)
+            except FileNotFoundError:
+                logging.warning("No Atlas file found for element %s", self.element)
+                self.atlas = None
+        else:
+            self.atlas = None
+
+
+
         obs, lines = self.normalize(obs, lines)
         # Step 1: align obs and reference
         lines = self.align(obs, lines)
@@ -1099,22 +1260,16 @@ class WavelengthCalibration:
             # Step 3: Create a wavelength solution on known lines
             wave_solution = self.build_2d_solution(lines)
             wave_img = self.make_wave(wave_solution)
-            # Step 4: Identify lines that fit into the solution
-            lines = self.auto_id(obs, wave_img, lines)
             # Step 5: Reject outliers
             lines = self.reject_lines(lines)
+            # Step 4: Identify lines that fit into the solution
+            lines = self.auto_id(obs, wave_img, lines)
+        lines = self.reject_lines(lines)
 
         logging.info(
             "Number of lines used for wavelength calibration: %i",
             np.count_nonzero(lines["flag"]),
         )
-
-        # order = 4
-        # prob = 0.5
-        # for i in range(len(lines)):
-        #     if lines[i]["order"] == order:
-        #         if lines[i]["posm"] < 2048:
-        #             lines[i]["flag"] = False
 
         # Step 6: build final 2d solution
         wave_solution = self.build_2d_solution(lines, plot=self.plot)
@@ -1124,5 +1279,6 @@ class WavelengthCalibration:
             self.plot_results(wave_img, obs)
 
         aic = self.calculate_AIC(lines, wave_solution)
+        logging.info("AIC of wavelength fit: %f", aic)
 
         return wave_img, wave_solution

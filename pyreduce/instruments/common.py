@@ -187,6 +187,8 @@ class instrument:
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
         header["e_obsalt"] = get("altitude")
+
+        header["e_wavecal_element"] = get("wavecal_element", info["wavecal_element"])
         return header
 
     def sort_files(self, input_dir, target, night, mode, **kwargs):

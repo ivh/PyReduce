@@ -21,6 +21,7 @@
     "exposure_time": "EXPTIME",
     "image_type": "OBJECT",
     "category": "HIERARCH ESO DPR CATG",
+    "wavecal_element": "thar",
     "ra": "RA",
     "dec": "DEC",
     "jd": "MJD-OBS",

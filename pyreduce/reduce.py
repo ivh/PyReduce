@@ -823,7 +823,7 @@ class WavelengthCalibration(Step):
         #     f, self.instrument, self.mode, self.extension, mask=mask
         # )
         if bias is not None:
-            orig -= bias * thead["EXPTIME"] / bhead["EXPTIME"]
+            orig -= bias * len(files)
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
@@ -857,6 +857,7 @@ class WavelengthCalibration(Step):
             mode=self.wavecal_mode,
             nstep=self.nstep,
             shift_window=self.shift_window,
+            element=thead["e_wavecal_element"],
         )
         wave, coef = module.execute(thar, linelist)
         self.save(wave, thar, coef, linelist)
