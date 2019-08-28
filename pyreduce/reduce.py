@@ -214,6 +214,9 @@ class Step:
     def run(self, files, *args):
         """Execute the current step
 
+        This should fail, if files are missing, or anything else goes wrong.
+        If the user does not want to run this step, they should not specify it in steps.
+
         Parameters
         ----------
         files : list(str)
@@ -243,6 +246,10 @@ class Step:
 
     def load(self):
         """Load results from a previous execution
+
+        If this raises a FileNotFoundError, run() will be used instead
+        For calibration steps it is preferred however to print a warning
+        and return None. Other modules can then use a default value instead.
 
         Raises
         ------
@@ -382,9 +389,6 @@ class Bias(Step):
         bhead : FITS header
             header of the master bias
         """
-        if len(files) == 0:
-            logging.error("No bias files found. Using bias 0 instead.")
-            return None, []
         bias, bhead = combine_bias(
             files,
             self.instrument,
@@ -412,9 +416,13 @@ class Bias(Step):
         bhead : FITS header
             header of the master bias
         """
-        bias = fits.open(self.savefile)[0]
-        bias, bhead = bias.data, bias.header
-        bias = np.ma.masked_array(bias, mask=mask)
+        try:
+            bias = fits.open(self.savefile)[0]
+            bias, bhead = bias.data, bias.header
+            bias = np.ma.masked_array(bias, mask=mask)
+        except FileNotFoundError:
+            logging.warning("No intermediate bias file found. Using Bias = 0 instead.")
+            bias, bhead = None, None
         return bias, bhead
 
 
@@ -504,9 +512,10 @@ class Flat(Step):
             flat, fhead = flat.data, flat.header
             flat = np.ma.masked_array(flat, mask=mask)
         except FileNotFoundError:
-            logging.warning("No intermediate file for the flat field found. Using Flat == 1 instead")
-            flat = 1
-            fhead = None
+            logging.warning(
+                "No intermediate file for the flat field found. Using Flat = 1 instead"
+            )
+            flat, fhead = None, None
         return flat, fhead
 
 
@@ -678,7 +687,9 @@ class NormalizeFlatField(Step):
         orders, column_range = orders
 
         if fhead is None:
-            logging.warning("No flat field found, using flat == 1 as normalization instead")
+            logging.warning(
+                "No flat field found, using flat == 1 as normalization instead"
+            )
             norm = flat
             blaze = 1
             return norm, blaze
@@ -739,7 +750,7 @@ class WavelengthCalibration(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders", "curvature", "bias"]
+        self._dependsOn += ["mask", "orders", "curvature", "bias", "flat"]
 
         #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -778,7 +789,7 @@ class WavelengthCalibration(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar.npz")
 
-    def run(self, files, orders, mask, curvature, bias):
+    def run(self, files, orders, mask, curvature, bias, flat):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -807,6 +818,7 @@ class WavelengthCalibration(Step):
         orders, column_range = orders
         tilt, shear = curvature
         bias, bhead = bias
+        flat, fhead = flat
 
         if len(files) == 0:
             raise ValueError("No files found for wavelength calibration.")
@@ -818,12 +830,13 @@ class WavelengthCalibration(Step):
             )
 
         # Load wavecal image
-        orig, thead = combine_flat(files, self.instrument, self.mode, self.extension, mask=mask)
-        # orig, thead = util.load_fits(
-        #     f, self.instrument, self.mode, self.extension, mask=mask
-        # )
+        orig, thead = combine_flat(
+            files, self.instrument, self.mode, self.extension, mask=mask
+        )
         if bias is not None:
             orig -= bias * len(files)
+        if flat is not None:
+            orig /= flat
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
@@ -965,6 +978,7 @@ class LaserFrequencyComb(Step):
         """
         wave, thar, coef, linelist = wavecal
         orders, column_range = orders
+        tilt, shear = curvature
 
         if len(files) == 0:
             logging.warning(
@@ -987,6 +1001,8 @@ class LaserFrequencyComb(Step):
             column_range=column_range,
             order_range=self.order_range,
             plot=self.plot,
+            tilt=tilt,
+            shear=shear,
             **self.extraction_kwargs,
         )
 
@@ -1487,7 +1503,9 @@ class Finalize(Step):
     def save_config_to_header(self, head, config, prefix="PR"):
         for key, value in config.items():
             if isinstance(value, dict):
-                head = self.save_config_to_header(head, value, prefix=f"{prefix} {key.upper()}")
+                head = self.save_config_to_header(
+                    head, value, prefix=f"{prefix} {key.upper()}"
+                )
             else:
                 if key in ["plot", "$schema", "__skip_existing__"]:
                     # Skip values that are not relevant to the file product

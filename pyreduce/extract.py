@@ -504,7 +504,6 @@ def extract_spectrum(
 
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
-        # swath_img += np.min(swath_img)
 
         # Do Slitfunction extraction
         swath_tilt = tilt[ibeg:iend]
