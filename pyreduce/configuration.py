@@ -24,7 +24,8 @@ def get_configuration_for_instrument(instrument, plot=None):
 
 def load_config(configuration, instrument, j=0):
     if configuration is None:
-        config = "settings_%s.json" % instrument.upper()
+        logging.info("No configuration specified, using default values for this instrument")
+        config = get_configuration_for_instrument(instrument)
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():
             config = configuration[instrument]
@@ -38,15 +39,9 @@ def load_config(configuration, instrument, j=0):
         config = configuration
 
     if isinstance(config, str):
-        if os.path.isfile(config):
-            logging.info("Loading configuration from %s", config)
-            with open(config) as f:
-                config = json.load(f)
-        else:
-            logging.warning(
-                "No configuration found at %s, using default values", config
-            )
-            config = {}
+        logging.info("Loading configuration from %s", config)
+        with open(config) as f:
+            config = json.load(f)
 
     # Load general settings
     settings = read_config()

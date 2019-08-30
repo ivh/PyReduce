@@ -34,6 +34,7 @@ def remove_bias(img, ihead, bias, bhead, nfiles=1):
         img = img - bias * i_exptime / b_exptime
     return img
 
+
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="General REDUCE script")
@@ -131,6 +132,25 @@ def start_logging(log_file="log.log"):
 
     logging.debug("----------------------")
     logging.debug("PyReduce version: %s", __version__)
+
+
+def vac2air(wl_vac):
+    """
+    Convert vacuum wavelengths to wavelengths in air
+    Author: Nikolai Piskunov
+    """
+    wl_air = wl_vac
+    ii = np.where(wl_vac > 2e3)
+
+    sigma2 = (1e4 / wl_vac[ii]) ** 2  # Compute wavenumbers squared
+    fact = (
+        1e0
+        + 8.34254e-5
+        + 2.406147e-2 / (130e0 - sigma2)
+        + 1.5998e-4 / (38.9e0 - sigma2)
+    )
+    wl_air[ii] = wl_vac[ii] / fact  # Convert to air wavelength
+    return wl_air
 
 
 def load_fits(
@@ -308,6 +328,7 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
 
     return index
 
+
 def gridsearch(func, grid, args=(), kwargs={}):
     matrix = np.zeros(grid.shape[:-1])
 
@@ -324,6 +345,7 @@ def gridsearch(func, grid, args=(), kwargs={}):
             matrix[idx] = result
 
     return matrix
+
 
 def gaussfit(x, y):
     """
@@ -558,7 +580,7 @@ def polyfit1d(x, y, degree=1, regularization=0):
     A = np.array([np.power(x, i) for i in idx], dtype=float).T
     b = y.ravel()
 
-    L = np.array([regularization * i**2 for i in idx])
+    L = np.array([regularization * i ** 2 for i in idx])
     I = np.linalg.inv(A.T @ A + np.diag(L))
     coeff = I @ A.T @ b
 
@@ -722,6 +744,7 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
         plot2d(x, y, z, coeff)
 
     return coeff
+
 
 def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
 
@@ -1259,59 +1282,8 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         bdiag = abs(par1)
 
         # Main diagonal first:
-        # aa = np.zeros((nc, nr))
-        # aa[0, 0] = 1. + adiag + bdiag
-        # aa[1:-2, 0] = np.full(nc - 2, 1. + 2. * adiag + bdiag)
-        # aa[-1, 0] = 1. + adiag + bdiag
-
-        # aa = np.array(
-        #     (
-        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(n - 2 * nc, 1. + 2. * adiag + 2. * bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(n - 1, -adiag),
-        #         np.full(n - 1, -adiag),
-        #         np.full(n - nc, -bdiag),
-        #         np.full(n - nc, -bdiag),
-        #     )
-        # )
-
-        # col = np.arange(nr - 2) * nc + nc  # special cases:
-        aaa = np.full(nr - 2, 1. + adiag + 2. * bdiag)
-        # aa[col] = aaa  # last columns
-        # aa[col + nc - 1] = aaa  # first column
-        # col = n + np.arange(nr - 1) * nc + nc - 1
-        # aa[col] = 0.
-        # aa[col + n - 1] = 0.
-
-        # col = np.array(
-        #     (
-        #         np.arange(n),
-        #         np.arange(n - 1) + 1,
-        #         np.arange(n - 1),
-        #         np.arange(n - nc) + nc,
-        #         np.arange(n - nc),
-        #     )
-        # )  # lower sub-diagonal for y
-
-        # row = np.array(
-        #     (
-        #         np.arange(n),
-        #         np.arange(n - 1),
-        #         np.arange(n - 1) + 1,
-        #         np.arange(n - nc),
-        #         np.arange(n - nc) + nc,
-        #     )
-        # )  # lower sub-diagonal for y
-
-        # aaa = sprsin(col, row, aa, n, thresh=-2. * (adiag > bdiag))
-        # col = bdiag
-        # row = adiag
-        # aa = np.reshape(y, n)  # start with an initial guess at the solution.
-
+        aaa = np.full(nr - 2, 1.0 + adiag + 2.0 * bdiag)
+ 
         aa = solve(aaa, y)  # solve the linear system ax=b.
         aa.shape = nc, nr  # restore the shape of the result.
         return aaa
@@ -1348,7 +1320,7 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
         Heliocentric Julian date for middle of exposure
     """
 
-    jd = 2400000. + jd
+    jd = 2400000.0 + jd
     jd = time.Time(jd, format="jd")
 
     ra = coord.Longitude(ra2000, unit=u.hour)
