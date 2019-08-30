@@ -11,7 +11,7 @@ from astropy.io import fits
 from pyreduce import configuration, datasets, echelle, instruments, util
 from pyreduce.combine_frames import combine_bias, combine_flat
 from pyreduce.extract import extract
-from pyreduce.normalize_flat import normalize_flat
+from pyreduce.estimate_background_scatter import estimate_background_scatter
 from pyreduce.trace_orders import mark_orders
 from pyreduce.wavelength_calibration import WavelengthCalibration
 
@@ -480,9 +480,32 @@ def orders(instrument, mode, extension, files, settings, mask, output_dir):
             pickle.dump((orders, column_range), file)
     return orders, column_range
 
+@pytest.fixture
+def scatter(flat, orders, settings, output_dir):
+    scatter_file = os.path.join(output_dir, "test_scatter.npz")
+    try:
+        scatter = np.load(scatter_file)
+        scatter = scatter["scatter"]
+    except FileNotFoundError:
+        settings = settings["scatter"]
+        flat, fhead = flat
+        orders, column_range = orders
+
+        scatter = estimate_background_scatter(
+            flat,
+            orders,
+            column_range=column_range,
+            extraction_width=settings["extraction_width"],
+            scatter_degree=settings["scatter_degree"],
+            sigma_cutoff=settings["sigma_cutoff"],
+            border_width=settings["border_width"],
+            plot=False,
+        )
+        np.savez(scatter_file, scatter=scatter)
+    return scatter
 
 @pytest.fixture
-def normflat(flat, orders, settings, output_dir, mask, order_range):
+def normflat(flat, orders, scatter, settings, output_dir, mask, order_range):
     """Load or create the normalized flat field
 
     Parameters
@@ -519,22 +542,26 @@ def normflat(flat, orders, settings, output_dir, mask, order_range):
     else:
         flat, fhead = flat
         orders, column_range = orders
+        threshold = settings["threshold"]
+        if threshold <= 1:
+            threshold = np.percentile(flat, threshold * 100)
 
-        norm, blaze = normalize_flat(
+        norm, _, blaze, _ = extract(
             flat,
             orders,
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
-            column_range=column_range,
             order_range=order_range,
+            column_range=column_range,
+            scatter=scatter,
+            threshold=threshold,
+            extraction_type="normalize",
+            plot=False,
             extraction_width=settings["extraction_width"],
-            degree=settings["scatter_degree"],
-            threshold=settings["threshold"],
             lambda_sf=settings["smooth_slitfunction"],
             lambda_sp=settings["smooth_spectrum"],
             swath_width=settings["swath_width"],
-            plot=False,
         )
         with open(blazefile, "wb") as file:
             pickle.dump(blaze, file)

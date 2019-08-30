@@ -1,24 +1,25 @@
 import pytest
 import numpy as np
 
-from pyreduce.normalize_flat import normalize_flat
+from pyreduce.extract import extract
 
 
-def test_normflat(flat, orders, settings, order_range):
+def test_normflat(flat, orders, settings, order_range, scatter):
     flat, fhead = flat
     orders, column_range = orders
     settings = settings["norm_flat"]
 
-    norm, blaze = normalize_flat(
+    norm, _, blaze, _ = extract(
         flat,
         orders,
+        scatter=scatter,
         gain=fhead["e_gain"],
         readnoise=fhead["e_readn"],
         dark=fhead["e_drk"],
         column_range=column_range,
         order_range=order_range,
+        extraction_type="normalize",
         extraction_width=settings["extraction_width"],
-        degree=settings["scatter_degree"],
         threshold=settings["threshold"],
         lambda_sf=settings["smooth_slitfunction"],
         lambda_sp=settings["smooth_spectrum"],
