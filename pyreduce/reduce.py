@@ -41,6 +41,7 @@ from .make_shear import Curvature as CurvatureModule
 from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
+from .estimate_background_scatter import estimate_background_scatter
 
 # TODO Naming of functions and modules
 # TODO License
@@ -632,12 +633,77 @@ class OrderTracing(Step):
         return orders, column_range
 
 
+class BackgroundScatter(Step):
+    """Determine the background scatter"""
+
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
+        self._dependsOn += ["flat", "orders"]
+
+        #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
+        self.scatter_degree = config["scatter_degree"]
+        self.extraction_width = config["extraction_width"]
+        self.sigma_cutoff = config["sigma_cutoff"]
+        self.border_width = config["border_width"]
+
+    @property
+    def savefile(self):
+        """str: Name of the scatter file"""
+        return join(self.output_dir, self.prefix + ".scatter.npz")
+
+
+    def run(self, flat, orders):
+        flat, fhead = flat
+        orders, column_range = orders
+
+        scatter = estimate_background_scatter(
+            flat,
+            orders,
+            column_range=column_range,
+            extraction_width=self.extraction_width,
+            scatter_degree=self.scatter_degree,
+            sigma_cutoff=self.sigma_cutoff,
+            border_width=self.border_width,
+            plot=self.plot,
+        )
+
+        self.save(scatter)
+        return scatter
+
+    def save(self, scatter):
+        """Save scatter results to disk
+
+        Parameters
+        ----------
+        scatter : array
+            scatter coefficients
+        """
+        np.savez(self.savefile, scatter=scatter)
+
+    def load(self):
+        """Load scatter results from disk
+
+        Returns
+        -------
+        scatter : array
+            scatter coefficients
+        """
+        try:
+            data = np.load(self.savefile, allow_pickle=True)
+        except FileNotFoundError:
+            logging.warning(
+                "No intermediate files found for the scatter. Using scatter = 0 instead."
+            )
+            data = {"scatter": [0]}
+        scatter = data["scatter"]
+        return scatter
+
 class NormalizeFlatField(Step):
     """Calculate the 'normalized' flat field image"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "orders"]
+        self._dependsOn += ["flat", "orders", "scatter", "curvature"]
 
         #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -654,19 +720,16 @@ class NormalizeFlatField(Step):
             raise ValueError(
                 f"Extraction method {self.extraction_method} not supported for step 'norm_flat'"
             )
-        #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
-        self.scatter_degree = config["scatter_degree"]
         #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
-        self.sigma_cutoff = config["sigma_cutoff"]
-        self.border_width = config["border_width"]
+
 
     @property
     def savefile(self):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, orders):
+    def run(self, flat, orders, scatter, curvature):
         """Calculate the 'normalized' flat field
 
         Parameters
@@ -685,36 +748,31 @@ class NormalizeFlatField(Step):
         """
         flat, fhead = flat
         orders, column_range = orders
+        tilt, shear = curvature
 
-        if fhead is None:
-            logging.warning(
-                "No flat field found, using flat == 1 as normalization instead"
-            )
-            norm = flat
-            blaze = 1
-            return norm, blaze
+        # if threshold is smaller than 1, assume percentage value is given
+        if self.threshold <= 1:
+            self.threshold = np.percentile(flat, self.threshold * 100)
 
-        norm, blaze = normalize_flat(
+        norm, _, blaze, _ = extract(
             flat,
             orders,
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
-            column_range=column_range,
             order_range=self.order_range,
-            scatter_degree=self.scatter_degree,
+            column_range=column_range,
+            scatter=scatter,
             threshold=self.threshold,
-            sigma_cutoff=self.sigma_cutoff,
-            border_width=self.border_width,
+            extraction_type=self.extraction_method,
+            tilt=tilt,
+            shear=shear,
             plot=self.plot,
             **self.extraction_kwargs,
         )
 
         blaze = np.ma.filled(blaze, 0)
-
-        # Save data
         self.save(norm, blaze)
-
         return norm, blaze
 
     def save(self, norm, blaze):
@@ -739,7 +797,13 @@ class NormalizeFlatField(Step):
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
         """
-        data = np.load(self.savefile, allow_pickle=True)
+        try:
+            data = np.load(self.savefile, allow_pickle=True)
+        except FileNotFoundError:
+            logging.warning(
+                "No intermediate files found for the normalized flat field. Using flat = 1 instead."
+            )
+            data = {"blaze": 1, "norm": None}
         blaze = data["blaze"]
         norm = data["norm"]
         return norm, blaze
@@ -1614,6 +1678,7 @@ class Reducer:
         "bias": 10,
         "flat": 20,
         "orders": 30,
+        "scatter": 35,
         "norm_flat": 40,
         "curvature": 50,
         "wavecal": 60,
@@ -1628,6 +1693,7 @@ class Reducer:
         "bias": Bias,
         "flat": Flat,
         "orders": OrderTracing,
+        "scatter": BackgroundScatter,
         "norm_flat": NormalizeFlatField,
         "wavecal": WavelengthCalibration,
         "freq_comb": LaserFrequencyComb,

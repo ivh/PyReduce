@@ -33,6 +33,13 @@
         "manual": true,
         "plot": true
     },
+    "scatter": {
+        "scatter_degree": 4,
+        "sigma_cutoff": 2,
+        "border_width": null,
+        "extraction_width": 0.3,
+        "plot": true
+    },
     "norm_flat": {
         "extraction_method": "normalize",
         "smooth_slitfunction": 4,
@@ -40,10 +47,7 @@
         "oversampling": 10,
         "swath_width": 200,
         "extraction_width": 0.2,
-        "scatter_degree": 4,
         "threshold": 0.6,
-        "sigma_cutoff": 2,
-        "border_width": null,
         "plot": true
     },
     "wavecal": {

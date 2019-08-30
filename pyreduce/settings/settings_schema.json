@@ -119,7 +119,7 @@
                         },
                         "min_width": {
                             "description": "Minimum width of a cluster to be considered after merging. If between 0 and 1, use that fraction of the detector width. Estimated automatically if null",
-                            "type" : ["number", "null"],
+                            "type": ["number", "null"],
                             "minimum": 0
                         },
                         "noise": {
@@ -154,6 +154,54 @@
                 }
             ]
         },
+        "scatter": {
+            "allOf": [{
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "scatter_degree": {
+                            "description": "Polynomial degree of the background scatter, in both pixel dimensions",
+                            "type": [
+                                "integer",
+                                "array"
+                            ],
+                            "minimum": 0,
+                            "items": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "extraction_width": {
+                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
+                        },
+                        "sigma_cutoff": {
+                            "description": "Number of sigmas around the mean to include in the background scatter fit",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "border_width": {
+                            "description": "Border Width to ignore for background fit.",
+                            "type": ["number", "null"],
+                            "minimum": 0
+                        }
+                    },
+                    "required": ["scatter_degree", "sigma_cutoff", "border_width"]
+                }
+            ]
+        },
         "norm_flat": {
             "allOf": [{
                     "$ref": "#/definitions/step"
@@ -171,33 +219,10 @@
                                 "integer"
                             ],
                             "exclusiveMinimum": 0
-                        },
-                        "scatter_degree": {
-                            "description": "Polynomial degree of the background scatter, in both pixel dimensions",
-                            "type": [
-                                "integer",
-                                "array"
-                            ],
-                            "minimum": 0,
-                            "items": {
-                                "type": "integer",
-                                "minimum": 0
-                            }
-                        },
-                        "sigma_cutoff": {
-                            "description": "Number of sigmas around the mean to include in the background scatter fit",
-                            "type": "number",
-                            "exclusiveMinimum": 0
-                        },
-                        "border_width": {
-                            "description": "Border Width to ignore for background fit.",
-                            "type": ["number", "null"],
-                            "minimum": 0
                         }
                     },
                     "required": [
-                        "threshold",
-                        "scatter_degree"
+                        "threshold"
                     ]
                 }
             ]
@@ -369,6 +394,7 @@
         "bias",
         "flat",
         "orders",
+        "scatter",
         "norm_flat",
         "wavecal",
         "freq_comb",
