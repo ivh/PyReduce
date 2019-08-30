@@ -38,7 +38,6 @@ from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
 from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
-from .normalize_flat import normalize_flat
 from .trace_orders import mark_orders
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .estimate_background_scatter import estimate_background_scatter
