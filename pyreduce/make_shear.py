@@ -253,7 +253,9 @@ class Curvature:
                 except RuntimeError:
                     xcen[i] = np.ma.mean(x)
                     deviation[i] = 0
-
+                except TypeError:
+                    xcen[i] = np.ma.mean(x)
+                    deviation[i] = 0
         # Seperate in order pixels from out of order pixels
         # TODO: actually we want to weight them by the slitfunction?
         if not np.all(deviation == 0):
