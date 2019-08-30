@@ -833,7 +833,7 @@ def arc_extraction(
 
     if plot:
         # Prepare output image
-        output = np.zeros((np.sum(extraction_width) + nord, ncol))
+        output = np.ma.zeros((np.sum(extraction_width) + nord, ncol))
         pos = [0]
 
     spectrum = np.zeros((nord, ncol))
@@ -882,9 +882,8 @@ def arc_extraction(
             np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
         )
         if plot:
-            output[pos[i] : pos[i] + index[0].shape[0], x_left_lim:x_right_lim] = img[
-                index
-            ]
+            yleft, yright = pos[i], pos[i] + index[0].shape[0]
+            output[yleft:yright, x_left_lim:x_right_lim] = img[index]
             pos += [pos[i] + index[0].shape[0]]
 
     if plot:
