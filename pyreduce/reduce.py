@@ -813,7 +813,7 @@ class WavelengthCalibration(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders", "curvature", "bias", "flat"]
+        self._dependsOn += ["mask", "orders", "curvature", "bias"]
 
         #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -852,7 +852,7 @@ class WavelengthCalibration(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar.npz")
 
-    def run(self, files, orders, mask, curvature, bias, flat):
+    def run(self, files, orders, mask, curvature, bias):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -881,16 +881,8 @@ class WavelengthCalibration(Step):
         orders, column_range = orders
         tilt, shear = curvature
         bias, bhead = bias
-        flat, fhead = flat
 
-        if len(files) == 0:
-            raise ValueError("No files found for wavelength calibration.")
-        f = files[0]
-        if len(files) > 1:
-            # TODO: Give the user the option to select one?
-            logging.warning(
-                "More than one wavelength calibration file found. Will use: %s", f
-            )
+        assert len(files) > 0, "No files found for wavelength calibration"
 
         # Load wavecal image
         orig, thead = combine_flat(
@@ -898,8 +890,6 @@ class WavelengthCalibration(Step):
         )
         if bias is not None:
             orig -= bias * len(files)
-        if flat is not None:
-            orig /= flat
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
