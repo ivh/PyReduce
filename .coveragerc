@@ -1,0 +1,14 @@
+[tool:pytest]
+addopts = --cov=pyreduce  --cov-report=xml
+
+[run]
+source = pyreduce
+omit = 
+    pyreduce/_version.py
+    pyreduce/instruments/*
+
+[report]
+show_missing = True
+
+[xml]
+output = cov.xml

@@ -12,11 +12,14 @@
         "manual": true,
         "min_width": null
     },
+    "scatter":{
+        "extraction_width": 0.45,
+        "border_width": 20
+    },
     "norm_flat": {
         "smooth_slitfunction": 1e3,
         "smooth_spectrum": 1e-7,
         "extraction_width": 0.45,
-        "border_width": 20,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -41,7 +44,7 @@
     "science": {
         "oversampling": 10,
         "extraction_width": 0.45,
-        "swath_width": 200,
+        "swath_width": 400,
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0.5e-5
     }

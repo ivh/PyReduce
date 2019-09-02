@@ -10,13 +10,13 @@
         "split_sigma": 5
     },
     "scatter": {
-        "extraction_width": 0.45
+        "extraction_width": 0.45,
+        "border_width": 20
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
         "extraction_width": 0.45,
-        "border_width": 20,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000

@@ -20,6 +20,9 @@
         "manual": true,
         "plot": false
     },
+    "scatter":{
+        "extraction_width": 35
+    },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
@@ -55,7 +58,6 @@
         "swath_width": 300,
         "smooth_slitfunction": 0.3,
         "smooth_spectrum": 0,
-        "tilt": 0.05,
         "plot": false
     },
     "continuum": {

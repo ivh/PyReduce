@@ -41,19 +41,13 @@ def test_scatter_degree():
     with pytest.raises(ValueError):
         estimate_background_scatter(img, orders, scatter_degree=-1)
 
-    with pytest.raises(TypeError):
-        estimate_background_scatter(img, orders, scatter_degree=2.5)
-
     estimate_background_scatter(img, orders, scatter_degree=(2, 2))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         estimate_background_scatter(img, orders, scatter_degree=(1,))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         estimate_background_scatter(img, orders, scatter_degree=(3, 2, 1))
 
     with pytest.raises(ValueError):
         estimate_background_scatter(img, orders, scatter_degree=(2, -1))
-
-    with pytest.raises(TypeError):
-        estimate_background_scatter(img, orders, scatter_degree=(2, 2.5))

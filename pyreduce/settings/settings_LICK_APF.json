@@ -1,8 +1,7 @@
 {
     "__instrument__": "LICK_APF",
     "__skip_existing__": false,
-    "instrument": {
-    },
+    "instrument": {},
     "bias": {
         "plot": false
     },
@@ -20,6 +19,9 @@
         "closing_shape": [3, 10],
         "manual": true,
         "plot": false
+    },
+    "scatter": {
+        "extraction_width": [9, 9]
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
@@ -60,5 +62,8 @@
     "continuum": {
         "plot": true
     },
-    "finalize" : {"filename": "{input}.ech","plot": false}
+    "finalize": {
+        "filename": "{input}.ech",
+        "plot": false
+    }
 }

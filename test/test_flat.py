@@ -25,6 +25,26 @@ def test_flat(instrument, mode, files, extension, mask):
     assert flat.shape[0] == fhead["NAXIS1"] - 100  # remove window from both sides
     assert flat.shape[1] == fhead["NAXIS2"]
 
+def test_flat_with_bias(instrument, mode, files, extension, mask):
+    window = 50
+    flat, fhead = combine_flat(
+        files["flat"],
+        instrument,
+        mode,
+        extension=extension,
+        window=window,
+        bias=1,
+        mask=mask,
+    )
+
+    assert isinstance(flat, np.ma.masked_array)
+    assert isinstance(fhead, fits.Header)
+
+    assert flat.ndim == fhead["NAXIS"]
+    assert flat.shape[0] == fhead["NAXIS1"] - 2 * window
+    assert flat.shape[1] == fhead["NAXIS2"]
+
+
 
 def test_simple(tempfiles):
     n = 2

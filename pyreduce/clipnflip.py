@@ -1,7 +1,7 @@
 """
 Module that
-a) Clips: remove pre- and overscan regions
-and b) Flips: orients the image so that orders are roughly horizontal
+    - Clips remove pre- and overscan regions
+    - Flips orients the image so that orders are roughly horizontal
 """
 
 import numpy as np
@@ -40,7 +40,8 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     # This part depends on how many amplifiers were used for the readout
     n_amp = header.get("e_ampl", 1)
 
-    if n_amp > 1:  # more than one amplifier
+    if n_amp > 1: # pragma: no cover
+        raise NotImplementedError
         xlo = np.array(header["e_xlo*"].values())
         xhi = np.array(header["e_xhi*"].values())
         ylo = np.array(header["e_ylo*"].values())

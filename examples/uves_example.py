@@ -14,15 +14,15 @@ target = "HD132205"
 night = "2010-04-01"
 mode = "middle"
 steps = (
-    "bias",
-    "flat",
-    "orders",
-    "norm_flat",
+    # "bias",
+    # "flat",
+    # "orders",
+    # "norm_flat",
     "wavecal",
-    "curvature",
-    "science",
-    "continuum",
-    "finalize",
+    # "curvature",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings

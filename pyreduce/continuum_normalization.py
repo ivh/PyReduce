@@ -59,7 +59,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         scale = np.ma.median(spec / cont, axis=1)
         cont *= scale[:, None]
 
-    if plot:
+    if plot: #pragma: no cover
         plt.subplot(411)
         plt.title("Before")
         for i in range(spec.shape[0]):
@@ -118,27 +118,11 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
             u1[i1] = c1[i1] * utmp ** -0.5
-        else:  # Orders dont overlap
+        else: #pragma: no cover 
+            # TODO: Orders dont overlap
             continue
-            raise NotImplementedError("Orders don't overlap, please test")
-            c0 *= util.top(s0 / c0, 1, poly=True)
-            scale0 = util.top(s0 / c0, 1, poly=True)
-            scale0 = np.polyfit(w0, scale0, 1)
 
-            scale1 = util.top(s1 / c1, 1, poly=True)
-            scale1 = np.polyfit(w1, scale1, 1)
-
-            xx = np.linspace(np.min(w0), np.max(w1), 100)
-
-            # TODO test this
-            # scale = np.sum(scale0[0] * scale1[0] * xx * xx + scale0[0] * scale1[1] * xx + scale1[0] * scale0[1] * xx + scale1[1] * scale0[1])
-            scale = scale0[::-1, None] * scale1[None, ::-1]
-            scale = np.sum(np.polynomial.polynomial.polyval2d(xx, xx, scale)) / np.sum(
-                np.polyval(scale1, xx) ** 2
-            )
-            s1 *= scale
-
-    if plot:
+    if plot: #pragma: no cover
         plt.subplot(413)
         plt.title("After")
         for i in range(nord):
@@ -155,7 +139,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     return spec, wave, cont, sigm
 
 
-class Plot_Normalization:
+class Plot_Normalization: #pragma: no cover
     def __init__(self, wsort, sB, new_wave, contB, iteration=0):
         plt.ion()
         self.fig = plt.figure()
@@ -211,8 +195,8 @@ def continuum_normalize(
     sigm : masked array of shape (nord, ncol)
         Uncertainties of the spectrum
     iterations : int, optional
-        Number of iterations of the algorithm, 
-        note that runtime roughly scales with the number of iterations squared 
+        Number of iterations of the algorithm,
+        note that runtime roughly scales with the number of iterations squared
         (default: 10)
     smooth_initial : float, optional
         Smoothing parameter in the initial runs, usually smaller than smooth_final (default: 1e5)
@@ -289,14 +273,14 @@ def continuum_normalize(
         weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
 
         # Plot the intermediate results
-        if plot:
+        if plot: #pragma: no cover
             if i == 0:
                 p = Plot_Normalization(wsort, sB, new_wave, contB, i)
             else:
                 p.plot(wsort, sB, new_wave, contB, i)
 
     # Need to close the plot afterwards
-    if plot:
+    if plot: #pragma: no cover
         p.close()
 
     # Calculate the new continuum from intermediate values
@@ -305,7 +289,7 @@ def continuum_normalize(
     cont[~cont.mask] = (new_cont * bbb)[index]
 
     # Final output plot
-    if plot:
+    if plot: #pragma: no cover
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
         plt.legend(loc="best")

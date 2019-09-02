@@ -3,7 +3,7 @@ import tarfile
 import wget
 
 
-def UVES_HD132205(local_dir=None):
+def UVES_HD132205(local_dir=None): #pragma: no cover
     """Load an example dataset for the UVES instrument
 
     Parameters
@@ -36,7 +36,3 @@ def UVES_HD132205(local_dir=None):
         file.extractall(path=target_dir)
 
     return target_dir
-
-
-if __name__ == "__main__":
-    UVES_HD132205()

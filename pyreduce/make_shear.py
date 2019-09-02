@@ -26,11 +26,10 @@ from scipy import signal
 from numpy.polynomial.polynomial import polyval2d
 from skimage.filters import threshold_otsu
 
-from .extract import fix_extraction_width, extend_orders, fix_column_range
-from .util import make_index, gaussfit4 as gaussfit, polyfit2d
+from .util import make_index, gaussfit4 as gaussfit, polyfit2d, fix_parameters
 
 
-class ProgressPlot:
+class ProgressPlot:  # pragma: no cover
     def __init__(self, ncol, width, height):
         plt.ion()
 
@@ -94,9 +93,11 @@ class ProgressPlot:
         self.line3.set_ydata(y)
 
         if positions.size > self.height:
-            positions = positions[:self.height]
+            positions = positions[: self.height]
         elif positions.size < self.height:
-            positions = np.concatenate((positions, np.zeros(self.height - positions.size)))
+            positions = np.concatenate(
+                (positions, np.zeros(self.height - positions.size))
+            )
 
         self.line4.set_xdata(positions)
         self.line4.set_ydata(l4_y)
@@ -153,34 +154,16 @@ class Curvature:
         return self.order_range[1] - self.order_range[0]
 
     def _fix_inputs(self, original):
-        nrow, ncol = original.shape
-
         orders = self.orders
         extraction_width = self.extraction_width
         column_range = self.column_range
 
-        if np.isscalar(extraction_width):
-            extraction_width = np.tile([extraction_width], [self.nord, 2])
-        if column_range is None:
-            column_range = np.tile([0, ncol], [self.nord, 1])
+        nrow, ncol = original.shape
+        nord = len(orders)
 
-        orders = extend_orders(orders, nrow)
-        extraction_width = np.array(
-            [extraction_width[0], *extraction_width, extraction_width[-1]]
+        extraction_width, column_range, orders = fix_parameters(
+            extraction_width, column_range, orders, nrow, ncol, nord
         )
-        column_range = np.array([column_range[0], *column_range, column_range[-1]])
-
-        # Fix column range, so that all extractions are fully within the image
-        extraction_width = fix_extraction_width(
-            extraction_width, orders, column_range, ncol
-        )
-        column_range = fix_column_range(
-            original, orders, extraction_width, column_range
-        )
-
-        extraction_width = extraction_width[1:-1]
-        column_range = column_range[1:-1]
-        orders = orders[1:-1]
 
         self.column_range = column_range[self.order_range[0] : self.order_range[1]]
         self.extraction_width = extraction_width[
@@ -228,34 +211,26 @@ class Curvature:
         x = np.ma.masked_array(x)
         for i, irow in enumerate(xind):
             # Trying to access values outside the image
-            assert not np.any((ycen + irow)[xmin : xmax] >= nrow)
+            assert not np.any((ycen + irow)[xmin:xmax] >= nrow)
 
             # Just cutout this one row
             idx = make_index(ycen + irow, ycen + irow, xmin, xmax)
             segment = original[idx][0]
             segments += [segment]
 
-            if np.all(np.ma.getmask(segment)):
-                # If this row is masked, this will happen
-                # It will be ignored by the thresholding anyway
-                xcen[i] = np.mean(x)
+            try:
+                x.mask = segment.mask
+                coef = gaussfit(x, segment)
+                # Store line center
+                xcen[i] = coef[1]
+                wcen[i] = coef[2]
+                vcen[i] = coef[0] + coef[3]
+                # Store the variation within the row
+                deviation[i] = np.ma.std(segment)
+            except:
+                xcen[i] = np.ma.mean(x)
                 deviation[i] = 0
-            else:
-                try:
-                    x.mask = segment.mask
-                    coef = gaussfit(x, segment)
-                    # Store line center
-                    xcen[i] = coef[1]
-                    wcen[i] = coef[2]
-                    vcen[i] = coef[0] + coef[3]
-                    # Store the variation within the row
-                    deviation[i] = np.ma.std(segment)
-                except RuntimeError:
-                    xcen[i] = np.ma.mean(x)
-                    deviation[i] = 0
-                except TypeError:
-                    xcen[i] = np.ma.mean(x)
-                    deviation[i] = 0
+
         # Seperate in order pixels from out of order pixels
         # TODO: actually we want to weight them by the slitfunction?
         if not np.all(deviation == 0):
@@ -267,7 +242,7 @@ class Curvature:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                w = np.sqrt(1/wcen[idx])
+                w = np.sqrt(1 / wcen[idx])
                 coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
         except:
             logging.warning("Could not fit curvature to line, using 0 instead.")
@@ -352,17 +327,21 @@ class Curvature:
             # Determine curvature for each line seperately
             tilt = np.zeros(npeaks)
             shear = np.zeros(npeaks)
+            mask = np.full(npeaks, True)
             for ipeak, peak in enumerate(peaks):
                 if self.plot and self.verbose >= 2:
                     self.progress.update_plot1(vec, peak, cr[0])
-                tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
-                    original, peak, ycen, xwd
-                )
+                try:
+                    tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
+                        original, peak, ycen, xwd
+                    )
+                except:
+                    mask[ipeak] = False
 
             # Store results
-            all_peaks += [peaks]
-            all_tilt += [tilt]
-            all_shear += [shear]
+            all_peaks += [peaks[mask]]
+            all_tilt += [tilt[mask]]
+            all_shear += [shear[mask]]
             plot_vec += [vec]
         return all_peaks, all_tilt, all_shear, plot_vec
 
@@ -482,17 +461,17 @@ class Curvature:
 
         vmin, vmax = np.percentile(output[output != 0], (5, 95))
         plt.imshow(output, vmin=vmin, vmax=vmax, origin="lower", aspect="auto")
-        
+
         for i in range(self.nord):
             for p in peaks[i]:
                 ew = self.extraction_width[i]
                 x = np.zeros(ew[0] + ew[1] + 1)
                 y = np.arange(-ew[0], ew[1] + 1)
                 for j, yt in enumerate(y):
-                    x[j] = p + yt * tilt[i, p] + yt**2 * shear[i, p]
+                    x[j] = p + yt * tilt[i, p] + yt ** 2 * shear[i, p]
                 y += pos[i] + ew[0]
                 plt.plot(x, y, "r")
-        
+
         locs = np.sum(self.extraction_width, axis=1) + 1
         locs = [0, *np.cumsum(locs)[:-1]]
         plt.yticks(locs, range(len(locs)))
@@ -512,6 +491,7 @@ class Curvature:
         peaks, tilt, shear, vec = self._determine_curvature_all_lines(
             original, extracted
         )
+
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
 
         if self.plot:
@@ -522,6 +502,5 @@ class Curvature:
 
         if self.plot:
             self.plot_comparison(original, tilt, shear, peaks)
-
 
         return tilt, shear

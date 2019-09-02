@@ -1260,8 +1260,6 @@ class ScienceExtraction(Step):
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
             }
-            self.tilt = config.get("tilt", None)
-
         else:
             raise ValueError(
                 f"Extraction method {self.extraction_method} not supported for step 'science'"
@@ -1315,9 +1313,6 @@ class ScienceExtraction(Step):
         norm, blaze = norm_flat
         orders, column_range = orders
         tilt, shear = curvature
-
-        if self.tilt is not None and tilt is None:
-            tilt = self.tilt
 
         heads, specs, sigmas, columns = [], [], [], []
         for fname in files:
@@ -1837,7 +1832,7 @@ class Reducer:
         return self.data
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": #pragma: no cover
     if len(sys.argv) > 1:
         # Command Line arguments passed
         args = util.parse_args()

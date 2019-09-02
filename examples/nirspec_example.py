@@ -36,7 +36,6 @@ input_dir = "raw/sci/"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_NIRSPEC.json")
 
 pyreduce.reduce.main(
     instrument,
@@ -47,6 +46,5 @@ pyreduce.reduce.main(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=config,
     # order_range=(0, 25),
 )

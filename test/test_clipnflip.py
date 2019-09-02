@@ -96,3 +96,12 @@ def test_bad_clipping_range(image, header):
     # Case 4: y limits only one column
     with pytest.raises(IndexError):
         flipped = clipnflip(image, header, yrange=(1, 1))
+
+def test_multidimensional(image, header):
+    image = image[None, None, ...]
+    flipped = clipnflip(image, header)
+
+    assert isinstance(flipped, np.ndarray)
+    assert flipped.shape[0] == image.shape[-2]
+    assert flipped.shape[1] == image.shape[-1]
+    assert np.all(flipped == image[0, 0])

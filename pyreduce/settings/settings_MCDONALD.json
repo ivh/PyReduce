@@ -13,6 +13,9 @@
         "noise": 50,
         "manual": true
     },
+    "scatter":{
+        "extraction_width": 0.3
+    },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,

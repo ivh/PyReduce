@@ -33,7 +33,7 @@ base_dir = "/DATA/ESO/XShooter"
 input_dir = "raw"
 output_dir = "reduced"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=False)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
 
 pyreduce.reduce.main(
     instrument,

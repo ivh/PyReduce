@@ -16,35 +16,6 @@ from pyreduce import extract
 from pyreduce import util
 from pyreduce.cwrappers import slitfunc
 
-
-# @pytest.fixture
-# def testdata1():
-#     folder = dirname(__file__)
-#     fname = "test.dat"
-#     return join(folder, fname)
-
-
-# @pytest.fixture
-# def testdata2():
-#     folder = dirname(__file__)
-#     fname = "test2.dat"
-#     return join(folder, fname)
-
-
-# @pytest.fixture
-# def testdata3():
-#     folder = dirname(__file__)
-#     fname = "test3.dat"
-#     return join(folder, fname)
-
-
-# @pytest.fixture
-# def testdata2_after():
-#     folder = dirname(__file__)
-#     fname = "test2_after.dat"
-#     return join(folder, fname)
-
-
 @pytest.fixture
 def width():
     return 100
@@ -112,73 +83,56 @@ def orders(width, ycen):
 def sample_data(width, height, spec, slitf, oversample, noise, ycen, tilt=0):
     img = spec[None, :] * slitf[:, None]
     img += noise * np.random.randn(*img.shape)
-
     # TODO more sophisticated sample data creation
-
-    # afine_tf = tf.AffineTransform(shear=-shear)
-    # img = tf.warp(img, inverse_map=afine_tf)
-
-    # # apply order curvature
-    # big_height = (int(np.ceil(np.max(ycen))) + height) * oversample
-    # big_height += oversample - (big_height % oversample)
-    # big_img = np.zeros((big_height, width))
-    # index = util.make_index(
-    #     (oversample * ycen).astype(int) - height // 2 * oversample,
-    #     (ycen * oversample).astype(int) + height // 2 * oversample - 1,
-    #     0,
-    #     width,
-    # )
-    # big_img[index] = img
-
-    # # downsample oversampling
-    # img = big_img[::oversample]
-    # for i in range(1, oversample):
-    #     img += big_img[i::oversample]
-    # img /= oversample
-
     return img, spec, slitf
 
 
-def test_extend_orders():
-    # Test normal case
-    orders = np.array([[0.1, 5], [0.1, 7]])
-    extended = extract.extend_orders(orders, 10)
+def test_class_swath():
+    swath = extract.Swath(5)
 
-    assert np.array_equal(orders, extended[1:-1])
-    assert np.array_equal(extended[0], [0.1, 3])
-    assert np.array_equal(extended[-1], [0.1, 9])
+    assert len(swath) == 5
+    assert len(swath.spec) == 5
+    assert len(swath.slitf) == 5
+    assert len(swath.model) == 5
+    assert len(swath.unc) == 5
+    assert len(swath.mask) == 5
 
-    # Test just one order
-    orders = np.array([0.1, 5], ndmin=2)
-    extended = extract.extend_orders(orders, 10)
+    for i in range(5):
+        assert swath.spec[i] is None
+        assert swath.slitf[i] is None
+        assert swath.model[i] is None
+        assert swath.unc[i] is None
+        assert swath.mask[i] is None
 
-    assert np.array_equal(orders, extended[1:-1])
-    assert np.array_equal(extended[0], [0, 0])
-    assert np.array_equal(extended[-1], [0, 10])
+def test_make_bins(width):
+    #swath_width, xlow, xhigh, ycen, ncol
+    xlow, xhigh = 0, width
+    ycen = np.linspace(0, 10, width)
+    swath_width = width // 10
+    nbin, bins_start, bins_end = extract.make_bins(swath_width, xlow, xhigh, ycen)
 
+    assert isinstance(nbin, (int, np.integer))
+    assert nbin == 10
+    assert isinstance(bins_start, np.ndarray)
+    assert isinstance(bins_end, np.ndarray)
+    assert len(bins_start) == 2 * nbin - 1
+    assert len(bins_end) == 2 * nbin - 1
 
-def test_fix_column_range():
-    # Some orders will be shortened
-    img = np.zeros((50, 1000))
-    orders = np.array([[0.2, 3], [0.2, 5], [0.2, 7], [0.2, 9]])
-    ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
-    cr = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
+    nbin, bins_start, bins_end = extract.make_bins(None, xlow, xhigh, ycen)
 
-    fixed = extract.fix_column_range(img, orders, ew, cr)
+    assert isinstance(nbin, (int, np.integer))
+    assert isinstance(bins_start, np.ndarray)
+    assert isinstance(bins_end, np.ndarray)
+    assert len(bins_start) == 2 * nbin - 1
+    assert len(bins_end) == 2 * nbin - 1
 
-    assert np.array_equal(fixed[1], [25, 175])
-    assert np.array_equal(fixed[2], [15, 165])
-    assert np.array_equal(fixed[0], fixed[1])
-    assert np.array_equal(fixed[-1], fixed[-1])
+    nbin, bins_start, bins_end = extract.make_bins(width * 2, xlow, xhigh, ycen)
 
-    # Nothing should change here
-    orders = np.array([[20], [20], [20]])
-    ew = np.array([[10, 10], [10, 10], [10, 10]])
-    cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
-
-    fixed = extract.fix_column_range(img, orders, ew, np.copy(cr))
-    assert np.array_equal(fixed, cr)
-
+    assert nbin == 1
+    assert len(bins_start) == 1
+    assert len(bins_end) == 1
+    assert bins_start[0] == 0
+    assert bins_end[0] == width
 
 def test_arc_extraction(sample_data, orders, width, noise, oversample):
     img, spec, slitf = sample_data
@@ -232,14 +186,6 @@ def test_vertical_extraction(sample_data, orders, width, height, noise, oversamp
     assert not np.any(sunc_vert == 0)
     assert np.abs(sunc_vert / spec_vert).max() <= noise * 1.1 * oversample + 1e-2
 
-    # cut = (height - slitf_vert.shape[1]) / 2
-    # cut = (int(np.floor(cut)), int(np.ceil(cut)))
-    # xnew = np.linspace(cut[0] + 0.5, cut[1] + 0.5, slitf_vert.shape[1])
-    # cutout = np.interp(xnew, np.arange(0, height), slitf)
-    # assert cutout.shape[0] == slitf_vert.shape[1]
-    # assert cutout / slitf == 1
-
-
 def test_curved_equal_vertical_extraction(sample_data, orders, noise):
     # Currently extract always uses the vertical extraction, making this kind of useless
     img, spec, slitf = sample_data
@@ -254,3 +200,27 @@ def test_curved_equal_vertical_extraction(sample_data, orders, noise):
     assert np.allclose(spec_curved, spec_vert, rtol=1e-2)
     # assert np.allclose(sunc_curved, sunc_vert, rtol=0.1)
     assert np.allclose(slitf_curved, slitf_vert, rtol=1e-1)
+
+def test_optimal_extraction(sample_data, orders, height, width):
+    img, spec, slitf = sample_data
+    xwd = np.array([[-height//2, height//2]])
+    cr = np.array([[0, width]])
+    tilt = shear = np.zeros((1, width))
+
+    res_spec, res_slitf, res_unc = extract.optimal_extraction(img, orders, xwd, cr, tilt, shear)
+
+    assert isinstance(res_spec, np.ndarray)
+    assert isinstance(res_slitf, list)
+    assert isinstance(res_unc, np.ndarray)
+
+    assert res_spec.ndim == 2
+    assert res_spec.shape[0] == 1
+    assert res_spec.shape[1] == width
+
+    assert res_unc.ndim == 2
+    assert res_unc.shape[0] == 1
+    assert res_unc.shape[1] == width
+
+    assert len(res_slitf) == 1
+    assert len(res_slitf[0]) != 0
+

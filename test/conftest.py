@@ -195,10 +195,7 @@ def settings(dataset):
     """
 
     instrument, target = dataset
-    folder = dirname(__file__)
-    filename = join(folder, "settings", f"settings_{instrument.upper()}.json")
-
-    setti = configuration.load_config(filename, instrument)
+    setti = configuration.get_configuration_for_instrument(instrument, plot=False)
     return setti
 
 

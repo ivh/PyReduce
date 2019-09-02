@@ -1,5 +1,9 @@
 """
 Wrapper for REDUCE C functions
+
+This module provides access to the extraction algorithms in the
+C libraries and sanitizes the input parameters.
+
 """
 import ctypes
 import io
@@ -17,7 +21,10 @@ try:
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
 
     from .clib._slitfunc_bd import ffi
-except ImportError:
+except ImportError:  # pragma: no cover
+    logging.error(
+        "C libraries could not be found. Compile them by running build_extract.py"
+    )
     raise ImportError("Use build_extract.py to compile the C libraries")
 
 
@@ -25,10 +32,11 @@ c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
 
 libc = ctypes.CDLL(None)
-c_stdout = ctypes.c_void_p.in_dll(libc, 'stdout')
+c_stdout = ctypes.c_void_p.in_dll(libc, "stdout")
+
 
 @contextmanager
-def stdout_redirector(stream):
+def stdout_redirector(stream): #pragma: no cover
     # The original fd stdout points to. Usually 1 on POSIX systems.
     original_stdout_fd = sys.stdout.fileno()
 
@@ -41,13 +49,13 @@ def stdout_redirector(stream):
         # Make original_stdout_fd point to the same file as to_fd
         os.dup2(to_fd, original_stdout_fd)
         # Create a new sys.stdout that points to the redirected fd
-        sys.stdout = io.TextIOWrapper(os.fdopen(original_stdout_fd, 'wb'))
+        sys.stdout = io.TextIOWrapper(os.fdopen(original_stdout_fd, "wb"))
 
     # Save a copy of the original stdout fd in saved_stdout_fd
     saved_stdout_fd = os.dup(original_stdout_fd)
     try:
         # Create a temporary file and redirect stdout to it
-        tfile = tempfile.TemporaryFile(mode='w+b')
+        tfile = tempfile.TemporaryFile(mode="w+b")
         _redirect_stdout(tfile.fileno())
         # Yield to caller, then redirect stdout back to the saved fd
         yield
@@ -89,37 +97,26 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     lambda_sf = float(lambda_sf)
     lambda_sp = float(lambda_sp)
     osample = int(osample)
-    img = np.asanyarray(img)
-    ycen = np.asanyarray(ycen)
+    img = np.asanyarray(img, dtype=c_double)
+    ycen = np.asarray(ycen, dtype=c_double)
 
-    # Ensure the datatype and shape of all arrays before sending them to C code
-    if not np.issubdtype(img.dtype, np.number):
-        raise TypeError(
-            "Input image must be a numeric type, but got %s" % str(img.dtype)
-        )
+    assert img.ndim == 2, "Image must be 2 dimensional"
+    assert ycen.ndim == 1, "Ycen must be 1 dimensional"
 
-    if not np.issubdtype(ycen.dtype, np.number):
-        raise TypeError("Ycen must be a numeric type, but got %s" % str(ycen.dtype))
+    assert (
+        img.shape[1] == ycen.size
+    ), f"Image and Ycen shapes are incompatible, got {img.shape} and {ycen.shape}"
 
-    if img.shape[1] != ycen.size:
-        raise ValueError(
-            "Image and Ycen shapes are incompatible, got %s and %s"
-            % (img.shape, ycen.shape)
-        )
-
-    if osample <= 0:
-        raise ValueError("Oversample rate must be positive, but got %i" % osample)
-    if lambda_sf < 0:
-        raise ValueError(
-            "Slitfunction smoothing must be positive, but got %f" % lambda_sf
-        )
-    if lambda_sp < 0:
-        raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
+    assert osample > 0, f"Oversample rate must be positive, but got {osample}"
+    assert (
+        lambda_sf >= 0
+    ), f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    assert lambda_sp >= 0, f"Spectrum smoothing must be positive, but got {lambda_sp}"
 
     # Get some derived values
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
-    ycen = ycen - ycen.astype(int)
+    ycen = ycen - ycen.astype(c_int)
 
     # Prepare all arrays
     # Inital guess for slit function and spectrum
@@ -190,54 +187,42 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     lambda_sf = float(lambda_sf)
     lambda_sp = float(lambda_sp)
     osample = int(osample)
-    img = np.asanyarray(img)
-    ycen = np.asanyarray(ycen)
+    img = np.asanyarray(img, dtype=c_double)
+    ycen = np.asarray(ycen, dtype=c_double)
 
-    if np.isscalar(tilt) and np.issubdtype(np.asanyarray(tilt).dtype, np.number):
+    assert img.ndim == 2, "Image must be 2 dimensional"
+    assert ycen.ndim == 1, "Ycen must be 1 dimensional"
+
+    if np.isscalar(tilt):
         tilt = np.full(img.shape[1], tilt, dtype=c_double)
     else:
-        tilt = np.asanyarray(tilt)
-    if np.isscalar(shear) and np.issubdtype(np.asanyarray(shear).dtype, np.number):
+        tilt = np.asarray(tilt, dtype=c_double)
+    if np.isscalar(shear):
         shear = np.full(img.shape[1], shear, dtype=c_double)
     else:
-        shear = np.asanyarray(shear)
+        shear = np.asarray(shear, dtype=c_double)
 
-    # Check type and dimensions of arrays before sending them to the C code
-    if not np.issubdtype(img.dtype, np.number):
-        raise TypeError(
-            "Input image must be a numeric type, but got %s" % str(img.dtype)
-        )
-    if not np.issubdtype(ycen.dtype, np.number):
-        raise TypeError("Ycen must be a numeric type, but got %s" % str(ycen.dtype))
-    if not np.issubdtype(tilt.dtype, np.number):
-        raise TypeError("Tilt must be a numeric type, but got %s" % str(tilt.dtype))
-    if not np.issubdtype(shear.dtype, np.number):
-        raise TypeError("Shear must be a numeric type, but got %s" % str(shear.dtype))
+    assert (
+        img.shape[1] == ycen.size
+    ), "Image and Ycen shapes are incompatible, got %s and %s" % (img.shape, ycen.shape)
+    assert (
+        img.shape[1] == tilt.size
+    ), "Image and Tilt shapes are incompatible, got %s and %s" % (img.shape, tilt.shape)
+    assert img.shape[1] == shear.size, (
+        "Image and Shear shapes are incompatible, got %s and %s"
+        % (img.shape, shear.shape)
+    )
 
-    if img.shape[1] != ycen.size:
-        raise ValueError(
-            "Image and Ycen shapes are incompatible, got %s and %s"
-            % (img.shape, ycen.shape)
-        )
-    if img.shape[1] != tilt.size:
-        raise ValueError(
-            "Image and Tilt shapes are incompatible, got %s and %s"
-            % (img.shape, tilt.shape)
-        )
-    if img.shape[1] != shear.size:
-        raise ValueError(
-            "Image and Shear shapes are incompatible, got %s and %s"
-            % (img.shape, shear.shape)
-        )
+    assert osample > 0, f"Oversample rate must be positive, but got {osample}"
+    assert (
+        lambda_sf >= 0
+    ), f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    assert lambda_sp >= 0, f"Spectrum smoothing must be positive, but got {lambda_sp}"
 
-    if osample <= 0:
-        raise ValueError("Oversample rate must be positive, but got %i" % osample)
-    if lambda_sf < 0:
-        raise ValueError(
-            "Slitfunction smoothing must be positive, but got %f" % lambda_sf
-        )
-    if lambda_sp < 0:
-        raise ValueError("Spectrum smoothing must be positive, but got %f" % lambda_sp)
+    assert np.ma.all(np.isfinite(img)), "All values in the image must be finite"
+    assert np.all(np.isfinite(ycen)), "All values in ycen must be finite"
+    assert np.all(np.isfinite(tilt)), "All values in tilt must be finite"
+    assert np.all(np.isfinite(shear)), "All values in shear must be finite"
 
     # Retrieve some derived values
     nrows, ncols = img.shape
@@ -250,16 +235,16 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
 
     sl = np.zeros(ny, dtype=c_double)
 
+    mask = ~np.ma.getmaskarray(img)
+    img = np.ma.filled(img, 0)
+
     # Inital guess for spectrum
     sp = np.ma.sum(img, axis=0)
     sp = np.ma.filled(sp, 0)
     sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     # Initialize arrays and ensure the correct datatype for C
-    mask = ~np.ma.getmaskarray(img)
     mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
-
-    img = np.ma.getdata(img)
     img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     pix_unc = np.zeros_like(img)
@@ -271,11 +256,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
         ycen_offset, dtype=c_int, requirements=["C", "A", "W", "O"]
     )
 
-    tilt = np.ma.filled(tilt, 0)
     tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
-    # TODO DEBUG dont do this
-    shear = np.zeros(ncols)
-    # shear = np.ma.filled(shear, 0)
     shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
 
     model = np.zeros((nrows, ncols), dtype=c_double)

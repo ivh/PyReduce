@@ -9,6 +9,9 @@
         "noise": 8,
         "manual": false
     },
+    "scatter": {
+        "extraction_width": 10
+    },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,

@@ -1,18 +1,5 @@
 """
 Module that estimates the background scatter
-
-Authors
--------
-Ansgar Wehrhahn (ansgar.wehrhahn@physics.uu.se)
-
-Version
--------
-1.0 - 2d polynomial background scatter
-
-License
--------
-TODO
-
 """
 
 import logging
@@ -21,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from . import extract
-from .util import polyfit2d, polyfit2d_2, make_index
+from .util import polyfit2d, polyfit2d_2, make_index, fix_parameters
 
 
 def estimate_background_scatter(
@@ -33,10 +20,11 @@ def estimate_background_scatter(
     sigma_cutoff=2,
     border_width=10,
     plot=False,
-    **kwargs
 ):
     """
     Estimate the background by fitting a 2d polynomial to interorder data
+
+    Interorder data is all pixels minus the orders +- the extraction width
 
     Parameters
     ----------
@@ -61,60 +49,12 @@ def estimate_background_scatter(
         y positions of the interorder lines, the scatter values are taken from
     """
 
-    if not isinstance(scatter_degree, (int, np.integer, tuple)):
-        raise TypeError(
-            "Expected integer value for scatter polynomial degree, got %s"
-            % type(scatter_degree)
-        )
-    if isinstance(scatter_degree, tuple):
-        if len(scatter_degree) != 2:
-            raise ValueError(
-                "Expected tuple of length 2, but got length %i" % len(scatter_degree)
-            )
-        types = [isinstance(i, (int, np.integer)) for i in scatter_degree]
-        if not all(types):
-            raise TypeError(
-                "Expected integer value for scatter polynomial degree, got %s"
-                % type(scatter_degree)
-            )
-        values = [i < 0 for i in scatter_degree]
-        if any(values):
-            raise ValueError(
-                "Expected positive value for scatter polynomial degree, got %s"
-                % str(scatter_degree)
-            )
-    elif scatter_degree < 0:
-        raise ValueError(
-            "Expected positive value for scatter polynomial degree, got %i"
-            % scatter_degree
-        )
-
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
-    if np.isscalar(extraction_width):
-        extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
-    else:
-        extraction_width = np.asarray(extraction_width)
-        if extraction_width.ndim == 1:
-            extraction_width = np.tile(extraction_width, (nord, 1))
-    if column_range is None:
-        column_range = np.tile([0, ncol], (nord, 1))
-    # Extend orders above and below orders
-    orders = extract.extend_orders(orders, nrow)
-    extraction_width = np.array(
-        [extraction_width[0], *extraction_width, extraction_width[-1]]
+    extraction_width, column_range, orders = fix_parameters(
+        extraction_width, column_range, orders, nrow, ncol, nord
     )
-    column_range = np.array([column_range[0], *column_range, column_range[-1]])
-
-    extraction_width = extract.fix_extraction_width(
-        extraction_width, orders, column_range, ncol
-    )
-
-    # column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
-    column_range = column_range[1:-1]
-    orders = orders[1:-1]
-    extraction_width = extraction_width[1:-1]
 
     # Method 1: Select all pixels, but those known to be in orders
     bw = border_width
@@ -154,7 +94,7 @@ def estimate_background_scatter(
     coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
     logging.debug("Background scatter coefficients: %s", str(coeff))
 
-    if plot:
+    if plot:  # pragma: no cover
         # Calculate scatter at interorder positionsq
         yp, xp = np.indices(img.shape)
         back = np.polynomial.polynomial.polyval2d(xp, yp, coeff)

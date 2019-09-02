@@ -65,7 +65,7 @@ def calculate_probability(buffer, window, method="sum"):
 
     Parameters
     ----------
-    buffer : array(float)
+    buffer : array of shape (nx, ny)
         buffer
     window : int
         size of the running window
@@ -75,9 +75,11 @@ def calculate_probability(buffer, window, method="sum"):
 
     Returns
     -------
-    array(float)
+    weights : array of shape (nx, ny - 2 * window)
         probabilities
     """
+
+    buffer = np.require(buffer, dtype=float)
 
     # Take the median/sum for each file
     if method == "median":
@@ -91,7 +93,6 @@ def calculate_probability(buffer, window, method="sum"):
 
     # norm probability
     np.divide(weights, sum_of_weights, where=sum_of_weights > 0, out=weights)
-    # weights = np.where(sum_of_weights > 0, weights / sum_of_weights, weights)
     return weights
 
 
@@ -408,7 +409,8 @@ def combine_frames(
         "images coadded by combine_frames.py on %s" % datetime.datetime.now()
     )
 
-    if not linear:  # non-linearity was fixed. mark this in the header
+    if not linear: #pragma: no cover
+        # non-linearity was fixed. mark this in the header
         raise NotImplementedError()  # TODO Nonlinear
         # i = np.where(head["e_linear"] >= 0)
         # head[i] = np.array((head[0 : i - 1 + 1], head[i + 1 :]))
@@ -457,7 +459,7 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
     if bias is not None:
         flat = flat - bias * len(files)
 
-    if plot:
+    if plot: #pragma: no cover
         plt.title("Master Flat - Bias")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
@@ -510,15 +512,18 @@ def combine_bias(
         # if there is just one element compare it with itself, not really useful, but it works
         list1 = list2 = files
         n = 2
+    # elif science_observation_time is not None:
+    #     # TODO split bias into before and after observation sets, if possible
+    #     try:
+    #         kw = get_instrument_info(instrument)["date"]
+    #         times = np.array([parser.parse(fits.open(f)[0].header[kw]) for f in files])
+    #         list1 = files[times < science_observation_time]
+    #         list2 = files[times > science_observation_time]
+    #         # np.digitize(science_observation_time, sorted(times))
+    #     except KeyError:
+    #         logging.info("Could not sort files by observation time")
+    #         list1, list2 = files[: n // 2], files[n // 2 :]
     else:
-        # TODO split bias into before and after observation sets, if possible
-        try:
-            kw = get_instrument_info(instrument)["date"]
-            times = [parser.parse(fits.open(f)[0].header[kw]) for f in files]
-            files = files[np.argsort(times)]
-            # np.digitize(science_observation_time, sorted(times))
-        except KeyError:
-            logging.info("Could not sort files by observation time")
         list1, list2 = files[: n // 2], files[n // 2 :]
 
     # Lists of images.
@@ -582,7 +587,7 @@ def combine_bias(
         logging.info("background noise in combined image= %f", biasnoise)
         logging.info("fixing %i bad pixels", nbad)
 
-        if debug:
+        if debug: #pragma: no cover
             # Plot noise distribution.
             plt.subplot(211)
             plt.plot(xh, h)
@@ -605,7 +610,7 @@ def combine_bias(
         biasnoise = 1.
         nbad = 0
 
-    if plot:
+    if plot: #pragma: no cover
         plt.title("Master Bias")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
@@ -613,13 +618,6 @@ def combine_bias(
         plt.imshow(bias, vmin=bot, vmax=top, origin="lower")
         plt.show()
 
-    try:
-        del head["tapelist"]
-    except KeyError:
-        pass
-
-    head["bzero"] = 0.0
-    head["bscale"] = 1.0
     head["obslist"] = " ".join([os.path.basename(f) for f in files])
     head["nimages"] = (n, "number of images summed")
     head["npixfix"] = (nbad, "pixels corrected for cosmic rays")

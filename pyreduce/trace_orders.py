@@ -502,7 +502,7 @@ def mark_orders(
                 # plt.imshow(clusters, origin="lower")
                 # plt.show()
 
-    if plot:
+    if plot: #pragma: no cover
         plt.title("Identified clusters")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
@@ -563,7 +563,7 @@ def mark_orders(
 
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
-    if plot:
+    if plot: #pragma: no cover
         plot_orders(im, x, y, n, orders, column_range)
 
     return orders, column_range

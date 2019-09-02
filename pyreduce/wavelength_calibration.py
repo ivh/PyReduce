@@ -18,6 +18,7 @@ from scipy.optimize import curve_fit
 
 from astropy.io import fits
 
+from data_sources import NIST
 from . import util
 
 
@@ -113,15 +114,31 @@ class LineAtlas:
         fname = element + ".fits"
         folder = dirname(__file__)
         self.fname = join(folder, "wavecal", "atlas", fname)
-        hdu = fits.open(self.fname)
+        self.wave, self.data = self.load_fits(self.fname)
+
+        wmin, wmax = self.wave.min(), self.wave.max()
+
+        self.nist_wave, self.nist_data = self.load_nist("Th", wmin, wmax)
+        pass
+
+    def load_nist(self, element, wmin, wmax):
+        lines = NIST.load(element, wmin, wmax, "AA")
+        data = lines["rel_int"]
+        data /= data.max()
+        wave = lines["wave"]
+        return wave, data
+
+    def load_fits(self, fname):
+        hdu = fits.open(fname)
         header = hdu[0].header
-        self.data = hdu[0].data.ravel()
+        data = hdu[0].data.ravel()
+        data /= data.max()
+        data = np.clip(data, 0, None)
 
-        rpix = header["CRPIX1"]
-        rval = header["CRVAL1"]
-        delt = header["CDELT1"]
-        self.wave = np.arange(self.data.size) * delt + rval
-
+        wmin = header["CRVAL1"]
+        wdel = header["CDELT1"]
+        wave = np.arange(data.size) * wdel + wmin
+        return wave, data
 
 class LineList:
     dtype = np.dtype(
@@ -526,7 +543,7 @@ class WavelengthCalibration:
                 f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
             )
 
-        if plot or self.plot >= 2:
+        if plot or self.plot >= 2: #pragma: no cover
             self.plot_residuals(lines, coef)
 
         return coef
@@ -936,7 +953,7 @@ class WavelengthCalibration:
             nbad += 1
         logging.info("Discarding %i lines", nbad)
 
-        if plot or self.plot >= 2:
+        if plot or self.plot >= 2: #pragma: no cover
             mask = lines["flag"]
             _, axis = plt.subplots()
             axis.plot(lines["order"][mask], residual[mask], "+", label="Accepted Lines")
@@ -1262,11 +1279,11 @@ class WavelengthCalibration:
             # Step 3: Create a wavelength solution on known lines
             wave_solution = self.build_2d_solution(lines)
             wave_img = self.make_wave(wave_solution)
-            # Step 5: Reject outliers
-            lines = self.reject_lines(lines)
             # Step 4: Identify lines that fit into the solution
             lines = self.auto_id(obs, wave_img, lines)
-        lines = self.reject_lines(lines)
+            # Step 5: Reject outliers
+            lines = self.reject_lines(lines)
+        # lines = self.reject_lines(lines)
 
         logging.info(
             "Number of lines used for wavelength calibration: %i",

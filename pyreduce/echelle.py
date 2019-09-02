@@ -143,7 +143,7 @@ class Echelle:
     def save(self, fname):
         """
         Save data in an Echelle fits, i.e. a fits file with a Binary Table in Extension 1
-        
+
         Parameters
         ----------
         fname : str
@@ -302,16 +302,3 @@ def save(fname, header, **kwargs):
 
     hdulist = fits.HDUList(hdus=[primary, table])
     hdulist.writeto(fname, overwrite=True, output_verify="fix+warn")
-
-
-if __name__ == "__main__":
-    import os
-    import matplotlib.pyplot as plt
-
-    folder = "./reduce/"
-    file = folder + [f for f in os.listdir(folder) if f[-5:] == "c.ech"][0]
-    ech = read(file)
-
-    for i in range(25):
-        plt.plot(ech.wave[i], ech.spec[i])
-    plt.show()
