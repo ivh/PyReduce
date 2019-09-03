@@ -7,8 +7,8 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import extract
-from .util import polyfit2d, polyfit2d_2, make_index, fix_parameters
+from .extract import fix_parameters
+from .util import polyfit2d, polyfit2d_2, make_index
 
 
 def estimate_background_scatter(

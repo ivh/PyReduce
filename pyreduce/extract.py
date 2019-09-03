@@ -14,15 +14,12 @@ import logging
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
 
 from .cwrappers import slitfunc, slitfunc_curved
-from .util import make_index, fix_parameters
-
-# TODO put the plotting somewhere else
-# np.seterr(all="raise")
+from .util import make_index
 
 
 class ProgressPlot:  # pragma: no cover
@@ -221,6 +218,176 @@ class Swath:
         self.mask[key] = value[4]
 
 
+def fix_parameters(xwd, cr, orders, nrow, ncol, nord):
+
+    if xwd is None:
+        xwd = 0.5
+    if np.isscalar(xwd):
+        xwd = np.tile([xwd, xwd], (nord, 1))
+    else:
+        xwd = np.asarray(xwd)
+        if xwd.ndim == 1:
+            xwd = np.tile(xwd, (nord, 1))
+
+    if cr is None:
+        cr = np.tile([0, ncol], (nord, 1))
+    else:
+        cr = np.asarray(cr)
+        if cr.ndim == 1:
+            cr = np.tile(cr, (nord, 1))
+
+    orders = np.asarray(orders)
+
+    xwd = np.array([xwd[0], *xwd, xwd[-1]])
+    cr = np.array([cr[0], *cr, cr[-1]])
+    orders = extend_orders(orders, nrow)
+
+    xwd = fix_extraction_width(xwd, orders, cr, ncol)
+    cr = fix_column_range(cr, orders, xwd, nrow, ncol)
+
+    orders = orders[1:-1]
+    xwd = xwd[1:-1]
+    cr = cr[1:-1]
+
+    return xwd, cr, orders
+
+
+def extend_orders(orders, nrow):
+    """Extrapolate extra orders above and below the existing ones
+
+    Parameters
+    ----------
+    orders : array[nord, degree]
+        order tracing coefficients
+    nrow : int
+        number of rows in the image
+
+    Returns
+    -------
+    orders : array[nord + 2, degree]
+        extended orders
+    """
+
+    nord, ncoef = orders.shape
+
+    if nord > 1:
+        order_low = 2 * orders[0] - orders[1]
+        order_high = 2 * orders[-1] - orders[-2]
+    else:
+        order_low = [0 for _ in range(ncoef)]
+        order_high = [0 for _ in range(ncoef - 1)] + [nrow]
+
+    return np.array([order_low, *orders, order_high])
+
+
+def fix_extraction_width(xwd, orders, cr, ncol):
+    """Convert fractional extraction width to pixel range
+
+    Parameters
+    ----------
+    extraction_width : array[nord, 2]
+        current extraction width, in pixels or fractions (for values below 1.5)
+    orders : array[nord, degree]
+        order tracing coefficients
+    column_range : array[nord, 2]
+        column range to use
+    ncol : int
+        number of columns in image
+
+    Returns
+    -------
+    extraction_width : array[nord, 2]
+        updated extraction width in pixels
+    """
+
+    if not np.all(xwd > 1.5):
+        # if extraction width is in relative scale transform to pixel scale
+        x = np.arange(ncol)
+        for i in range(1, len(xwd) - 1):
+            for j in [0, 1]:
+                if xwd[i, j] < 1.5:
+                    k = i - 1 if j == 0 else i + 1
+                    left = max(cr[[i, k], 0])
+                    right = min(cr[[i, k], 1])
+
+                    current = np.polyval(orders[i], x[left:right])
+                    below = np.polyval(orders[k], x[left:right])
+                    xwd[i, j] *= np.abs(np.mean(current - below))
+
+        xwd[0] = xwd[1]
+        xwd[-1] = xwd[-2]
+
+    xwd = np.ceil(xwd).astype(int)
+
+    return xwd
+
+
+def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
+    """ Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
+
+    Parameters
+    ----------
+    img : array[nrow, ncol]
+        image
+    orders : array[nord, degree]
+        order tracing coefficients
+    extraction_width : array[nord, 2]
+        extraction width in pixels, (below, above)
+    column_range : array[nord, 2]
+        current column range
+    no_clip : bool, optional
+        if False, new column range will be smaller or equal to current column range, otherwise it can also be larger (default: False)
+
+    Returns
+    -------
+    column_range : array[nord, 2]
+        updated column range
+    """
+
+    ix = np.arange(ncol)
+    # Loop over non extension orders
+    for i, order in zip(range(1, len(orders) - 1), orders[1:-1]):
+        # Shift order trace up/down by extraction_width
+        coeff_bot, coeff_top = np.copy(order), np.copy(order)
+        coeff_bot[-1] -= extraction_width[i, 0]
+        coeff_top[-1] += extraction_width[i, 1]
+
+        y_bot = np.polyval(coeff_bot, ix)  # low edge of arc
+        y_top = np.polyval(coeff_top, ix)  # high edge of arc
+
+        # find regions of pixels inside the image
+        # then use the region that most closely resembles the existing column range (from order tracing)
+        # but clip it to the existing column range (order tracing polynomials are not well defined outside the original range)
+        points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
+
+        if len(points_in_image) == 0:
+            raise ValueError(
+                f"No pixels are completely within the extraction width for order {i}"
+            )
+
+        regions = np.where(np.diff(points_in_image) != 1)[0]
+        regions = [(r, r + 1) for r in regions]
+        regions = [
+            points_in_image[0],
+            *points_in_image[(regions,)].ravel(),
+            points_in_image[-1],
+        ]
+        regions = [[regions[i], regions[i + 1] + 1] for i in range(0, len(regions), 2)]
+        overlap = [
+            min(reg[1], column_range[i, 1]) - max(reg[0], column_range[i, 0])
+            for reg in regions
+        ]
+        iregion = np.argmax(overlap)
+        column_range[i] = np.clip(
+            regions[iregion], column_range[i, 0], column_range[i, 1]
+        )
+
+    column_range[0] = column_range[1]
+    column_range[-1] = column_range[-2]
+
+    return column_range
+
+
 def make_bins(swath_width, xlow, xhigh, ycen):
     """Create bins for the swathes
     Bins are roughly equally sized, have roughly length swath width (if given)
@@ -270,7 +437,7 @@ def make_bins(swath_width, xlow, xhigh, ycen):
     return nbin, bins_start, bins_end
 
 
-def calc_telluric_correction(telluric, img): #pragma: no cover
+def calc_telluric_correction(telluric, img):  # pragma: no cover
     """ Calculate telluric correction
 
     If set to specific integer larger than 1 is used as the
@@ -430,8 +597,8 @@ def extract_spectrum(
         extracted spectrum
     slitf : array[nslitf]
         extracted slitfunction
-    model : array[ncol, nslitf]
-        model of the image, based on the spectrum and slitfunction
+    mask : array[ncol]
+        mask of the column range to use in the spectrum
     unc : array[ncol]
         uncertainty on the spectrum
     """
@@ -457,6 +624,10 @@ def extract_spectrum(
         sunc = np.zeros(ncol)
     else:
         sunc = out_sunc
+    if out_mask is None:
+        mask = np.full(ncol, False)
+    else:
+        mask = out_mask
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen)
     nswath = 2 * nbin - 1
@@ -479,7 +650,7 @@ def extract_spectrum(
 
         # Corrections
         # TODO: what is it even supposed to do?
-        if telluric is not None:
+        if telluric is not None: #pragma: no cover
             telluric_correction = calc_telluric_correction(telluric, swath_img)
         else:
             telluric_correction = 0
@@ -504,33 +675,6 @@ def extract_spectrum(
             lambda_sf=lambda_sf,
             osample=osample,
         )
-
-        if not np.all(np.isfinite(swath.spec[ihalf])):
-            # TODO: Why does this happen?
-            # Happens when input image is all 0 (or constant?)
-            logging.warning("Curved extraction failed, using Tilt=Shear=0 instead")
-            swath[ihalf] = slitfunc_curved(
-                swath_img,
-                swath_ycen,
-                0,
-                0,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-            )
-
-        if not np.all(np.isfinite(swath.spec[ihalf])):
-            logging.warning("Vertical extraction failed, using arc extraction instead")
-            swath.spec[ihalf] = np.ma.filled(np.ma.mean(swath_img, axis=0))
-            tmp_slitf = np.ma.filled(np.ma.mean(swath_img, axis=1))
-            swath.slitf[ihalf] = np.interp(
-                np.arange(nslitf), np.linspace(0, nslitf, len(tmp_slitf)), tmp_slitf
-            )
-            swath.model[ihalf] = swath.spec[ihalf][None, :] * tmp_slitf[:, None]
-            swath.unc[ihalf] = np.full(
-                swath_img.shape[1], 1 / np.sqrt(swath_img.shape[0])
-            )
-            swath.mask[ihalf] = np.full(swath_img.shape, False)
 
         if normalize:
             # Save image and model for later
@@ -599,16 +743,10 @@ def extract_spectrum(
         weight[i][end_i:] = 0
         weight[j][:start_j] = 0
 
-    # control = np.zeros(ncol)
-    # for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-    #     control[ibeg:iend] += weight[i]
-    # assert np.all(control[bins_start[0] + margin[0, 0] : bins_end[-1] - margin[-1, 1]] == 1)
-
     # Update column range
     xrange[0] += margin[0, 0]
     xrange[1] -= margin[-1, 1]
-    if out_mask is not None:
-        out_mask[: xrange[0]] = out_mask[xrange[1] :] = True
+    mask[: xrange[0]] = mask[xrange[1] :] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -627,8 +765,8 @@ def extract_spectrum(
 
     sunc[:] = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
 
-    model = spec[None, :] * slitf[:, None]
-    return spec, slitf, model, sunc
+    # model = spec[None, :] * slitf[:, None]
+    return spec, slitf, mask, sunc
 
 
 def get_y_scale(ycen, xrange, extraction_width, nrow):
@@ -673,7 +811,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 
 
 def optimal_extraction(
-    img, orders, extraction_width, column_range, tilt, shear, **kwargs
+    img, orders, extraction_width, column_range, tilt, shear, plot=False, **kwargs
 ):
     """ Use optimal extraction to get spectra
 
@@ -726,7 +864,7 @@ def optimal_extraction(
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
-    if kwargs.get("plot", False):
+    if plot: #pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_width, axis=1).max()
         progress = ProgressPlot(nrow_swath, ncol_swath)
@@ -734,19 +872,19 @@ def optimal_extraction(
         progress = None
 
     for i in range(nord):
-        if nord < 10 or i % 5 == 0:
-            logging.info("Extracting relative order %i out of %i", i + 1, nord)
-        else:
-            logging.debug("Extracting relative order %i out of %i", i + 1, nord)
+        logging.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[i], ix)
         yrange = get_y_scale(ycen, column_range[i], extraction_width[i], nrow)
 
+        osample = kwargs.get("osample", 1)
+        slitfunction[i] = np.zeros(osample * (sum(yrange) + 2) + 1)
+
         # Return values are set by reference, as the out parameters
         # Also column_range is adjusted depending on the shear
         # This is to avoid large chunks of memory of essentially duplicates
-        _, slitfunction[i], _, _ = extract_spectrum(
+        extract_spectrum(
             img,
             ycen,
             yrange,
@@ -755,13 +893,15 @@ def optimal_extraction(
             shear=shear[i],
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
+            out_slitf=slitfunction[i],
             out_mask=mask[i],
             progress=progress,
             ord_num=i + 1,
+            plot=plot,
             **kwargs,
         )
 
-    if kwargs.get("plot", False):
+    if plot: #pragma: no cover
         progress.close()
 
     return spectrum, slitfunction, uncertainties
@@ -827,8 +967,8 @@ def arc_extraction(
 
     # Add mask as defined by column ranges
     mask = np.full((nord, ncol), True)
-    for i, onum in enumerate(range(1, nord - 1)):
-        mask[i, column_range[onum, 0] : column_range[onum, 1]] = False
+    for i in range(nord):
+        mask[i, column_range[i, 0] : column_range[i, 1]] = False
     spectrum = np.ma.array(spectrum, mask=mask)
     uncertainties = np.ma.array(uncertainties, mask=mask)
 

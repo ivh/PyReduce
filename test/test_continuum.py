@@ -1,10 +1,20 @@
 import pytest
 import numpy as np
 
-from pyreduce.continuum_normalization import splice_orders
+from pyreduce.continuum_normalization import splice_orders, continuum_normalize
 
+@pytest.fixture
+def spliced(spec, wave, normflat):
+    spec, sigma = spec
+    _, blaze = normflat
+    wave, _ = wave
 
-def test_continuum(spec, wave, normflat, order_range):
+    spec, wave, blaze, sigma = splice_orders(
+        spec, wave, blaze, sigma, scaling=True, plot=False
+    )
+    return spec, wave, blaze, sigma
+
+def test_splice(spec, wave, normflat, order_range):
     spec, sigma = spec
     norm, blaze = normflat
     wave, thar = wave
@@ -34,3 +44,19 @@ def test_continuum(spec, wave, normflat, order_range):
         == norm.shape[1]
     )
 
+def test_continuum(spliced):
+    spec, wave, cont, sigm = spliced
+    
+    new = continuum_normalize(
+        spec,
+        wave,
+        cont,
+        sigm,
+        iterations=1,
+        plot=False,
+    )
+
+    assert isinstance(new, np.ndarray)
+    assert new.ndim == 2
+    assert new.shape[0] == spec.shape[0]
+    assert new.shape[1] == spec.shape[1]

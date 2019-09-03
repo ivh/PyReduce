@@ -26,7 +26,8 @@ from scipy import signal
 from numpy.polynomial.polynomial import polyval2d
 from skimage.filters import threshold_otsu
 
-from .util import make_index, gaussfit4 as gaussfit, polyfit2d, fix_parameters
+from .extract import fix_parameters
+from .util import make_index, gaussfit4 as gaussfit, polyfit2d
 
 
 class ProgressPlot:  # pragma: no cover
@@ -233,20 +234,14 @@ class Curvature:
 
         # Seperate in order pixels from out of order pixels
         # TODO: actually we want to weight them by the slitfunction?
-        if not np.all(deviation == 0):
-            idx = deviation > threshold_otsu(deviation)
-        else:
-            idx = np.full(deviation.shape, True)
+        # If any of this fails, we will just ignore this line
+        idx = deviation > threshold_otsu(deviation)
 
         # Linear fit to slit image
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                w = np.sqrt(1 / wcen[idx])
-                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
-        except:
-            logging.warning("Could not fit curvature to line, using 0 instead.")
-            coef = [0] * self.curv_degree
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            w = np.sqrt(1 / wcen[idx])
+            coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
 
         if self.curv_degree == 1:
             tilt, shear = coef[0], 0
