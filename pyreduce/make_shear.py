@@ -154,6 +154,16 @@ class Curvature:
     def n(self):
         return self.order_range[1] - self.order_range[0]
 
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, value):
+        if value not in ["1D", "2D"]:
+            raise ValueError(f"Value for 'mode' not understood. Expected one of ['1D', '2D'] but got {value}")
+        self._mode = value
+
     def _fix_inputs(self, original):
         orders = self.orders
         extraction_width = self.extraction_width
@@ -212,7 +222,7 @@ class Curvature:
         x = np.ma.masked_array(x)
         for i, irow in enumerate(xind):
             # Trying to access values outside the image
-            assert not np.any((ycen + irow)[xmin:xmax] >= nrow)
+            # assert not np.any((ycen + irow)[xmin:xmax] >= nrow)
 
             # Just cutout this one row
             idx = make_index(ycen + irow, ycen + irow, xmin, xmax)
@@ -220,7 +230,7 @@ class Curvature:
             segments += [segment]
 
             try:
-                x.mask = segment.mask
+                x.mask = np.ma.getmaskarray(segment)
                 coef = gaussfit(x, segment)
                 # Store line center
                 xcen[i] = coef[1]
@@ -228,7 +238,7 @@ class Curvature:
                 vcen[i] = coef[0] + coef[3]
                 # Store the variation within the row
                 deviation[i] = np.ma.std(segment)
-            except:
+            except Exception as e:
                 xcen[i] = np.ma.mean(x)
                 deviation[i] = 0
 
@@ -250,7 +260,7 @@ class Curvature:
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
 
-        if self.plot and self.verbose >= 2:
+        if self.plot and self.verbose >= 2: #pragma: no cover
             self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
         return tilt, shear
 
@@ -263,10 +273,7 @@ class Curvature:
         tilt = np.ma.masked_array(tilt, mask=mask)
         shear = np.ma.masked_array(shear, mask=mask)
 
-        if len(peaks) <= self.fit_degree:
-            coef_tilt = np.ma.polyfit(peaks, tilt, len(peaks) - 1)
-            coef_shear = np.ma.polyfit(peaks, shear, len(peaks) - 1)
-        else:
+        try:
             # Fit a 2nd order polynomial through all individual lines
             # And discard obvious outliers
             iteration = 0
@@ -283,16 +290,19 @@ class Curvature:
                 idx2 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
                 mask |= idx2
 
-                # if no maximum iteration is given, go on forever
                 if np.ma.all(~idx1) and np.ma.all(~idx2):
+                    # Found a succesful solution
                     break
                 if np.all(mask):
                     logging.error("Could not fit polynomial to the data")
-                    mask[:] = False
-                    break
+                    raise RuntimeError
 
-        coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
-        coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
+            coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
+            coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
+        except:
+            logging.error("Could not fit the curvature of this order. Using no curvature instead")
+            coef_tilt = np.zeros(self.fit_degree + 1)
+            coef_shear = np.zeros(self.fit_degree + 1)
 
         return coef_tilt, coef_shear, peaks
 
@@ -305,10 +315,7 @@ class Curvature:
         plot_vec = []
 
         for j in range(self.n):
-            if self.n < 10 or j % 5 == 0:
-                logging.info("Calculating tilt of order %i out of %i", j + 1, self.n)
-            else:
-                logging.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
+            logging.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
             xwd = self.extraction_width[j]
@@ -324,13 +331,13 @@ class Curvature:
             shear = np.zeros(npeaks)
             mask = np.full(npeaks, True)
             for ipeak, peak in enumerate(peaks):
-                if self.plot and self.verbose >= 2:
+                if self.plot and self.verbose >= 2: #pragma: no cover
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
                     tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
                         original, peak, ycen, xwd
                     )
-                except:
+                except RuntimeError: #pragma: no cover
                     mask[ipeak] = False
 
             # Store results
@@ -356,10 +363,6 @@ class Curvature:
             coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree)
             z = np.concatenate(shear)
             coef_shear = polyfit2d(x, y, z, degree=self.fit_degree)
-        else:
-            raise ValueError(
-                f"Value for 'mode' not understood. Expected one of ['1D', '2D'] but got {self.mode}"
-            )
 
         return coef_tilt, coef_shear
 
@@ -374,15 +377,11 @@ class Curvature:
         elif self.mode == "2D":
             tilt = polyval2d(peaks, order, coef_tilt)
             shear = polyval2d(peaks, order, coef_shear)
-        else:
-            raise ValueError(
-                f"Value for 'mode' not understood. Expected one of ['1D', '2D'] but got {self.mode}"
-            )
         return tilt, shear
 
     def plot_results(
         self, ncol, plot_peaks, plot_vec, plot_tilt, plot_shear, tilt_x, shear_x
-    ):
+    ): #pragma: no cover
         fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
         fig1, axes1 = plt.subplots(
@@ -438,7 +437,7 @@ class Curvature:
 
         plt.show()
 
-    def plot_comparison(self, original, tilt, shear, peaks):
+    def plot_comparison(self, original, tilt, shear, peaks): #pragma: no cover
         _, ncol = original.shape
         output = np.zeros((np.sum(self.extraction_width) + self.nord, ncol))
         pos = [0]
@@ -479,7 +478,7 @@ class Curvature:
 
         self._fix_inputs(original)
 
-        if self.plot and self.verbose >= 2:
+        if self.plot and self.verbose >= 2: #pragma: no cover
             height = np.sum(self.extraction_width, axis=1).max() + 1
             self.progress = ProgressPlot(ncol, self.width, height)
 
@@ -489,13 +488,13 @@ class Curvature:
 
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
 
-        if self.plot:
+        if self.plot: #pragma: no cover
             self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)
 
         iorder, ipeaks = np.indices(extracted.shape)
         tilt, shear = self.eval(ipeaks, iorder, coef_tilt, coef_shear)
 
-        if self.plot:
+        if self.plot: #pragma: no cover
             self.plot_comparison(original, tilt, shear, peaks)
 
         return tilt, shear

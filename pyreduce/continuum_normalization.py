@@ -59,7 +59,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         scale = np.ma.median(spec / cont, axis=1)
         cont *= scale[:, None]
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.subplot(411)
         plt.title("Before")
         for i in range(spec.shape[0]):
@@ -118,11 +118,11 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
             u1[i1] = c1[i1] * utmp ** -0.5
-        else: #pragma: no cover 
+        else:  # pragma: no cover
             # TODO: Orders dont overlap
             continue
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.subplot(413)
         plt.title("After")
         for i in range(nord):
@@ -139,7 +139,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     return spec, wave, cont, sigm
 
 
-class Plot_Normalization: #pragma: no cover
+class Plot_Normalization:  # pragma: no cover
     def __init__(self, wsort, sB, new_wave, contB, iteration=0):
         plt.ion()
         self.fig = plt.figure()
@@ -224,16 +224,15 @@ def continuum_normalize(
     cont = b
 
     # Create new equispaced wavelength grid
-    wmin = np.ma.min(wave)
-    wmax = np.ma.max(wave)
-    dwave = np.abs(wave[nord // 2, ncol // 2] - wave[nord // 2, ncol // 2 - 1]) * 0.5
+    tmp = wave.compressed()
+    wmin = np.min(tmp)
+    wmax = np.max(tmp)
+    dwave = np.abs(tmp[tmp.size // 2] - tmp[tmp.size // 2 - 1]) * 0.5
     nwave = np.ceil((wmax - wmin) / dwave) + 1
     new_wave = np.linspace(wmin, wmax, nwave, endpoint=True)
 
     # Combine all orders into one big spectrum, sorted by wavelength
-    wsort, j, index = np.unique(
-        wave.compressed(), return_index=True, return_inverse=True
-    )
+    wsort, j, index = np.unique(tmp, return_index=True, return_inverse=True)
     sB = (spec / cont).compressed()[j]
 
     # Get initial weights for each point
@@ -273,14 +272,14 @@ def continuum_normalize(
         weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
 
         # Plot the intermediate results
-        if plot: #pragma: no cover
+        if plot:  # pragma: no cover
             if i == 0:
                 p = Plot_Normalization(wsort, sB, new_wave, contB, i)
             else:
                 p.plot(wsort, sB, new_wave, contB, i)
 
     # Need to close the plot afterwards
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         p.close()
 
     # Calculate the new continuum from intermediate values
@@ -289,7 +288,7 @@ def continuum_normalize(
     cont[~cont.mask] = (new_cont * bbb)[index]
 
     # Final output plot
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
         plt.legend(loc="best")

@@ -161,6 +161,7 @@ class UVES(instrument):
                     "curvature": files[(ob == info["id_wave"]) & select],
                     "science": files[(ty == info["id_spec"]) & (ob == target) & select],
                 }
+                files_this_night[key + "nm"]["freq_comb"] = []
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

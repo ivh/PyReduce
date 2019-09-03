@@ -41,7 +41,7 @@ def load_config(configuration, instrument, j=0):
         logging.info(
             "No configuration specified, using default values for this instrument"
         )
-        config = get_configuration_for_instrument(instrument)
+        config = get_configuration_for_instrument(instrument, plot=False)
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():
             config = configuration[instrument]
