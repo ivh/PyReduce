@@ -1,11 +1,10 @@
-[tool:pytest]
-addopts = --cov=pyreduce  --cov-report=xml
-
 [run]
 source = pyreduce
 omit = 
     pyreduce/_version.py
-    pyreduce/instruments/*
+    examples/*
+    versioneer.py
+    setup.py
 
 [report]
 show_missing = True

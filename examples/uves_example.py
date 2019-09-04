@@ -31,7 +31,7 @@ steps = (
 
 # load dataset (and save the location)
 base_dir = datasets.UVES_HD132205()
-input_dir = "{target}/"
+input_dir = "raw/"
 output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
 
 config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)

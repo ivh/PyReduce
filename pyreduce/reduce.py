@@ -49,11 +49,11 @@ from .estimate_background_scatter import estimate_background_scatter
 
 
 def main(
-    instrument="UVES",
-    target="HD132205",
+    instrument,
+    target,
     night="????-??-??",
-    modes="middle",
-    steps=("bias", "flat", "orders", "norm_flat", "wavecal", "science", "continuum"),
+    modes=None,
+    steps="all",
     base_dir=None,
     input_dir=None,
     output_dir=None,
@@ -89,14 +89,12 @@ def main(
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
-    if isinstance(instrument, str):
+    if np.isscalar(instrument):
         instrument = [instrument]
-    if isinstance(target, str):
+    if np.isscalar(target):
         target = [target]
-    if isinstance(night, str):
+    if np.isscalar(night):
         night = [night]
-    if isinstance(modes, str):
-        modes = [modes]
 
     isNone = {
         "modes": modes is None,
@@ -132,6 +130,9 @@ def main(
             mode = modes[i]
         else:
             mode = modes
+        if np.isscalar(mode):
+            mode = [mode]
+
 
         for t in target:
             log_file = join(
@@ -155,9 +156,7 @@ def main(
                         logging.info("Observation Date: %s", k)
                         logging.info("Instrument Mode: %s", m)
 
-                        if not isinstance(f, dict):
-                            f = {1: f}
-                        for key, _ in f.items():
+                        for key in f.keys():
                             logging.info("Group Identifier: %s", key)
                             logging.debug("Files:\n%s", f[key])
                             reducer = Reducer(
@@ -211,7 +210,7 @@ class Step:
         self.plot = config.get("plot", False)
         self._output_dir = output_dir
 
-    def run(self, files, *args):
+    def run(self, files, *args): #pragma: no cover
         """Execute the current step
 
         This should fail, if files are missing, or anything else goes wrong.
@@ -229,7 +228,7 @@ class Step:
         """
         raise NotImplementedError
 
-    def save(self, *args):
+    def save(self, *args): #pragma: no cover
         """Save the results of this step
 
         Parameters
@@ -244,7 +243,7 @@ class Step:
         """
         raise NotImplementedError
 
-    def load(self):
+    def load(self): #pragma: no cover
         """Load results from a previous execution
 
         If this raises a FileNotFoundError, run() will be used instead

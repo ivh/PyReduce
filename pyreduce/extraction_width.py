@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from .util import gaussfit4 as gaussfit, make_index, gaussval2 as gaussval
 
 
-def estimate_extraction_width(img, orders, column_range, plot=False):
+def estimate_extraction_width(img, orders, column_range, plot=False): #pragma: no cover
+    raise NotImplemented
     nrow, ncol = img.shape
     nord, _ = orders.shape
     extraction_width = np.zeros((nord, 2), dtype=int)
