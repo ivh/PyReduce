@@ -7,7 +7,7 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .extract import fix_parameters
+from .extract import fix_parameters, fix_extraction_width
 from .util import polyfit2d, polyfit2d_2, make_index
 
 
@@ -53,7 +53,13 @@ def estimate_background_scatter(
     nord, _ = orders.shape
 
     extraction_width, column_range, orders = fix_parameters(
-        extraction_width, column_range, orders, nrow, ncol, nord
+        extraction_width,
+        column_range,
+        orders,
+        nrow,
+        ncol,
+        nord,
+        ignore_column_range=True,
     )
 
     # Method 1: Select all pixels, but those known to be in orders

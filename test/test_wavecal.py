@@ -11,6 +11,9 @@ from pyreduce import instruments
 def test_wavecal(
     files, instrument, mode, extension, mask, orders, settings, order_range
 ):
+    if len(files["wavecal"]) == 0:
+        pytest.skip(f"No wavecal files found for instrument {instrument}")
+
     orders, column_range = orders
     settings = settings["wavecal"]
     files = files["wavecal"][0]

@@ -4,8 +4,8 @@
     "__skip_existing__": false,
     "reduce": {
         "base_dir": "./",
-        "input_dir": "{instrument}/{target}/raw/{night}",
-        "output_dir": "{instrument}/{target}/reduced/{night}/{mode}"
+        "input_dir": "raw",
+        "output_dir": "reduced"
     },
     "instrument": {},
     "mask": {

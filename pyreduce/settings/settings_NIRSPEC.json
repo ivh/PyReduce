@@ -2,7 +2,7 @@
     "__instrument__": "NIRSPEC",
     "__skip_existing__": false,
     "instrument": {
-        "calibration_dir": "../cal"
+        "calibration_dir": ""
     },
     "bias": {
         "plot": false

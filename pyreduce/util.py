@@ -188,7 +188,7 @@ def load_fits(
     header : fits.header
         FITS header (Primary and Extension + Modeinfo)
 
-    ONLY the header is returned if header_only is True 
+    ONLY the header is returned if header_only is True
     """
     hdu = fits.open(fname)
     header = hdu[extension].header

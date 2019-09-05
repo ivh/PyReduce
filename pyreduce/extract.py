@@ -218,7 +218,7 @@ class Swath:
         self.mask[key] = value[4]
 
 
-def fix_parameters(xwd, cr, orders, nrow, ncol, nord):
+def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
 
     if xwd is None:
         xwd = 0.5
@@ -243,7 +243,8 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord):
     orders = extend_orders(orders, nrow)
 
     xwd = fix_extraction_width(xwd, orders, cr, ncol)
-    cr = fix_column_range(cr, orders, xwd, nrow, ncol)
+    if not ignore_column_range:
+        cr = fix_column_range(cr, orders, xwd, nrow, ncol)
 
     orders = orders[1:-1]
     xwd = xwd[1:-1]
@@ -650,7 +651,7 @@ def extract_spectrum(
 
         # Corrections
         # TODO: what is it even supposed to do?
-        if telluric is not None: #pragma: no cover
+        if telluric is not None:  # pragma: no cover
             telluric_correction = calc_telluric_correction(telluric, swath_img)
         else:
             telluric_correction = 0
@@ -864,7 +865,7 @@ def optimal_extraction(
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_width, axis=1).max()
         progress = ProgressPlot(nrow_swath, ncol_swath)
@@ -901,7 +902,7 @@ def optimal_extraction(
             **kwargs,
         )
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         progress.close()
 
     return spectrum, slitfunction, uncertainties

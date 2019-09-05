@@ -4,10 +4,13 @@ import numpy as np
 from pyreduce.extract import extract
 
 
-def test_normflat(flat, orders, settings, order_range, scatter):
+def test_normflat(flat, orders, settings, order_range, scatter, instrument):
     flat, fhead = flat
     orders, column_range = orders
     settings = settings["norm_flat"]
+
+    if flat[0] is None:
+        pytest.skip(f"No flat exists for instrument {instrument}")
 
     norm, _, blaze, _ = extract(
         flat,

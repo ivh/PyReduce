@@ -16,10 +16,11 @@ steps = (
     # "bias",
     # "flat",
     # "orders",
+    "scatter",
     # "norm_flat",
     # "curvature",
     # "wavecal",
-    "science",
+    # "science",
     # "continuum",
     # "finalize",
 )

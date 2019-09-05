@@ -23,7 +23,7 @@ import os.path
 import sys
 import time
 import glob
-from os.path import join
+from os.path import join, dirname
 
 import joblib
 import matplotlib.pyplot as plt
@@ -207,13 +207,14 @@ class Step:
         self.night = night
         #:tuple(int, int): First and Last(+1) order to process
         self.order_range = order_range
+        #:bool: Whether to plot the results or the progress of this step
         self.plot = config.get("plot", False)
         self._output_dir = output_dir
 
     def run(self, files, *args): #pragma: no cover
         """Execute the current step
 
-        This should fail, if files are missing, or anything else goes wrong.
+        This should fail if files are missing or anything else goes wrong.
         If the user does not want to run this step, they should not specify it in steps.
 
         Parameters
@@ -296,7 +297,7 @@ class Mask(Step):
     @property
     def mask_dir(self):
         """str: Directory containing the mask data file"""
-        this = os.path.dirname(__file__)
+        this = dirname(__file__)
         return self._mask_dir.format(reduce=this)
 
     @property
@@ -692,7 +693,7 @@ class BackgroundScatter(Step):
             logging.warning(
                 "No intermediate files found for the scatter. Using scatter = 0 instead."
             )
-            data = {"scatter": [0]}
+            data = {"scatter": None}
         scatter = data["scatter"]
         return scatter
 
@@ -801,7 +802,7 @@ class NormalizeFlatField(Step):
             logging.warning(
                 "No intermediate files found for the normalized flat field. Using flat = 1 instead."
             )
-            data = {"blaze": 1, "norm": None}
+            data = {"blaze": None, "norm": None}
         blaze = data["blaze"]
         norm = data["norm"]
         return norm, blaze
@@ -881,7 +882,8 @@ class WavelengthCalibration(Step):
         tilt, shear = curvature
         bias, bhead = bias
 
-        assert len(files) > 0, "No files found for wavelength calibration"
+        if len(files) == 0:
+            raise FileNotFoundError("No files found for wavelength calibration")
 
         # Load wavecal image
         orig, thead = combine_flat(
@@ -1545,7 +1547,7 @@ class Finalize(Step):
             number=number,
             input=name,
         )
-        return os.path.join(self.output_dir, out)
+        return join(self.output_dir, out)
 
     def save_config_to_header(self, head, config, prefix="PR"):
         for key, value in config.items():

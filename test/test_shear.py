@@ -6,6 +6,9 @@ from pyreduce.make_shear import Curvature as CurvatureModule
 
 
 def test_shear(files, wave, orders, instrument, mode, extension, mask, order_range):
+    if len(files["curvature"]) == 0:
+        pytest.skip(f"No curvature files found for instrument {instrument}")
+
     _, extracted = wave
     orders, column_range = orders
 
@@ -54,6 +57,9 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
 def test_shear_exception(
     files, wave, orders, instrument, mode, extension, mask, order_range
 ):
+    if len(files["curvature"]) == 0:
+        pytest.skip(f"No curvature files found for instrument {instrument}")
+
     _, extracted = wave
     orders, column_range = orders
     orders = orders[order_range[0] : order_range[1]]
@@ -81,6 +87,9 @@ def test_shear_exception(
 def test_shear_nopeaks(
     files, wave, orders, instrument, mode, extension, mask, order_range
 ):
+    if len(files["curvature"]) == 0:
+        pytest.skip(f"No curvature files found for instrument {instrument}")
+
     _, extracted = wave
     orders, column_range = orders
     orders = orders[order_range[0] : order_range[1]]
@@ -100,6 +109,9 @@ def test_shear_nopeaks(
 def test_shear_zero(
     files, wave, orders, instrument, mode, extension, mask, order_range
 ):
+    if len(files["curvature"]) == 0:
+        pytest.skip(f"No curvature files found for instrument {instrument}")
+
     _, extracted = wave
     orders, column_range = orders
     orders = orders[order_range[0] : order_range[1]]

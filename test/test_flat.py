@@ -9,6 +9,9 @@ from pyreduce.combine_frames import combine_flat
 
 
 def test_flat(instrument, mode, files, extension, mask):
+    if len(files["flat"]) == 0:
+        pytest.skip(f"No flat files for instrument {instrument}")
+
     flat, fhead = combine_flat(
         files["flat"],
         instrument,
@@ -21,11 +24,15 @@ def test_flat(instrument, mode, files, extension, mask):
     assert isinstance(flat, np.ma.masked_array)
     assert isinstance(fhead, fits.Header)
 
-    assert flat.ndim == fhead["NAXIS"]
-    assert flat.shape[0] == fhead["NAXIS1"] - 100  # remove window from both sides
-    assert flat.shape[1] == fhead["NAXIS2"]
+    assert flat.ndim == 2
+    assert flat.shape[0] > 1
+    assert flat.shape[1] > 1
+
 
 def test_flat_with_bias(instrument, mode, files, extension, mask):
+    if len(files["flat"]) == 0:
+        pytest.skip(f"No flat files for instrument {instrument}")
+
     window = 50
     flat, fhead = combine_flat(
         files["flat"],
@@ -40,9 +47,9 @@ def test_flat_with_bias(instrument, mode, files, extension, mask):
     assert isinstance(flat, np.ma.masked_array)
     assert isinstance(fhead, fits.Header)
 
-    assert flat.ndim == fhead["NAXIS"]
-    assert flat.shape[0] == fhead["NAXIS1"] - 2 * window
-    assert flat.shape[1] == fhead["NAXIS2"]
+    assert flat.ndim == 2
+    assert flat.shape[0] > 1
+    assert flat.shape[1] > 1
 
 
 

@@ -7,24 +7,8 @@ from pyreduce.trace_orders import mark_orders
 
 
 def test_orders(instrument, mode, extension, files, settings, mask):
-    """
-    Test the order tracing for each test dataset
-
-    Parameters
-    ----------
-    instrument : str
-        Instrument Name
-    mode : str
-        Current Mode
-    extension : int
-        fits extension for that mode
-    files : dict(str:str)
-        dict of files, sorted by type
-    settings : dict(str:obj)
-        configuration settings of this run
-    mask : array(bool) of size (n,)
-        Bad pixel mask
-    """
+    if len(files["orders"]) == 0:
+        pytest.skip(f"No order definition files found for instrument {instrument}")
 
     files = files["orders"][0]
     order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)

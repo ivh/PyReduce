@@ -18,7 +18,6 @@ from .common import getter, instrument, observation_date_to_night
 
 
 class NIRSPEC(instrument):
-
     @staticmethod
     def get_mode(header):
         # TODO figure out the parameters to use for this
@@ -104,7 +103,6 @@ class NIRSPEC(instrument):
         files += glob.glob(input_dir + "/*.fits.gz")
         files = np.array(files)
 
-
         # Initialize arrays
         # observed object
         ob = np.zeros(len(files), dtype="U20")
@@ -137,18 +135,21 @@ class NIRSPEC(instrument):
 
         for ind_night in tqdm(individual_nights):
             # Select files for this night, this instrument, this instrument mode
-            selection = (
-                (ni == ind_night)
-                & (it == instrument)
-                & (ob == target)
-                )
+            selection = (ni == ind_night) & (it == instrument) & (ob == target)
 
             for file in files[selection]:
 
                 # Read caliblist
                 caliblist = file[:-8] + ".caliblist"
-                caliblist = np.genfromtxt(caliblist, skip_header=8, dtype=str, delimiter=" ", usecols=(0))
-                caliblist = np.array([os.path.join(input_dir, calibration_dir, c) + ".gz" for c in caliblist])
+                caliblist = np.genfromtxt(
+                    caliblist, skip_header=8, dtype=str, delimiter=" ", usecols=(0)
+                )
+                caliblist = np.array(
+                    [
+                        os.path.join(input_dir, calibration_dir, c) + ".gz"
+                        for c in caliblist
+                    ]
+                )
 
                 tp = np.zeros(len(caliblist), dtype="U20")
                 for i, c in enumerate(caliblist):
@@ -158,7 +159,12 @@ class NIRSPEC(instrument):
                         h = fits.open(c)[0].header
                         if h[info["id_flat"]] == 1:
                             tp[i] = "flat"
-                        elif h[info["id_neon"]] == 1 or h[info["id_argon"]] == 1 or h[info["id_krypton"]] == 1 or h[info["id_xenon"]] == 1:
+                        elif (
+                            h[info["id_neon"]] == 1
+                            or h[info["id_argon"]] == 1
+                            or h[info["id_krypton"]] == 1
+                            or h[info["id_xenon"]] == 1
+                        ):
                             tp[i] = "wavecal"
                         elif h[info["id_etalon"]] == 1:
                             tp[i] = "freq_comb"
@@ -172,9 +178,13 @@ class NIRSPEC(instrument):
                     "orders": caliblist[tp == "flat"],
                     "wavecal": caliblist[tp == "wavecal"],
                     "freq_comb": caliblist[tp == "freq_comb"],
-                    "science": [file,]
+                    "science": [file],
                 }
-                files_this_observation["NIRSPEC"]["curvature"] = files_this_observation["NIRSPEC"]["freq_comb"] if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0 else files_this_observation["NIRSPEC"]["wavecal"]
+                files_this_observation["NIRSPEC"]["curvature"] = (
+                    files_this_observation["NIRSPEC"]["freq_comb"]
+                    if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0
+                    else files_this_observation["NIRSPEC"]["wavecal"]
+                )
 
                 files_per_observation.append(files_this_observation)
                 nights_out.append(ind_night)

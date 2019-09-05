@@ -17,6 +17,9 @@ def test_science(
     settings,
     order_range,
 ):
+    if len(files["science"]) == 0:
+        pytest.skip(f"No science files found for instrument {instrument}")
+
     flat, blaze = normflat
     bias, _ = bias
     orders, column_range = orders

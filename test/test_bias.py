@@ -9,6 +9,9 @@ from pyreduce.combine_frames import combine_bias
 
 
 def test_bias(instrument, mode, files, extension, mask):
+    if len(files["bias"]) == 0:
+        pytest.skip(f"No bias files for instrument {instrument}")
+
     bias, bhead = combine_bias(
         files["bias"], instrument, mode, extension=extension, window=50, mask=mask
     )
@@ -16,21 +19,24 @@ def test_bias(instrument, mode, files, extension, mask):
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)
 
-    assert bias.ndim == bhead["NAXIS"]
-    assert bias.shape[0] == bhead["NAXIS1"] - 100  # remove window from both sides
-    assert bias.shape[1] == bhead["NAXIS2"]
+    assert bias.ndim == 2
+    assert bias.shape[0] == mask.shape[0]
+    assert bias.shape[1] == mask.shape[1]
 
 
-def test_only_one_file(instrument, mode, files, extension):
+def test_only_one_file(instrument, mode, files, extension, mask):
+    if len(files["bias"]) == 0:
+        pytest.skip(f"No bias files for instrument {instrument}")
+
     files = [files["bias"][0]]
-    bias, bhead = combine_bias(files, instrument, mode, extension=extension, window=50)
+    bias, bhead = combine_bias(files, instrument, mode, extension=extension, window=50, mask=mask)
 
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)
 
-    assert bias.ndim == bhead["NAXIS"]
-    assert bias.shape[0] == bhead["NAXIS1"] - 100  # remove window from both sides
-    assert bias.shape[1] == bhead["NAXIS2"]
+    assert bias.ndim == 2
+    assert bias.shape[0] == mask.shape[0]
+    assert bias.shape[1] == mask.shape[1]
 
 
 def test_no_data_files():

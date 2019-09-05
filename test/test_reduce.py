@@ -5,7 +5,7 @@ import sys
 from pyreduce import reduce
 
 
-def test_main(files, instrument, target, night, mode, input_dir, output_dir):
+def test_main(instrument, target, night, mode, input_dir, output_dir):
     output = reduce.main(
         instrument,
         target,
@@ -27,7 +27,7 @@ def test_main(files, instrument, target, night, mode, input_dir, output_dir):
     output = reduce.main(instrument, target, night, steps=())
 
 
-def test_all(files, instrument, target, night, mode, input_dir, output_dir):
+def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     output = reduce.main(
         instrument,
         target,
@@ -36,20 +36,12 @@ def test_all(files, instrument, target, night, mode, input_dir, output_dir):
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
-        order_range=(0, 1),
+        order_range=order_range,
         steps="all",
     )
 
 
-def test_load_all(instrument, target, night, mode, input_dir, output_dir):
-    # Delete existing intermediate files
-    files = [f for f in os.listdir(output_dir) if not f.startswith("test_")]
-    for f in files:
-        try:
-            os.remove(f)
-        except:
-            pass
-
+def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     output = reduce.main(
         instrument,
         target,
@@ -58,6 +50,24 @@ def test_load_all(instrument, target, night, mode, input_dir, output_dir):
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
-        order_range=(0, 1),
+        order_range=order_range,
         steps=["finalize"],
     )
+
+
+def test_step_abstract(step_args):
+    step = reduce.Step(*step_args, {"plot": False})
+
+    assert isinstance(step.dependsOn, list)
+    assert isinstance(step.loadDependsOn, list)
+    assert isinstance(step.prefix, str)
+    assert isinstance(step.output_dir, str)
+
+    with pytest.raises(NotImplementedError):
+        step.load()
+
+    with pytest.raises(NotImplementedError):
+        step.run([])
+
+    with pytest.raises(NotImplementedError):
+        step.save()

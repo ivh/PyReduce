@@ -17,17 +17,6 @@ def buffer():
 def size():
     return 3
 
-@pytest.fixture
-def files():
-    n = 3
-    files = [
-        tempfile.NamedTemporaryFile(suffix=".fits", delete=False) for _ in range(n)
-    ]
-    files = [f.name for f in files]
-    yield files
-    # Tear down code
-    for f in files:
-        os.remove(f)
 
 def create_file(file, nx=100, ny=100, ovscx=5):
     img = np.full((ny, nx), 10)
@@ -75,29 +64,29 @@ def test_calculate_probability(buffer):
     assert np.allclose(result, compare / weights)
 
 
-def test_combine_frames(files):
-    for f in files:
+def test_combine_frames(tempfiles):
+    for f in tempfiles:
         create_file(f, 100, 100, 5)
 
-    combine, chead = combine_frames.combine_frames(files, "UVES", "middle", 0, window=5)
+    combine, chead = combine_frames.combine_frames(tempfiles, "UVES", "middle", 0, window=5)
 
     assert combine.shape[0] == 100 - 5
     assert combine.shape[1] == 100
 
-    assert chead["exptime"] == len(files)
+    assert chead["exptime"] == len(tempfiles)
 
 def test_nofiles():
     files = []
     with pytest.raises(ValueError):
         combine_frames.combine_frames(files, "UVES", "middle", 0, window=5)
 
-def test_onefile(files):
-    files = files[:1]
+def test_onefile(tempfiles):
+    tempfiles = tempfiles[:1]
     nx, ny = 110, 100
-    compare, head = create_file(files[0], nx, ny, 5)
+    compare, head = create_file(tempfiles[0], nx, ny, 5)
     compare = np.rot90(compare, -1)[:-5]
 
-    combine, chead = combine_frames.combine_frames(files, "UVES", "middle", 0, window=5)
+    combine, chead = combine_frames.combine_frames(tempfiles, "UVES", "middle", 0, window=5)
     
     assert combine.shape[0] == nx - 5
     assert combine.shape[1] == ny
@@ -106,35 +95,35 @@ def test_onefile(files):
     for key, value in head.items():
         assert chead[key] == value
 
-def test_twofiles(files):
-    files = files[:2]
+def test_twofiles(tempfiles):
+    tempfiles = tempfiles[:2]
 
-    for f in files:
+    for f in tempfiles:
         create_file(f, 100, 100, 5)
 
-    combine, chead = combine_frames.combine_frames(files, "UVES", "middle", 0, window=5)
+    combine, chead = combine_frames.combine_frames(tempfiles, "UVES", "middle", 0, window=5)
 
     assert combine.shape[0] == 100 - 5
     assert combine.shape[1] == 100
 
-    assert chead["exptime"] == len(files)
+    assert chead["exptime"] == len(tempfiles)
 
-def test_bad_window_size(files):
-    for f in files:
+def test_bad_window_size(tempfiles):
+    for f in tempfiles:
         create_file(f, 100, 100, 5)
 
-    combine, chead = combine_frames.combine_frames(files, "UVES", "middle", 0, window=80)
+    combine, chead = combine_frames.combine_frames(tempfiles, "UVES", "middle", 0, window=80)
     assert combine.shape[0] == 100 - 5
     assert combine.shape[1] == 100
 
-    assert chead["exptime"] == len(files)
+    assert chead["exptime"] == len(tempfiles)
 
-def test_normal_orientation(files):
-    for f in files:
+def test_normal_orientation(tempfiles):
+    for f in tempfiles:
         create_file(f, 100, 100, 0)
 
-    combine, chead = combine_frames.combine_frames(files, "CRIRES_PLUS", "", 0, window=10)
+    combine, chead = combine_frames.combine_frames(tempfiles, "CRIRES_PLUS", "", 0, window=10)
     assert combine.shape[0] == 100
     assert combine.shape[1] == 100
 
-    assert chead["exptime"] == len(files)
+    assert chead["exptime"] == len(tempfiles)
