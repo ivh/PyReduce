@@ -78,7 +78,11 @@ def orders(width, ycen):
 def sample_data(width, height, spec, slitf, oversample, ycen, tilt=0):
     img = spec[None, :] * slitf[:, None]
     # TODO more sophisticated sample data creation
-    return img, spec, slitf
+    out = np.zeros((height, width))
+    for i in range(width):
+        out[:, i] = np.interp(np.arange(height), np.linspace(0, height, height*oversample), img[:, i])
+
+    return out, spec, slitf
 
 
 def test_class_swath():

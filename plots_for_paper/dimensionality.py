@@ -22,9 +22,9 @@ steps = ("wavecal", "freq_comb")
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/PyReduce/"
-input_dir = "FrequencyComb/raw"
-output_dir = f"FrequencyComb/reduced_{mode}"
+base_dir = "/DATA/PyReduce/datasets/HARPS"
+input_dir = "raw"
+output_dir = f"reduced_{mode}"
 
 # relevant configuration settings
 config = {
@@ -40,7 +40,7 @@ config = {
     },
     "freq_comb": {
         "dimensionality": "2D",
-        "degree": [10, 19],
+        "degree": [5, 5],
         "plot": False,
         "extraction_width": 10,
     },
@@ -99,15 +99,16 @@ wave1D = wave1D["wave"]
 gauss = lambda x, A, mu, sig: A * np.exp(-(x-mu)**2 / (2*sig**2))
 
 xlim = (-0.004, 0.004)
-ylim = (0, 4700)
+ylim = (0, 4200)
 bins = 100
 x = np.linspace(xlim[0], xlim[1], 1000)
 
 plt.subplot(121)
 residual = wave1D - comb
 residual = residual.ravel()
-mean = residual.mean()
-std = residual.std()
+mean = np.median(residual)
+std = np.percentile(residual, 68) - mean
+
 A = plt.hist(residual, bins=bins, range=xlim)[0]
 A = A.sum() * (xlim[1] - xlim[0]) / bins
 A /= np.sqrt(2 * np.pi * std**2)
@@ -121,8 +122,8 @@ plt.ylim(ylim)
 plt.subplot(122)
 residual = wave2D - comb
 residual = residual.ravel()
-mean = residual.mean()
-std = residual.std()
+mean = np.median(residual)
+std = np.percentile(residual, 68) - mean
 A = plt.hist(residual, bins=bins, range=xlim)[0]
 A = A.sum() * (xlim[1] - xlim[0]) / bins
 A /= np.sqrt(2 * np.pi * std**2)

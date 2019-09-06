@@ -24,8 +24,8 @@
     },
     "wavecal": {
         "threshold": 100,
-        "dimensionality": "1D",
-        "degree": 2,
+        "dimensionality": "2D",
+        "degree": [2, 5],
         "manual": false,
         "extraction_width": 10
     },
@@ -33,18 +33,17 @@
         "threshold": 100,
         "dimensionality": "2D",
         "nstep": 0,
-        "degree": [19, 10],
+        "degree": [5, 5],
         "extraction_width": 10
     },
     "curvature": {
         "extraction_width": 10,
-        "dimensionality": "2D",
-        "degree": [3, 6],
-        "plot": true,
-        "verbose": 1
+        "dimensionality": "1D",
+        "degree": 3,
+        "plot": true
     },
     "science": {
-        "oversampling": 1,
+        "oversampling": 10,
         "extraction_width": 10,
         "swath_width": 300,
         "smooth_slitfunction": 0.1,

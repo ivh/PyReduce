@@ -23,6 +23,10 @@ from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 from . import __version__
 
+def resample(array, new_size):
+    x = np.arange(new_size)
+    xp = np.linspace(0, new_size, len(array))
+    return np.interp(x, xp, array)
 
 def remove_bias(img, ihead, bias, bhead, nfiles=1):
     if bias is not None and bhead is not None:

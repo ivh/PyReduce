@@ -32,7 +32,7 @@ from astropy.io import fits
 
 # PyReduce subpackages
 from . import echelle, instruments, util, __version__
-from .combine_frames import combine_bias, combine_flat
+from .combine_frames import combine_bias, combine_flat, combine_frames
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
@@ -133,7 +133,6 @@ def main(
         if np.isscalar(mode):
             mode = [mode]
 
-
         for t in target:
             log_file = join(
                 base_dir.format(instrument=i, mode=mode, target=t), "logs/%s.log" % t
@@ -211,7 +210,7 @@ class Step:
         self.plot = config.get("plot", False)
         self._output_dir = output_dir
 
-    def run(self, files, *args): #pragma: no cover
+    def run(self, files, *args):  # pragma: no cover
         """Execute the current step
 
         This should fail if files are missing or anything else goes wrong.
@@ -229,7 +228,7 @@ class Step:
         """
         raise NotImplementedError
 
-    def save(self, *args): #pragma: no cover
+    def save(self, *args):  # pragma: no cover
         """Save the results of this step
 
         Parameters
@@ -244,7 +243,7 @@ class Step:
         """
         raise NotImplementedError
 
-    def load(self): #pragma: no cover
+    def load(self):  # pragma: no cover
         """Load results from a previous execution
 
         If this raises a FileNotFoundError, run() will be used instead
@@ -650,7 +649,6 @@ class BackgroundScatter(Step):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-
     def run(self, flat, orders):
         flat, fhead = flat
         orders, column_range = orders
@@ -697,6 +695,7 @@ class BackgroundScatter(Step):
         scatter = data["scatter"]
         return scatter
 
+
 class NormalizeFlatField(Step):
     """Calculate the 'normalized' flat field image"""
 
@@ -721,7 +720,6 @@ class NormalizeFlatField(Step):
             )
         #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
-
 
     @property
     def savefile(self):
@@ -886,7 +884,7 @@ class WavelengthCalibration(Step):
             raise FileNotFoundError("No files found for wavelength calibration")
 
         # Load wavecal image
-        orig, thead = combine_flat(
+        orig, thead = combine_frames(
             files, self.instrument, self.mode, self.extension, mask=mask
         )
         if bias is not None:
@@ -1035,14 +1033,12 @@ class LaserFrequencyComb(Step):
         tilt, shear = curvature
 
         if len(files) == 0:
-            logging.warning(
-                "No files for Laser Frequency Comb found, using regular wavelength calibration instead"
+            raise FileNotFoundError(
+                "No files for Laser Frequency Comb found"
             )
-            return wave, thar
 
-        f = files[0]
-        orig, chead = util.load_fits(
-            f, self.instrument, self.mode, self.extension, mask=mask
+        orig, chead = combine_frames(
+            files, self.instrument, self.mode, self.extension, mask=mask
         )
 
         comb, _, _, _ = extract(
@@ -1140,7 +1136,6 @@ class SlitCurvatureDetermination(Step):
         self.sigma_cutoff = config["sigma_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
-        self.verbose = config["verbose"]
 
     @property
     def savefile(self):
@@ -1170,18 +1165,16 @@ class SlitCurvatureDetermination(Step):
         """
         orders, column_range = orders
 
-        # TODO: Pick best image / combine images ?
-        f = files[0]
-        orig, head = util.load_fits(
-            f, self.instrument, self.mode, self.extension, mask=mask
+        orig, thead = combine_frames(
+            files, self.instrument, self.mode, self.extension, mask=mask
         )
 
         extracted, _, _, _ = extract(
             orig,
             orders,
-            gain=head["e_gain"],
-            readnoise=head["e_readn"],
-            dark=head["e_drk"],
+            gain=thead["e_gain"],
+            readnoise=thead["e_readn"],
+            dark=thead["e_drk"],
             extraction_type=self.extraction_method,
             column_range=column_range,
             order_range=self.order_range,
@@ -1200,7 +1193,6 @@ class SlitCurvatureDetermination(Step):
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             plot=self.plot,
-            verbose=self.verbose,
         )
         tilt, shear = module.execute(extracted, orig)
         self.save(tilt, shear)
@@ -1663,9 +1655,9 @@ class Reducer:
         "bias": 10,
         "flat": 20,
         "orders": 30,
-        "scatter": 35,
-        "norm_flat": 40,
-        "curvature": 50,
+        "curvature": 40,
+        "scatter": 45,
+        "norm_flat": 50,
         "wavecal": 60,
         "freq_comb": 70,
         "science": 80,
@@ -1833,7 +1825,7 @@ class Reducer:
         return self.data
 
 
-if __name__ == "__main__": #pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     if len(sys.argv) > 1:
         # Command Line arguments passed
         args = util.parse_args()

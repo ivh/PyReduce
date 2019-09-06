@@ -24,6 +24,7 @@ import numpy as np
 from scipy import signal
 
 from numpy.polynomial.polynomial import polyval2d
+from scipy.optimize import least_squares
 from skimage.filters import threshold_otsu
 
 from .extract import fix_parameters
@@ -125,7 +126,6 @@ class Curvature:
         max_iter=None,
         mode="1D",
         plot=False,
-        verbose=0,
         curv_degree=2,
     ):
         self.orders = orders
@@ -143,7 +143,6 @@ class Curvature:
         self.max_iter = max_iter
         self.mode = mode
         self.plot = plot
-        self.verbose = verbose
         self.curv_degree = curv_degree
 
     @property
@@ -239,13 +238,16 @@ class Curvature:
                 # Store the variation within the row
                 deviation[i] = np.ma.std(segment)
             except Exception as e:
-                xcen[i] = np.ma.mean(x)
+                xcen[i] = peak + self.width
                 deviation[i] = 0
 
         # Seperate in order pixels from out of order pixels
         # TODO: actually we want to weight them by the slitfunction?
         # If any of this fails, we will just ignore this line
-        idx = deviation > threshold_otsu(deviation)
+        try:
+            idx = deviation > threshold_otsu(deviation)
+        except ValueError:
+            raise RuntimeError
 
         # Linear fit to slit image
         with warnings.catch_warnings():
@@ -260,45 +262,20 @@ class Curvature:
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
 
-        if self.plot and self.verbose >= 2: #pragma: no cover
+        if self.plot >= 2: #pragma: no cover
             self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
         return tilt, shear
 
     def _fit_curvature_single_order(self, peaks, tilt, shear):
-
-        # Make them masked arrays to avoid copying the data all the time
-        # Updating the mask updates all of them (as it is not copied)
-        mask = np.full(peaks.shape, False)
-        peaks = np.ma.masked_array(peaks, mask=mask)
-        tilt = np.ma.masked_array(tilt, mask=mask)
-        shear = np.ma.masked_array(shear, mask=mask)
-
         try:
-            # Fit a 2nd order polynomial through all individual lines
-            # And discard obvious outliers
-            iteration = 0
-            while iteration < self.max_iter:
-                iteration += 1
-                coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
-                coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
+            middle = np.median(tilt)
+            sigma = np.percentile(tilt, (32, 68))
+            sigma = middle - sigma[0], sigma[1] - middle
+            mask = (tilt >= middle - 5 * sigma[0]) & (tilt <= middle + 5 * sigma[1])
+            peaks, tilt, shear = peaks[mask], tilt[mask], shear[mask]
 
-                diff = np.polyval(coef_tilt, peaks) - tilt
-                idx1 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
-                mask |= idx1
-
-                diff = np.polyval(coef_shear, peaks) - shear
-                idx2 = np.ma.abs(diff) >= np.ma.std(diff) * self.sigma_cutoff
-                mask |= idx2
-
-                if np.ma.all(~idx1) and np.ma.all(~idx2):
-                    # Found a succesful solution
-                    break
-                if np.all(mask):
-                    logging.error("Could not fit polynomial to the data")
-                    raise RuntimeError
-
-            coef_tilt = np.ma.polyfit(peaks, tilt, self.fit_degree)
-            coef_shear = np.ma.polyfit(peaks, shear, self.fit_degree)
+            coef_tilt = np.polyfit(peaks, tilt, self.fit_degree)
+            coef_shear = np.polyfit(peaks, shear, self.fit_degree)
         except:
             logging.error("Could not fit the curvature of this order. Using no curvature instead")
             coef_tilt = np.zeros(self.fit_degree + 1)
@@ -331,7 +308,7 @@ class Curvature:
             shear = np.zeros(npeaks)
             mask = np.full(npeaks, True)
             for ipeak, peak in enumerate(peaks):
-                if self.plot and self.verbose >= 2: #pragma: no cover
+                if self.plot >= 2: #pragma: no cover
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
                     tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
@@ -407,14 +384,14 @@ class Curvature:
 
             # Figure Peaks found (and used)
             axes[j // 2, j % 2].plot(np.arange(cr[0], cr[1]), vec)
-            axes[j // 2, j % 2].plot(peaks, vec[peaks - cr[0]], "+")
+            axes[j // 2, j % 2].plot(peaks, vec[peaks - cr[0]], "X")
             axes[j // 2, j % 2].set_xlim([0, ncol])
             axes[j // 2, j % 2].set_yscale("log")
             if j not in (self.n - 1, self.n - 2):
                 axes[j // 2, j % 2].get_xaxis().set_ticks([])
 
             # Figure 1st order
-            axes1[j // 2, j % 2].plot(peaks, tilt, "rx")
+            axes1[j // 2, j % 2].plot(peaks, tilt, "rX")
             axes1[j // 2, j % 2].plot(x, t)
             axes1[j // 2, j % 2].set_xlim(0, ncol)
 
@@ -425,7 +402,7 @@ class Curvature:
                 axes1[j // 2, j % 2].get_xaxis().set_ticks([])
 
             # Figure 2nd order
-            axes2[j // 2, j % 2].plot(peaks, shear, "rx")
+            axes2[j // 2, j % 2].plot(peaks, shear, "rX")
             axes2[j // 2, j % 2].plot(x, s)
             axes2[j // 2, j % 2].set_xlim(0, ncol)
 
@@ -474,11 +451,13 @@ class Curvature:
         plt.show()
 
     def execute(self, extracted, original):
+        logging.info("Determining the Slit Curvature")
+
         _, ncol = original.shape
 
         self._fix_inputs(original)
 
-        if self.plot and self.verbose >= 2: #pragma: no cover
+        if self.plot >= 2: #pragma: no cover
             height = np.sum(self.extraction_width, axis=1).max() + 1
             self.progress = ProgressPlot(ncol, self.width, height)
 

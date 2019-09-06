@@ -27,6 +27,7 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
     output = reduce.main(instrument, target, night, steps=())
 
 
+@pytest.mark.skip
 def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     output = reduce.main(
         instrument,
@@ -56,7 +57,7 @@ def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_
 
 
 def test_step_abstract(step_args):
-    step = reduce.Step(*step_args, {"plot": False})
+    step = reduce.Step(*step_args, **{"plot": False})
 
     assert isinstance(step.dependsOn, list)
     assert isinstance(step.loadDependsOn, list)

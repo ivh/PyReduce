@@ -460,7 +460,7 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
         flat = flat - bias * len(files)
 
     if plot: #pragma: no cover
-        plt.title("Master Flat - Bias")
+        plt.title("Master Flat")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(flat, (10, 90))

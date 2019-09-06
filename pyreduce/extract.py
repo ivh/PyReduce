@@ -19,7 +19,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
 
 from .cwrappers import slitfunc, slitfunc_curved
-from .util import make_index
+from .util import make_index, resample
 
 
 class ProgressPlot:  # pragma: no cover
@@ -31,11 +31,10 @@ class ProgressPlot:  # pragma: no cover
 
         plt.ion()
         self.fig = plt.figure(figsize=(12, 4))
-        self.fig.tight_layout(pad=0.05)
+        # self.fig.tight_layout(pad=0.05)
 
         self.ax1 = self.fig.add_subplot(231, projection="3d")
         self.ax1.set_title("Swath")
-        self.ax1.set_zscale("log")
         self.ax2 = self.fig.add_subplot(132)
         self.ax2.set_title("Spectrum")
         self.ax2.set_xlim((0, ncol))
@@ -44,7 +43,6 @@ class ProgressPlot:  # pragma: no cover
         self.ax3.set_xlim((0, nrow))
         self.ax4 = self.fig.add_subplot(234, projection="3d")
         self.ax4.set_title("Model")
-        self.ax4.set_zscale("log")
 
         # Just plot empty pictures, to create the plots
         # Update the data later
@@ -63,6 +61,9 @@ class ProgressPlot:  # pragma: no cover
         )
         self.line_slit, = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
         self.mask_slit, = self.ax3.plot(np.zeros(self.nbad), "+g")
+
+        self.ax1.set_zscale("log")
+        self.ax4.set_zscale("log")
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -629,6 +630,10 @@ def extract_spectrum(
         mask = np.full(ncol, False)
     else:
         mask = out_mask
+    if out_slitf is None:
+        slitf = np.zeros(nslitf)
+    else:
+        slitf = out_slitf
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen)
     nswath = 2 * nbin - 1
@@ -677,6 +682,22 @@ def extract_spectrum(
             osample=osample,
         )
 
+        i = 0
+        while np.any(np.isnan(swath.spec[ihalf])):
+            i += 1
+            print(f"What the fuck + {i}")
+            swath[ihalf] = slitfunc_curved(
+                swath_img,
+                swath_ycen,
+                swath_tilt,
+                swath_shear,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample + i,
+            )
+            swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
+
+
         if normalize:
             # Save image and model for later
             # Use np.divide to avoid divisions by zero
@@ -685,7 +706,7 @@ def extract_spectrum(
             np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
             norm_model[ihalf] = swath.model[ihalf]
 
-        if plot:  # pragma: no cover
+        if plot >= 2:  # pragma: no cover
             if not np.all(np.isnan(swath_img)):
                 if progress is None:
                     progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
@@ -747,7 +768,8 @@ def extract_spectrum(
     # Update column range
     xrange[0] += margin[0, 0]
     xrange[1] -= margin[-1, 1]
-    mask[: xrange[0]] = mask[xrange[1] :] = True
+    mask[: xrange[0]] = True
+    mask[xrange[1] :] = True
 
     # Apply weights
     for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
@@ -760,14 +782,12 @@ def extract_spectrum(
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
-    slitf = np.mean(swath.slitf, axis=0)
-    if out_slitf is not None:
-        out_slitf[:] = slitf
-
+    slitf[:] = np.mean(swath.slitf, axis=0)
     sunc[:] = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
-
-    # model = spec[None, :] * slitf[:, None]
     return spec, slitf, mask, sunc
+
+def model(spec, slitf):
+    return spec[None, :] * slitf[:, None]
 
 
 def get_y_scale(ycen, xrange, extraction_width, nrow):
@@ -865,7 +885,7 @@ def optimal_extraction(
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
-    if plot:  # pragma: no cover
+    if plot >= 2:  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_width, axis=1).max()
         progress = ProgressPlot(nrow_swath, ncol_swath)
@@ -902,7 +922,7 @@ def optimal_extraction(
             **kwargs,
         )
 
-    if plot:  # pragma: no cover
+    if plot >= 2:  # pragma: no cover
         progress.close()
 
     return spectrum, slitfunction, uncertainties

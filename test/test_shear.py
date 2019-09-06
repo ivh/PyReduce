@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 
 from pyreduce.util import load_fits
+from pyreduce.combine_frames import combine_frames
 from pyreduce.make_shear import Curvature as CurvatureModule
 
 
@@ -11,9 +12,9 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
 
     _, extracted = wave
     orders, column_range = orders
+    files = files["curvature"]
 
-    files = files["curvature"][0]
-    original, thead = load_fits(files, instrument, mode, extension, mask=mask)
+    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
 
     module = CurvatureModule(
         orders,
@@ -62,11 +63,11 @@ def test_shear_exception(
 
     _, extracted = wave
     orders, column_range = orders
+    files = files["curvature"]
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
 
-    files = files["curvature"][0]
-    original, thead = load_fits(files, instrument, mode, extension, mask=mask)
+    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
     original = np.copy(original)
 
     # Wrong curv_degree input
@@ -92,11 +93,11 @@ def test_shear_nopeaks(
 
     _, extracted = wave
     orders, column_range = orders
+    files = files["curvature"]
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
 
-    files = files["curvature"][0]
-    original, thead = load_fits(files, instrument, mode, extension, mask=mask)
+    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
     original = np.copy(original)
 
     # Reject all possible peaks
@@ -114,10 +115,11 @@ def test_shear_zero(
 
     _, extracted = wave
     orders, column_range = orders
+    files = files["curvature"]
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
 
-    files = files["curvature"][0]
+    files = files[0]
     original, thead = load_fits(files, instrument, mode, extension, mask=mask)
 
     original = np.zeros_like(original)

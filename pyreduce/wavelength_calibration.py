@@ -544,7 +544,7 @@ class WavelengthCalibration:
             )
 
         if plot or self.plot >= 2: #pragma: no cover
-            self.plot_residuals(lines, coef)
+            self.plot_residuals(lines, coef, title="Residuals")
 
         return coef
 
@@ -956,9 +956,9 @@ class WavelengthCalibration:
         if plot or self.plot >= 2: #pragma: no cover
             mask = lines["flag"]
             _, axis = plt.subplots()
-            axis.plot(lines["order"][mask], residual[mask], "+", label="Accepted Lines")
+            axis.plot(lines["order"][mask], residual[mask], "X", label="Accepted Lines")
             axis.plot(
-                lines["order"][~mask], residual[~mask], "d", label="Rejected Lines"
+                lines["order"][~mask], residual[~mask], "D", label="Rejected Lines"
             )
             axis.set_xlabel("Order")
             axis.set_ylabel("Residual [m/s]")
@@ -986,13 +986,13 @@ class WavelengthCalibration:
                 ax[iord // 2, iord % 2].plot(
                     order_lines["posm"][mask],
                     residual[mask],
-                    "+",
+                    "X",
                     label="Accepted Lines",
                 )
                 ax[iord // 2, iord % 2].plot(
                     order_lines["posm"][~mask],
                     residual[~mask],
-                    "d",
+                    "D",
                     label="Rejected Lines",
                 )
                 # ax[iord // 2, iord % 2].tick_params(labelleft=False)
@@ -1038,7 +1038,7 @@ class WavelengthCalibration:
             order_lines = lines[lines["order"] == order]
             if len(order_lines) > 0:
                 residual = self.calculate_residual(coef, order_lines)
-                plt.plot(order_lines["posm"], residual, "rx")
+                plt.plot(order_lines["posm"], residual, "rX")
                 plt.hlines([0], order_lines["posm"].min(), order_lines["posm"].max())
                 # plt.ylim((-self.threshold, self.threshold))
         plt.show()
@@ -1163,7 +1163,8 @@ class WavelengthCalibration:
             residual = wave - new_wave
             residual = residual.ravel()
 
-            area = np.percentile(residual, (0.1, 99.9))
+            area = np.percentile(residual, (32, 50, 68))
+            area = area[0] - 5 * (area[1] - area[0]), area[0] + 5 * (area[2] - area[1])
             plt.hist(residual, bins=100, range=area)
             plt.title("ThAr - LFC")
             plt.xlabel(r"$\Delta\lambda$ [Å]")

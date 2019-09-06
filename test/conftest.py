@@ -579,7 +579,7 @@ def wave(step_args, settings, files, orders, mask, curvature, bias):
 
 
 @pytest.fixture
-def spec(step_args, settings, files, bias, orders, norm_flat, curvature, mask):
+def spec(step_args, settings, files, bias, orders, normflat, curvature, mask):
     """Load or create science spectrum
 
     Returns
@@ -590,7 +590,6 @@ def spec(step_args, settings, files, bias, orders, norm_flat, curvature, mask):
         uncertainty on the extracted science spectra
     """
     name = "science"
-    files = files[name][0]
     settings = settings[name]
     settings["plot"] = False
 
@@ -599,7 +598,8 @@ def spec(step_args, settings, files, bias, orders, norm_flat, curvature, mask):
     try:
         heads, specs, sigmas, column_ranges = step.load(files)
     except FileNotFoundError:
+        files = files[name][:1]
         heads, specs, sigmas, column_ranges = step.run(
-            files, bias, orders, norm_flat, curvature, mask
+            files, bias, orders, normflat, curvature, mask
         )
     return specs[0], sigmas[0]
