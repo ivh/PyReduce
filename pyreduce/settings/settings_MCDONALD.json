@@ -19,7 +19,7 @@
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 0.3,
+        "extraction_width": 0.4,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
