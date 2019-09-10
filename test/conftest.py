@@ -3,6 +3,7 @@ import os
 import pickle
 import tempfile
 from os.path import dirname, join
+from shutil import rmtree
 
 import numpy as np
 import pytest
@@ -185,7 +186,7 @@ def order_range(instrument):
 
 
 @pytest.fixture
-def data(dataset):
+def data(dataset, settings, target, night, mode):
     """
     Load dataset data from the web if necessary, and return data folder
 
@@ -214,8 +215,10 @@ def data(dataset):
         folder = datasets.KECK_NIRSPEC(folder)
     else:
         raise ValueError("Dataset not recognised")
-    return folder
+    yield folder
 
+    odir = _odir(folder, settings, instrument, target, night, mode)
+    rmtree(odir, ignore_errors=True)
 
 @pytest.fixture
 def settings(instrument):
@@ -256,6 +259,11 @@ def input_dir(data, target, settings, night, mode):
     odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
     return join(data, odir)
 
+def _odir(data, settings, instrument, target, night, mode):
+    odir = settings["reduce"]["output_dir"]
+    odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
+    odir = join(data, odir)
+    return odir
 
 @pytest.fixture
 def output_dir(data, settings, instrument, target, night, mode):
@@ -282,13 +290,8 @@ def output_dir(data, settings, instrument, target, night, mode):
     output_dir : str
         output directory
     """
-
-    odir = settings["reduce"]["output_dir"]
-    odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
-    odir = join(data, odir)
-
+    odir = _odir(data, settings, instrument, target, night, mode)
     os.makedirs(odir, exist_ok=True)
-
     return odir
 
 

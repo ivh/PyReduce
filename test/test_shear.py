@@ -2,45 +2,61 @@ import pytest
 import numpy as np
 
 from pyreduce.util import load_fits
+from pyreduce.extract import extract
 from pyreduce.combine_frames import combine_frames
 from pyreduce.make_shear import Curvature as CurvatureModule
 
 
-def test_shear(files, wave, orders, instrument, mode, extension, mask, order_range):
+@pytest.fixture
+def original(files, instrument, mode, extension, mask):
     if len(files["curvature"]) == 0:
-        pytest.skip(f"No curvature files found for instrument {instrument}")
+        return None, None
 
-    _, extracted = wave
-    orders, column_range = orders
     files = files["curvature"]
-
     original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
 
-    module = CurvatureModule(
+    return original, chead
+
+
+@pytest.fixture
+def extracted(original, orders, order_range, settings):
+    original, chead = original
+    orders, column_range = orders
+    settings = settings["curvature"]
+
+    if original is None:
+        return None
+
+    extracted, _, _, _ = extract(
+        original,
         orders,
+        gain=chead["e_gain"],
+        readnoise=chead["e_readn"],
+        dark=chead["e_drk"],
+        extraction_type="arc",
         column_range=column_range,
         order_range=order_range,
         plot=False,
-        mode="1D",
-        curv_degree=2,
+        extraction_width=settings["extraction_width"],
     )
-    tilt, shear = module.execute(extracted, original)
+    return extracted
 
-    assert isinstance(tilt, np.ndarray)
-    assert tilt.ndim == 2
-    assert tilt.shape[0] == order_range[1] - order_range[0]
-    assert tilt.shape[1] == extracted.shape[1]
 
-    assert isinstance(shear, np.ndarray)
-    assert shear.ndim == 2
-    assert shear.shape[0] == order_range[1] - order_range[0]
-    assert shear.shape[1] == extracted.shape[1]
+def test_shear(original, extracted, orders, order_range, settings):
+    original, chead = original
+    orders, column_range = orders
+    settings = settings["curvature"]
 
-    orders = orders[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
+    if extracted is None:
+        pytest.skip("No curvature files")
+
+    del settings["dimensionality"]
+    del settings["degree"]
+    settings["mode"] = "1D"
+    settings["curv_degree"] = 2
 
     module = CurvatureModule(
-        orders, column_range=column_range, plot=False, curv_degree=1, mode="2D"
+        orders, column_range=column_range, order_range=order_range, **settings
     )
     tilt, shear = module.execute(extracted, original)
 
@@ -54,20 +70,35 @@ def test_shear(files, wave, orders, instrument, mode, extension, mask, order_ran
     assert shear.shape[0] == order_range[1] - order_range[0]
     assert shear.shape[1] == extracted.shape[1]
 
+    orders = orders[order_range[0] : order_range[1]]
+    column_range = column_range[order_range[0] : order_range[1]]
+    settings["mode"] = "2D"
+    settings["curv_degree"] = 1
 
-def test_shear_exception(
-    files, wave, orders, instrument, mode, extension, mask, order_range
-):
-    if len(files["curvature"]) == 0:
-        pytest.skip(f"No curvature files found for instrument {instrument}")
+    module = CurvatureModule(orders, column_range=column_range, **settings)
+    tilt, shear = module.execute(extracted, original)
 
-    _, extracted = wave
+    assert isinstance(tilt, np.ndarray)
+    assert tilt.ndim == 2
+    assert tilt.shape[0] == order_range[1] - order_range[0]
+    assert tilt.shape[1] == extracted.shape[1]
+
+    assert isinstance(shear, np.ndarray)
+    assert shear.ndim == 2
+    assert shear.shape[0] == order_range[1] - order_range[0]
+    assert shear.shape[1] == extracted.shape[1]
+
+
+def test_shear_exception(original, extracted, orders, order_range):
+    original, chead = original
     orders, column_range = orders
-    files = files["curvature"]
+
+    if extracted is None:
+        pytest.skip("No curvature files")
+
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
 
-    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
     original = np.copy(original)
 
     # Wrong curv_degree input
@@ -85,20 +116,15 @@ def test_shear_exception(
         tilt, shear = module.execute(extracted, original)
 
 
-def test_shear_nopeaks(
-    files, wave, orders, instrument, mode, extension, mask, order_range
-):
-    if len(files["curvature"]) == 0:
-        pytest.skip(f"No curvature files found for instrument {instrument}")
-
-    _, extracted = wave
+def test_shear_nopeaks(original, extracted, orders, order_range):
+    original, chead = original
     orders, column_range = orders
-    files = files["curvature"]
+
+    if extracted is None:
+        pytest.skip("No curvature files")
+
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
-
-    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
-    original = np.copy(original)
 
     # Reject all possible peaks
     module = CurvatureModule(
@@ -107,20 +133,14 @@ def test_shear_nopeaks(
     tilt, shear = module.execute(extracted, original)
 
 
-def test_shear_zero(
-    files, wave, orders, instrument, mode, extension, mask, order_range
-):
-    if len(files["curvature"]) == 0:
-        pytest.skip(f"No curvature files found for instrument {instrument}")
-
-    _, extracted = wave
+def test_shear_zero(original, extracted, orders, order_range):
+    original, chead = original
     orders, column_range = orders
-    files = files["curvature"]
+
+    if extracted is None:
+        pytest.skip("No curvature files")
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
-
-    files = files[0]
-    original, thead = load_fits(files, instrument, mode, extension, mask=mask)
 
     original = np.zeros_like(original)
     extracted = np.zeros_like(extracted)

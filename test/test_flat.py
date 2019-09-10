@@ -13,12 +13,7 @@ def test_flat(instrument, mode, files, extension, mask):
         pytest.skip(f"No flat files for instrument {instrument}")
 
     flat, fhead = combine_flat(
-        files["flat"],
-        instrument,
-        mode,
-        extension=extension,
-        window=50,
-        mask=mask,
+        files["flat"], instrument, mode, extension=extension, window=50, mask=mask
     )
 
     assert isinstance(flat, np.ma.masked_array)
@@ -29,18 +24,20 @@ def test_flat(instrument, mode, files, extension, mask):
     assert flat.shape[1] > 1
 
 
-def test_flat_with_bias(instrument, mode, files, extension, mask):
+def test_flat_with_bias(instrument, mode, files, extension, mask, bias):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
     window = 50
+    bias, bhead = bias
     flat, fhead = combine_flat(
         files["flat"],
         instrument,
         mode,
         extension=extension,
         window=window,
-        bias=1,
+        bias=bias,
+        bhead=bhead,
         mask=mask,
     )
 
@@ -50,7 +47,6 @@ def test_flat_with_bias(instrument, mode, files, extension, mask):
     assert flat.ndim == 2
     assert flat.shape[0] > 1
     assert flat.shape[1] > 1
-
 
 
 def test_simple(tempfiles):
