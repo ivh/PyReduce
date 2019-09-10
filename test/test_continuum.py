@@ -9,6 +9,9 @@ def spliced(spec, wave, normflat):
     _, blaze = normflat
     wave, _ = wave
 
+    if wave is None:
+        return None, None, None, None
+
     spec, wave, blaze, sigma = splice_orders(
         spec, wave, blaze, sigma, scaling=True, plot=False
     )
@@ -18,6 +21,9 @@ def test_splice(spec, wave, normflat, order_range):
     spec, sigma = spec
     norm, blaze = normflat
     wave, thar = wave
+
+    if wave is None:
+        pytest.skip("Need wavecal for splice")
 
     spec, wave, blaze, sigma = splice_orders(
         spec, wave, blaze, sigma, scaling=True, plot=False
@@ -47,6 +53,9 @@ def test_splice(spec, wave, normflat, order_range):
 def test_continuum(spliced):
     spec, wave, cont, sigm = spliced
     
+    if wave is None:
+        pytest.skip("Need wavecal for continuum")
+
     new = continuum_normalize(
         spec,
         wave,

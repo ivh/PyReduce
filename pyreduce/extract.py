@@ -312,6 +312,9 @@ def fix_extraction_width(xwd, orders, cr, ncol):
                     left = max(cr[[i, k], 0])
                     right = min(cr[[i, k], 1])
 
+                    if right < left:
+                        raise ValueError(f"Check your column ranges. Orders {i} and {k} are weird")
+
                     current = np.polyval(orders[i], x[left:right])
                     below = np.polyval(orders[k], x[left:right])
                     xwd[i, j] *= np.abs(np.mean(current - below))

@@ -884,11 +884,9 @@ class WavelengthCalibration(Step):
             raise FileNotFoundError("No files found for wavelength calibration")
 
         # Load wavecal image
-        orig, thead = combine_frames(
-            files, self.instrument, self.mode, self.extension, mask=mask
+        orig, thead = combine_flat(
+            files, self.instrument, self.mode, self.extension, mask=mask, bias=bias, bhead=bhead
         )
-        if bias is not None:
-            orig -= bias * len(files)
 
         # Extract wavecal spectrum
         thar, _, _, _ = extract(
@@ -1380,6 +1378,9 @@ class ScienceExtraction(Step):
         """
         files = files["science"]
         files = [self.science_file(fname) for fname in files]
+
+        if len(files) == 0:
+            raise FileNotFoundError("Science files are required to load them")
 
         heads, specs, sigmas, columns = [], [], [], []
         for fname in files:

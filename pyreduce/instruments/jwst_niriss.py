@@ -60,6 +60,9 @@ class JWST_NIRISS(instrument):
         nframes = shape[0]
         ngroups = shape[1]
 
+        if nframes == 1 and ngroups == 1:
+            return [os.path.join(dirname, fname)]
+
         data = hdu["SCI"].data.reshape((-1, *shape[-2:]))
         bias = data[0]
         primary = fits.PrimaryHDU(header=header)

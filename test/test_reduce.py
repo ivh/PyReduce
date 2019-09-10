@@ -42,6 +42,7 @@ def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_r
     )
 
 
+@pytest.mark.skip
 def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     output = reduce.main(
         instrument,

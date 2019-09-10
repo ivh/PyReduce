@@ -285,6 +285,8 @@ def save(fname, header, **kwargs):
 
     columns = []
     for key, value in kwargs.items():
+        if value is None:
+            continue
         arr = value.ravel()[None, :]
 
         if issubclass(arr.dtype.type, np.floating):

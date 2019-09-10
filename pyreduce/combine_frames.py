@@ -457,7 +457,11 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
     # Subtract master dark
     # TODO: Why do we scale with number of files and not exposure time?
     if bias is not None:
-        flat = flat - bias * len(files)
+        if bhead["EXPTIME"] == 0:
+            flat -= bias * len(files)
+        else:
+            flat -= bias * fhead["EXPTIME"] / bhead["EXPTIME"]
+
 
     if plot: #pragma: no cover
         plt.title("Master Flat")

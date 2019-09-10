@@ -115,24 +115,6 @@ def test_shear_exception(original, extracted, orders, order_range):
         )
         tilt, shear = module.execute(extracted, original)
 
-
-def test_shear_nopeaks(original, extracted, orders, order_range):
-    original, chead = original
-    orders, column_range = orders
-
-    if extracted is None:
-        pytest.skip("No curvature files")
-
-    orders = orders[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
-
-    # Reject all possible peaks
-    module = CurvatureModule(
-        orders, column_range=column_range, plot=False, max_iter=None, sigma_cutoff=0
-    )
-    tilt, shear = module.execute(extracted, original)
-
-
 def test_shear_zero(original, extracted, orders, order_range):
     original, chead = original
     orders, column_range = orders
@@ -147,6 +129,6 @@ def test_shear_zero(original, extracted, orders, order_range):
 
     # Reject all possible peaks
     module = CurvatureModule(
-        orders, column_range=column_range, plot=False, max_iter=None, sigma_cutoff=0
+        orders, column_range=column_range, plot=False, sigma_cutoff=0
     )
     tilt, shear = module.execute(extracted, original)

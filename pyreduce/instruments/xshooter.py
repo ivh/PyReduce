@@ -158,6 +158,6 @@ class XSHOOTER(instrument):
         info = self.load_info()
 
         cwd = os.path.dirname(__file__)
-        fname = f"xshooter_{mode}_2D.npz"
+        fname = f"xshooter_{mode.lower()}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname

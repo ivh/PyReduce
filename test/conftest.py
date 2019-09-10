@@ -577,7 +577,10 @@ def wave(step_args, settings, files, orders, mask, curvature, bias):
     try:
         wave, thar, coef, linelist = step.load()
     except FileNotFoundError:
-        wave, thar, coef, linelist = step.run(files, orders, mask, curvature, bias)
+        try:
+            wave, thar, coef, linelist = step.run(files, orders, mask, curvature, bias)
+        except FileNotFoundError:
+            wave, thar = None, None
     return wave, thar
 
 
