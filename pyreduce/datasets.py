@@ -5,7 +5,7 @@ This requires the server to be up and running,
 if data needs to be downloaded
 """
 import os
-from os.path import dirname, join
+from os.path import dirname, join, isfile
 import tarfile
 import wget
 
@@ -19,6 +19,13 @@ def load_data_from_server(filename, directory):
 
 def get_dataset(name, local_dir=None):
     """Load a dataset
+
+    Note
+    ----
+    This method will not override existing files with the same
+    name, even if they have a different content. Therefore
+    if the files were changed for any reason, the user has to
+    manually delete them from the disk before using this method.
 
     Parameters
     ----------
@@ -47,9 +54,12 @@ def get_dataset(name, local_dir=None):
     if not os.path.isfile(filename):
         load_data_from_server(fname, data_dir)
 
+    # Extract the downloaded .tar.gz file
     with tarfile.open(filename) as file:
         raw_dir = join(data_dir, "raw")
-        file.extractall(path=raw_dir)
+        names = [f for f in file if not isfile(join(raw_dir, f.name))]
+        if len(names) != 0:
+            file.extractall(path=raw_dir, members=names)
 
     return data_dir
 
@@ -107,6 +117,26 @@ def LICK_APF(local_dir=None):  # pragma: no cover
     """
 
     return get_dataset("APF", local_dir)
+
+def MCDONALD(local_dir=None):  # pragma: no cover
+    """Load an example dataset
+    instrument: JWST_MIRI
+    target: ?
+
+    Data simulated with MIRIsim
+
+    Parameters
+    ----------
+    local_dir : str, optional
+        directory to save data at (default: "./")
+
+    Returns
+    -------
+    dataset_dir : str
+        directory where the data was saved
+    """
+
+    return get_dataset("MCDONALD", local_dir)
 
 def JWST_MIRI(local_dir=None):  # pragma: no cover
     """Load an example dataset
