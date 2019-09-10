@@ -77,10 +77,8 @@
         "degree": 2,
         "curv_degree": 2,
         "extraction_width": 0.2,
-        "iterations": null,
         "sigma_cutoff": 3,
-        "plot": true,
-        "verbose": 1
+        "plot": true
     },
     "science": {
         "extraction_method": "optimal",

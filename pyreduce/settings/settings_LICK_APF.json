@@ -3,10 +3,8 @@
     "__skip_existing__": false,
     "instrument": {},
     "bias": {
-        "plot": false
     },
     "flat": {
-        "plot": false
     },
     "orders": {
         "degree": 4,
@@ -17,8 +15,7 @@
         "merge_min_threshold": 0.01,
         "auto_merge_threshold": 0.1,
         "closing_shape": [3, 10],
-        "manual": true,
-        "plot": false
+        "manual": true
     },
     "scatter": {
         "extraction_width": [9, 9]
@@ -28,42 +25,35 @@
         "smooth_spectrum": 0,
         "extraction_width": [9, 9],
         "oversampling": 12,
-        "swath_width": 300,
-        "plot": false
+        "swath_width": 300
     },
     "wavecal": {
         "extraction_width": 0.25,
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [2, 6],
-        "manual": false,
-        "plot": false
+        "manual": false
     },
     "freq_comb": {
         "extraction_width": 0.25,
         "dimensionality": "2D",
-        "degree": [6, 6],
-        "plot": false
+        "degree": [6, 6]
     },
     "curvature": {
         "extraction_width": 0.25,
         "dimensionality": "1D",
-        "degree": 2,
-        "plot": false
+        "degree": 2
     },
     "science": {
         "oversampling": 10,
         "extraction_width": [8, 8],
         "swath_width": 800,
         "smooth_slitfunction": 6,
-        "smooth_spectrum": 0,
-        "plot": false
+        "smooth_spectrum": 0
     },
     "continuum": {
-        "plot": true
     },
     "finalize": {
-        "filename": "{input}.ech",
-        "plot": false
+        "filename": "{input}.ech"
     }
 }

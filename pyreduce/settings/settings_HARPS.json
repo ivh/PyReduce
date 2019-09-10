@@ -39,8 +39,7 @@
     "curvature": {
         "extraction_width": 10,
         "dimensionality": "1D",
-        "degree": 3,
-        "plot": true
+        "degree": 3
     },
     "science": {
         "oversampling": 10,

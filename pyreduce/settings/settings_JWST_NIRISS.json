@@ -39,16 +39,13 @@
     "curvature": {
         "extraction_width": 10,
         "dimensionality": "2D",
-        "degree": [3, 6],
-        "plot": true,
-        "verbose": 1
+        "degree": [3, 6]
     },
     "science": {
         "oversampling": 5,
         "extraction_width": 15,
         "swath_width": 300,
         "smooth_slitfunction": 0.1,
-        "smooth_spectrum": 0,
-        "plot": false
+        "smooth_spectrum": 0
     }
 }

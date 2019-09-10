@@ -338,14 +338,6 @@
                                 ]
                             }
                         },
-                        "iterations": {
-                            "description": "Number of iterations in the removing of outliers loop. Unlimited loop if null.",
-                            "type": [
-                                "integer",
-                                "null"
-                            ],
-                            "minimum": 0
-                        },
                         "sigma_cutoff": {
                             "description": "The threshold for removing outliers in standard deviations of the residual",
                             "type": "number",
@@ -356,7 +348,6 @@
                         "dimensionality",
                         "degree",
                         "extraction_width",
-                        "iterations",
                         "sigma_cutoff"
                     ]
                 }

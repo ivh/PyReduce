@@ -37,9 +37,7 @@
     "curvature": {
         "extraction_width": 10,
         "dimensionality": "2D",
-        "degree": [3, 6],
-        "plot": true,
-        "verbose": 1
+        "degree": [3, 6]
     },
     "science": {
         "oversampling": 1,
