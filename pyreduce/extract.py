@@ -697,7 +697,6 @@ def extract_spectrum(
             )
             swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
 
-
         if normalize:
             # Save image and model for later
             # Use np.divide to avoid divisions by zero
@@ -785,6 +784,7 @@ def extract_spectrum(
     slitf[:] = np.mean(swath.slitf, axis=0)
     sunc[:] = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
     return spec, slitf, mask, sunc
+
 
 def model(spec, slitf):
     return spec[None, :] * slitf[:, None]
@@ -925,6 +925,11 @@ def optimal_extraction(
     if plot >= 2:  # pragma: no cover
         progress.close()
 
+    if plot:  # pragma: no cover
+        plot_comparison(
+            img, orders, spectrum, slitfunction, extraction_width, column_range
+        )
+
     return spectrum, slitfunction, uncertainties
 
 
@@ -978,11 +983,6 @@ def arc_extraction(
     _, ncol = img.shape
     nord, _ = orders.shape
 
-    if plot:  # pragma: no cover
-        # Prepare output image
-        output = np.ma.zeros((np.sum(extraction_width) + nord, ncol))
-        pos = [0]
-
     spectrum = np.zeros((nord, ncol))
     uncertainties = np.zeros((nord, ncol))
 
@@ -1028,38 +1028,50 @@ def arc_extraction(
         uncertainties[i, x_left_lim:x_right_lim] = (
             np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
         )
-        if plot:  # pragma: no cover
-            yleft, yright = pos[i], pos[i] + index[0].shape[0]
-            output[yleft:yright, x_left_lim:x_right_lim] = img[index]
-            pos += [pos[i] + index[0].shape[0]]
 
     if plot:  # pragma: no cover
-        plt.title("Extracted Spectrum vs. Input Image")
-        plt.xlabel("x [pixel]")
-        plt.ylabel("order")
-        locs = np.sum(extraction_width, axis=1) + 1
-        locs = [0, *np.cumsum(locs)[:-1]]
-        plt.yticks(locs, range(len(locs)))
-        plt.imshow(
-            output,
-            vmin=0,
-            vmax=np.mean(output) + 5 * np.std(output),
-            origin="lower",
-            aspect="auto",
-        )
-
-        for i in range(nord):
-            tmp = spectrum[i] - np.min(
-                spectrum[i, column_range[i, 0] : column_range[i, 1]]
-            )
-            tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
-            tmp += pos[i]
-            tmp[tmp < pos[i]] = pos[i]
-            plt.plot(x, tmp)
-
-        plt.show()
+        plot_comparison(img, orders, spectrum, None, extraction_width, column_range)
 
     return spectrum, uncertainties
+
+
+def plot_comparison(
+    original, orders, spectrum, slitf, extraction_width, column_range
+):  # pragma: no cover
+    nrow, ncol = original.shape
+    nord = len(orders)
+    output = np.zeros((np.sum(extraction_width) + nord, ncol))
+    pos = [0]
+    x = np.arange(ncol)
+    for i in range(nord):
+        ycen = np.polyval(orders[i], x)
+        yb = ycen - extraction_width[i, 0]
+        yt = ycen + extraction_width[i, 1]
+        xl, xr = column_range[i]
+        index = make_index(yb, yt, xl, xr)
+        yl = pos[i]
+        yr = pos[i] + index[0].shape[0]
+        output[yl:yr, xl:xr] = original[index]
+        pos += [yr]
+
+    vmin, vmax = np.percentile(output[output != 0], (5, 95))
+    plt.imshow(output, vmin=vmin, vmax=vmax, origin="lower", aspect="auto")
+
+    for i in range(nord):
+        tmp = spectrum[i] - np.min(spectrum[i, column_range[i, 0] : column_range[i, 1]])
+        np.log(tmp, out=tmp, where=tmp > 0)
+        tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
+        tmp += pos[i]
+        tmp[tmp < pos[i]] = pos[i]
+        plt.plot(x, tmp)
+
+    locs = np.sum(extraction_width, axis=1) + 1
+    locs = [0, *np.cumsum(locs)[:-1]]
+    plt.yticks(locs, range(len(locs)))
+    plt.title("Extracted Spectrum vs. Input Image")
+    plt.xlabel("x [pixel]")
+    plt.ylabel("order")
+    plt.show()
 
 
 def extract(
