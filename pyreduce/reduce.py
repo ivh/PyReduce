@@ -1130,8 +1130,6 @@ class SlitCurvatureDetermination(Step):
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
         self.curv_degree = config["curv_degree"]
-        #:int: Number of iterations in the removal of bad lines loop
-        self.max_iter = config["iterations"]
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["sigma_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
@@ -1189,7 +1187,6 @@ class SlitCurvatureDetermination(Step):
             order_range=self.order_range,
             fit_degree=self.fit_degree,
             curv_degree=self.curv_degree,
-            max_iter=self.max_iter,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             plot=self.plot,

@@ -123,7 +123,6 @@ class Curvature:
         threshold=10,
         fit_degree=2,
         sigma_cutoff=3,
-        max_iter=None,
         mode="1D",
         plot=False,
         curv_degree=2,
@@ -138,9 +137,6 @@ class Curvature:
         self.threshold = threshold
         self.fit_degree = fit_degree
         self.sigma_cutoff = sigma_cutoff
-        if max_iter is None:
-            max_iter = np.inf
-        self.max_iter = max_iter
         self.mode = mode
         self.plot = plot
         self.curv_degree = curv_degree
