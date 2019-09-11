@@ -19,13 +19,18 @@ import numpy as np
 try:
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
-
     from .clib._slitfunc_bd import ffi
 except ImportError:  # pragma: no cover
     logging.error(
-        "C libraries could not be found. Compile them by running build_extract.py"
+        "C libraries could not be found. Compiling them by running build_extract.py"
     )
-    raise ImportError("Use build_extract.py to compile the C libraries")
+    from .clib import build_extract
+    build_extract.build()
+    del build_extract
+
+    from .clib._slitfunc_bd import lib as slitfunclib
+    from .clib._slitfunc_2d import lib as slitfunc_2dlib
+    from .clib._slitfunc_bd import ffi
 
 
 c_double = np.ctypeslib.ctypes.c_double
