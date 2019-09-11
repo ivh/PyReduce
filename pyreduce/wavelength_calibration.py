@@ -18,7 +18,6 @@ from scipy.optimize import curve_fit
 
 from astropy.io import fits
 
-from data_sources import NIST
 from . import util
 
 
@@ -115,18 +114,6 @@ class LineAtlas:
         folder = dirname(__file__)
         self.fname = join(folder, "wavecal", "atlas", fname)
         self.wave, self.data = self.load_fits(self.fname)
-
-        wmin, wmax = self.wave.min(), self.wave.max()
-
-        self.nist_wave, self.nist_data = self.load_nist("Th", wmin, wmax)
-        pass
-
-    def load_nist(self, element, wmin, wmax):
-        lines = NIST.load(element, wmin, wmax, "AA")
-        data = lines["rel_int"]
-        data /= data.max()
-        wave = lines["wave"]
-        return wave, data
 
     def load_fits(self, fname):
         hdu = fits.open(fname)
