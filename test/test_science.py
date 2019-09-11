@@ -35,8 +35,10 @@ def test_science(
         f, instrument, mode, extension, mask=mask, dtype=np.float32
     )
     # Correct for bias and flat field
-    im -= bias
-    im /= flat
+    if bias is not None:
+        im = im - bias
+    if flat is not None:
+        im = im / flat
 
     # Optimally extract science spectrum
     spec, sigma, _, _ = extract(
@@ -59,7 +61,7 @@ def test_science(
     assert isinstance(spec, np.ma.masked_array)
     assert spec.ndim == 2
     assert spec.shape[0] == order_range[1] - order_range[0]
-    assert spec.shape[1] == bias.shape[1]
+    assert spec.shape[1] == im.shape[1]
     assert np.issubdtype(spec.dtype, np.floating)
     assert not np.any(np.isnan(spec))
     assert not np.all(np.all(spec.mask, axis=0))
@@ -67,7 +69,7 @@ def test_science(
     assert isinstance(sigma, np.ma.masked_array)
     assert sigma.ndim == 2
     assert sigma.shape[0] == order_range[1] - order_range[0]
-    assert sigma.shape[1] == bias.shape[1]
+    assert sigma.shape[1] == im.shape[1]
     assert np.issubdtype(sigma.dtype, np.floating)
     assert not np.any(np.isnan(sigma))
     assert not np.all(np.all(sigma.mask, axis=0))
