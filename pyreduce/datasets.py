@@ -4,9 +4,11 @@ Provides example datasets for the examples
 This requires the server to be up and running,
 if data needs to be downloaded
 """
+import logging
 import os
-from os.path import dirname, join, isfile
 import tarfile
+from os.path import dirname, isfile, join
+
 import wget
 
 
@@ -40,6 +42,7 @@ def get_dataset(name, local_dir=None):
         directory where the data was saved
     """
 
+
     if local_dir is None:
         local_dir = dirname(__file__)
         local_dir = join(local_dir, "../")
@@ -50,15 +53,19 @@ def get_dataset(name, local_dir=None):
     filename = join(data_dir, fname)
 
     os.makedirs(data_dir, exist_ok=True)
-
     if not os.path.isfile(filename):
+        logging.info("Downloading dataset %s", name)
+        logging.info("Data is stored at %s", data_dir)
         load_data_from_server(fname, data_dir)
+    else:
+        logging.info("Using existing dataset %s", name)
 
     # Extract the downloaded .tar.gz file
     with tarfile.open(filename) as file:
         raw_dir = join(data_dir, "raw")
         names = [f for f in file if not isfile(join(raw_dir, f.name))]
         if len(names) != 0:
+            logging.info("Extracting data from tarball")
             file.extractall(path=raw_dir, members=names)
 
     return data_dir
