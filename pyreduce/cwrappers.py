@@ -16,6 +16,7 @@ from contextlib import contextmanager
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 try:
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
@@ -25,6 +26,7 @@ except ImportError:  # pragma: no cover
         "C libraries could not be found. Compiling them by running build_extract.py"
     )
     from .clib import build_extract
+
     build_extract.build()
     del build_extract
 
@@ -41,7 +43,7 @@ c_stdout = ctypes.c_void_p.in_dll(libc, "stdout")
 
 
 @contextmanager
-def stdout_redirector(stream): #pragma: no cover
+def stdout_redirector(stream):  # pragma: no cover
     # The original fd stdout points to. Usually 1 on POSIX systems.
     original_stdout_fd = sys.stdout.fileno()
 
@@ -126,20 +128,21 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     # Prepare all arrays
     # Inital guess for slit function and spectrum
     sp = np.ma.sum(img, axis=0)
-    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
+    requirements = ["C", "A", "W", "O"]
+    sp = np.require(sp, dtype=c_double, requirements=requirements)
 
     sl = np.zeros(ny, dtype=c_double)
 
     mask = ~np.ma.getmaskarray(img)
-    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
+    mask = np.require(mask, dtype=c_int, requirements=requirements)
 
     img = np.ma.getdata(img)
-    img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
+    img = np.require(img, dtype=c_double, requirements=requirements)
 
     pix_unc = np.zeros_like(img)
-    pix_unc = np.require(pix_unc, dtype=c_double, requirements=["C", "A", "W", "O"])
+    pix_unc = np.require(pix_unc, dtype=c_double, requirements=requirements)
 
-    ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
+    ycen = np.require(ycen, dtype=c_double, requirements=requirements)
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
 
@@ -164,7 +167,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=1):
+def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -194,9 +197,15 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     osample = int(osample)
     img = np.asanyarray(img, dtype=c_double)
     ycen = np.asarray(ycen, dtype=c_double)
+    yrange = np.asarray(yrange, dtype=int)
 
     assert img.ndim == 2, "Image must be 2 dimensional"
     assert ycen.ndim == 1, "Ycen must be 1 dimensional"
+    assert yrange.ndim == 1, "Yrange must be 1 dimensional"
+    assert yrange.size == 2, "Yrange must have 2 elements"
+    assert yrange[0] + yrange[1] + 1 == img.shape[0]
+    assert yrange[0] >= 0
+    assert yrange[1] >= 0
 
     if np.isscalar(tilt):
         tilt = np.full(img.shape[1], tilt, dtype=c_double)
@@ -234,38 +243,33 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     ny = osample * (nrows + 1) + 1
 
     ycen_offset = ycen.astype(c_int)
-    ycen = ycen - ycen_offset
+    ycen_int = ycen - ycen_offset
+    y_lower_lim = int(yrange[0])
 
-    y_lower_lim = nrows // 2
+    mask = np.ma.getmaskarray(img)
+    mask |= ~np.isfinite(img)
+    img = np.ma.getdata(img)
+    img[mask] = 0
 
+    mask = np.where(mask, 0, 1)
+    sp = np.sum(img, axis=0)
     sl = np.zeros(ny, dtype=c_double)
-
-    mask = ~np.ma.getmaskarray(img)
-    img = np.ma.filled(img, 0)
-
-    # Inital guess for spectrum
-    sp = np.ma.sum(img, axis=0)
-    sp = np.ma.filled(sp, 0)
-    sp = np.require(sp, dtype=c_double, requirements=["C", "A", "W", "O"])
-
-    # Initialize arrays and ensure the correct datatype for C
-    mask = np.require(mask, dtype=c_int, requirements=["C", "A", "W", "O"])
-    img = np.require(img, dtype=c_double, requirements=["C", "A", "W", "O"])
-
-    pix_unc = np.zeros_like(img)
-    pix_unc = np.require(pix_unc, dtype=c_double, requirements=["C", "A", "W", "O"])
-
-    ycen = np.require(ycen, dtype=c_double, requirements=["C", "A", "W", "O"])
-
-    ycen_offset = np.require(
-        ycen_offset, dtype=c_int, requirements=["C", "A", "W", "O"]
-    )
-
-    tilt = np.require(tilt, dtype=c_double, requirements=["C", "A", "W", "O"])
-    shear = np.require(shear, dtype=c_double, requirements=["C", "A", "W", "O"])
-
+    pix_unc = np.copy(img)
+    np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
+
+    # Initialize arrays and ensure the correct datatype for C
+    requirements = ["C", "A", "W", "O"]
+    sp = np.require(sp, dtype=c_double, requirements=requirements)
+    sl = np.require(sl, dtype=c_double, requirements=requirements)
+    mask = np.require(mask, dtype=c_int, requirements=requirements)
+    img = np.require(img, dtype=c_double, requirements=requirements)
+    pix_unc = np.require(pix_unc, dtype=c_double, requirements=requirements)
+    ycen_int = np.require(ycen_int, dtype=c_double, requirements=requirements)
+    ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
+    tilt = np.require(tilt, dtype=c_double, requirements=requirements)
+    shear = np.require(shear, dtype=c_double, requirements=requirements)
 
     # Call the C function
     # f = io.BytesIO()
@@ -276,7 +280,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
         ffi.cast("double *", img.ctypes.data),
         ffi.cast("double *", pix_unc.ctypes.data),
         ffi.cast("int *", mask.ctypes.data),
-        ffi.cast("double *", ycen.ctypes.data),
+        ffi.cast("double *", ycen_int.ctypes.data),
         ffi.cast("int *", ycen_offset.ctypes.data),
         ffi.cast("double *", tilt.ctypes.data),
         ffi.cast("double *", shear.ctypes.data),
@@ -300,6 +304,6 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp=0, lambda_sf=0.1, osample=
     #     shear.tofile("debug_shear.dat")
     #     print(output)
 
-    mask = ~mask.astype(bool)
+    mask = mask == 0
 
     return sp, sl, model, unc, mask

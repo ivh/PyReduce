@@ -156,7 +156,9 @@ class Curvature:
     @mode.setter
     def mode(self, value):
         if value not in ["1D", "2D"]:
-            raise ValueError(f"Value for 'mode' not understood. Expected one of ['1D', '2D'] but got {value}")
+            raise ValueError(
+                f"Value for 'mode' not understood. Expected one of ['1D', '2D'] but got {value}"
+            )
         self._mode = value
 
     def _fix_inputs(self, original):
@@ -258,7 +260,7 @@ class Curvature:
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
 
-        if self.plot >= 2: #pragma: no cover
+        if self.plot >= 2:  # pragma: no cover
             self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
         return tilt, shear
 
@@ -273,7 +275,9 @@ class Curvature:
             coef_tilt = np.polyfit(peaks, tilt, self.fit_degree)
             coef_shear = np.polyfit(peaks, shear, self.fit_degree)
         except:
-            logging.error("Could not fit the curvature of this order. Using no curvature instead")
+            logging.error(
+                "Could not fit the curvature of this order. Using no curvature instead"
+            )
             coef_tilt = np.zeros(self.fit_degree + 1)
             coef_shear = np.zeros(self.fit_degree + 1)
 
@@ -304,13 +308,13 @@ class Curvature:
             shear = np.zeros(npeaks)
             mask = np.full(npeaks, True)
             for ipeak, peak in enumerate(peaks):
-                if self.plot >= 2: #pragma: no cover
+                if self.plot >= 2:  # pragma: no cover
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
                     tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
                         original, peak, ycen, xwd
                     )
-                except RuntimeError: #pragma: no cover
+                except RuntimeError:  # pragma: no cover
                     mask[ipeak] = False
 
             # Store results
@@ -354,7 +358,7 @@ class Curvature:
 
     def plot_results(
         self, ncol, plot_peaks, plot_vec, plot_tilt, plot_shear, tilt_x, shear_x
-    ): #pragma: no cover
+    ):  # pragma: no cover
         fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
         fig.suptitle("Peaks")
         fig1, axes1 = plt.subplots(
@@ -410,7 +414,7 @@ class Curvature:
 
         plt.show()
 
-    def plot_comparison(self, original, tilt, shear, peaks): #pragma: no cover
+    def plot_comparison(self, original, tilt, shear, peaks):  # pragma: no cover
         _, ncol = original.shape
         output = np.zeros((np.sum(self.extraction_width) + self.nord, ncol))
         pos = [0]
@@ -453,7 +457,7 @@ class Curvature:
 
         self._fix_inputs(original)
 
-        if self.plot >= 2: #pragma: no cover
+        if self.plot >= 2:  # pragma: no cover
             height = np.sum(self.extraction_width, axis=1).max() + 1
             self.progress = ProgressPlot(ncol, self.width, height)
 
@@ -463,13 +467,13 @@ class Curvature:
 
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
 
-        if self.plot: #pragma: no cover
+        if self.plot:  # pragma: no cover
             self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)
 
         iorder, ipeaks = np.indices(extracted.shape)
         tilt, shear = self.eval(ipeaks, iorder, coef_tilt, coef_shear)
 
-        if self.plot: #pragma: no cover
+        if self.plot:  # pragma: no cover
             self.plot_comparison(original, tilt, shear, peaks)
 
         return tilt, shear

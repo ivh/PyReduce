@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
+from scipy.ndimage import median_filter
 
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index, resample
@@ -313,7 +314,9 @@ def fix_extraction_width(xwd, orders, cr, ncol):
                     right = min(cr[[i, k], 1])
 
                     if right < left:
-                        raise ValueError(f"Check your column ranges. Orders {i} and {k} are weird")
+                        raise ValueError(
+                            f"Check your column ranges. Orders {i} and {k} are weird"
+                        )
 
                     current = np.polyval(orders[i], x[left:right])
                     below = np.polyval(orders[k], x[left:right])
@@ -672,6 +675,13 @@ def extract_spectrum(
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
 
+        # Blur the image and look for 6 sigma (2 * 3 sigma) differences
+        tmp = np.ma.filled(img, 0)
+        dilated = median_filter(tmp, 1)
+        diff = np.abs(img - dilated)
+        median, std = np.mean(diff), np.std(diff)
+        img[diff > median + 6 * std] = np.ma.masked
+
         # Do Slitfunction extraction
         swath_tilt = tilt[ibeg:iend]
         swath_shear = shear[ibeg:iend]
@@ -683,6 +693,7 @@ def extract_spectrum(
             lambda_sp=lambda_sp,
             lambda_sf=lambda_sf,
             osample=osample,
+            yrange=yrange,
         )
 
         i = 0
@@ -935,6 +946,35 @@ def optimal_extraction(
 
     return spectrum, slitfunction, uncertainties
 
+def correct_for_curvature(img_order, tilt, shear, xwd):
+    img_order = np.ma.filled(np.ma.copy(img_order), 0)
+    xt = np.arange(img_order.shape[1])
+    for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1])):
+        xi = xt + yt * tilt + yt ** 2 * shear
+        img_order[y] = np.interp(xi, xt, img_order[y])
+    return img_order
+
+def model_image(img, xwd, tilt, shear):
+    # Correct image for curvature
+    height = img.shape[0]
+    img = correct_for_curvature(img, tilt, shear, xwd)
+    # Find slitfunction using the median to avoid outliers
+    slitf = np.ma.median(img, axis=1)
+    slitf /= np.ma.sum(slitf)
+    # Use the slitfunction to find spectrum
+    spec = np.ma.median(img / slitf[:, None], axis=0)
+    # Create model from slitfunction and spectrum
+    model = spec[None, :] * slitf[:, None]
+    # Reapply curvature to the model
+    model = correct_for_curvature(model, -tilt, -shear, xwd)
+    return model, spec, slitf
+
+def get_mask(img, model):
+    # 99.73 = 3 sigma, 2 * 3 = 6 sigma
+    residual = np.ma.abs(img - model)
+    median, vmax = np.percentile(np.ma.compressed(residual), (50, 99.73))
+    vmax = median + 2 * (vmax - median)
+    return residual > vmax
 
 def arc_extraction(
     img,
@@ -1014,17 +1054,15 @@ def arc_extraction(
         # For each row of the rectified order, interpolate onto the shifted row
         # Masked pixels are set to 0, similar to the summation
         if tilt is not None and shear is not None:
-            img_order = np.ma.filled(np.ma.copy(img_order), 0)
-            xt = np.arange(x_left_lim, x_right_lim)
-            arc_tilt = tilt[i, x_left_lim:x_right_lim]
-            arc_shear = shear[i, x_left_lim:x_right_lim]
-            for y in range(height):
-                yt = y - extraction_width[i, 0]
-                xi = xt + yt * arc_tilt + yt ** 2 * arc_shear
-                img_order[y] = np.interp(xi, xt, img_order[y])
+            img_order = correct_for_curvature(
+                img_order,
+                tilt[i, x_left_lim:x_right_lim],
+                shear[i, x_left_lim:x_right_lim],
+                extraction_width[i],
+            )
 
         # Sum over the prepared image
-        arc = np.sum(img_order, axis=0)
+        arc = np.ma.sum(img_order, axis=0)
 
         # Store results
         spectrum[i, x_left_lim:x_right_lim] = arc
@@ -1055,10 +1093,15 @@ def plot_comparison(
         yl = pos[i]
         yr = pos[i] + index[0].shape[0]
         output[yl:yr, xl:xr] = original[index]
+
+        vmin, vmax = np.percentile(output[yl:yr, xl:xr], (5, 95))
+        output[yl:yr, xl:xr] = np.clip(output[yl:yr, xl:xr], vmin, vmax)
+        output[yl:yr, xl:xr] -= vmin
+        output[yl:yr, xl:xr] /= vmax - vmin
+
         pos += [yr]
 
-    vmin, vmax = np.percentile(output[output != 0], (5, 95))
-    plt.imshow(output, vmin=vmin, vmax=vmax, origin="lower", aspect="auto")
+    plt.imshow(output, origin="lower", aspect="auto")
 
     for i in range(nord):
         tmp = spectrum[i] - np.min(spectrum[i, column_range[i, 0] : column_range[i, 1]])

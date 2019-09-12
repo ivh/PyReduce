@@ -259,8 +259,8 @@ static int bandsol(
             aa = a[a_index(i + j, nd / 2 - j)];
             //if(aa==0.e0) return -j;
             r[r_index(i + j)] -= r[r_index(i)] * aa;
-            for (k = 0; k < n * (nd - j); k += n)
-                a[a_index(i + j + k, 0)] -= a[a_index(i + k, j)] * aa;
+            for (k = 0; k < nd - j; k += 1)
+                a[a_index(i + j, k)] -= a[a_index(i, j + k)] * aa;
         }
     }
 
@@ -735,6 +735,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     int x, xx, xxx, y, yy, iy, jy, n, m, ny, y_upper_lim, i, maxiter, tmpi;
     double delta_x, tmp, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
     int info, iter, isum;
+    int * orig_mask;
 
     maxiter = 5;
     y_upper_lim = nrows - 1 - y_lower_lim;
@@ -761,6 +762,9 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
     for (i = 0; i < MAX_PBJ; i++)
         p_bj[i] = 0;
 
+    orig_mask = malloc(MAX_IM * sizeof(int));
+    for (i = 0; i < MAX_IM; i++)
+        orig_mask[i] = mask[i];
     /*
       Convolution tensor telling the coordinates of detector pixels on which
       {x, iy} element falls and the corresponding projections. [ncols][ny][4]
@@ -801,8 +805,8 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         tmp = (0.5 / osample + y_upper_lim + (1. - ycen[sp_index(i)]));
         delta_x = max(delta_x, (int)(fabs(tilt[sp_index(i)] * tmp) + 1));
         PSF_curve[psf_index(i, 0)] = 0.;
-        PSF_curve[psf_index(i, 1)] = -tilt[sp_index(i)];
-        PSF_curve[psf_index(i, 2)] = -shear[sp_index(i)];
+        PSF_curve[psf_index(i, 1)] = tilt[sp_index(i)];
+        PSF_curve[psf_index(i, 2)] = shear[sp_index(i)];
     }
 
     i = xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
@@ -1014,7 +1018,7 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         {
             for (x = (int)delta_x; x < ncols - delta_x; x++)
             {
-                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) > 6. * dev)
+                if ((fabs(model[im_index(x, y)] - im[im_index(x, y)]) > 6. * dev) | (orig_mask[im_index(x, y)] == 0))
                     mask[im_index(x, y)] = 0;
                 else
                     mask[im_index(x, y)] = 1;
