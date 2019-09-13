@@ -35,7 +35,7 @@
     },
     "scatter": {
         "scatter_degree": 4,
-        "sigma_cutoff": 2,
+        "scatter_cutoff": 2,
         "border_width": null,
         "extraction_width": 0.3,
         "plot": true
@@ -48,6 +48,7 @@
         "swath_width": 200,
         "extraction_width": 0.2,
         "threshold": 0.6,
+        "extraction_cutoff": 20,
         "plot": true
     },
     "wavecal": {
@@ -60,6 +61,7 @@
         "degree": [6, 6],
         "nstep": 0,
         "shift_window": 0.01,
+        "extraction_cutoff": 20,
         "plot": true
     },
     "freq_comb": {
@@ -70,6 +72,7 @@
         "nstep": 0,
         "degree": [6, 6],
         "threshold": 100,
+        "extraction_cutoff": 20,
         "plot": true
     },
     "curvature": {
@@ -77,7 +80,8 @@
         "degree": 2,
         "curv_degree": 2,
         "extraction_width": 0.2,
-        "sigma_cutoff": 3,
+        "curvature_cutoff": 3,
+        "extraction_cutoff": 20,
         "plot": true
     },
     "science": {
@@ -87,6 +91,7 @@
         "swath_width": 300,
         "smooth_slitfunction": 20,
         "smooth_spectrum": 0.0,
+        "extraction_cutoff": 20,
         "plot": true
     },
     "continuum": {

@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, convolve
+from scipy.ndimage.morphology import binary_hit_or_miss
 
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index, resample
@@ -675,13 +676,6 @@ def extract_spectrum(
         swath_img -= scatter_correction + telluric_correction
         swath_img = np.clip(swath_img, 0, None)
 
-        # Blur the image and look for 6 sigma (2 * 3 sigma) differences
-        tmp = np.ma.filled(img, 0)
-        dilated = median_filter(tmp, 1)
-        diff = np.abs(img - dilated)
-        median, std = np.mean(diff), np.std(diff)
-        img[diff > median + 6 * std] = np.ma.masked
-
         # Do Slitfunction extraction
         swath_tilt = tilt[ibeg:iend]
         swath_shear = shear[ibeg:iend]
@@ -947,7 +941,7 @@ def optimal_extraction(
     return spectrum, slitfunction, uncertainties
 
 def correct_for_curvature(img_order, tilt, shear, xwd):
-    img_order = np.ma.filled(np.ma.copy(img_order), 0)
+    img_order = np.ma.filled(img_order, 0)
     xt = np.arange(img_order.shape[1])
     for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1])):
         xi = xt + yt * tilt + yt ** 2 * shear
@@ -1129,6 +1123,7 @@ def extract(
     extraction_type="optimal",
     tilt=None,
     shear=None,
+    sigma_cutoff=0,
     **kwargs,
 ):
     """
@@ -1194,6 +1189,19 @@ def extract(
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_width = extraction_width[order_range[0] : order_range[1]]
+
+    if sigma_cutoff > 0:
+        # Blur the image and mask outliers
+        img = np.ma.masked_invalid(img, copy=False)
+        img.data[img.mask] = 0
+        # Use the median of the sorounding pixels (excluding the pixel itself)
+        footprint = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
+        dilated = median_filter(img, footprint=footprint)
+        diff = np.ma.abs(img - dilated)
+        # median = 50%; 3 sigma = 99.73 %
+        median, std = np.percentile(diff.compressed(), (50, 99.73))
+        mask = diff > median + sigma_cutoff * std / 3
+        img[mask] = np.ma.masked
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files

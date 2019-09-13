@@ -641,7 +641,7 @@ class BackgroundScatter(Step):
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
         self.extraction_width = config["extraction_width"]
-        self.sigma_cutoff = config["sigma_cutoff"]
+        self.sigma_cutoff = config["scatter_cutoff"]
         self.border_width = config["border_width"]
 
     @property
@@ -713,6 +713,7 @@ class NormalizeFlatField(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
             }
         else:
             raise ValueError(
@@ -817,7 +818,10 @@ class WavelengthCalibration(Step):
         self.extraction_method = config["extraction_method"]
         if self.extraction_method == "arc":
             #:dict: arguments for the extraction
-            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
                 "extraction_width": config["extraction_width"],
@@ -825,6 +829,7 @@ class WavelengthCalibration(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
             }
         else:
             raise ValueError(
@@ -885,7 +890,13 @@ class WavelengthCalibration(Step):
 
         # Load wavecal image
         orig, thead = combine_flat(
-            files, self.instrument, self.mode, self.extension, mask=mask, bias=bias, bhead=bhead
+            files,
+            self.instrument,
+            self.mode,
+            self.extension,
+            mask=mask,
+            bias=bias,
+            bhead=bhead,
         )
 
         # Extract wavecal spectrum
@@ -976,7 +987,10 @@ class LaserFrequencyComb(Step):
         self.extraction_method = config["extraction_method"]
         if self.extraction_method == "arc":
             #:dict: keywords for the extraction
-            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
                 "extraction_width": config["extraction_width"],
@@ -984,6 +998,7 @@ class LaserFrequencyComb(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
             }
         else:
             raise ValueError(
@@ -1031,9 +1046,7 @@ class LaserFrequencyComb(Step):
         tilt, shear = curvature
 
         if len(files) == 0:
-            raise FileNotFoundError(
-                "No files for Laser Frequency Comb found"
-            )
+            raise FileNotFoundError("No files for Laser Frequency Comb found")
 
         orig, chead = combine_frames(
             files, self.instrument, self.mode, self.extension, mask=mask
@@ -1129,7 +1142,7 @@ class SlitCurvatureDetermination(Step):
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
         self.curv_degree = config["curv_degree"]
         #:float: how many sigma of bad lines to cut away
-        self.sigma_cutoff = config["sigma_cutoff"]
+        self.sigma_cutoff = config["curvature_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
 
@@ -1239,7 +1252,10 @@ class ScienceExtraction(Step):
         self.extraction_method = config["extraction_method"]
         if self.extraction_method == "arc":
             #:dict: Keywords for the extraction algorithm
-            self.extraction_kwargs = {"extraction_width": config["extraction_width"]}
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
                 "extraction_width": config["extraction_width"],
@@ -1247,6 +1263,7 @@ class ScienceExtraction(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
             }
         else:
             raise ValueError(
@@ -1319,7 +1336,7 @@ class ScienceExtraction(Step):
                 im /= norm
 
             # Optimally extract science spectrum
-            spec, sigma, _, column_range = extract(
+            spec, sigma, _, cr = extract(
                 im,
                 orders,
                 tilt=tilt,
@@ -1335,11 +1352,11 @@ class ScienceExtraction(Step):
             )
 
             # save spectrum to disk
-            self.save(fname, head, spec, sigma, column_range)
+            self.save(fname, head, spec, sigma, cr)
             heads.append(head)
             specs.append(spec)
             sigmas.append(sigma)
-            columns.append(column_range)
+            columns.append(cr)
 
         return heads, specs, sigmas, columns
 
