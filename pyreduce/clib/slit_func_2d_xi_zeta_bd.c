@@ -1018,10 +1018,10 @@ int slit_func_curved(int ncols,  /* Swath width in pixels                       
         {
             for (x = (int)delta_x; x < ncols - delta_x; x++)
             {
-                if ((fabs(model[im_index(x, y)] - im[im_index(x, y)]) > 6. * dev) | (orig_mask[im_index(x, y)] == 0))
-                    mask[im_index(x, y)] = 0;
-                else
+                if ((orig_mask[im_index(x, y)] != 0) & (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * dev))
                     mask[im_index(x, y)] = 1;
+                else
+                    mask[im_index(x, y)] = 0;
             }
         }
 

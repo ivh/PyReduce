@@ -249,10 +249,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     mask = np.ma.getmaskarray(img)
     mask |= ~np.isfinite(img)
     img = np.ma.getdata(img)
-    img[mask] = 0
+    # img[mask] = 0
 
-    mask = np.where(mask, 0, 1)
-    sp = np.sum(img, axis=0)
+    mask = np.where(mask, c_int(0), c_int(1))
+    sp = np.median(img, axis=0) * nrows
     sl = np.zeros(ny, dtype=c_double)
     pix_unc = np.copy(img)
     np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
