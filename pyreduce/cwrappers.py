@@ -32,48 +32,10 @@ except ImportError:  # pragma: no cover
 
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
-    from .clib._slitfunc_bd import ffi
-
+    from .clib._slitfunc_2d import ffi
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int
-
-libc = ctypes.CDLL(None)
-c_stdout = ctypes.c_void_p.in_dll(libc, "stdout")
-
-
-@contextmanager
-def stdout_redirector(stream):  # pragma: no cover
-    # The original fd stdout points to. Usually 1 on POSIX systems.
-    original_stdout_fd = sys.stdout.fileno()
-
-    def _redirect_stdout(to_fd):
-        """Redirect stdout to the given file descriptor."""
-        # Flush the C-level buffer stdout
-        libc.fflush(c_stdout)
-        # Flush and close sys.stdout - also closes the file descriptor (fd)
-        sys.stdout.close()
-        # Make original_stdout_fd point to the same file as to_fd
-        os.dup2(to_fd, original_stdout_fd)
-        # Create a new sys.stdout that points to the redirected fd
-        sys.stdout = io.TextIOWrapper(os.fdopen(original_stdout_fd, "wb"))
-
-    # Save a copy of the original stdout fd in saved_stdout_fd
-    saved_stdout_fd = os.dup(original_stdout_fd)
-    try:
-        # Create a temporary file and redirect stdout to it
-        tfile = tempfile.TemporaryFile(mode="w+b")
-        _redirect_stdout(tfile.fileno())
-        # Yield to caller, then redirect stdout back to the saved fd
-        yield
-        _redirect_stdout(saved_stdout_fd)
-        # Copy contents of temporary file to the given stream
-        tfile.flush()
-        tfile.seek(0, io.SEEK_SET)
-        stream.write(tfile.read())
-    finally:
-        tfile.close()
-        os.close(saved_stdout_fd)
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
@@ -167,6 +129,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
+
 def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
@@ -241,6 +204,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     # Retrieve some derived values
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
+    nx = 0
 
     ycen_offset = ycen.astype(c_int)
     ycen_int = ycen - ycen_offset
@@ -253,56 +217,61 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     mask = np.where(mask, c_int(0), c_int(1))
     sp = np.median(img, axis=0) * nrows
-    sl = np.zeros(ny, dtype=c_double)
     pix_unc = np.copy(img)
     np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
-    model = np.zeros((nrows, ncols), dtype=c_double)
-    unc = np.zeros(ncols, dtype=c_double)
+
+    PSF_curve = np.zeros((ncols, 3), dtype=c_double)
+    PSF_curve[:, 1] = tilt
+    PSF_curve[:, 2] = shear
+
+    nx = np.array([np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in range(ncols)])
+    nx = int(np.ceil(np.max(nx))) * 2
 
     # Initialize arrays and ensure the correct datatype for C
     requirements = ["C", "A", "W", "O"]
     sp = np.require(sp, dtype=c_double, requirements=requirements)
-    sl = np.require(sl, dtype=c_double, requirements=requirements)
     mask = np.require(mask, dtype=c_int, requirements=requirements)
     img = np.require(img, dtype=c_double, requirements=requirements)
     pix_unc = np.require(pix_unc, dtype=c_double, requirements=requirements)
     ycen_int = np.require(ycen_int, dtype=c_double, requirements=requirements)
     ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
-    tilt = np.require(tilt, dtype=c_double, requirements=requirements)
-    shear = np.require(shear, dtype=c_double, requirements=requirements)
+
+    sl = np.empty(ny, dtype=c_double)
+    model = np.empty((nrows, ncols), dtype=c_double)
+    unc = np.empty(ncols, dtype=c_double)
+    sp_old = np.empty(ncols, dtype=c_double)
+    l_aij = np.empty((ny, 4 * osample + 1), dtype=c_double)
+    l_bj = np.empty(ny, dtype=c_double)
+    p_aij = np.empty((ncols, 5), dtype=c_double)
+    p_bj = np.empty(ncols, dtype=c_double)
+
 
     # Call the C function
-    # f = io.BytesIO()
-    # with stdout_redirector(f):
     slitfunc_2dlib.slit_func_curved(
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
+        ffi.cast("int", nx),
+        ffi.cast("int", ny),
         ffi.cast("double *", img.ctypes.data),
         ffi.cast("double *", pix_unc.ctypes.data),
         ffi.cast("int *", mask.ctypes.data),
         ffi.cast("double *", ycen_int.ctypes.data),
         ffi.cast("int *", ycen_offset.ctypes.data),
-        ffi.cast("double *", tilt.ctypes.data),
-        ffi.cast("double *", shear.ctypes.data),
         ffi.cast("int", y_lower_lim),
         ffi.cast("int", osample),
         ffi.cast("double", lambda_sp),
         ffi.cast("double", lambda_sf),
+        ffi.cast("double *", PSF_curve.ctypes.data),
         ffi.cast("double *", sp.ctypes.data),
         ffi.cast("double *", sl.ctypes.data),
         ffi.cast("double *", model.ctypes.data),
         ffi.cast("double *", unc.ctypes.data),
+        ffi.cast("double *", sp_old.ctypes.data),
+        ffi.cast("double *", l_aij.ctypes.data),
+        ffi.cast("double *", l_bj.ctypes.data),
+        ffi.cast("double *", p_aij.ctypes.data),
+        ffi.cast("double *", p_bj.ctypes.data),
     )
-    # output = f.getvalue().decode("utf-8")
-    # if output != "":
-    #     img.tofile("debug_img.dat")
-    #     pix_unc.tofile("debug_pix_unc.dat")
-    #     mask.tofile("debug_mask.dat")
-    #     ycen.tofile("debug_ycen.dat")
-    #     ycen_offset.tofile("debug_ycen_offset.dat")
-    #     tilt.tofile("debug_tilt.dat")
-    #     shear.tofile("debug_shear.dat")
-    #     print(output)
 
     mask = mask == 0
 

@@ -702,6 +702,7 @@ def extract_spectrum(
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample + i,
+                yrange=yrange,
             )
             swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
 

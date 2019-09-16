@@ -1,4 +1,3 @@
-
 typedef struct
 {
     int x;
@@ -13,22 +12,26 @@ typedef struct
     double w; /* Contribution weight <= 1/osample */
 } zeta_ref;
 
-int slit_func_curved(int ncols,  /* Swath width in pixels */
-                     int nrows,  /* Extraction slit height in pixels */
-                     double *im, /* Image to be decomposed [nrows][ncols] */
+int slit_func_curved(int ncols,
+                     int nrows,
+                     int nx,
+                     int ny,
+                     double *im,
                      double *pix_unc,
-                     int *mask,        /* Initial and final mask for the swath [nrows][ncols] */
-                     double *ycen,     /* Order centre line offset from pixel row boundary [ncols] */
-                     int *ycen_offset, /* Order image column shift [ncols] */
-                     double *tilt,     /* slit tilt [ncols], that I later convert to PSF_curve array */
-                     double *shear,    /* slit tilt [ncols], that I later convert to PSF_curve array */
-                     int y_lower_lim,  /* Number of detector pixels below the pixel containing */
-                                       /* the central line yc */
-                     int osample,      /* Subpixel ovsersampling factor */
-                     double lambda_sP, /* Smoothing parameter for the spectrum, coiuld be zero */
-                     double lambda_sL, /* Smoothing parameter for the slit function, usually >0 */
-                     double *sP,       /* Spectrum resulting from decomposition [ncols] */
-                     double *sL,       /* Slit function resulting from decomposition [ny] */
-                     double *model,    /* Model constructed from sp and sf [nrows][ncols] */
-                     double *unc       /* Spectrum uncertainties based on data - model [ncols] */
-);
+                     int *mask,
+                     double *ycen,
+                     int *ycen_offset,
+                     int y_lower_lim,
+                     int osample,
+                     double lambda_sP,
+                     double lambda_sL,
+                     double *PSF_curve,
+                     double *sP,
+                     double *sL,
+                     double *model,
+                     double *unc,
+                     double *sP_old,
+                     double *l_Aij,
+                     double *l_bj,
+                     double *p_Aij,
+                     double *p_bj);
