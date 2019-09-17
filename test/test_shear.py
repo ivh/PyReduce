@@ -46,6 +46,9 @@ def test_shear(original, extracted, orders, order_range, settings):
     original, chead = original
     orders, column_range = orders
     settings = settings["curvature"]
+    settings["sigma_cutoff"] = settings["curvature_cutoff"]
+    del settings["curvature_cutoff"]
+    del settings["extraction_cutoff"]
 
     if extracted is None:
         pytest.skip("No curvature files")

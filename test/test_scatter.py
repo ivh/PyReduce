@@ -8,6 +8,8 @@ def test_scatter(flat, orders, settings):
     img, _ = flat
     orders, column_range = orders
     settings = settings["scatter"]
+    settings["sigma_cutoff"] = settings["scatter_cutoff"]
+    del settings["scatter_cutoff"]
 
     if img is None:
         pytest.skip("Need flat")

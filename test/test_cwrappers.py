@@ -58,57 +58,58 @@ def test_slitfunc_curved():
     lambda_sp = 0
     lambda_sf = 0.1
     osample = 1
+    yrange = (49, 50)
 
     # Run it once the way it is supposed to
-    slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample)
-    slitfunc_curved(img, ycen, 1, 0.01, lambda_sp, lambda_sf, osample)
+    slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+    slitfunc_curved(img, ycen, 1, 0.01, lambda_sp, lambda_sf, osample, yrange)
 
     # Then try different incompatible inputs, which have to be caught before going to the C code
     with pytest.raises(AssertionError):
-        slitfunc_curved(None, ycen, tilt, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(None, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved("bla", ycen, tilt, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved("bla", ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, None, tilt, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, None, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, "blub", tilt, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, "blub", tilt, shear, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, None, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, None, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, "boo", lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, "boo", lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, None, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, shear, None, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, "bla", lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, shear, "bla", lambda_sf, osample, yrange)
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, None, osample)
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, None, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, "bla", osample)
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, "bla", osample, yrange)
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, None)
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, None, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, "bla")
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, "bla", yrange)
 
     # Then try different sizes for img and ycen
     with pytest.raises(AssertionError):
         ycen_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen_bad, tilt, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, ycen_bad, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
         tilt_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen, tilt_bad, shear, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt_bad, shear, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
         shear_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen, tilt, shear_bad, lambda_sp, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, shear_bad, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, 0)
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, 0, yrange)
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, -1, osample)
+        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, -1, osample, yrange)
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, -1, lambda_sf, osample)
+        slitfunc_curved(img, ycen, tilt, shear, -1, lambda_sf, osample, yrange)
 
