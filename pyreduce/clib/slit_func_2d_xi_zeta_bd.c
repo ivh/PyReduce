@@ -25,6 +25,7 @@ int _nd = 0;
 #define _ncols ncols
 #define _nrows nrows
 #define _ny ny
+#define _nx nx
 #define _osample osample
 #define _n n
 #define _nd nd
@@ -347,9 +348,12 @@ int xi_zeta_tensors(int ncols,
     {
         for (iy = 0; iy < ny; iy++)
         {
-            xi[xi_index(x, iy, 0)].x = xi[xi_index(x, iy, 1)].x = xi[xi_index(x, iy, 2)].x = xi[xi_index(x, iy, 3)].x = -1;
-            xi[xi_index(x, iy, 0)].y = xi[xi_index(x, iy, 1)].y = xi[xi_index(x, iy, 2)].y = xi[xi_index(x, iy, 3)].y = -1;
-            xi[xi_index(x, iy, 0)].w = xi[xi_index(x, iy, 1)].w = xi[xi_index(x, iy, 2)].w = xi[xi_index(x, iy, 3)].w = 0.;
+            for (m = 0; m < 4; m++)
+            {
+                xi[xi_index(x, iy, m)].x = -1;
+                xi[xi_index(x, iy, m)].y = -1;
+                xi[xi_index(x, iy, m)].w = 0.;
+            }
         }
     }
 
@@ -359,7 +363,7 @@ int xi_zeta_tensors(int ncols,
         for (y = 0; y < nrows; y++)
         {
             m_zeta[mzeta_index(x, y)] = 0;
-            for (ix = 0; ix < 3 * (osample + 1); ix++)
+            for (ix = 0; ix < MAX_ZETA_Z; ix++)
             {
                 zeta[zeta_index(x, y, ix)].x = -1;
                 zeta[zeta_index(x, y, ix)].iy = -1;
@@ -732,7 +736,7 @@ int slit_func_curved(int ncols,
                      int ny,
                      double *im,
                      double *pix_unc,
-                     int *mask,
+                     int *mask_orig,
                      double *ycen,
                      int *ycen_offset,
                      int y_lower_lim,
@@ -744,7 +748,7 @@ int slit_func_curved(int ncols,
                      double *sL,
                      double *model,
                      double *unc,
-                     double *sP_old,
+                     int *mask,
                      double *l_Aij,
                      double *l_bj,
                      double *p_Aij,
@@ -787,6 +791,8 @@ int slit_func_curved(int ncols,
         Smoothing parameter for the spectrum, could be zero
     lambda_sL : double
         Smoothing parameter for the slit function, usually > 0
+    PSF_curve : double array of shape (ncols, 3)
+        Slit curvature parameters for each point along the spectrum
     sP : (out) double array of shape (ncols,)
         Spectrum resulting from decomposition
     sL : (out) double array of shape (ny,)
@@ -795,16 +801,6 @@ int slit_func_curved(int ncols,
         Model constructed from sp and sf
     unc : (out) double array of shape (ncols,)
         Spectrum uncertainties based on data - model and pix_unc
-    xi : xi_ref array of shape (ncols, ny, 4)
-        Convolution tensor telling the coordinates of detector
-        pixels on which {x, iy} element falls and the
-        corresponding projections.
-    zeta : zeta_ref array of shape (ncols, nrows, 3 * (osample + 1))
-        Convolution tensor telling the coordinates
-        of subpixels {x, iy} contributing to detector pixel
-        {x, y}.
-    m_zeta : int array of shape (nrows, ncols)
-        The actual number of controbuting elements in zeta for each pixel
     sP_old : double array of shape (ncols,)
         Work array to control the convergence
     l_Aij : double array of shape (ny, 4 * osample + 1,)
@@ -822,8 +818,16 @@ int slit_func_curved(int ncols,
         0 on success, -1 on failure (see also bandsol)
     */
     int x, xx, xxx, y, yy, iy, jy, n, m;
-    double delta_x, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
-    int info, iter, isum;
+    double delta_x, sum, norm, dev, lambda, diag_tot, ww, www;
+    double cost, cost_old, cost_min, tmp, ftol;
+    int info, iter, isum, max_iter;
+
+    // Maximum number of iterations in the procedure
+    max_iter = 20;
+    // difference fraction criterium for early abortion of the fitting
+    ftol = 1e-7;
+    // Minimum cost (reduced chi square) before canceling the iteration
+    cost_min = 1;
 
 #if CHECK_INDEX
     _ncols = ncols;
@@ -833,9 +837,8 @@ int slit_func_curved(int ncols,
     _osample = osample;
 #endif
 
-    int *mask_original = malloc(MAX_IM * sizeof(int));
     for (int i = 0; i < MAX_IM; i++)
-        mask_original[i] = mask[i];
+        mask[i] = mask_orig[i];
 
     xi_ref *xi = malloc(MAX_XI * sizeof(xi_ref));
     zeta_ref *zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
@@ -843,11 +846,7 @@ int slit_func_curved(int ncols,
 
     xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
-    // Maximum number of iterations in the procedure
-    int max_iter = 5;
-    // spectrum difference fraction criterium for early abortion of the fitting
-    double sP_frac = 1e-5;
-
+    cost = INFINITY;
     /* Maximum horizontal shift in detector pixels due to slit image curvature */
     delta_x = nx / 2;
     /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
@@ -857,97 +856,44 @@ int slit_func_curved(int ncols,
     iter = 0;
     do
     {
+        // Save the total cost (chi-square) from the previous iteration
+        cost_old = cost;
         /* Compute slit function sL */
 
         /* Prepare the RHS and the matrix */
-        for (iy = 0; iy < ny; iy++)
-        {
+        for (iy = 0; iy < MAX_LBJ; iy++)
             l_bj[lbj_index(iy)] = 0.e0; /* Clean RHS                */
-            for (jy = 0; jy < MAX_LAIJ_Y; jy++)
-                l_Aij[laij_index(jy, jy)] = 0.e0; /* Clean matrix row         */
-        }
+        for (iy = 0; iy < MAX_LAIJ; iy++)
+            l_Aij[iy] = 0;
 
         /* Fill in SLE arrays for slit function */
         diag_tot = 0.e0;
-
         for (iy = 0; iy < ny; iy++)
         {
             for (x = 0; x < ncols; x++)
             {
-                n = 0;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
+                for (n = 0; n < 4; n++)
                 {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
+                    ww = xi[xi_index(x, iy, n)].w;
+                    if (ww > 0)
                     {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                        xx = xi[xi_index(x, iy, n)].x;
+                        yy = xi[xi_index(x, iy, n)].y;
+                        if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
                         {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            if (jy >= 0)
-                                l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+                            if (m_zeta[mzeta_index(xx, yy)] > 0)
+                            {
+                                for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                {
+                                    xxx = zeta[zeta_index(xx, yy, m)].x;
+                                    jy = zeta[zeta_index(xx, yy, m)].iy;
+                                    www = zeta[zeta_index(xx, yy, m)].w;
+                                    if (jy >= 0)
+                                        l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+                                }
+                                l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
+                            }
                         }
-                        l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
-                    }
-                }
-                n = 1;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            if (jy >= 0)
-                                l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
-                    }
-                }
-                n = 2;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            if (jy >= 0)
-                                l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
-                    }
-                }
-                n = 3;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            if (jy >= 0)
-                                l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                     }
                 }
             }
@@ -989,94 +935,40 @@ int slit_func_curved(int ncols,
             sL[sl_index(iy)] /= norm;
 
         /* Compute spectrum sP */
-        for (x = 0; x < ncols; x++)
-        {
-            for (xx = 0; xx < MAX_PAIJ_Y; xx++)
-                p_Aij[paij_index(x, xx)] = 0.;
-            p_bj[pbj_index(x)] = 0;
-        }
+        for (x = 0; x < MAX_PBJ; x++)
+            p_bj[x] = 0;
+        for (x = 0; x < MAX_PAIJ; x++)
+            p_Aij[x] = 0;
 
         for (x = 0; x < ncols; x++)
         {
             for (iy = 0; iy < ny; iy++)
             {
-                n = 0;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
+                for (n = 0; n < 4; n++)
                 {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
+                    ww = xi[xi_index(x, iy, n)].w;
+                    if (ww > 0)
                     {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                        xx = xi[xi_index(x, iy, n)].x;
+                        yy = xi[xi_index(x, iy, n)].y;
+                        if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
                         {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+                            if (m_zeta[mzeta_index(xx, yy)] > 0)
+                            {
+                                for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                {
+                                    xxx = zeta[zeta_index(xx, yy, m)].x;
+                                    jy = zeta[zeta_index(xx, yy, m)].iy;
+                                    www = zeta[zeta_index(xx, yy, m)].w;
+                                    p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+                                }
+                                p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
+                            }
                         }
-                        p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
-                    }
-                }
-                n = 1;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
-                    }
-                }
-                n = 2;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
-                    }
-                }
-                n = 3;
-                ww = xi[xi_index(x, iy, n)].w;
-                if (ww > 0)
-                {
-                    xx = xi[xi_index(x, iy, n)].x;
-                    yy = xi[xi_index(x, iy, n)].y;
-                    if (m_zeta[mzeta_index(xx, yy)] > 0 && xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
-                    {
-                        for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
-                        {
-                            xxx = zeta[zeta_index(xx, yy, m)].x;
-                            jy = zeta[zeta_index(xx, yy, m)].iy;
-                            www = zeta[zeta_index(xx, yy, m)].w;
-                            p_Aij[paij_index(x, xxx - x + 2)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
-                        }
-                        p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
                     }
                 }
             }
         }
-
-        for (x = 0; x < ncols; x++)
-            sP_old[sp_index(x)] = sP[sp_index(x)];
 
         if (lambda_sP > 0.e0)
         {
@@ -1107,16 +999,14 @@ int slit_func_curved(int ncols,
             printf("info(sP)=%d\n", info);
 
         for (x = 0; x < ncols; x++)
+        {
             sP[sp_index(x)] = p_bj[pbj_index(x)];
+        }
 
         /* Compute the model */
-
-        for (y = 0; y < nrows; y++)
+        for (x = 0; x < MAX_IM; x++)
         {
-            for (x = 0; x < ncols; x++)
-            {
-                model[im_index(x, y)] = 0.;
-            }
+            model[x] = 0.;
         }
 
         for (y = 0; y < nrows; y++)
@@ -1137,44 +1027,44 @@ int slit_func_curved(int ncols,
 
         sum = 0.e0;
         isum = 0;
+        cost = 0;
         for (y = 0; y < nrows; y++)
         {
             for (x = delta_x; x < ncols - delta_x; x++)
             {
-                sum += mask[im_index(x, y)] * (model[im_index(x, y)] - im[im_index(x, y)]) * (model[im_index(x, y)] - im[im_index(x, y)]);
-                isum += mask[im_index(x, y)];
+                if (mask[im_index(x, y)])
+                {
+                    tmp = (model[im_index(x, y)] - im[im_index(x, y)]) * (model[im_index(x, y)] - im[im_index(x, y)]);
+                    sum += tmp;
+                    isum++;
+                    cost += tmp / max(pix_unc[im_index(x, y)] * pix_unc[im_index(x, y)], 1);
+                }
             }
         }
+        cost /= (isum - (ncols + ny));
         dev = sqrt(sum / isum);
 
         /* Adjust the mask marking outlyers */
-
         for (y = 0; y < nrows; y++)
         {
             for (x = delta_x; x < ncols - delta_x; x++)
             {
-                if ((mask_original[im_index(x, y)] != 0) & (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * dev))
+                if ((mask_orig[im_index(x, y)] != 0) & (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * dev))
                     mask[im_index(x, y)] = 1;
                 else
                     mask[im_index(x, y)] = 0;
             }
         }
 
-        /* Compute the change in the spectrum */
-
-        sP_change = 0.e0;
-        sP_max = 1.e0;
-        for (x = 0; x < ncols; x++)
-        {
-            if (sP[sp_index(x)] > sP_max)
-                sP_max = sP[sp_index(x)];
-            if (fabs(sP[sp_index(x)] - sP_old[sp_index(x)]) > sP_change)
-                sP_change = fabs(sP[sp_index(x)] - sP_old[sp_index(x)]);
-        }
+        // printf("reduced chi-square: %f\n", cost);
+        // printf("dev: %f\n", dev);
+        // printf("sum: %f\n", sum);
+        // printf("isum: %i\n", isum);
+        // printf("-----------\n");
 
         /* Check for convergence */
-
-    } while (iter++ < max_iter && sP_change > sP_frac * sP_max);
+        // Less than maximum iterations, no Nans, and cost either stopped improving or is less than the threshold
+    } while ((iter++ < max_iter) && ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0)) || ((cost_old - cost > ftol) && (cost > cost_min))));
 
     /* Uncertainty estimate */
 

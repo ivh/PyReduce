@@ -196,7 +196,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     ), f"Slitfunction smoothing must be positive, but got {lambda_sf}"
     assert lambda_sp >= 0, f"Spectrum smoothing must be positive, but got {lambda_sp}"
 
-    assert np.ma.all(np.isfinite(img)), "All values in the image must be finite"
+    # assert np.ma.all(np.isfinite(img)), "All values in the image must be finite"
     assert np.all(np.isfinite(ycen)), "All values in ycen must be finite"
     assert np.all(np.isfinite(tilt)), "All values in tilt must be finite"
     assert np.all(np.isfinite(shear)), "All values in shear must be finite"
@@ -204,7 +204,6 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     # Retrieve some derived values
     nrows, ncols = img.shape
     ny = osample * (nrows + 1) + 1
-    nx = 0
 
     ycen_offset = ycen.astype(c_int)
     ycen_int = ycen - ycen_offset
@@ -213,10 +212,11 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     mask = np.ma.getmaskarray(img)
     mask |= ~np.isfinite(img)
     img = np.ma.getdata(img)
-    # img[mask] = 0
+    img[mask] = 0
 
     mask = np.where(mask, c_int(0), c_int(1))
-    sp = np.median(img, axis=0) * nrows
+    # sp should never be all zero (thats a horrible guess) and leads to all nans
+    sp = np.sum(img, axis=0)
     pix_unc = np.copy(img)
     np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
 
@@ -224,7 +224,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     PSF_curve[:, 1] = tilt
     PSF_curve[:, 2] = shear
 
-    nx = np.array([np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in range(ncols)])
+    nx = np.array([np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in [0, ncols-1]])
     nx = int(np.ceil(np.max(nx))) * 2
 
     # Initialize arrays and ensure the correct datatype for C
@@ -236,14 +236,15 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     ycen_int = np.require(ycen_int, dtype=c_double, requirements=requirements)
     ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
 
-    sl = np.empty(ny, dtype=c_double)
-    model = np.empty((nrows, ncols), dtype=c_double)
-    unc = np.empty(ncols, dtype=c_double)
-    sp_old = np.empty(ncols, dtype=c_double)
-    l_aij = np.empty((ny, 4 * osample + 1), dtype=c_double)
-    l_bj = np.empty(ny, dtype=c_double)
-    p_aij = np.empty((ncols, 5), dtype=c_double)
-    p_bj = np.empty(ncols, dtype=c_double)
+    # This memory could be reused between swaths
+    mask_out = np.ones((nrows, ncols), dtype=c_int)
+    sl = np.zeros(ny, dtype=c_double)
+    model = np.zeros((nrows, ncols), dtype=c_double)
+    unc = np.zeros(ncols, dtype=c_double)
+    l_aij = np.zeros((ny, 4 * osample + 1), dtype=c_double)
+    l_bj = np.zeros(ny, dtype=c_double)
+    p_aij = np.zeros((ncols, 5), dtype=c_double)
+    p_bj = np.zeros(ncols, dtype=c_double)
 
 
     # Call the C function
@@ -266,13 +267,16 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         ffi.cast("double *", sl.ctypes.data),
         ffi.cast("double *", model.ctypes.data),
         ffi.cast("double *", unc.ctypes.data),
-        ffi.cast("double *", sp_old.ctypes.data),
+        ffi.cast("int *", mask_out.ctypes.data),
         ffi.cast("double *", l_aij.ctypes.data),
         ffi.cast("double *", l_bj.ctypes.data),
         ffi.cast("double *", p_aij.ctypes.data),
         ffi.cast("double *", p_bj.ctypes.data),
     )
 
-    mask = mask == 0
+    mask = mask_out == 0
+    if nx > 0:
+        sp[:nx] = 0
+        sp[-nx:] = 0
 
     return sp, sl, model, unc, mask

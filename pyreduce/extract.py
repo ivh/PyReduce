@@ -35,7 +35,8 @@ class ProgressPlot:  # pragma: no cover
         self.fig = plt.figure(figsize=(12, 4))
         # self.fig.tight_layout(pad=0.05)
 
-        self.ax1 = self.fig.add_subplot(231, projection="3d")
+        # self.ax1 = self.fig.add_subplot(231, projection="3d")
+        self.ax1 = self.fig.add_subplot(231)
         self.ax1.set_title("Swath")
         self.ax2 = self.fig.add_subplot(132)
         self.ax2.set_title("Spectrum")
@@ -43,29 +44,33 @@ class ProgressPlot:  # pragma: no cover
         self.ax3 = self.fig.add_subplot(133)
         self.ax3.set_title("Slit")
         self.ax3.set_xlim((0, nrow))
-        self.ax4 = self.fig.add_subplot(234, projection="3d")
+        # self.ax4 = self.fig.add_subplot(234, projection="3d")
+        self.ax4 = self.fig.add_subplot(234)
         self.ax4.set_title("Model")
 
         # Just plot empty pictures, to create the plots
         # Update the data later
         img = np.ones((nrow, ncol))
-        y, x = np.indices((nrow, ncol))
-        self.im_obs = self.ax1.plot_surface(x, y, img)
-        self.im_model = self.ax4.plot_surface(x, y, img)
+        # y, x = np.indices((nrow, ncol))
+        # self.im_obs = self.ax1.plot_surface(x, y, img)
+        # self.im_model = self.ax4.plot_surface(x, y, img)
+        self.im_obs = self.ax1.imshow(img)
+        self.im_model = self.ax4.imshow(img)
+
 
         self.dots_spec, = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         self.line_spec, = self.ax2.plot(np.zeros(ncol), "-k")
-        self.mask_spec, = self.ax2.plot(np.zeros(self.nbad), "+g")
+        self.mask_spec, = self.ax2.plot(np.zeros(self.nbad), "Pg")
         self.dots_slit, = self.ax3.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         self.line_slit, = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
-        self.mask_slit, = self.ax3.plot(np.zeros(self.nbad), "+g")
+        self.mask_slit, = self.ax3.plot(np.zeros(self.nbad), "Pg")
 
-        self.ax1.set_zscale("log")
-        self.ax4.set_zscale("log")
+        # self.ax1.set_zscale("log")
+        # self.ax4.set_zscale("log")
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -110,14 +115,17 @@ class ProgressPlot:  # pragma: no cover
         sf = self.fix_linear(sf, self.nrow)
 
         # Update Data
+        model = np.clip(model, 0, np.max(model[5:-5, 5:-5]) * 1.1)
         self.im_obs.remove()
         img = np.clip(img, 0, np.max(model) * 1.1)
-        y, x = np.indices(img.shape)
-        self.im_obs = self.ax1.plot_surface(x, y, img)
+        # y, x = np.indices(img.shape)
+        # self.im_obs = self.ax1.plot_surface(x, y, img)
+        self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
 
         self.im_model.remove()
-        y, x = np.indices(model.shape)
-        self.im_model = self.ax4.plot_surface(x, y, model)
+        # y, x = np.indices(model.shape)
+        # self.im_model = self.ax4.plot_surface(x, y, model)
+        self.im_model = self.ax4.imshow(model, aspect="auto", origin="lower")
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
@@ -134,16 +142,8 @@ class ProgressPlot:  # pragma: no cover
         self.mask_slit.set_xdata(mask_slit_x)
         self.mask_slit.set_ydata(mask_slit)
 
-        self.im_obs.set_norm(
-            mcolors.Normalize(
-                vmin=np.nanpercentile(img, 5), vmax=np.nanpercentile(img, 95)
-            )
-        )
-        self.im_model.set_norm(
-            mcolors.Normalize(vmin=np.nanmin(model), vmax=np.nanmax(model))
-        )
 
-        limit = np.nanmax(spec) * 1.1
+        limit = np.nanmax(spec[5:-5]) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
 
@@ -690,6 +690,7 @@ def extract_spectrum(
             yrange=yrange,
         )
 
+        # Catch bad Swaths, and run them again with more oversampling
         i = 0
         while np.any(np.isnan(swath.spec[ihalf])):
             i += 1
@@ -739,11 +740,11 @@ def extract_spectrum(
             tilt_first, tilt_last = swath_tilt[[0, -1]]
             shear_first, shear_last = swath_shear[[0, -1]]
 
-            excess = np.polyval([shear_first, tilt_first, 0], [ylow, -yhigh])
-            margin[i, 0] = abs(int(np.ceil(excess).max()))
+            excess = np.polyval([shear_first, tilt_first, 0], [-ylow, yhigh])
+            margin[i, 0] = 2 * int(np.ceil(np.abs(excess).max()))
 
             excess = np.polyval([shear_last, tilt_last, 0], [-ylow, yhigh])
-            margin[i, 1] = abs(int(np.ceil(excess).max()))
+            margin[i, 1] = 2 * int(np.ceil(np.abs(excess).max()))
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
@@ -1191,18 +1192,18 @@ def extract(
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_width = extraction_width[order_range[0] : order_range[1]]
 
-    if sigma_cutoff > 0:
-        # Blur the image and mask outliers
-        img = np.ma.masked_invalid(img, copy=False)
-        img.data[img.mask] = 0
-        # Use the median of the sorounding pixels (excluding the pixel itself)
-        footprint = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
-        dilated = median_filter(img, footprint=footprint)
-        diff = np.ma.abs(img - dilated)
-        # median = 50%; 3 sigma = 99.73 %
-        median, std = np.percentile(diff.compressed(), (50, 99.73))
-        mask = diff > median + sigma_cutoff * std / 3
-        img[mask] = np.ma.masked
+    # if sigma_cutoff > 0:
+    #     # Blur the image and mask outliers
+    #     img = np.ma.masked_invalid(img, copy=False)
+    #     img.data[img.mask] = 0
+    #     # Use the median of the sorounding pixels (excluding the pixel itself)
+    #     footprint = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
+    #     dilated = median_filter(img, footprint=footprint)
+    #     diff = np.ma.abs(img - dilated)
+    #     # median = 50%; 3 sigma = 99.73 %
+    #     median, std = np.percentile(diff.compressed(), (50, 99.73))
+    #     mask = diff > median + sigma_cutoff * std / 3
+    #     img[mask] = np.ma.masked
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
