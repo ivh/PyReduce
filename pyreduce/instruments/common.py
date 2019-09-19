@@ -54,7 +54,7 @@ class getter:
         self.header = header
         self.info = info
         try:
-            self.index = find_first_index(info["modes"], mode)
+            self.index = find_first_index(info["modes"], mode.upper())
         except KeyError:
             logging.warning("No instrument modes found in instrument info")
             self.index = 0

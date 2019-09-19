@@ -56,7 +56,7 @@ class CRIRES_PLUS(instrument):
 
         info = self.load_info()
         target = target.upper().replace("-", "")
-        instrument = "CRIRES_PLUS"
+        instrument = "CRIRES"
 
 
         # Try matching with nights
@@ -83,8 +83,13 @@ class CRIRES_PLUS(instrument):
         ty = np.zeros(len(files), dtype="U20")
         # instrument mode, e.g. red, blue
         mo = np.zeros(len(files), dtype="U20")
-        # special setting identifier, e.g. wavelength setting
+        band = np.zeros(len(files), dtype="U20")
+        decker = np.zeros(len(files), dtype="U20")
+        lamp = np.zeros(len(files), dtype="U20")
+
+
         se = np.zeros(len(files), dtype="U20")
+
         # observed night, parsed into a datetime object
         ni = np.zeros(len(files), dtype=datetime)
         # instrument, used for observation
@@ -94,14 +99,15 @@ class CRIRES_PLUS(instrument):
             h = fits.open(f)[0].header
             ob[i] = h.get(info["target"], "")
             ty[i] = h.get(info["observation_type"], "")
-            # The mode descriptor has different names in different files, so try different ids
-            mo[i] = h.get(info["instrument_mode"])
-            if mo[i] is None:
-                mo[i] = h.get(info["instrument_mode_alternative"], "")[:3]
+            mo[i] = h.get(info["id_mode"])
+            band[i] = h.get(info["id_band"], "").replace(r"/", "_")
+            decker[i] = h.get(info["id_decker"], "").upper()
+            lamp_tmp = h.get(info["id_lamp"], "")
+            if len(lamp_tmp) != 0:
+                lamp[i] = lamp_tmp[0]
+            se[i] = band[i] + "_" + decker[i]
             ni_tmp = h.get(info["date"], "")
             it[i] = h.get(info["instrument"], "")
-            se[i] = "HARPS"
-
             # Sanitize input
             ni[i] = observation_date_to_night(ni_tmp)
             ob[i] = ob[i].replace("-", "")
@@ -122,11 +128,13 @@ class CRIRES_PLUS(instrument):
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
-            match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
-            match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
-
-            keys = se[match_ty & match_ob & selection]
-            keys = np.unique(keys)
+            # match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
+            # match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
+            
+            if mode != "":
+                keys = np.unique(se[selection & (se == mode)])
+            else:
+                keys = np.unique(se[selection])
 
             files_this_night = {}
             for key in keys:
@@ -138,9 +146,9 @@ class CRIRES_PLUS(instrument):
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == info["id_flat"]) & select],
                     "orders": files[(ty == info["id_flat"]) & select],
-                    "wavecal": files[(ty == info["id_wave"]) & select],
-                    "freq_comb": files[(ty == info["id_comb"]) & select],
-                    "science": files[match_ty & match_ob & select],
+                    "wavecal": files[(ty == info["id_wave"]) & (lamp == info["id_lamp_wavecal"]) & select],
+                    "freq_comb": files[(ty == info["id_wave"]) & (lamp == info["id_lamp_etalon"]) & select],
+                    "science": [],
                 }
                 files_this_night[key]["curvature"] = (
                     files_this_night[key]["freq_comb"]

@@ -1,21 +1,22 @@
 {
-    "__instrument__": "HARPS",
+    "__instrument__": "CRIRES_PLUS",
     "instrument": {
     },
     "orders": {
         "degree": 4,
-        "filter_size": 80,
-        "min_cluster": 2000,
-        "noise": 8,
+        "filter_size": 250,
+        "min_cluster": 500,
+        "border_width": 0,
+        "noise": 0,
         "manual": false
     },
     "scatter": {
-        "extraction_width": 10
+        "extraction_width": 100
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 10,
+        "extraction_width": 100,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -25,7 +26,7 @@
         "dimensionality": "1D",
         "degree": 2,
         "manual": false,
-        "extraction_width": 10
+        "extraction_width": 100
     },
     "freq_comb": {
         "threshold": 100,
@@ -35,9 +36,12 @@
         "extraction_width": 10
     },
     "curvature": {
-        "extraction_width": 10,
+        "peak_threshold" : 0,
+        "window_width": 15,
+        "extraction_width": 100,
         "dimensionality": "2D",
-        "degree": [3, 6]
+        "degree": [1, 1],
+        "curv_degree": 1
     },
     "science": {
         "oversampling": 1,
