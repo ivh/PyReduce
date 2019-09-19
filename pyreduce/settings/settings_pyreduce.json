@@ -82,6 +82,8 @@
         "extraction_width": 0.2,
         "curvature_cutoff": 3,
         "extraction_cutoff": 20,
+        "peak_threshold": 10,
+        "window_width": 9,
         "plot": true
     },
     "science": {

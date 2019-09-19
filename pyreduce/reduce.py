@@ -1137,6 +1137,7 @@ class SlitCurvatureDetermination(Step):
         self.extraction_method = "arc"
         #:tuple(int, 2): Number of pixels around each order to use in an extraction
         self.extraction_width = config["extraction_width"]
+        self.extraction_cutoff = config["extraction_cutoff"]
         #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
@@ -1145,6 +1146,10 @@ class SlitCurvatureDetermination(Step):
         self.sigma_cutoff = config["curvature_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
+        #:float: peak finding noise threshold
+        self.threshold = config["peak_threshold"]
+        #:float": window width to search for peak in each row
+        self.window_width = config["window_width"]
 
     @property
     def savefile(self):
@@ -1189,6 +1194,7 @@ class SlitCurvatureDetermination(Step):
             order_range=self.order_range,
             plot=self.plot,
             extraction_width=self.extraction_width,
+            sigma_cutoff=self.extraction_cutoff,
         )
 
         module = CurvatureModule(
@@ -1200,6 +1206,8 @@ class SlitCurvatureDetermination(Step):
             curv_degree=self.curv_degree,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
+            threshold=self.threshold,
+            width=self.window_width,
             plot=self.plot,
         )
         tilt, shear = module.execute(extracted, orig)

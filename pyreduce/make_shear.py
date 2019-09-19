@@ -224,6 +224,7 @@ class Curvature:
             # Just cutout this one row
             idx = make_index(ycen + irow, ycen + irow, xmin, xmax)
             segment = original[idx][0]
+            segment -= segment.min()
             segments += [segment]
 
             try:
@@ -292,7 +293,7 @@ class Curvature:
         plot_vec = []
 
         for j in range(self.n):
-            logging.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
+            logging.info("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
             xwd = self.extraction_width[j]
@@ -301,6 +302,7 @@ class Curvature:
             # Find peaks
             vec = extracted[j, cr[0] : cr[1]]
             vec, peaks = self._find_peaks(vec, cr)
+            
             npeaks = len(peaks)
 
             # Determine curvature for each line seperately
@@ -466,6 +468,9 @@ class Curvature:
         )
 
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
+
+        if self.plot >= 2: # pragma: no cover
+            self.progress.close()
 
         if self.plot:  # pragma: no cover
             self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)

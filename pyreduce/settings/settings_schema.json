@@ -342,6 +342,16 @@
                             "description": "The threshold for removing outliers in standard deviations of the residual",
                             "type": "number",
                             "exclusiveMinimum": 0
+                        },
+                        "peak_threshold" : {
+                            "description": "Peak detection noise threshold. This much times * 10% noise must be the prominence of the peaks",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "window_width" : {
+                            "description": "Width of the window to look for the peak of each row, within each line. The value here speciefies only on direction the window size is actually twice this +1.",
+                            "type": "integer",
+                            "minimum": 1
                         }
                     },
                     "required": [
