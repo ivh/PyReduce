@@ -126,12 +126,12 @@ def mode(instrument, info):
     """
 
     if instrument == "UVES":
-        return "middle"
-    elif instrument == "XSHOOTER":
-        return "NIR"
-    elif instrument == "NIRSPEC":
-        return "NIRSPEC"
-    return info["modes"][0]
+        return "MIDDLE"
+
+    modes = info["modes"]
+    if isinstance(modes, list):
+        return modes[0]
+    return modes
 
 
 @pytest.fixture

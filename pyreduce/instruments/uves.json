@@ -3,7 +3,7 @@
     "instrument": "INSTRUME",
     "telescope": "VLT",
     "date": "DATE-OBS",
-    "modes": ["blue", "middle", "red"],
+    "modes": ["BLUE", "MIDDLE", "RED"],
     "modes_id": ["blue", "red", "red"],
     "extension": [0, 2, 1],
     "id": [[1, 5], [1, 4], [1, 4]],

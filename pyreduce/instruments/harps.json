@@ -4,7 +4,7 @@
     "instrument": "INSTRUME",
     "telescope": "TELESCOP",
     "date": "DATE-OBS",
-    "modes": ["blue", "red"],
+    "modes": ["BLUE", "RED"],
     "modes_id": ["HARPS", "HARPS"],
     "extension": [1, 2],
     "id": [[1, 1], [1, 2]],

@@ -119,8 +119,8 @@ class Curvature:
         extraction_width=0.5,
         column_range=None,
         order_range=None,
-        width=9,
-        threshold=10,
+        window_width=9,
+        peak_threshold=10,
         fit_degree=2,
         sigma_cutoff=3,
         mode="1D",
@@ -133,8 +133,8 @@ class Curvature:
         if order_range is None:
             order_range = (0, self.nord)
         self.order_range = order_range
-        self.width = width
-        self.threshold = threshold
+        self.window_width = window_width
+        self.threshold = peak_threshold
         self.fit_degree = fit_degree
         self.sigma_cutoff = sigma_cutoff
         self.mode = mode
@@ -188,7 +188,7 @@ class Curvature:
         peaks, _ = signal.find_peaks(vec, prominence=height)
 
         # Remove peaks at the edge
-        peaks = peaks[(peaks >= self.width + 1) & (peaks < len(vec) - self.width - 1)]
+        peaks = peaks[(peaks >= self.window_width + 1) & (peaks < len(vec) - self.window_width - 1)]
         # Remove the offset, due to vec being a subset of extracted
         peaks += cr[0]
         return vec, peaks
@@ -199,7 +199,7 @@ class Curvature:
 
         # look at +- width pixels around the line
         #:array of shape (2*width + 1,): indices of the pixels to the left and right of the line peak
-        index_x = np.arange(-self.width, self.width + 1)
+        index_x = np.arange(-self.window_width, self.window_width + 1)
         #:array of shape (height,): stores the peak positions of the fits to each row
         xcen = np.zeros(height)
         vcen = np.zeros(height)
@@ -237,7 +237,7 @@ class Curvature:
                 # Store the variation within the row
                 deviation[i] = np.ma.std(segment)
             except Exception as e:
-                xcen[i] = peak + self.width
+                xcen[i] = peak + self.window_width
                 deviation[i] = 0
 
         # Seperate in order pixels from out of order pixels
@@ -461,7 +461,7 @@ class Curvature:
 
         if self.plot >= 2:  # pragma: no cover
             height = np.sum(self.extraction_width, axis=1).max() + 1
-            self.progress = ProgressPlot(ncol, self.width, height)
+            self.progress = ProgressPlot(ncol, self.window_width, height)
 
         peaks, tilt, shear, vec = self._determine_curvature_all_lines(
             original, extracted

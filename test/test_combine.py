@@ -122,7 +122,7 @@ def test_normal_orientation(tempfiles):
     for f in tempfiles:
         create_file(f, 100, 100, 0)
 
-    combine, chead = combine_frames.combine_frames(tempfiles, "CRIRES_PLUS", "", 0, window=10)
+    combine, chead = combine_frames.combine_frames(tempfiles, "CRIRES_PLUS", "J_2_3_OPEN", 0, window=10)
     assert combine.shape[0] == 100
     assert combine.shape[1] == 100
 

@@ -1147,7 +1147,7 @@ class SlitCurvatureDetermination(Step):
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
         #:float: peak finding noise threshold
-        self.threshold = config["peak_threshold"]
+        self.peak_threshold = config["peak_threshold"]
         #:float": window width to search for peak in each row
         self.window_width = config["window_width"]
 
@@ -1206,8 +1206,8 @@ class SlitCurvatureDetermination(Step):
             curv_degree=self.curv_degree,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
-            threshold=self.threshold,
-            width=self.window_width,
+            threshold=self.peak_threshold,
+            window_width=self.window_width,
             plot=self.plot,
         )
         tilt, shear = module.execute(extracted, orig)
