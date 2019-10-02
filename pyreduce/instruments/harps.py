@@ -111,7 +111,7 @@ class HARPS(instrument):
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
-        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
+        i = [i for i, m in enumerate(info["modes"]) if m == mode.upper()][0]
         mode_id = info["modes_id"][i].upper()
 
         # Initialize arrays
@@ -195,6 +195,6 @@ class HARPS(instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
+        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode.lower())
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname

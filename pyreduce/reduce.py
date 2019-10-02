@@ -1206,7 +1206,7 @@ class SlitCurvatureDetermination(Step):
             curv_degree=self.curv_degree,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
-            threshold=self.peak_threshold,
+            peak_threshold=self.peak_threshold,
             window_width=self.window_width,
             plot=self.plot,
         )
@@ -1747,7 +1747,7 @@ class Reducer:
         info = instruments.instrument_info.get_instrument_info(instrument)
         extension = info["extension"]
         if isinstance(extension, list):
-            imode = util.find_first_index(info["modes"], mode)
+            imode = util.find_first_index(info["modes"], mode.upper())
             extension = extension[imode]
 
         self.data = {"files": files, "config": config}
