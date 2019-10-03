@@ -446,7 +446,10 @@ class Curvature:
                 plt.plot(x, y, "r")
 
         locs = np.sum(self.extraction_width, axis=1) + 1
-        locs = [0, *np.cumsum(locs)[:-1]]
+        locs = np.array([0, *np.cumsum(locs)[:-1]])
+        locs[:-1] += (np.diff(locs) * 0.5).astype(int)
+        locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
+
         plt.yticks(locs, range(len(locs)))
         plt.xlabel("x [pixel]")
         plt.ylabel("order")

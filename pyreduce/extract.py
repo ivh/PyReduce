@@ -1105,11 +1105,14 @@ def plot_comparison(
         tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
         tmp += pos[i]
         tmp[tmp < pos[i]] = pos[i]
-        plt.plot(x, tmp)
+        plt.plot(x, tmp, "r")
 
     locs = np.sum(extraction_width, axis=1) + 1
-    locs = [0, *np.cumsum(locs)[:-1]]
+    locs = np.array([0, *np.cumsum(locs)[:-1]])
+    locs[:-1] += (np.diff(locs) * 0.5).astype(int)
+    locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
     plt.yticks(locs, range(len(locs)))
+
     plt.title("Extracted Spectrum vs. Input Image")
     plt.xlabel("x [pixel]")
     plt.ylabel("order")

@@ -38,7 +38,7 @@ class AlignmentPlot:
         self.order_first = 0
         self.spec_first = ""
         self.x_first = 0
-        self.offset = offset
+        self.offset = list(offset)
 
         self.make_ref_image()
 
@@ -51,9 +51,8 @@ class AlignmentPlot:
                 for line in self.lines[self.lines["order"] == iord]:
                     first = int(np.clip(line["xfirst"] + self.offset[1], 0, self.ncol))
                     last = int(np.clip(line["xlast"] + self.offset[1], 0, self.ncol))
-                    ref_image[
-                        (iord + self.offset[0]) * 2 + 1, first:last, self.GREEN
-                    ] = (
+                    order = (iord + self.offset[0]) * 2 + 1
+                    ref_image[order, first:last, self.GREEN] = (
                         10
                         * line["height"]
                         * signal.gaussian(last - first, line["width"])
@@ -65,7 +64,7 @@ class AlignmentPlot:
             ref_image,
             aspect="auto",
             origin="lower",
-            extent=(0, self.ncol, 0, self.nord),
+            extent=(-0.5, self.ncol + 0.5, -0.5, self.nord - 0.5),
         )
         self.im.figure.suptitle(
             "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
@@ -126,6 +125,7 @@ class LineAtlas:
         wdel = header["CDELT1"]
         wave = np.arange(data.size) * wdel + wmin
         return wave, data
+
 
 class LineList:
     dtype = np.dtype(
@@ -530,7 +530,7 @@ class WavelengthCalibration:
                 f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
             )
 
-        if plot or self.plot >= 2: #pragma: no cover
+        if plot or self.plot >= 2:  # pragma: no cover
             self.plot_residuals(lines, coef, title="Residuals")
 
         return coef
@@ -940,7 +940,7 @@ class WavelengthCalibration:
             nbad += 1
         logging.info("Discarding %i lines", nbad)
 
-        if plot or self.plot >= 2: #pragma: no cover
+        if plot or self.plot >= 2:  # pragma: no cover
             mask = lines["flag"]
             _, axis = plt.subplots()
             axis.plot(lines["order"][mask], residual[mask], "X", label="Accepted Lines")
