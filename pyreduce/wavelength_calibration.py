@@ -64,7 +64,7 @@ class AlignmentPlot:
             ref_image,
             aspect="auto",
             origin="lower",
-            extent=(-0.5, self.ncol + 0.5, -0.5, self.nord - 0.5),
+            extent=(-0.5, self.ncol - 0.5, -0.5, self.nord - 0.5),
         )
         self.im.figure.suptitle(
             "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
