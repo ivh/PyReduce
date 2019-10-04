@@ -1013,7 +1013,7 @@ class LaserFrequencyComb(Step):
         self.wavecal_mode = config["dimensionality"]
         self.nstep = config["nstep"]
         #:int: Width of the peaks for finding them in the spectrum
-        self.peak_width = config["peak_width"]
+        self.lfc_peak_width = config["lfc_peak_width"]
 
     @property
     def savefile(self):
@@ -1077,7 +1077,7 @@ class LaserFrequencyComb(Step):
             threshold=self.threshold,
             mode=self.wavecal_mode,
             nstep=self.nstep,
-            lfc_peak_width=self.peak_width,
+            lfc_peak_width=self.lfc_peak_width,
         )
         wave = module.frequency_comb(comb, wave, linelist)
 

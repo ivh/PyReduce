@@ -1027,7 +1027,7 @@ class WavelengthCalibration:
                 residual = self.calculate_residual(coef, order_lines)
                 plt.plot(order_lines["posm"], residual, "rX")
                 plt.hlines([0], order_lines["posm"].min(), order_lines["posm"].max())
-                # plt.ylim((-self.threshold, self.threshold))
+
         plt.show()
 
     def _find_peaks(self, comb):
