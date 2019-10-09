@@ -845,7 +845,7 @@ class WavelengthCalibration(Step):
         #:int: Number of iterations in the remove lines, auto id cycle
         self.iterations = config["iterations"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
-        self.wavecal_mode = config["dimensionality"]
+        self.dimensionality = config["dimensionality"]
         self.nstep = config["nstep"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
@@ -928,7 +928,7 @@ class WavelengthCalibration(Step):
             degree=self.degree,
             threshold=self.threshold,
             iterations=self.iterations,
-            mode=self.wavecal_mode,
+            dimensionality=self.dimensionality,
             nstep=self.nstep,
             shift_window=self.shift_window,
             element=thead["e_wavecal_element"],
@@ -1010,7 +1010,7 @@ class LaserFrequencyComb(Step):
         #:float: residual threshold in m/s above which to remove lines
         self.threshold = config["threshold"]
         #:{'1D', '2D'}: Whether to use 1D or 2D polynomials
-        self.wavecal_mode = config["dimensionality"]
+        self.dimensionality = config["dimensionality"]
         self.nstep = config["nstep"]
         #:int: Width of the peaks for finding them in the spectrum
         self.lfc_peak_width = config["lfc_peak_width"]
@@ -1075,7 +1075,7 @@ class LaserFrequencyComb(Step):
             plot=self.plot,
             degree=self.degree,
             threshold=self.threshold,
-            mode=self.wavecal_mode,
+            dimensionality=self.dimensionality,
             nstep=self.nstep,
             lfc_peak_width=self.lfc_peak_width,
         )
