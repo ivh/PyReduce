@@ -196,7 +196,7 @@ class WavelengthCalibration:
         threshold=100,
         degree=(6, 6),
         iterations=3,
-        mode="2D",
+        dimensionality="2D",
         nstep=0,
         shift_window=0.01,
         manual=False,
@@ -209,14 +209,14 @@ class WavelengthCalibration:
         self.threshold = threshold
         #:tuple(int, int): polynomial degree of the wavelength fit in (pixel, order) direction
         self.degree = degree
-        if mode == "1D":
+        if dimensionality == "1D":
             self.degree = int(degree)
-        elif mode == "2D":
+        elif dimensionality == "2D":
             self.degree = (int(degree[0]), int(degree[1]))
         #:int: Number of iterations in the remove residuals, auto id, loop
         self.iterations = iterations
         #:{"1D", "2D"}: Whether to use 1d or 2d fit
-        self.mode = mode
+        self.dimensionality = dimensionality
         #:bool: Whether to fit for pixel steps (offsets) in the detector
         self.nstep = nstep
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
@@ -242,18 +242,18 @@ class WavelengthCalibration:
         return self.nstep > 0
 
     @property
-    def mode(self):
+    def dimensionality(self):
         """{"1D", "2D"}: Whether to use 1D or 2D polynomials for the wavelength solution"""
-        return self._mode
+        return self._dimensionality
 
-    @mode.setter
-    def mode(self, value):
+    @dimensionality.setter
+    def dimensionality(self, value):
         accepted_values = ["1D", "2D"]
         if value in accepted_values:
-            self._mode = value
+            self._dimensionality = value
         else:
             raise ValueError(
-                f"Value for 'mode' not understood. Expected one of {accepted_values} but got {value} instead"
+                f"Value for 'dimensionality' not understood. Expected one of {accepted_values} but got {value} instead"
             )
 
     def normalize(self, obs, lines):
@@ -516,18 +516,18 @@ class WavelengthCalibration:
         m_pix = lines["posm"][mask]
         m_ord = lines["order"][mask]
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             nord = m_ord.max() + 1
             coef = np.zeros((nord, self.degree + 1))
             for i in range(nord):
                 select = m_ord == i
                 coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=self.degree)
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             # 2d polynomial fit with: x = column, y = order, z = wavelength
             coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
         if plot or self.plot >= 2:  # pragma: no cover
@@ -562,7 +562,7 @@ class WavelengthCalibration:
         nstep = self.nstep
         ncol = self.ncol
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             coef = {}
             for order in np.unique(m_ord):
                 select = m_ord == order
@@ -587,7 +587,7 @@ class WavelengthCalibration:
                 poly_coef = res[: self.degree + 1]
                 step_coef = res[self.degree + 1 :].reshape((nstep, 2))
                 coef[order] = [poly_coef, step_coef]
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             unique = np.unique(m_ord)
             nord = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
@@ -619,7 +619,7 @@ class WavelengthCalibration:
             coef = (poly_coef, step_coef)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
         return coef
@@ -627,12 +627,12 @@ class WavelengthCalibration:
     def evaluate_step_solution(self, pos, order, solution):
         if not np.array_equal(np.shape(pos), np.shape(order)):
             raise ValueError("pos and order must have the same shape")
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
                 result[select] = self.f(pos[select], solution[i][0], solution[i][1])
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             poly_coef, step_coef = solution
             pos = np.copy(pos)
             for i in np.unique(order):
@@ -640,7 +640,7 @@ class WavelengthCalibration:
             result = polyval2d(pos, order, poly_coef)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.dimensionality}"
             )
         return result
 
@@ -676,16 +676,16 @@ class WavelengthCalibration:
         if self.step_mode:
             return self.evaluate_step_solution(pos, order, solution)
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
                 result[select] = np.polyval(solution[i], pos[select])
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             result = np.polynomial.polynomial.polyval2d(pos, order, solution)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.dimensionality}"
             )
         return result
 
@@ -1041,7 +1041,7 @@ class WavelengthCalibration:
         peaks, _ = signal.find_peaks(c, height=height, width=width)
         distance = np.median(np.diff(peaks)) // 4
         peaks, _ = signal.find_peaks(c, height=height, distance=distance, width=width)
-
+    
         # TODO fix missed/double peaks
         n = np.arange(len(peaks))
         diff = np.diff(peaks)
@@ -1193,12 +1193,12 @@ class WavelengthCalibration:
         p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
 
         if self.step_mode:
-            if self.mode == "1D":
+            if self.dimensionality == "1D":
                 k = 1
                 for _, v in wave_solution.items():
                     k += np.size(v[0])
                     k += np.size(v[1])
-            elif self.mode == "2D":
+            elif self.dimensionality == "2D":
                 k = 1
                 poly_coef, steps_coef = wave_solution
                 for _, v in steps_coef.items():
