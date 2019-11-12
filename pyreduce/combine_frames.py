@@ -15,8 +15,8 @@ from dateutil import parser
 from scipy.ndimage.filters import median_filter
 
 from .clipnflip import clipnflip
-from .instruments.instrument_info import get_instrument_info
-from .util import gaussbroad, gaussfit, load_fits, remove_bias
+from .instruments.instrument_info import load_instrument
+from .util import gaussbroad, gaussfit, remove_bias
 
 
 def running_median(arr, size):
@@ -244,21 +244,21 @@ def combine_frames(
 
     # Only one image
     if len(files) == 0:
-        raise ValueError("No files defined")
+        raise ValueError("No files given for combine frames")
     elif len(files) == 1:
-        result, head = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        result, head = instrument.load_fits(
+            files[0], mode, dtype=dtype, **kwargs
         )
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        bias1, head1 = instrument.load_fits(
+            files[0], mode, dtype=dtype, **kwargs
         )
         exp1 = head1.get("exptime", 0)
 
-        bias2, head2 = load_fits(
-            files[1], instrument, mode, extension, dtype=dtype, **kwargs
+        bias2, head2 = instrument.load_fits(
+            files[1], mode, dtype=dtype, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -276,8 +276,8 @@ def combine_frames(
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(
-                f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs
+            instrument.load_fits(
+                f, mode, header_only=True, dtype=dtype, **kwargs
             )
             for f in files
         ]

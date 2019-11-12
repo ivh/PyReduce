@@ -31,8 +31,8 @@ def test_science(
 
     f = files["science"][0]
 
-    im, head = util.load_fits(
-        f, instrument, mode, extension, mask=mask, dtype=np.float32
+    im, head = instrument.load_fits(
+        f, mode, mask=mask, dtype=np.float32
     )
     # Correct for bias and flat field
     if bias is not None:

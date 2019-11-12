@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 
-from pyreduce.util import load_fits
 from pyreduce.extract import extract
 from pyreduce.combine_frames import combine_frames
 from pyreduce.make_shear import Curvature as CurvatureModule

@@ -6,24 +6,26 @@ Loads a sample UVES dataset, and runs the full extraction
 import os.path
 import pyreduce
 from pyreduce import datasets
+from pyreduce.configuration import get_configuration_for_instrument
 
 
 # define parameters
-instrument = "Crires+"
-target = "Vega"
-night = "all"
-mode = "K"
+instrument = "Crires_plus"
+target = ""
+night = "2019-07-21"
+mode = "J_2_3_OPEN"
 steps = (
-    "bias",
-    "flat",
-    "orders",
+    # "bias",
+    # "flat",
+    # "orders",
+    "curvature",
+    # "scatter",
     "norm_flat",
     "wavecal",
-    # "freq_comb",
-    "curvature",
-    "science",
-    "continuum",
-    "finalize",
+    "freq_comb",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
@@ -32,11 +34,12 @@ steps = (
 
 # load dataset (and save the location)
 base_dir = "/DATA/ESO/CRIRES+"
-input_dir = "demodata/"
+input_dir = "tdata/CD13/UNCLASSIFIED"
 output_dir = "reduced/{mode}/"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_CRIRES_PLUS.json")
+
+config = get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,
@@ -48,5 +51,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    # order_range=(0, 25),
+    order_range=(0, 4),
 )

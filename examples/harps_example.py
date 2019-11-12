@@ -21,8 +21,8 @@ steps = (
     # "scatter",
     # "norm_flat",
     # "wavecal",
-    # "freq_comb",
-    "science",
+    "freq_comb",
+    # "science",
     "continuum",
     "finalize",
 )
@@ -37,7 +37,7 @@ input_dir = "raw"
 output_dir = "reduced_{mode}"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,

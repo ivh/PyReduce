@@ -32,6 +32,7 @@ from astropy.io import fits
 
 # PyReduce subpackages
 from . import echelle, instruments, util, __version__
+from .instruments.instrument_info import load_instrument
 from .combine_frames import combine_bias, combine_flat, combine_frames
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
@@ -280,7 +281,7 @@ class Step:
     @property
     def prefix(self):
         """str: temporary file prefix"""
-        i = self.instrument.lower()
+        i = self.instrument.name.lower()
         m = self.mode.lower()
         return f"{i}_{m}"
 
@@ -302,7 +303,7 @@ class Mask(Step):
     @property
     def mask_file(self):
         """str: Name of the mask data file"""
-        i = self.instrument.lower()
+        i = self.instrument.name.lower()
         m = self.mode.lower()
         return f"mask_{i}_{m}.fits.gz"
 
@@ -326,8 +327,8 @@ class Mask(Step):
         """
         mask_file = join(self.mask_dir, self.mask_file)
         try:
-            mask, _ = util.load_fits(
-                mask_file, self.instrument, self.mode, extension=self.extension
+            mask, _ = self.instrument.load_fits(
+                mask_file, "MASK"
             )
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
         except FileNotFoundError:
@@ -916,8 +917,8 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
-        reference = instruments.instrument_info.get_wavecal_filename(
-            thead, self.instrument, self.mode
+        reference = self.instrument.get_wavecal_filename(
+            thead, self.mode
         )
         reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
@@ -1329,11 +1330,9 @@ class ScienceExtraction(Step):
 
         heads, specs, sigmas, columns = [], [], [], []
         for fname in files:
-            im, head = util.load_fits(
+            im, head = self.instrument.load_fits(
                 fname,
-                self.instrument,
                 self.mode,
-                self.extension,
                 mask=mask,
                 dtype=np.floating,
             )
@@ -1744,7 +1743,8 @@ class Reducer:
             instrument=instrument, target=target, night=night, mode=mode
         )
 
-        info = instruments.instrument_info.get_instrument_info(instrument)
+        instrument = load_instrument(instrument)
+        info = instrument.info
         extension = info["extension"]
         if isinstance(extension, list):
             imode = util.find_first_index(info["modes"], mode.upper())

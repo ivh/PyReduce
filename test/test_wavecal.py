@@ -17,7 +17,7 @@ def test_wavecal(
     orders, column_range = orders
     settings = settings["wavecal"]
     files = files["wavecal"][0]
-    orig, thead = util.load_fits(files, instrument, mode, extension, mask=mask)
+    orig, thead = instrument.load_fits(files, mode, mask=mask)
     thead["obase"] = (0, "base order number")
 
     # Extract wavecal spectrum

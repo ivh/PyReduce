@@ -156,65 +156,6 @@ def vac2air(wl_vac):
     wl_air[ii] = wl_vac[ii] / fact  # Convert to air wavelength
     return wl_air
 
-
-def load_fits(
-    fname, instrument, mode, extension, mask=None, header_only=False, dtype=None
-):
-    """
-    load fits file, REDUCE style
-
-    primary and extension header are combined
-    modeinfo is applied to header
-    data is clipnflipped
-    mask is applied
-
-    Parameters
-    ----------
-    fname : str
-        filename
-    instrument : str
-        name of the instrument
-    mode : str
-        instrument mode
-    extension : int
-        data extension of the FITS file to load
-    mask : array, optional
-        mask to add to the data
-    header_only : bool, optional
-        only load the header, not the data
-    dtype : str, optional
-        numpy datatype to convert the read data to
-
-    Returns
-    --------
-    data : masked_array
-        FITS data, clipped and flipped, and with mask
-    header : fits.header
-        FITS header (Primary and Extension + Modeinfo)
-
-    ONLY the header is returned if header_only is True
-    """
-    hdu = fits.open(fname)
-    header = hdu[extension].header
-    header.extend(hdu[0].header, strip=False)
-    header = modeinfo(header, instrument, mode)
-    header["e_input"] = (os.path.basename(fname), "Original input filename")
-
-    if header_only:
-        hdu.close()
-        return header
-
-    data = clipnflip(hdu[extension].data, header)
-
-    if dtype is not None:
-        data = data.astype(dtype)
-
-    data = np.ma.masked_array(data, mask=mask)
-
-    hdu.close()
-    return data, header
-
-
 def swap_extension(fname, ext, path=None):
     """ exchange the extension of the given file with a new one """
     if path is None:
@@ -607,6 +548,8 @@ def _scale(x, y):
     # Mean 0, Variation 1
     offset_x, offset_y = np.mean(x), np.mean(y)
     norm_x, norm_y = np.std(x), np.std(y)
+    if norm_x == 0: norm_x = 1
+    if norm_y == 0: norm_y = 1
     x = (x - offset_x) / norm_x
     y = (y - offset_y) / norm_y
     return x, y, (norm_x, norm_y), (offset_x, offset_y)

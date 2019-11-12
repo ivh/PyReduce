@@ -13,13 +13,15 @@ from astropy.io import fits
 from astropy.time import Time
 from dateutil import parser
 
+from ..clipnflip import clipnflip
+
 
 def find_first_index(arr, value):
     """ find the first element equal to value in the array arr """
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
-        raise Exception("Value %s not found" % value)
+        raise KeyError("Value %s not found" % value)
 
 
 def observation_date_to_night(observation_date):
@@ -52,7 +54,7 @@ class getter:
 
     def __init__(self, header, info, mode):
         self.header = header
-        self.info = info
+        self.info = info.copy()
         try:
             self.index = find_first_index(info["modes"], mode.upper())
         except KeyError:
@@ -99,8 +101,22 @@ class instrument:
     """
 
     def __init__(self):
-        self.instrument = self.__class__.__name__.lower()
-        # raise NotImplementedError("This is an abstract class")
+        #:str: Name of the instrument (lowercase)
+        self.name = self.__class__.__name__.lower()
+        #:dict: Information about the instrument
+        self.info = self.load_info()
+
+    def get_extension(self, header, mode):
+        if mode == "MASK":
+            extension = 0
+        else:
+            extension = self.info["extension"]
+        
+        if isinstance(extension, list):
+            imode = find_first_index(self.info["modes"], mode)
+            extension = extension[imode]
+
+        return extension
 
     def load_info(self):
         """
@@ -118,11 +134,75 @@ class instrument:
         # you can also use values from this dictionary as placeholders using {name}, just like str.format
 
         this = os.path.dirname(__file__)
-        fname = f"{self.instrument.lower()}.json"
+        fname = f"{self.name}.json"
         fname = os.path.join(this, fname)
         with open(fname) as f:
             info = json.load(f)
         return info
+
+    def load_fits(self,
+        fname, mode, mask=None, header_only=False, dtype=None
+    ):
+        """
+        load fits file, REDUCE style
+
+        primary and extension header are combined
+        modeinfo is applied to header
+        data is clipnflipped
+        mask is applied
+
+        Parameters
+        ----------
+        fname : str
+            filename
+        instrument : str
+            name of the instrument
+        mode : str
+            instrument mode
+        extension : int
+            data extension of the FITS file to load
+        mask : array, optional
+            mask to add to the data
+        header_only : bool, optional
+            only load the header, not the data
+        dtype : str, optional
+            numpy datatype to convert the read data to
+
+        Returns
+        --------
+        data : masked_array
+            FITS data, clipped and flipped, and with mask
+        header : fits.header
+            FITS header (Primary and Extension + Modeinfo)
+
+        ONLY the header is returned if header_only is True
+        """
+
+        info = self.info
+        mode = mode.upper()
+
+        hdu = fits.open(fname)
+        h_prime = hdu[0].header
+        extension = self.get_extension(h_prime, mode)
+
+        header = hdu[extension].header
+        header.extend(h_prime, strip=False)
+        header = self.add_header_info(header, mode)
+        header["e_input"] = (os.path.basename(fname), "Original input filename")
+
+        if header_only:
+            hdu.close()
+            return header
+
+        data = clipnflip(hdu[extension].data, header)
+
+        if dtype is not None:
+            data = data.astype(dtype)
+
+        data = np.ma.masked_array(data, mask=mask)
+
+        hdu.close()
+        return data, header
 
     def add_header_info(self, header, mode, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header

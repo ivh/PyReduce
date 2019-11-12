@@ -67,7 +67,7 @@ def instrument(dataset):
     instrument : str
         Observing instrument
     """
-    return dataset[0]
+    return instruments.instrument_info.load_instrument(dataset[0])
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ def test_orders(instrument, mode, extension, files, settings, mask):
         pytest.skip(f"No order definition files found for instrument {instrument}")
 
     files = files["orders"][0]
-    order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
+    order_img, _ = instrument.load_fits(files, mode, mask=mask)
     settings = settings["orders"]
 
     orders, column_range = mark_orders(

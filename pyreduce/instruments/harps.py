@@ -18,15 +18,25 @@ from .common import getter, instrument, observation_date_to_night
 
 
 class HARPS(instrument):
-    def __init__(self):
-        self.instrument = "harps"
+    def get_extension(self, header, mode):
+        extension = super().get_extension(header, mode)
+
+        if (
+            header["NAXIS"] == 2
+            and header["NAXIS1"] == 4296
+            and header["NAXIS2"] == 4096
+        ):
+            extension = 0
+
+        return extension
 
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
-        info = self.load_info()
+        info = self.info
+
 
         try:
             header["e_ra"] /= 15
@@ -45,6 +55,22 @@ class HARPS(instrument):
             header["e_pol"] = (pol_angle, "polarization angle")
         except:
             pass
+
+        if (
+            header["NAXIS"] == 2
+            and header["NAXIS1"] == 4296
+            and header["NAXIS2"] == 4096
+        ):
+            # both modes are in the same image
+            prescan_x = 50
+            overscan_x = 50
+            naxis_x = 2148
+            if mode == "BLUE":
+                header["e_xlo"] = prescan_x
+                header["e_xhi"] = naxis_x - overscan_x
+            elif mode == "RED":
+                header["e_xlo"] = naxis_x + prescan_x
+                header["e_xhi"] = 2 * naxis_x - overscan_x
 
         return header
 
@@ -87,9 +113,8 @@ class HARPS(instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
-        id_orddef = template.format(a="LAMP", b="DARK", c="TUN")
-        id_flat = template.format(a="LAMP", b="DARK", c="TUN")
-        # id_flat = info["id_flat"]
+        id_orddef = template.format(a="LAMP", b="DARK", c="*")
+        id_flat = template.format(a="LAMP", b="LAMP", c="*")
         id_spec = template.format(a="STAR", b="*", c="*")
 
         # Try matching with nights
@@ -142,7 +167,7 @@ class HARPS(instrument):
 
             # Sanitize input
             ni[i] = observation_date_to_night(ni_tmp)
-            ob[i] = ob[i].replace("-", "")
+            ob[i] = ob[i].replace("-", "").upper()
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
@@ -162,6 +187,11 @@ class HARPS(instrument):
             # Only look at the settings of observation files
             match_ty = np.array([fnmatch.fnmatch(t, id_spec) for t in ty])
             match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
+            match_flat = np.array([fnmatch.fnmatch(t, id_flat) for t in ty])
+            match_ord = np.array([fnmatch.fnmatch(t, id_orddef) for t in ty])
+            match_bias = ty == info["id_bias"]
+            match_wave = ty == info["id_wave"]
+            match_comb = ty == info["id_comb"]
 
             keys = se[match_ty & match_ob & selection]
             keys = np.unique(keys)
@@ -173,13 +203,66 @@ class HARPS(instrument):
                 # find all relevant files for this setting
                 # bias ignores the setting
                 files_this_night[key] = {
-                    "bias": files[(ty == info["id_bias"]) & selection],
-                    "flat": files[(ty == id_flat) & select],
-                    "orders": files[(ty == id_orddef) & select],
-                    "wavecal": files[(ty == info["id_wave"]) & select],
-                    "freq_comb": files[(ty == info["id_comb"]) & select],
+                    "bias": files[match_bias & selection],
+                    "flat": files[match_flat & select],
+                    "orders": files[match_ord & select],
+                    "wavecal": files[match_wave & select],
+                    "freq_comb": files[match_comb & select],
                     "science": files[match_ty & match_ob & select],
                 }
+
+                if len(files_this_night[key]["bias"]) == 0:
+                    next_best_bias_night = ni[match_bias][
+                        np.argsort(np.abs(ni[match_bias] - ind_night))
+                    ][0]
+                    files_this_night[key]["bias"] = files[
+                        match_bias & (ni == next_best_bias_night)
+                    ]
+                    logging.warning(
+                        "Using bias from night %s for observations of night %s",
+                        next_best_bias_night,
+                        ind_night,
+                    )
+
+                if len(files_this_night[key]["flat"]) == 0:
+                    next_best_bias_night = ni[match_flat][
+                        np.argsort(np.abs(ni[match_flat] - ind_night))
+                    ][0]
+                    files_this_night[key]["flat"] = files[
+                        match_flat & (ni == next_best_bias_night)
+                    ]
+                    logging.warning(
+                        "Using flat from night %s for observations of night %s",
+                        next_best_bias_night,
+                        ind_night,
+                    )
+
+                if len(files_this_night[key]["orders"]) == 0:
+                    next_best_bias_night = ni[match_ord][
+                        np.argsort(np.abs(ni[match_ord] - ind_night))
+                    ][0]
+                    files_this_night[key]["orders"] = files[
+                        match_ord & (ni == next_best_bias_night)
+                    ]
+                    logging.warning(
+                        "Using order definition from night %s for observations of night %s",
+                        next_best_bias_night,
+                        ind_night,
+                    )
+
+                if len(files_this_night[key]["wavecal"]) == 0:
+                    next_best_bias_night = ni[match_wave][
+                        np.argsort(np.abs(ni[match_wave] - ind_night))
+                    ][0]
+                    files_this_night[key]["wavecal"] = files[
+                        match_wave & (ni == next_best_bias_night)
+                    ]
+                    logging.warning(
+                        "Using wavecal from night %s for observations of night %s",
+                        next_best_bias_night,
+                        ind_night,
+                    )
+
                 files_this_night[key]["curvature"] = (
                     files_this_night[key]["freq_comb"]
                     if len(files_this_night[key]["freq_comb"]) != 0
@@ -195,6 +278,8 @@ class HARPS(instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode.lower())
+        fname = "{instrument}_{mode}_2D.npz".format(
+            instrument="harps", mode=mode.lower()
+        )
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname

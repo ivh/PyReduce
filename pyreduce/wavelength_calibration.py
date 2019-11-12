@@ -1020,13 +1020,40 @@ class WavelengthCalibration:
         orders = np.unique(lines["order"])
         norders = len(orders)
         plt.suptitle(title)
+        nplots = int(np.ceil(norders / 2))
         for i, order in enumerate(orders):
-            plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
+            plt.subplot(nplots, 2, i + 1)
             order_lines = lines[lines["order"] == order]
             if len(order_lines) > 0:
                 residual = self.calculate_residual(coef, order_lines)
                 plt.plot(order_lines["posm"], residual, "rX")
-                plt.hlines([0], order_lines["posm"].min(), order_lines["posm"].max())
+                plt.hlines([0], 0, self.ncol)
+
+            plt.xlim(0, self.ncol)
+            plt.ylim(-self.threshold, self.threshold)
+
+            if (i + 1) not in [norders, norders -1]:
+                plt.xticks([])
+            else:
+                plt.xlabel("x [Pixel]")
+
+            if (i + 1) % 2 == 0:
+                plt.yticks([])
+            # else:
+                # plt.yticks([-self.threshold, 0, self.threshold])
+
+        plt.subplots_adjust(hspace=0, wspace=0.1)
+
+        # order = 0
+        # order_lines = lines[lines["order"] == order]
+        # if len(order_lines) > 0:
+        #     residual = self.calculate_residual(coef, order_lines)
+        #     plt.plot(order_lines["posm"], residual, "rX")
+        #     plt.hlines([0], 0, self.ncol)
+        # plt.xlim(0, self.ncol)
+        # plt.ylim(-self.threshold, self.threshold)
+        # plt.xlabel("x [Pixel]")
+        # plt.ylabel("Residual [m/s]")
 
         plt.show()
 
@@ -1041,17 +1068,7 @@ class WavelengthCalibration:
         peaks, _ = signal.find_peaks(c, height=height, width=width)
         distance = np.median(np.diff(peaks)) // 4
         peaks, _ = signal.find_peaks(c, height=height, distance=distance, width=width)
-    
-        # TODO fix missed/double peaks
-        n = np.arange(len(peaks))
-        diff = np.diff(peaks)
-        idx = np.where(diff > 1.5 * np.median(diff))[0]
-        for j in idx:
-            n[j + 1 :] += 1
 
-        idx = np.where(diff < 0.5 * np.median(diff))[0]
-        for j in idx:
-            n[j + 1 :] -= 1
 
         # Fit peaks with gaussian to get accurate position
         new_peaks = peaks.astype(float)
@@ -1062,6 +1079,7 @@ class WavelengthCalibration:
             coef = util.gaussfit3(np.arange(len(idx)), c[idx])
             new_peaks[j] = coef[1] + p - width
 
+        n = np.arange(len(peaks))
         return n, new_peaks
 
     def frequency_comb(self, comb, wave, lines=None):
@@ -1088,6 +1106,10 @@ class WavelengthCalibration:
             # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
             res = Polynomial.fit(n, f_old, deg=1, domain=[])
             fd, fr = res.coef
+            n = np.round((f_old - fd) / fr)
+            res = Polynomial.fit(n, f_old, deg=1, domain=[])
+            fd, fr = res.coef
+
 
             # The first order is used as the baseline for all other orders
             # The choice is arbitrary and doesn't matter

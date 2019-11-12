@@ -222,6 +222,35 @@ class Swath:
 
 
 def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
+    """Fix extraction width and column range, so that all pixels used are within the image.
+    I.e. the column range is cut so that the everything is within the image
+    
+    Parameters
+    ----------
+    xwd : float, array
+        Extraction width, either one value for all orders, or the whole array
+    cr : 2-tuple(int), array
+        Column range, either one value for all orders, or the whole array
+    orders : array
+        polynomial coefficients that describe each order
+    nrow : int
+        Number of rows in the image
+    ncol : int
+        Number of columns in the image
+    nord : int
+        Number of orders in the image
+    ignore_column_range : bool, optional
+        if true does not change the column range, however this may lead to problems with the extraction, by default False
+    
+    Returns
+    -------
+    xwd : array
+        fixed extraction width
+    cr : array
+        fixed column range
+    orders : array
+        the same orders as before
+    """
 
     if xwd is None:
         xwd = 0.5
@@ -694,7 +723,7 @@ def extract_spectrum(
         i = 0
         while np.any(np.isnan(swath.spec[ihalf])):
             i += 1
-            print(f"What the fuck + {i}")
+            print(f"What the hell + {i}")
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
