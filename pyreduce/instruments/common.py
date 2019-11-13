@@ -107,6 +107,7 @@ class instrument:
         self.info = self.load_info()
 
     def get_extension(self, header, mode):
+        mode = mode.upper()
         if mode == "MASK":
             extension = 0
         else:

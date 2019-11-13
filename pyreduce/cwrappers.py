@@ -240,7 +240,8 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     nx = np.array(
         [np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in [0, ncols - 1]]
     )
-    nx = int(np.ceil(np.max(nx))) * 2 + 1
+    dx = int(np.ceil(np.max(nx)))
+    nx = dx * 2 + 1
 
     # Initialize arrays and ensure the correct datatype for C
     requirements = ["C", "A", "W", "O"]
@@ -292,8 +293,8 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     )
 
     mask = mask_out == 0
-    if nx > 0:
-        sp[:nx] = 0
-        sp[-nx:] = 0
+    if dx > 0:
+        sp[:dx] = 0
+        sp[-dx:] = 0
 
     return sp, sl, model, unc, mask, info

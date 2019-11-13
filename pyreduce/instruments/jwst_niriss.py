@@ -20,9 +20,6 @@ from .common import getter, instrument, observation_date_to_night
 
 
 class JWST_NIRISS(instrument):
-    def __init__(self):
-        self.instrument = "jwst_niriss"
-
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
@@ -44,7 +41,7 @@ class JWST_NIRISS(instrument):
         hdu = fits.open(fname)
         dirname = os.path.dirname(fname)
         fname = os.path.basename(fname)
-        
+
         header = hdu[0].header
         if "mjd-obs" not in header:
             if len(header["DATE-OBS"]) <= 10:
@@ -56,7 +53,7 @@ class JWST_NIRISS(instrument):
         header2 = fits.Header()
         header2["EXTNAME"] = "SCI"
         shape = hdu["SCI"].data.shape
-        
+
         nframes = shape[0]
         ngroups = shape[1]
 
@@ -119,7 +116,7 @@ class JWST_NIRISS(instrument):
 
         # find all fits files in the input dir(s)
         input_dir = input_dir.format(
-            instrument=self.instrument.upper(), target=target, mode=mode, night=night
+            instrument=self.name.upper(), target=target, mode=mode, night=night
         )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
@@ -198,17 +195,21 @@ class JWST_NIRISS(instrument):
                 # TODO find actual flat files
                 files_this_night[key] = {}
                 files_this_night[key]["bias"] = []
-                files_this_night[key]["flat"] = [f for f in files if f.endswith("flat.fits")]
+                files_this_night[key]["flat"] = [
+                    f for f in files if f.endswith("flat.fits")
+                ]
                 files_this_night[key]["orders"] = [files_this_night[key]["flat"][0]]
                 files_this_night[key]["wavecal"] = []
                 files_this_night[key]["curvature"] = files_this_night[key]["wavecal"]
                 files_this_night[key]["science"] = []
 
-                f_science = [f for f in files if not (f.endswith("flat.fits") or f.endswith("bias.fits"))]
+                f_science = [
+                    f
+                    for f in files
+                    if not (f.endswith("flat.fits") or f.endswith("bias.fits"))
+                ]
                 for f in f_science:
                     files_this_night[key]["science"] += self.split_observation(f, mode)
-
-                
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

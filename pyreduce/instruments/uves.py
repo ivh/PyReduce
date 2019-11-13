@@ -16,9 +16,6 @@ from .common import getter, instrument, observation_date_to_night
 
 
 class UVES(instrument):
-    def __init__(self):
-        self.instrument = "uves"
-
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here

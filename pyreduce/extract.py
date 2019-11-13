@@ -654,11 +654,6 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
-    if tilt is None:
-        tilt = np.zeros(ncol)
-    if shear is None:
-        shear = np.zeros(ncol)
-
     if out_spec is None:
         spec = np.zeros(ncol)
     else:
@@ -712,8 +707,8 @@ def extract_spectrum(
             swath_img = np.clip(swath_img, 0, None)
 
             # Do Slitfunction extraction
-            swath_tilt = tilt[ibeg:iend]
-            swath_shear = shear[ibeg:iend]
+            swath_tilt = tilt[ibeg:iend] if tilt is not None else 0
+            swath_shear = shear[ibeg:iend] if shear is not None else 0
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
@@ -730,7 +725,7 @@ def extract_spectrum(
             i = 0
             while np.any(np.isnan(swath.spec[ihalf])):
                 i += 1
-                print(f"What the hell + {i}")
+                logging.warning("Extraction failed, trying again with oversampling %i", osample + i)
                 # This might mean that the curvature is off ???
                 swath[ihalf] = slitfunc_curved(
                     swath_img,

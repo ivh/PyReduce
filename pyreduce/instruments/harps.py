@@ -21,12 +21,15 @@ class HARPS(instrument):
     def get_extension(self, header, mode):
         extension = super().get_extension(header, mode)
 
-        if (
-            header["NAXIS"] == 2
-            and header["NAXIS1"] == 4296
-            and header["NAXIS2"] == 4096
-        ):
-            extension = 0
+        try:
+            if (
+                header["NAXIS"] == 2
+                and header["NAXIS1"] == 4296
+                and header["NAXIS2"] == 4096
+            ):
+                extension = 0
+        except KeyError:
+            pass
 
         return extension
 
@@ -56,21 +59,24 @@ class HARPS(instrument):
         except:
             pass
 
-        if (
-            header["NAXIS"] == 2
-            and header["NAXIS1"] == 4296
-            and header["NAXIS2"] == 4096
-        ):
-            # both modes are in the same image
-            prescan_x = 50
-            overscan_x = 50
-            naxis_x = 2148
-            if mode == "BLUE":
-                header["e_xlo"] = prescan_x
-                header["e_xhi"] = naxis_x - overscan_x
-            elif mode == "RED":
-                header["e_xlo"] = naxis_x + prescan_x
-                header["e_xhi"] = 2 * naxis_x - overscan_x
+        try:
+            if (
+                header["NAXIS"] == 2
+                and header["NAXIS1"] == 4296
+                and header["NAXIS2"] == 4096
+            ):
+                # both modes are in the same image
+                prescan_x = 50
+                overscan_x = 50
+                naxis_x = 2148
+                if mode == "BLUE":
+                    header["e_xlo"] = prescan_x
+                    header["e_xhi"] = naxis_x - overscan_x
+                elif mode == "RED":
+                    header["e_xlo"] = naxis_x + prescan_x
+                    header["e_xhi"] = 2 * naxis_x - overscan_x
+        except KeyError:
+            pass
 
         return header
 

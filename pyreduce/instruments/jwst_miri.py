@@ -66,7 +66,7 @@ class JWST_MIRI(instrument):
 
         # find all fits files in the input dir(s)
         input_dir = input_dir.format(
-            instrument=self.instrument.upper(), target=target, mode=mode, night=night
+            instrument=self.name.upper(), target=target, mode=mode, night=night
         )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
