@@ -20,6 +20,8 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter, convolve
 from scipy.ndimage.morphology import binary_hit_or_miss
 
+from tqdm import tqdm
+
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index, resample
 
@@ -200,6 +202,7 @@ class Swath:
         self.model = [None] * nswath
         self.unc = [None] * nswath
         self.mask = [None] * nswath
+        self.info = [None] * nswath
 
     def __len__(self):
         return self.nswath
@@ -211,6 +214,7 @@ class Swath:
             self.model[key],
             self.unc[key],
             self.mask[key],
+            self.info[key]
         )
 
     def __setitem__(self, key, value):
@@ -219,6 +223,7 @@ class Swath:
         self.model[key] = value[2]
         self.unc[key] = value[3]
         self.mask[key] = value[4]
+        self.info[key] = value[5]
 
 
 def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
@@ -682,48 +687,33 @@ def extract_spectrum(
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
-    for ihalf, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-        logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
+    with tqdm(enumerate(zip(bins_start, bins_end)), total=len(bins_start), leave=False, desc="Swath") as t:
+        for ihalf, (ibeg, iend) in t:
+            logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
 
-        # Cut out swath from image
-        index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
-        swath_img = img[index]
-        swath_ycen = ycen[ibeg:iend]
+            # Cut out swath from image
+            index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
+            swath_img = img[index]
+            swath_ycen = ycen[ibeg:iend]
 
-        # Corrections
-        # TODO: what is it even supposed to do?
-        if telluric is not None:  # pragma: no cover
-            telluric_correction = calc_telluric_correction(telluric, swath_img)
-        else:
-            telluric_correction = 0
+            # Corrections
+            # TODO: what is it even supposed to do?
+            if telluric is not None:  # pragma: no cover
+                telluric_correction = calc_telluric_correction(telluric, swath_img)
+            else:
+                telluric_correction = 0
 
-        if scatter is not None:
-            scatter_correction = calc_scatter_correction(scatter, index)
-        else:
-            scatter_correction = 0
+            if scatter is not None:
+                scatter_correction = calc_scatter_correction(scatter, index)
+            else:
+                scatter_correction = 0
 
-        swath_img -= scatter_correction + telluric_correction
-        swath_img = np.clip(swath_img, 0, None)
+            swath_img -= scatter_correction + telluric_correction
+            swath_img = np.clip(swath_img, 0, None)
 
-        # Do Slitfunction extraction
-        swath_tilt = tilt[ibeg:iend]
-        swath_shear = shear[ibeg:iend]
-        swath[ihalf] = slitfunc_curved(
-            swath_img,
-            swath_ycen,
-            swath_tilt,
-            swath_shear,
-            lambda_sp=lambda_sp,
-            lambda_sf=lambda_sf,
-            osample=osample,
-            yrange=yrange,
-        )
-
-        # Catch bad Swaths, and run them again with more oversampling
-        i = 0
-        while np.any(np.isnan(swath.spec[ihalf])):
-            i += 1
-            print(f"What the hell + {i}")
+            # Do Slitfunction extraction
+            swath_tilt = tilt[ibeg:iend]
+            swath_shear = shear[ibeg:iend]
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
@@ -731,34 +721,52 @@ def extract_spectrum(
                 swath_shear,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
-                osample=osample + i,
+                osample=osample,
                 yrange=yrange,
             )
-            swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
+            t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
-        if normalize:
-            # Save image and model for later
-            # Use np.divide to avoid divisions by zero
-            where = swath.model[ihalf] > threshold / gain
-            norm_img[ihalf] = np.ones_like(swath.model[ihalf])
-            np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
-            norm_model[ihalf] = swath.model[ihalf]
-
-        if plot >= 2:  # pragma: no cover
-            if not np.all(np.isnan(swath_img)):
-                if progress is None:
-                    progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
-                progress.plot(
+            # Catch bad Swaths, and run them again with more oversampling
+            i = 0
+            while np.any(np.isnan(swath.spec[ihalf])):
+                i += 1
+                print(f"What the hell + {i}")
+                # This might mean that the curvature is off ???
+                swath[ihalf] = slitfunc_curved(
                     swath_img,
-                    swath.spec[ihalf],
-                    swath.slitf[ihalf],
-                    swath.model[ihalf],
                     swath_ycen,
-                    swath.mask[ihalf],
-                    ord_num,
-                    ibeg,
-                    iend,
+                    swath_tilt,
+                    swath_shear,
+                    lambda_sp=lambda_sp,
+                    lambda_sf=lambda_sf,
+                    osample=osample + i,
+                    yrange=yrange,
                 )
+                swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
+
+            if normalize:
+                # Save image and model for later
+                # Use np.divide to avoid divisions by zero
+                where = swath.model[ihalf] > threshold / gain
+                norm_img[ihalf] = np.ones_like(swath.model[ihalf])
+                np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
+                norm_model[ihalf] = swath.model[ihalf]
+
+            if plot >= 2:  # pragma: no cover
+                if not np.all(np.isnan(swath_img)):
+                    if progress is None:
+                        progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
+                    progress.plot(
+                        swath_img,
+                        swath.spec[ihalf],
+                        swath.slitf[ihalf],
+                        swath.model[ihalf],
+                        swath_ycen,
+                        swath.mask[ihalf],
+                        ord_num,
+                        ibeg,
+                        iend,
+                    )
 
     # Remove points at the border of the each swath, if order has tilt
     # as those pixels have bad information
@@ -931,7 +939,7 @@ def optimal_extraction(
     else:
         progress = None
 
-    for i in range(nord):
+    for i in tqdm(range(nord), desc="Order"):
         logging.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
@@ -1129,7 +1137,10 @@ def plot_comparison(
     plt.imshow(output, origin="lower", aspect="auto")
 
     for i in range(nord):
-        tmp = spectrum[i] - np.min(spectrum[i, column_range[i, 0] : column_range[i, 1]])
+        tmp = spectrum[i, column_range[i, 0] : column_range[i, 1]]
+        vmin = np.min(tmp[tmp != 0])
+        tmp = np.copy(spectrum[i])
+        tmp[tmp != 0] -= vmin
         np.log(tmp, out=tmp, where=tmp > 0)
         tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
         tmp += pos[i]

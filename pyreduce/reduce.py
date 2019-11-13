@@ -24,11 +24,13 @@ import sys
 import time
 import glob
 from os.path import join, dirname
+import warnings
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from tqdm import tqdm
 
 # PyReduce subpackages
 from . import echelle, instruments, util, __version__
@@ -1329,7 +1331,7 @@ class ScienceExtraction(Step):
         tilt, shear = curvature
 
         heads, specs, sigmas, columns = [], [], [], []
-        for fname in files:
+        for fname in tqdm(files, desc="Files"):
             im, head = self.instrument.load_fits(
                 fname,
                 self.mode,
@@ -1549,7 +1551,6 @@ class Finalize(Step):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb", "config"]
-
         self.filename = config["filename"]
 
     def output_file(self, number, name):
@@ -1577,7 +1578,7 @@ class Finalize(Step):
                     value = "null"
                 elif not np.isscalar(value):
                     value = str(value)
-                head[f"{prefix} {key.upper()}"] = value
+                head[f"HIERARCH {prefix} {key.upper()}"] = value
         return head
 
     def run(self, continuum, freq_comb, config):
@@ -1625,7 +1626,7 @@ class Finalize(Step):
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
-            head["PR_version"] = __version__
+            head["HIERARCH PR_version"] = __version__
 
             head = self.save_config_to_header(head, config)
 
