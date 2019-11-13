@@ -34,4 +34,5 @@ int slit_func_curved(int ncols,
                      double *l_Aij,
                      double *l_bj,
                      double *p_Aij,
-                     double *p_bj);
+                     double *p_bj,
+                     double *cost);

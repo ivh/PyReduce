@@ -15,7 +15,7 @@ from contextlib import contextmanager
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+from scipy.ndimage import median_filter
 
 try:
     from .clib._slitfunc_bd import lib as slitfunclib
@@ -129,7 +129,6 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-
 def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
@@ -214,9 +213,23 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     img = np.ma.getdata(img)
     img[mask] = 0
 
-    mask = np.where(mask, c_int(0), c_int(1))
+
     # sp should never be all zero (thats a horrible guess) and leads to all nans
+    # This is a simplified run of the algorithm without oversampling or curvature
+    # But strong smoothing
+    # To remove the most egregious outliers, which would ruin the fit
     sp = np.sum(img, axis=0)
+    median_filter(sp, 5, output=sp)
+    sl = np.median(img, axis=1)
+    sl /= np.sum(sl)
+
+    model = sl[:, None] * sp[None, :]
+    dev = (model - img).std()
+    mask[np.abs(model - img) > 6 * dev] = True
+    img[mask] = 0
+    sp = np.sum(img, axis=0)
+
+    mask = np.where(mask, c_int(0), c_int(1))
     pix_unc = np.copy(img)
     np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
 
@@ -224,8 +237,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     PSF_curve[:, 1] = tilt
     PSF_curve[:, 2] = shear
 
-    nx = np.array([np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in [0, ncols-1]])
-    nx = int(np.ceil(np.max(nx))) * 2
+    nx = np.array(
+        [np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in [0, ncols - 1]]
+    )
+    nx = int(np.ceil(np.max(nx))) * 2 + 1
 
     # Initialize arrays and ensure the correct datatype for C
     requirements = ["C", "A", "W", "O"]
@@ -245,6 +260,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     l_bj = np.zeros(ny, dtype=c_double)
     p_aij = np.zeros((ncols, 5), dtype=c_double)
     p_bj = np.zeros(ncols, dtype=c_double)
+    info = np.zeros(4, dtype=c_double)
 
 
     # Call the C function
@@ -272,6 +288,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         ffi.cast("double *", l_bj.ctypes.data),
         ffi.cast("double *", p_aij.ctypes.data),
         ffi.cast("double *", p_bj.ctypes.data),
+        ffi.cast("double *", info.ctypes.data),
     )
 
     mask = mask_out == 0
@@ -279,4 +296,4 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         sp[:nx] = 0
         sp[-nx:] = 0
 
-    return sp, sl, model, unc, mask
+    return sp, sl, model, unc, mask, info
