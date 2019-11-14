@@ -1711,13 +1711,11 @@ class Reducer:
 
         instrument = load_instrument(instrument)
         info = instrument.info
-        extension = None
 
         self.data = {"files": files, "config": config}
         self.inputs = (
             instrument,
             mode,
-            extension,
             target,
             night,
             output_dir,
