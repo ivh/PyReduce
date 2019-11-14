@@ -185,15 +185,7 @@ class Step:
     """ Parent class for all steps """
 
     def __init__(
-        self,
-        instrument,
-        mode,
-        extension,
-        target,
-        night,
-        output_dir,
-        order_range,
-        **config,
+        self, instrument, mode, target, night, output_dir, order_range, **config
     ):
         self._dependsOn = []
         self._loadDependsOn = []
@@ -201,8 +193,6 @@ class Step:
         self.instrument = instrument
         #:str: Name of the instrument mode
         self.mode = mode
-        #:int: Number of the FITS extension to use
-        self.extension = extension
         #:str: Name of the observation target
         self.target = target
         #:str: Date of the observation (as a string)
@@ -293,7 +283,6 @@ class Mask(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self.extension = 0
         self._mask_dir = config["directory"]
 
     @property
@@ -329,9 +318,7 @@ class Mask(Step):
         """
         mask_file = join(self.mask_dir, self.mask_file)
         try:
-            mask, _ = self.instrument.load_fits(
-                mask_file, "MASK"
-            )
+            mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
         except FileNotFoundError:
             logging.error(
@@ -392,12 +379,7 @@ class Bias(Step):
             header of the master bias
         """
         bias, bhead = combine_bias(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            extension=self.extension,
-            plot=self.plot,
+            files, self.instrument, self.mode, mask=mask, plot=self.plot
         )
         self.save(bias.data, bhead)
 
@@ -485,7 +467,6 @@ class Flat(Step):
             self.instrument,
             self.mode,
             mask=mask,
-            extension=self.extension,
             bhead=bhead,
             bias=bias,
             plot=self.plot,
@@ -578,7 +559,6 @@ class OrderTracing(Step):
             self.instrument,
             self.mode,
             mask=mask,
-            extension=self.extension,
             bhead=bias[1],
             bias=bias[0],
             plot=False,
@@ -893,13 +873,7 @@ class WavelengthCalibration(Step):
 
         # Load wavecal image
         orig, thead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            self.extension,
-            mask=mask,
-            bias=bias,
-            bhead=bhead,
+            files, self.instrument, self.mode, mask=mask, bias=bias, bhead=bhead
         )
 
         # Extract wavecal spectrum
@@ -919,9 +893,7 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
-        reference = self.instrument.get_wavecal_filename(
-            thead, self.mode
-        )
+        reference = self.instrument.get_wavecal_filename(thead, self.mode)
         reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
 
@@ -1051,9 +1023,7 @@ class LaserFrequencyComb(Step):
         if len(files) == 0:
             raise FileNotFoundError("No files for Laser Frequency Comb found")
 
-        orig, chead = combine_frames(
-            files, self.instrument, self.mode, self.extension, mask=mask
-        )
+        orig, chead = combine_frames(files, self.instrument, self.mode, mask=mask)
 
         comb, _, _, _ = extract(
             orig,
@@ -1182,9 +1152,7 @@ class SlitCurvatureDetermination(Step):
         """
         orders, column_range = orders
 
-        orig, thead = combine_frames(
-            files, self.instrument, self.mode, self.extension, mask=mask
-        )
+        orig, thead = combine_frames(files, self.instrument, self.mode, mask=mask)
 
         extracted, _, _, _ = extract(
             orig,
@@ -1333,10 +1301,7 @@ class ScienceExtraction(Step):
         heads, specs, sigmas, columns = [], [], [], []
         for fname in tqdm(files, desc="Files"):
             im, head = self.instrument.load_fits(
-                fname,
-                self.mode,
-                mask=mask,
-                dtype=np.floating,
+                fname, self.mode, mask=mask, dtype=np.floating
             )
             # Correct for bias and flat field
             if bias is not None:
@@ -1746,10 +1711,7 @@ class Reducer:
 
         instrument = load_instrument(instrument)
         info = instrument.info
-        extension = info["extension"]
-        if isinstance(extension, list):
-            imode = util.find_first_index(info["modes"], mode.upper())
-            extension = extension[imode]
+        extension = None
 
         self.data = {"files": files, "config": config}
         self.inputs = (

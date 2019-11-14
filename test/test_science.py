@@ -7,10 +7,10 @@ from pyreduce.extract import extract
 
 def test_science(
     files,
+    instr,
     instrument,
     mode,
     mask,
-    extension,
     bias,
     normflat,
     orders,
@@ -31,7 +31,7 @@ def test_science(
 
     f = files["science"][0]
 
-    im, head = instrument.load_fits(
+    im, head = instr.load_fits(
         f, mode, mask=mask, dtype=np.float32
     )
     # Correct for bias and flat field

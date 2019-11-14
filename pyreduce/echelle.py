@@ -303,4 +303,4 @@ def save(fname, header, **kwargs):
     table = fits.BinTableHDU.from_columns(columns)
 
     hdulist = fits.HDUList(hdus=[primary, table])
-    hdulist.writeto(fname, overwrite=True, output_verify="silentfix")
+    hdulist.writeto(fname, overwrite=True, output_verify="silentfix+ignore")

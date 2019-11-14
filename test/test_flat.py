@@ -8,12 +8,12 @@ from pyreduce import instruments
 from pyreduce.combine_frames import combine_flat
 
 
-def test_flat(instrument, mode, files, extension, mask):
+def test_flat(instrument, mode, files, mask):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
     flat, fhead = combine_flat(
-        files["flat"], instrument, mode, extension=extension, window=50, mask=mask
+        files["flat"], instrument, mode, window=50, mask=mask
     )
 
     assert isinstance(flat, np.ma.masked_array)
@@ -24,7 +24,7 @@ def test_flat(instrument, mode, files, extension, mask):
     assert flat.shape[1] > 1
 
 
-def test_flat_with_bias(instrument, mode, files, extension, mask, bias):
+def test_flat_with_bias(instrument, mode, files, mask, bias):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
@@ -34,7 +34,6 @@ def test_flat_with_bias(instrument, mode, files, extension, mask, bias):
         files["flat"],
         instrument,
         mode,
-        extension=extension,
         window=window,
         bias=bias,
         bhead=bhead,

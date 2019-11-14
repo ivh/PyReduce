@@ -145,7 +145,7 @@ def combine_frames(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     threshold=3.5,
     window=50,
     dtype=np.float32,
@@ -212,6 +212,8 @@ def combine_frames(
         list of fits files to combine
     instrument : str
         instrument id for modinfo
+    mode : str
+        instrument mode
     extension : int, optional
         fits extension to load (default: 1)
     threshold : float, optional
@@ -236,6 +238,8 @@ def combine_frames(
     """
 
     DEBUG_NROWS = 100  # print status update every DEBUG_NROWS rows (if debug is True)
+    if instrument is None or isinstance(instrument, str):
+        instrument = load_instrument(instrument)
 
     # summarize file info
     logging.info("Files:")
@@ -247,18 +251,18 @@ def combine_frames(
         raise ValueError("No files given for combine frames")
     elif len(files) == 1:
         result, head = instrument.load_fits(
-            files[0], mode, dtype=dtype, **kwargs
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         return result, head
     # Two images
     elif len(files) == 2:
         bias1, head1 = instrument.load_fits(
-            files[0], mode, dtype=dtype, **kwargs
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp1 = head1.get("exptime", 0)
 
         bias2, head2 = instrument.load_fits(
-            files[1], mode, dtype=dtype, **kwargs
+            files[1], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -277,7 +281,7 @@ def combine_frames(
 
         heads = [
             instrument.load_fits(
-                f, mode, header_only=True, dtype=dtype, **kwargs
+                f, mode, header_only=True, dtype=dtype, extension=extension, **kwargs
             )
             for f in files
         ]
@@ -317,9 +321,14 @@ def combine_frames(
 
         # Load all image hdus, but leave the data on the disk, using memmap
         # Need to scale data later
+        if extension is None:
+            extension = [instrument.get_extension(h, mode) for h in heads]
+        else:
+            extension = [extension] * len(heads)
+
         data = [
-            fits.open(f, memmap=True, do_not_scale_image_data=True)[extension]
-            for f in files
+            fits.open(f, memmap=True, do_not_scale_image_data=True)[e]
+            for f, e in zip(files, extension)
         ]
 
         if window >= n_columns / 2:
@@ -409,7 +418,7 @@ def combine_frames(
         "images coadded by combine_frames.py on %s" % datetime.datetime.now()
     )
 
-    if not linear: #pragma: no cover
+    if not linear:  # pragma: no cover
         # non-linearity was fixed. mark this in the header
         raise NotImplementedError()  # TODO Nonlinear
         # i = np.where(head["e_linear"] >= 0)
@@ -426,7 +435,9 @@ def combine_frames(
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, plot=False, **kwargs):
+def combine_flat(
+    files, instrument, mode, extension=None, bhead=None, bias=None, plot=False, **kwargs
+):
     """
     Combine several flat files into one master flat
 
@@ -452,7 +463,6 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
     flat, fhead
         image and header of master flat
     """
-
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark
     # TODO: Why do we scale with number of files and not exposure time?
@@ -462,13 +472,12 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
         else:
             flat -= bias * fhead["EXPTIME"] / bhead["EXPTIME"]
 
-
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.title("Master Flat")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(flat, (10, 90))
-        plt.imshow(flat, vmin = bot, vmax=top, origin="lower")
+        plt.imshow(flat, vmin=bot, vmax=top, origin="lower")
         plt.show()
 
     return flat, fhead
@@ -478,7 +487,7 @@ def combine_bias(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     plot=False,
     science_observation_time=None,
     **kwargs
@@ -560,7 +569,7 @@ def combine_bias(
         nbins = int((hmax - hmin) / bin_size)
 
         h, _ = np.histogram(diff, range=(hmin, hmax), bins=nbins)
-        xh = hmin + bin_size * (np.arange(0., nbins) + 0.5)
+        xh = hmin + bin_size * (np.arange(0.0, nbins) + 0.5)
 
         hfit, par = gaussfit(xh, h)
         noise = abs(par[2])  # noise in diff, bias
@@ -591,7 +600,7 @@ def combine_bias(
         logging.info("background noise in combined image= %f", biasnoise)
         logging.info("fixing %i bad pixels", nbad)
 
-        if debug: #pragma: no cover
+        if debug:  # pragma: no cover
             # Plot noise distribution.
             plt.subplot(211)
             plt.plot(xh, h)
@@ -611,10 +620,10 @@ def combine_bias(
             plt.show()
     else:
         diff = 0
-        biasnoise = 1.
+        biasnoise = 1.0
         nbad = 0
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.title("Master Bias")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")

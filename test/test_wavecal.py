@@ -9,7 +9,7 @@ from pyreduce import instruments
 
 
 def test_wavecal(
-    files, instrument, mode, extension, mask, orders, settings, order_range
+    files, instr, instrument, mode, mask, orders, settings, order_range
 ):
     if len(files["wavecal"]) == 0:
         pytest.skip(f"No wavecal files found for instrument {instrument}")
@@ -17,7 +17,7 @@ def test_wavecal(
     orders, column_range = orders
     settings = settings["wavecal"]
     files = files["wavecal"][0]
-    orig, thead = instrument.load_fits(files, mode, mask=mask)
+    orig, thead = instr.load_fits(files, mode, mask=mask)
     thead["obase"] = (0, "base order number")
 
     # Extract wavecal spectrum
@@ -43,8 +43,8 @@ def test_wavecal(
     # assert np.min(thar) == 0
     # assert np.max(thar) == 1
 
-    reference = instruments.instrument_info.get_wavecal_filename(
-        thead, instrument, mode
+    reference = instr.get_wavecal_filename(
+        thead, mode
     )
     reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]

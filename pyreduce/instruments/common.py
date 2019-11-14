@@ -108,10 +108,7 @@ class instrument:
 
     def get_extension(self, header, mode):
         mode = mode.upper()
-        if mode == "MASK":
-            extension = 0
-        else:
-            extension = self.info["extension"]
+        extension = self.info.get("extension", 0)
         
         if isinstance(extension, list):
             imode = find_first_index(self.info["modes"], mode)
@@ -142,7 +139,7 @@ class instrument:
         return info
 
     def load_fits(self,
-        fname, mode, mask=None, header_only=False, dtype=None
+        fname, mode, extension=None, mask=None, header_only=False, dtype=None
     ):
         """
         load fits file, REDUCE style
@@ -184,7 +181,8 @@ class instrument:
 
         hdu = fits.open(fname)
         h_prime = hdu[0].header
-        extension = self.get_extension(h_prime, mode)
+        if extension is None:
+            extension = self.get_extension(h_prime, mode)
 
         header = hdu[extension].header
         header.extend(h_prime, strip=False)

@@ -14,9 +14,9 @@ def mask_dir():
     return mask_dir
 
 
-def test_load_mask(instrument, mode, mask_dir):
-    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instrument.lower(), mode.lower()))
-    mask, _ = instrument.load_fits(mask_file, "MASK")
+def test_load_mask(instr, mode, mask_dir):
+    mask_file = join(mask_dir, "mask_%s_%s.fits.gz" % (instr.name.lower(), mode.lower()))
+    mask, _ = instr.load_fits(mask_file, mode, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
     assert isinstance(mask, np.ndarray)

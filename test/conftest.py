@@ -67,7 +67,11 @@ def instrument(dataset):
     instrument : str
         Observing instrument
     """
-    return instruments.instrument_info.load_instrument(dataset[0])
+    return dataset[0]
+
+@pytest.fixture
+def instr(instrument):
+    return instruments.instrument_info.load_instrument(instrument)
 
 
 @pytest.fixture
@@ -135,7 +139,7 @@ def mode(instrument, info):
 
 
 @pytest.fixture
-def info(instrument):
+def info(instr):
     """
     Static instrument information
 
@@ -150,31 +154,7 @@ def info(instrument):
         Instrument information
     """
 
-    i = instruments.instrument_info.get_instrument_info(instrument)
-    return i
-
-
-@pytest.fixture
-def extension(info, mode):
-    """Fits Extension to use
-
-    Parameters
-    ----------
-    info : dict(str:obj)
-        instrument information
-    mode : str
-        observing mode
-
-    Returns
-    -------
-    extension : int
-        fits extension
-    """
-    ext = info["extension"]
-    if isinstance(ext, list):
-        imode = util.find_first_index(info["modes"], mode)
-        ext = ext[imode]
-    return ext
+    return instr.info
 
 
 @pytest.fixture
@@ -239,7 +219,7 @@ def settings(instrument):
 
 
 @pytest.fixture
-def input_dir(data, target, settings, night, mode):
+def input_dir(data, target, instrument, settings, night, mode):
     """Input data directory
 
     Parameters
@@ -296,7 +276,7 @@ def output_dir(data, settings, instrument, target, night, mode):
 
 
 @pytest.fixture
-def files(input_dir, instrument, target, night, mode, settings):
+def files(input_dir, instrument, target, night, mode, settings, instr):
     """Find and sort all files for this dataset
 
     Parameters
@@ -321,8 +301,8 @@ def files(input_dir, instrument, target, night, mode, settings):
     """
 
     print(input_dir, target, night, instrument, mode, *settings["instrument"])
-    files, _ = instruments.instrument_info.sort_files(
-        input_dir, target, night, instrument, mode, **settings["instrument"]
+    files, _ = instr.sort_files(
+        input_dir, target, night, mode, **settings["instrument"]
     )
     files = files[0][list(files[0].keys())[0]]
     return files
@@ -350,8 +330,8 @@ def prefix(instrument, mode):
 
 
 @pytest.fixture
-def step_args(instrument, mode, extension, target, night, output_dir, order_range):
-    return instrument, mode, extension, target, night, output_dir, order_range
+def step_args(instr, mode, target, night, output_dir, order_range):
+    return instr, mode, target, night, output_dir, order_range
 
 
 @pytest.fixture
