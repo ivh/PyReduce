@@ -22,6 +22,7 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
+from tqdm import tqdm
 
 from numpy.polynomial.polynomial import polyval2d
 from scipy.optimize import least_squares
@@ -29,6 +30,8 @@ from skimage.filters import threshold_otsu
 
 from .extract import fix_parameters
 from .util import make_index, gaussfit4 as gaussfit, polyfit2d
+
+logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
@@ -252,7 +255,12 @@ class Curvature:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             w = np.sqrt(1 / wcen[idx])
-            coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
+            try:
+                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
+            except ValueError:
+                # Polyfit failed for some reason
+                raise RuntimeError
+
 
         if self.curv_degree == 1:
             tilt, shear = coef[0], 0
@@ -276,7 +284,7 @@ class Curvature:
             coef_tilt = np.polyfit(peaks, tilt, self.fit_degree)
             coef_shear = np.polyfit(peaks, shear, self.fit_degree)
         except:
-            logging.error(
+            logger.error(
                 "Could not fit the curvature of this order. Using no curvature instead"
             )
             coef_tilt = np.zeros(self.fit_degree + 1)
@@ -292,8 +300,8 @@ class Curvature:
         all_shear = []
         plot_vec = []
 
-        for j in range(self.n):
-            logging.info("Calculating tilt of order %i out of %i", j + 1, self.n)
+        for j in tqdm(range(self.n), desc="Order"):
+            logger.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
             xwd = self.extraction_width[j]
@@ -456,7 +464,7 @@ class Curvature:
         plt.show()
 
     def execute(self, extracted, original):
-        logging.info("Determining the Slit Curvature")
+        logger.info("Determining the Slit Curvature")
 
         _, ncol = original.shape
 

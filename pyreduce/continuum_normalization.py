@@ -4,13 +4,15 @@ Find the continuum level
 Currently only splices orders together
 First guess of the continuum is provided by the flat field
 """
-
+import logging
 from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from . import util
+
+logger = logging.getLogger(__name__)
 
 # np.seterr("raise")
 

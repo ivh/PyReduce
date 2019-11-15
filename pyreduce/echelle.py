@@ -4,9 +4,12 @@ Contains functions to read and modify echelle structures, just as in reduce
 Mostly for compatibility reasons
 """
 
+import logging
 import numpy as np
 import astropy.io.fits as fits
 import scipy.constants
+
+logger = logging.getLogger(__name__)
 
 
 class Echelle:

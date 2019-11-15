@@ -25,6 +25,8 @@ from tqdm import tqdm
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index, resample
 
+logger = logging.getLogger(__name__)
+
 
 class ProgressPlot:  # pragma: no cover
     def __init__(self, nrow, ncol, nbad=1000):
@@ -684,7 +686,7 @@ def extract_spectrum(
     # half swath width. Spectra for each decomposition are combined with linear weights.
     with tqdm(enumerate(zip(bins_start, bins_end)), total=len(bins_start), leave=False, desc="Swath") as t:
         for ihalf, (ibeg, iend) in t:
-            logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
+            logger.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
 
             # Cut out swath from image
             index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
@@ -725,7 +727,7 @@ def extract_spectrum(
             i = 0
             while np.any(np.isnan(swath.spec[ihalf])):
                 i += 1
-                logging.warning("Extraction failed, trying again with oversampling %i", osample + i)
+                logger.warning("Extraction failed, trying again with oversampling %i", osample + i)
                 # This might mean that the curvature is off ???
                 swath[ihalf] = slitfunc_curved(
                     swath_img,
@@ -905,7 +907,7 @@ def optimal_extraction(
         uncertainties on the spectrum
     """
 
-    logging.info("Using optimal extraction to produce spectrum")
+    logger.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
     nord = len(orders)
@@ -935,7 +937,7 @@ def optimal_extraction(
         progress = None
 
     for i in tqdm(range(nord), desc="Order"):
-        logging.debug("Extracting relative order %i out of %i", i + 1, nord)
+        logger.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[i], ix)
@@ -1050,7 +1052,7 @@ def arc_extraction(
         uncertainties on extracted spectrum
     """
 
-    logging.info("Using arc extraction to produce spectrum.")
+    logger.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
     nord, _ = orders.shape
 
@@ -1066,7 +1068,9 @@ def arc_extraction(
 
     x = np.arange(ncol)
 
-    for i in range(nord):
+    for i in tqdm(range(nord), desc="Order"):
+        logger.debug("Calculating order %i out of %i", i + 1, nord)
+
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
 

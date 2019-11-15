@@ -4,8 +4,10 @@ Module that
     - Flips orients the image so that orders are roughly horizontal
 """
 
+import logging
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
 def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     """

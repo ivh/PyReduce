@@ -49,6 +49,7 @@ from .estimate_background_scatter import estimate_background_scatter
 # TODO License
 
 # TODO automatic determination of the extraction width
+logger = logging.getLogger(__name__)
 
 
 def main(
@@ -149,18 +150,18 @@ def main(
                         input_dir, t, n, i, m, **config["instrument"]
                     )
                     if len(files) == 0:
-                        logging.warning(
+                        logger.warning(
                             f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m}"
                         )
                     for f, k in zip(files, nights):
-                        logging.info("Instrument: %s", i)
-                        logging.info("Target: %s", t)
-                        logging.info("Observation Date: %s", k)
-                        logging.info("Instrument Mode: %s", m)
+                        logger.info("Instrument: %s", i)
+                        logger.info("Target: %s", t)
+                        logger.info("Observation Date: %s", k)
+                        logger.info("Instrument Mode: %s", m)
 
                         for key in f.keys():
-                            logging.info("Group Identifier: %s", key)
-                            logging.debug("Files:\n%s", f[key])
+                            logger.info("Group Identifier: %s", key)
+                            logger.debug("Files:\n%s", f[key])
                             reducer = Reducer(
                                 f[key],
                                 output_dir,
@@ -176,8 +177,8 @@ def main(
                             data = reducer.run_steps(steps=steps)
                             output.append(data)
                             # except Exception as e:
-                            # logging.error("Reduction failed with error message: %s", str(e))
-                            # logging.info("------------")
+                            # logger.error("Reduction failed with error message: %s", str(e))
+                            # logger.info("------------")
     return output
 
 
@@ -264,7 +265,7 @@ class Step:
     def output_dir(self):
         """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
         return self._output_dir.format(
-            instrument=self.instrument,
+            instrument=self.instrument.name,
             target=self.target,
             night=self.night,
             mode=self.mode,
@@ -321,7 +322,7 @@ class Mask(Step):
             mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
         except FileNotFoundError:
-            logging.error(
+            logger.error(
                 "Bad Pixel Mask datafile %s not found. Using all pixels instead.",
                 mask_file,
             )
@@ -405,7 +406,7 @@ class Bias(Step):
             bias, bhead = bias.data, bias.header
             bias = np.ma.masked_array(bias, mask=mask)
         except FileNotFoundError:
-            logging.warning("No intermediate bias file found. Using Bias = 0 instead.")
+            logger.warning("No intermediate bias file found. Using Bias = 0 instead.")
             bias, bhead = None, None
         return bias, bhead
 
@@ -495,7 +496,7 @@ class Flat(Step):
             flat, fhead = flat.data, flat.header
             flat = np.ma.masked_array(flat, mask=mask)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate file for the flat field found. Using Flat = 1 instead"
             )
             flat, fhead = None, None
@@ -671,7 +672,7 @@ class BackgroundScatter(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate files found for the scatter. Using scatter = 0 instead."
             )
             data = {"scatter": None}
@@ -781,7 +782,7 @@ class NormalizeFlatField(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate files found for the normalized flat field. Using flat = 1 instead."
             )
             data = {"blaze": None, "norm": None}
@@ -1089,7 +1090,7 @@ class LaserFrequencyComb(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
             )
             wave, thar, coef, linelist = wavecal
@@ -1211,7 +1212,7 @@ class SlitCurvatureDetermination(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning("No data for slit curvature found, setting it to 0.")
+            logger.warning("No data for slit curvature found, setting it to 0.")
             data = {"tilt": None, "shear": None}
 
         tilt = data["tilt"]
@@ -1433,14 +1434,14 @@ class ContinuumNormalization(Step):
         heads, specs, sigmas, columns = science
         norm, blaze = norm_flat
 
-        logging.info("Continuum normalization")
+        logger.info("Continuum normalization")
         conts = [None for _ in specs]
         for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
-            logging.info("Splicing orders")
+            logger.info("Splicing orders")
             specs[j], wave, blaze, sigmas[j] = splice_orders(
                 spec, wave, blaze, sigma, scaling=True, plot=self.plot
             )
-            logging.info("Normalizing continuum")
+            logger.info("Normalizing continuum")
             conts[j] = continuum_normalize(
                 specs[j], wave, blaze, sigmas[j], plot=self.plot
             )
@@ -1493,7 +1494,7 @@ class ContinuumNormalization(Step):
             data = joblib.load(self.savefile)
         except FileNotFoundError:
             # Use science files instead
-            logging.warning(
+            logger.warning(
                 "No continuum normalized data found. Using unnormalized results instead."
             )
             heads, specs, sigmas, columns = science
@@ -1521,7 +1522,7 @@ class Finalize(Step):
     def output_file(self, number, name):
         """str: output file name"""
         out = self.filename.format(
-            instrument=self.instrument,
+            instrument=self.instrument.name,
             night=self.night,
             mode=self.mode,
             number=number,
@@ -1581,11 +1582,11 @@ class Finalize(Step):
                     head["e_jd"],
                 )
 
-                logging.debug("Heliocentric correction: %f km/s", rv_corr)
-                logging.debug("Heliocentric Julian Date: %s", str(bjd))
+                logger.debug("Heliocentric correction: %f km/s", rv_corr)
+                logger.debug("Heliocentric Julian Date: %s", str(bjd))
             except KeyError:
-                logging.warning("Could not calculate heliocentric correction")
-                # logging.warning("Telescope is in space?")
+                logger.warning("Could not calculate heliocentric correction")
+                # logger.warning("Telescope is in space?")
                 rv_corr = 0
                 bjd = head["e_jd"]
 
@@ -1601,7 +1602,7 @@ class Finalize(Step):
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
             fnames.append(fname)
-            logging.info("science file: %s", os.path.basename(fname))
+            logger.info("science file: %s", os.path.basename(fname))
         return fnames
 
     def save(self, i, head, spec, sigma, cont, wave, columns):
@@ -1740,16 +1741,16 @@ class Reducer:
         # But give a warning
         if load:
             try:
-                logging.info("Loading data from step '%s'", step)
+                logger.info("Loading data from step '%s'", step)
                 data = module.load(**args)
             except FileNotFoundError:
-                logging.warning(
+                logger.warning(
                     "Intermediate File(s) for loading step %s not found. Running it instead.",
                     step,
                 )
                 data = self.run_module(step, load=False)
         else:
-            logging.info("Running step '%s'", step)
+            logger.info("Running step '%s'", step)
             if step in self.files.keys():
                 args["files"] = self.files[step]
             data = module.run(**args)
@@ -1796,8 +1797,8 @@ class Reducer:
                 if exists[i]:
                     data["finalize"][i] = fname_out[0]
             if all(exists):
-                logging.info("All science files already exist, skipping this set")
-                logging.debug("--------------------------------")
+                logger.info("All science files already exist, skipping this set")
+                logger.debug("--------------------------------")
                 return data
 
         steps.sort(key=lambda x: self.step_order[x])
@@ -1805,7 +1806,7 @@ class Reducer:
         for step in steps:
             self.run_module(step)
 
-        logging.debug("--------------------------------")
+        logger.debug("--------------------------------")
         return self.data
 
 

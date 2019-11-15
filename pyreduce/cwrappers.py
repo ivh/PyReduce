@@ -17,12 +17,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import median_filter
 
+logger = logging.getLogger(__name__)
+
 try:
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_bd import ffi
 except ImportError:  # pragma: no cover
-    logging.error(
+    logger.error(
         "C libraries could not be found. Compiling them by running build_extract.py"
     )
     from .clib import build_extract
@@ -33,6 +35,7 @@ except ImportError:  # pragma: no cover
     from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_2d import ffi
+
 
 c_double = np.ctypeslib.ctypes.c_double
 c_int = np.ctypeslib.ctypes.c_int

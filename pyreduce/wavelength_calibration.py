@@ -20,6 +20,8 @@ from astropy.io import fits
 
 from . import util
 
+logger = logging.getLogger(__name__)
+
 
 class AlignmentPlot:
     """
@@ -430,7 +432,7 @@ class WavelengthCalibration:
             offset = self.align_manual(obs, lines)
             lines = self.apply_alignment_offset(lines, offset)
 
-        logging.debug(f"Offset order: {offset[0]}, Offset pixel: {offset[1]}")
+        logger.debug(f"Offset order: {offset[0]}, Offset pixel: {offset[1]}")
 
         return lines
 
@@ -852,7 +854,7 @@ class WavelengthCalibration:
                     lines["flag"][i] = True
                     lines["posm"][i] = low + peak_idx[idx]
 
-        logging.info("AutoID identified %i new lines", counter + len(new_lines))
+        logger.info("AutoID identified %i new lines", counter + len(new_lines))
 
         return lines
 
@@ -938,7 +940,7 @@ class WavelengthCalibration:
             wave_solution = self.build_2d_solution(lines)
             residual = self.calculate_residual(wave_solution, lines)
             nbad += 1
-        logging.info("Discarding %i lines", nbad)
+        logger.info("Discarding %i lines", nbad)
 
         if plot or self.plot >= 2:  # pragma: no cover
             mask = lines["flag"]
@@ -1128,7 +1130,7 @@ class WavelengthCalibration:
             order += [y_ord]
 
             fd += n_offset * fr
-            logging.debug(
+            logger.debug(
                 "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd, fr, n_offset
             )
 
@@ -1141,8 +1143,8 @@ class WavelengthCalibration:
         res = Polynomial.fit(n_all, f_all, deg=1, domain=[])
         f0, fr = res.coef
 
-        logging.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
-        logging.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
+        logger.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
+        logger.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
 
         # All peaks are then given by f0 + n * fr
         wavelengths = speed_of_light / (f0 + n_all * fr)
@@ -1167,7 +1169,7 @@ class WavelengthCalibration:
         aic = self.calculate_AIC(laser_lines, coef)
 
         ngood = np.count_nonzero(laser_lines["flag"])
-        logging.info(f"Laser Frequency Comb solution based on {ngood} lines.")
+        logger.info(f"Laser Frequency Comb solution based on {ngood} lines.")
         if self.plot:
             residual = wave - new_wave
             residual = residual.ravel()
@@ -1268,7 +1270,7 @@ class WavelengthCalibration:
             try:
                 self.atlas = LineAtlas(self.element)
             except FileNotFoundError:
-                logging.warning("No Atlas file found for element %s", self.element)
+                logger.warning("No Atlas file found for element %s", self.element)
                 self.atlas = None
         else:
             self.atlas = None
@@ -1285,7 +1287,7 @@ class WavelengthCalibration:
         lines = self.fit_lines(obs, lines)
 
         for i in range(self.iterations):
-            logging.info(f"Wavelength calibration iteration: {i}")
+            logger.info(f"Wavelength calibration iteration: {i}")
             # Step 3: Create a wavelength solution on known lines
             wave_solution = self.build_2d_solution(lines)
             wave_img = self.make_wave(wave_solution)
@@ -1295,7 +1297,7 @@ class WavelengthCalibration:
             lines = self.reject_lines(lines)
         # lines = self.reject_lines(lines)
 
-        logging.info(
+        logger.info(
             "Number of lines used for wavelength calibration: %i",
             np.count_nonzero(lines["flag"]),
         )
@@ -1308,6 +1310,6 @@ class WavelengthCalibration:
             self.plot_results(wave_img, obs)
 
         aic = self.calculate_AIC(lines, wave_solution)
-        logging.info("AIC of wavelength fit: %f", aic)
+        logger.info("AIC of wavelength fit: %f", aic)
 
         return wave_img, wave_solution

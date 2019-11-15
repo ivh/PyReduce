@@ -18,6 +18,7 @@ from .clipnflip import clipnflip
 from .instruments.instrument_info import load_instrument
 from .util import gaussbroad, gaussfit, remove_bias
 
+logger = logging.getLogger(__name__)
 
 def running_median(arr, size):
     """Calculate the running median of a 2D sequence
@@ -242,9 +243,9 @@ def combine_frames(
         instrument = load_instrument(instrument)
 
     # summarize file info
-    logging.info("Files:")
+    logger.debug("Files:")
     for i, fname in zip(range(len(files)), files):
-        logging.info("%i\t%s", i, fname)
+        logger.debug("%i\t%s", i, fname)
 
     # Only one image
     if len(files) == 0:
@@ -333,7 +334,7 @@ def combine_frames(
 
         if window >= n_columns / 2:
             window = n_columns // 10
-            logging.warning("Reduce Window size to fit the image")
+            logger.warning("Reduce Window size to fit the image")
 
         # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:
@@ -364,7 +365,7 @@ def combine_frames(
             # for each row
             for row in range(y_bottom, y_top):
                 if (row) % DEBUG_NROWS == 0:
-                    logging.debug(
+                    logger.debug(
                         "%i rows processed - %i pixels fixed so far", row, n_fixed
                     )
 
@@ -393,7 +394,7 @@ def combine_frames(
                 )
                 n_fixed += n_bad
 
-        logging.info("total cosmic ray hits identified and removed: %i", n_fixed)
+        logger.debug("total cosmic ray hits identified and removed: %i", n_fixed)
 
         result = clipnflip(result, head)
         result = np.ma.masked_array(result, mask=kwargs.get("mask"))
@@ -467,10 +468,7 @@ def combine_flat(
     # Subtract master dark
     # TODO: Why do we scale with number of files and not exposure time?
     if bias is not None:
-        if bhead["EXPTIME"] == 0:
-            flat -= bias * len(files)
-        else:
-            flat -= bias * fhead["EXPTIME"] / bhead["EXPTIME"]
+        flat -= bias * len(files)
 
     if plot:  # pragma: no cover
         plt.title("Master Flat")
@@ -534,7 +532,7 @@ def combine_bias(
     #         list2 = files[times > science_observation_time]
     #         # np.digitize(science_observation_time, sorted(times))
     #     except KeyError:
-    #         logging.info("Could not sort files by observation time")
+    #         logger.info("Could not sort files by observation time")
     #         list1, list2 = files[: n // 2], files[n // 2 :]
     else:
         list1, list2 = files[: n // 2], files[n // 2 :]
@@ -595,10 +593,10 @@ def combine_bias(
         bgnoise = biasnoise * np.sqrt(n)
 
         # Print diagnostics.
-        logging.info("change in bias between image sets= %f electrons", gain * par[1])
-        logging.info("measured background noise per image= %f", bgnoise)
-        logging.info("background noise in combined image= %f", biasnoise)
-        logging.info("fixing %i bad pixels", nbad)
+        logger.debug("change in bias between image sets= %f electrons", gain * par[1])
+        logger.debug("measured background noise per image= %f", bgnoise)
+        logger.debug("background noise in combined image= %f", biasnoise)
+        logger.debug("fixing %i bad pixels", nbad)
 
         if debug:  # pragma: no cover
             # Plot noise distribution.

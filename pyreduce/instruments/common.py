@@ -15,6 +15,8 @@ from dateutil import parser
 
 from ..clipnflip import clipnflip
 
+logger = logging.getLogger(__name__)
+
 
 def find_first_index(arr, value):
     """ find the first element equal to value in the array arr """
@@ -58,7 +60,7 @@ class getter:
         try:
             self.index = find_first_index(info["modes"], mode.upper())
         except KeyError:
-            logging.warning("No instrument modes found in instrument info")
+            logger.warning("No instrument modes found in instrument info")
             self.index = 0
 
         # Pick values for the given mode
@@ -231,7 +233,7 @@ class instrument:
             try:
                 header["MJD-OBS"] = Time(header["MJD-OBS"]).mjd
             except:
-                logging.warning("Unable to determine the MJD date of the observation")
+                logger.warning("Unable to determine the MJD date of the observation")
 
         header["e_orient"] = get("orientation", 0)
 
@@ -352,7 +354,7 @@ class instrument:
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),

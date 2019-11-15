@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 from .util import gaussfit4 as gaussfit, make_index, gaussval2 as gaussval
 
+logger = logging.getLogger(__name__)
 
 def estimate_extraction_width(img, orders, column_range, plot=False): #pragma: no cover
     raise NotImplemented

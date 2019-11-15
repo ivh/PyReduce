@@ -18,6 +18,8 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class JWST_NIRISS(instrument):
     def add_header_info(self, header, mode, **kwargs):
@@ -159,7 +161,7 @@ class JWST_NIRISS(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),

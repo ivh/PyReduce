@@ -16,6 +16,8 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class HARPS(instrument):
     def get_extension(self, header, mode):
@@ -39,7 +41,6 @@ class HARPS(instrument):
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
         info = self.info
-
 
         try:
             header["e_ra"] /= 15
@@ -105,7 +106,7 @@ class HARPS(instrument):
         """
 
         info = self.load_info()
-        target = target.upper()
+        target = target.replace("-", "").upper()
         instrument = info["__instrument__"].upper()
 
         if fiber == "AB":
@@ -177,7 +178,7 @@ class HARPS(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),
@@ -218,56 +219,60 @@ class HARPS(instrument):
                 }
 
                 if len(files_this_night[key]["bias"]) == 0:
-                    next_best_bias_night = ni[match_bias][
+                    next_best_night = ni[match_bias][
                         np.argsort(np.abs(ni[match_bias] - ind_night))
-                    ][0]
-                    files_this_night[key]["bias"] = files[
-                        match_bias & (ni == next_best_bias_night)
                     ]
-                    logging.warning(
-                        "Using bias from night %s for observations of night %s",
-                        next_best_bias_night,
-                        ind_night,
-                    )
+                    if len(next_best_night) > 0:
+                        files_this_night[key]["bias"] = files[
+                            match_bias & (ni == next_best_night[0])
+                        ]
+                        logger.warning(
+                            "Using bias from night %s for observations of night %s",
+                            next_best_night[0],
+                            ind_night,
+                        )
 
                 if len(files_this_night[key]["flat"]) == 0:
-                    next_best_bias_night = ni[match_flat][
+                    next_best_night = ni[match_flat][
                         np.argsort(np.abs(ni[match_flat] - ind_night))
-                    ][0]
-                    files_this_night[key]["flat"] = files[
-                        match_flat & (ni == next_best_bias_night)
                     ]
-                    logging.warning(
-                        "Using flat from night %s for observations of night %s",
-                        next_best_bias_night,
-                        ind_night,
-                    )
+                    if len(next_best_night) > 0:
+                        files_this_night[key]["flat"] = files[
+                            match_flat & (ni == next_best_night[0])
+                        ]
+                        logger.warning(
+                            "Using flat from night %s for observations of night %s",
+                            next_best_night[0],
+                            ind_night,
+                        )
 
                 if len(files_this_night[key]["orders"]) == 0:
-                    next_best_bias_night = ni[match_ord][
+                    next_best_night = ni[match_ord][
                         np.argsort(np.abs(ni[match_ord] - ind_night))
-                    ][0]
-                    files_this_night[key]["orders"] = files[
-                        match_ord & (ni == next_best_bias_night)
                     ]
-                    logging.warning(
-                        "Using order definition from night %s for observations of night %s",
-                        next_best_bias_night,
-                        ind_night,
-                    )
+                    if len(next_best_night) > 0:
+                        files_this_night[key]["orders"] = files[
+                            match_ord & (ni == next_best_night[0])
+                        ]
+                        logger.warning(
+                            "Using order definition from night %s for observations of night %s",
+                            next_best_night[0],
+                            ind_night,
+                        )
 
                 if len(files_this_night[key]["wavecal"]) == 0:
-                    next_best_bias_night = ni[match_wave][
+                    next_best_night = ni[match_wave][
                         np.argsort(np.abs(ni[match_wave] - ind_night))
-                    ][0]
-                    files_this_night[key]["wavecal"] = files[
-                        match_wave & (ni == next_best_bias_night)
                     ]
-                    logging.warning(
-                        "Using wavecal from night %s for observations of night %s",
-                        next_best_bias_night,
-                        ind_night,
-                    )
+                    if len(next_best_night) > 0:
+                        files_this_night[key]["wavecal"] = files[
+                            match_wave & (ni == next_best_night[0])
+                        ]
+                        logger.warning(
+                            "Using wavecal from night %s for observations of night %s",
+                            next_best_night[0],
+                            ind_night,
+                        )
 
                 files_this_night[key]["curvature"] = (
                     files_this_night[key]["freq_comb"]
