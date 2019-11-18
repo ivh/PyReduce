@@ -132,7 +132,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange):
+def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -162,15 +162,9 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     osample = int(osample)
     img = np.asanyarray(img, dtype=c_double)
     ycen = np.asarray(ycen, dtype=c_double)
-    yrange = np.asarray(yrange, dtype=int)
 
     assert img.ndim == 2, "Image must be 2 dimensional"
     assert ycen.ndim == 1, "Ycen must be 1 dimensional"
-    assert yrange.ndim == 1, "Yrange must be 1 dimensional"
-    assert yrange.size == 2, "Yrange must have 2 elements"
-    assert yrange[0] + yrange[1] + 1 == img.shape[0]
-    assert yrange[0] >= 0
-    assert yrange[1] >= 0
 
     if np.isscalar(tilt):
         tilt = np.full(img.shape[1], tilt, dtype=c_double)
@@ -209,7 +203,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     ycen_offset = ycen.astype(c_int)
     ycen_int = ycen - ycen_offset
-    y_lower_lim = int(yrange[0])
+    y_lower_lim = np.min(ycen_offset)
 
     mask = np.ma.getmaskarray(img)
     mask |= ~np.isfinite(img)
@@ -240,10 +234,11 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     PSF_curve[:, 1] = tilt
     PSF_curve[:, 2] = shear
 
-    nx = np.array(
-        [np.polyval(PSF_curve[i], [yrange[0], -yrange[1]]) for i in [0, ncols - 1]]
-    )
-    dx = int(np.ceil(np.max(nx)))
+    yy = np.arange(-y_lower_lim, (nrows+1) - y_lower_lim)
+    # calculate the curvature polynomial
+    # Using Einsum is more efficient than polyval by several orders of magnitude
+    dx = np.einsum("i,j", tilt, yy) + np.einsum("i,j", shear, yy**2)
+    dx = int(np.ceil(np.max(np.abs(dx))))
     nx = dx * 2 + 1
 
     # Initialize arrays and ensure the correct datatype for C

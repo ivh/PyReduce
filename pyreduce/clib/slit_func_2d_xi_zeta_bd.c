@@ -58,139 +58,139 @@ int _nd = 0;
 // If we want to check the index use functions to represent the index
 // Otherwise a simpler define will do, which should be faster ?
 #if CHECK_INDEX
-static int zeta_index(int x, int y, int z)
+static long zeta_index(long x, long y, long z)
 {
-    int i = z + y * MAX_ZETA_Z + x * MAX_ZETA_Z * _nrows;
+    long i = z + y * MAX_ZETA_Z + x * MAX_ZETA_Z * _nrows;
     if ((i < 0) | (i >= MAX_ZETA))
     {
-        printf("INDEX OUT OF BOUNDS. Zeta[%i, %i, %i]\n", x, y, z);
+        printf("INDEX OUT OF BOUNDS. Zeta[%li, %li, %li]\n", x, y, z);
         return 0;
     }
     return i;
 }
 
-static int mzeta_index(int x, int y)
+static long mzeta_index(long x, long y)
 {
-    int i = y + x * _nrows;
+    long i = y + x * _nrows;
     if ((i < 0) | (i >= MAX_MZETA))
     {
-        printf("INDEX OUT OF BOUNDS. Mzeta[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. Mzeta[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int xi_index(int x, int y, int z)
+static long xi_index(long x, long y, long z)
 {
-    int i = z + 4 * y + _ny * 4 * x;
+    long i = z + 4 * y + _ny * 4 * x;
     if ((i < 0) | (i >= MAX_XI))
     {
-        printf("INDEX OUT OF BOUNDS. Xi[%i, %i, %i]\n", x, y, z);
+        printf("INDEX OUT OF BOUNDS. Xi[%li, %li, %li]\n", x, y, z);
         return 0;
     }
     return i;
 }
 
-static int psf_index(int x, int y)
+static long psf_index(long x, long y)
 {
-    int i = ((x)*3 + (y));
+    long i = ((x)*3 + (y));
     if ((i < 0) | (i >= MAX_PSF))
     {
-        printf("INDEX OUT OF BOUNDS. PSF[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. PSF[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int a_index(int x, int y)
+static long a_index(long x, long y)
 {
-    int i = _n * y + x;
+    long i = _n * y + x;
     if ((i < 0) | (i >= MAX_A))
     {
-        printf("INDEX OUT OF BOUNDS. a[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. a[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int r_index(int i)
+static long r_index(long i)
 {
     if ((i < 0) | (i >= MAX_R))
     {
-        printf("INDEX OUT OF BOUNDS. r[%i]\n", i);
+        printf("INDEX OUT OF BOUNDS. r[%li]\n", i);
         return 0;
     }
     return i;
 }
 
-static int sp_index(int i)
+static long sp_index(long i)
 {
     if ((i < 0) | (i >= MAX_SP))
     {
-        printf("INDEX OUT OF BOUNDS. sP[%i]\n", i);
+        printf("INDEX OUT OF BOUNDS. sP[%li]\n", i);
         return 0;
     }
     return i;
 }
 
-static int laij_index(int x, int y)
+static long laij_index(long x, long y)
 {
-    int i = ((y)*_ny) + (x);
+    long i = ((y)*_ny) + (x);
     if ((i < 0) | (i >= MAX_LAIJ))
     {
-        printf("INDEX OUT OF BOUNDS. l_Aij[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. l_Aij[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int paij_index(int x, int y)
+static long paij_index(long x, long y)
 {
-    int i = ((y)*_ncols) + (x);
+    long i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_PAIJ))
     {
-        printf("INDEX OUT OF BOUNDS. p_Aij[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. p_Aij[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int lbj_index(int i)
+static long lbj_index(long i)
 {
     if ((i < 0) | (i >= MAX_LBJ))
     {
-        printf("INDEX OUT OF BOUNDS. l_bj[%i]\n", i);
+        printf("INDEX OUT OF BOUNDS. l_bj[%li]\n", i);
         return 0;
     }
     return i;
 }
 
-static int pbj_index(int i)
+static long pbj_index(long i)
 {
     if ((i < 0) | (i >= MAX_PBJ))
     {
-        printf("INDEX OUT OF BOUNDS. p_bj[%i]\n", i);
+        printf("INDEX OUT OF BOUNDS. p_bj[%li]\n", i);
         return 0;
     }
     return i;
 }
 
-static int im_index(int x, int y)
+static long im_index(long x, long y)
 {
-    int i = ((y)*_ncols) + (x);
+    long i = ((y)*_ncols) + (x);
     if ((i < 0) | (i >= MAX_IM))
     {
-        printf("INDEX OUT OF BOUNDS. im[%i, %i]\n", x, y);
+        printf("INDEX OUT OF BOUNDS. im[%li, %li]\n", x, y);
         return 0;
     }
     return i;
 }
 
-static int sl_index(int i)
+static long sl_index(long i)
 {
     if ((i < 0) | (i >= MAX_SL))
     {
-        printf("INDEX OUT OF BOUNDS. sL[%i]\n", i);
+        printf("INDEX OUT OF BOUNDS. sL[%li]\n", i);
         return 0;
     }
     return i;

@@ -718,8 +718,7 @@ def extract_spectrum(
                 swath_shear,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
-                osample=osample,
-                yrange=yrange,
+                osample=osample
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -736,8 +735,7 @@ def extract_spectrum(
                     swath_shear,
                     lambda_sp=lambda_sp,
                     lambda_sf=lambda_sf,
-                    osample=osample + i,
-                    yrange=yrange,
+                    osample=osample + i
                 )
                 swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
 
