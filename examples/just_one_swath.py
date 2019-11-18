@@ -34,7 +34,7 @@ np.savetxt("ycen.txt", swath_ycen)
 
 # return sp, sl, model, unc, mask
 # data1 = cwrappers.slitfunc(swath_img, swath_ycen, osample=osample)
-data2 = cwrappers.slitfunc_curved(swath_img, swath_ycen, shear, osample=osample)
+data2 = cwrappers.slitfunc_curved(swath_img, swath_ycen, shear, osample=osample, yrange=(ylow, yhigh))
 
 data = data2
 spec = data[0]

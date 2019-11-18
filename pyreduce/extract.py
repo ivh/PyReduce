@@ -61,7 +61,6 @@ class ProgressPlot:  # pragma: no cover
         self.im_obs = self.ax1.imshow(img)
         self.im_model = self.ax4.imshow(img)
 
-
         self.dots_spec, = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
@@ -146,7 +145,6 @@ class ProgressPlot:  # pragma: no cover
         self.mask_slit.set_xdata(mask_slit_x)
         self.mask_slit.set_ydata(mask_slit)
 
-
         limit = np.nanmax(spec[5:-5]) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
@@ -216,7 +214,7 @@ class Swath:
             self.model[key],
             self.unc[key],
             self.mask[key],
-            self.info[key]
+            self.info[key],
         )
 
     def __setitem__(self, key, value):
@@ -684,7 +682,12 @@ def extract_spectrum(
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
-    with tqdm(enumerate(zip(bins_start, bins_end)), total=len(bins_start), leave=False, desc="Swath") as t:
+    with tqdm(
+        enumerate(zip(bins_start, bins_end)),
+        total=len(bins_start),
+        leave=False,
+        desc="Swath",
+    ) as t:
         for ihalf, (ibeg, iend) in t:
             logger.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
 
@@ -718,7 +721,8 @@ def extract_spectrum(
                 swath_shear,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
-                osample=osample
+                osample=osample,
+                yrange=yrange,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -726,7 +730,9 @@ def extract_spectrum(
             i = 0
             while np.any(np.isnan(swath.spec[ihalf])):
                 i += 1
-                logger.warning("Extraction failed, trying again with oversampling %i", osample + i)
+                logger.warning(
+                    "Extraction failed, trying again with oversampling %i", osample + i
+                )
                 # This might mean that the curvature is off ???
                 swath[ihalf] = slitfunc_curved(
                     swath_img,
@@ -735,7 +741,8 @@ def extract_spectrum(
                     swath_shear,
                     lambda_sp=lambda_sp,
                     lambda_sf=lambda_sf,
-                    osample=osample + i
+                    osample=osample + i,
+                    yrange=yrange,
                 )
                 swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
 
@@ -744,7 +751,9 @@ def extract_spectrum(
                 # Use np.divide to avoid divisions by zero
                 where = swath.model[ihalf] > threshold / gain
                 norm_img[ihalf] = np.ones_like(swath.model[ihalf])
-                np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
+                np.divide(
+                    swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf]
+                )
                 norm_model[ihalf] = swath.model[ihalf]
 
             if plot >= 2:  # pragma: no cover
@@ -974,6 +983,7 @@ def optimal_extraction(
 
     return spectrum, slitfunction, uncertainties
 
+
 def correct_for_curvature(img_order, tilt, shear, xwd):
     img_order = np.ma.filled(img_order, 0)
     xt = np.arange(img_order.shape[1])
@@ -981,6 +991,7 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
         xi = xt + yt * tilt + yt ** 2 * shear
         img_order[y] = np.interp(xi, xt, img_order[y])
     return img_order
+
 
 def model_image(img, xwd, tilt, shear):
     # Correct image for curvature
@@ -997,12 +1008,14 @@ def model_image(img, xwd, tilt, shear):
     model = correct_for_curvature(model, -tilt, -shear, xwd)
     return model, spec, slitf
 
+
 def get_mask(img, model):
     # 99.73 = 3 sigma, 2 * 3 = 6 sigma
     residual = np.ma.abs(img - model)
     median, vmax = np.percentile(np.ma.compressed(residual), (50, 99.73))
     vmax = median + 2 * (vmax - median)
     return residual > vmax
+
 
 def arc_extraction(
     img,
