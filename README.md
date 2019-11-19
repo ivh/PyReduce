@@ -13,6 +13,9 @@ Installation
 ------------
 PyReduce can be installed using pip using the following command: ``pip install pyreduce-astro``
 
+PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
+See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+
 How To
 ------
 PyReduce is designed to be easy to use, but still be flexible.
