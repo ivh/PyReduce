@@ -317,7 +317,7 @@ class Curvature:
             tilt = np.zeros(npeaks)
             shear = np.zeros(npeaks)
             mask = np.full(npeaks, True)
-            for ipeak, peak in enumerate(peaks):
+            for ipeak, peak in tqdm(enumerate(peaks), total=len(peaks), desc="Peak", leave=False):
                 if self.plot >= 2:  # pragma: no cover
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
