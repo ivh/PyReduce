@@ -2,35 +2,39 @@ language: python
 
 jobs:
   include:
-    - os: linux
-      dist: xenial
-      python:
-        - "3.6"
-      cache:
-        pip
-    - os: osx
-      language: sh
-      env:
-        - HOMEBREW_NO_INSTALL_CLEANUP=1
-        - HOMEBREW_NO_ANALYTICS=1
-      before_cache:
-        - rm -f "$HOME/Library/Caches/pip/log/debug.log"
-      cache:
-        - directories:
-            - "$HOME/Library/Caches/pip"
-      addons:
-        homebrew:
-          packages: python3
-      before_install:
-        - python3 -m pip install --upgrade virtualenv
-        - virtualenv -p python3 --system-site-packages "$HOME/venv"
-        - source "$HOME/venv/bin/activate"
-    - os: windows
+    # - name: "Linux (Ubuntu Xenial)"
+    #   os: linux
+    #   dist: bionic
+    #   python:
+    #     - "3.6"
+    #     - "3.8"
+    #   cache: pip
+    # - name: "Mac OSX"
+    #   os: osx
+    #   language: sh
+    #   env:
+    #     - HOMEBREW_NO_INSTALL_CLEANUP=1
+    #     - HOMEBREW_NO_ANALYTICS=1
+    #   before_cache:
+    #     - rm -f "$HOME/Library/Caches/pip/log/debug.log"
+    #   cache:
+    #     - directories:
+    #         - "$HOME/Library/Caches/pip"
+    #   addons:
+    #     homebrew:
+    #       packages: python3
+    #   before_install:
+    #     - python3 -m pip install --upgrade virtualenv
+    #     - virtualenv -p python3 --system-site-packages "$HOME/venv"
+    #     - source "$HOME/venv/bin/activate"
+    - name: "Windows"
+      os: windows
       language: sh
       env: PATH=/c/Python38:/c/Python38/Scripts:$PATH
       before_install:
         - choco install python --version 3.8.0
         - python -m pip install --upgrade pip
+        - choco install numpy
 
 install:
   - pip3 install -r requirements.txt
