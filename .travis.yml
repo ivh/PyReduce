@@ -1,10 +1,10 @@
-language: python
 
 jobs:
   include:
     - name: "Linux (Ubuntu Xenial)"
       os: linux
       dist: bionic
+      language: python
       python:
         - "3.6"
         - "3.8"
