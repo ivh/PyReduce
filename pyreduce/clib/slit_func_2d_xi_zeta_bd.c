@@ -8,7 +8,7 @@
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
 
-#define CHECK_INDEX 1
+#define CHECK_INDEX 0
 
 // Store important sizes in global variables to make access easier
 // When calculating the proper indices
