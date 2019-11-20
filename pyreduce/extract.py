@@ -654,22 +654,10 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
-    if out_spec is None:
-        spec = np.zeros(ncol)
-    else:
-        spec = out_spec
-    if out_sunc is None:
-        sunc = np.zeros(ncol)
-    else:
-        sunc = out_sunc
-    if out_mask is None:
-        mask = np.full(ncol, False)
-    else:
-        mask = out_mask
-    if out_slitf is None:
-        slitf = np.zeros(nslitf)
-    else:
-        slitf = out_slitf
+    spec = np.zeros(ncol) if out_spec is None else out_spec
+    sunc = np.zeros(ncol) if out_sunc is None else out_sunc
+    mask = np.full(ncol, False) if out_mask is None else out_mask
+    slitf = np.zeros(nslitf) if out_slitf is None else out_slitf
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen)
     nswath = 2 * nbin - 1
@@ -709,7 +697,6 @@ def extract_spectrum(
                 scatter_correction = 0
 
             swath_img -= scatter_correction + telluric_correction
-            swath_img = np.clip(swath_img, 0, None)
 
             # Do Slitfunction extraction
             swath_tilt = tilt[ibeg:iend] if tilt is not None else 0
@@ -726,26 +713,6 @@ def extract_spectrum(
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
-            # Catch bad Swaths, and run them again with more oversampling
-            i = 0
-            while np.any(np.isnan(swath.spec[ihalf])):
-                i += 1
-                logger.warning(
-                    "Extraction failed, trying again with oversampling %i", osample + i
-                )
-                # This might mean that the curvature is off ???
-                swath[ihalf] = slitfunc_curved(
-                    swath_img,
-                    swath_ycen,
-                    swath_tilt,
-                    swath_shear,
-                    lambda_sp=lambda_sp,
-                    lambda_sf=lambda_sf,
-                    osample=osample + i,
-                    yrange=yrange,
-                )
-                swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
-
             if normalize:
                 # Save image and model for later
                 # Use np.divide to avoid divisions by zero
@@ -756,36 +723,25 @@ def extract_spectrum(
                 )
                 norm_model[ihalf] = swath.model[ihalf]
 
-            if plot >= 2:  # pragma: no cover
-                if not np.all(np.isnan(swath_img)):
-                    if progress is None:
-                        progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
-                    progress.plot(
-                        swath_img,
-                        swath.spec[ihalf],
-                        swath.slitf[ihalf],
-                        swath.model[ihalf],
-                        swath_ycen,
-                        swath.mask[ihalf],
-                        ord_num,
-                        ibeg,
-                        iend,
-                    )
+            if plot >= 2 and not np.all(np.isnan(swath_img)):  # pragma: no cover
+                if progress is None:
+                    progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
+                progress.plot(
+                    swath_img,
+                    swath.spec[ihalf],
+                    swath.slitf[ihalf],
+                    swath.model[ihalf],
+                    swath_ycen,
+                    swath.mask[ihalf],
+                    ord_num,
+                    ibeg,
+                    iend,
+                )
 
     # Remove points at the border of the each swath, if order has tilt
     # as those pixels have bad information
-    if tilt is not None:
-        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-            swath_tilt = tilt[ibeg:iend]
-            swath_shear = shear[ibeg:iend]
-            tilt_first, tilt_last = swath_tilt[[0, -1]]
-            shear_first, shear_last = swath_shear[[0, -1]]
-
-            excess = np.polyval([shear_first, tilt_first, 0], [-ylow, yhigh])
-            margin[i, 0] = 2 * int(np.ceil(np.abs(excess).max()))
-
-            excess = np.polyval([shear_last, tilt_last, 0], [-ylow, yhigh])
-            margin[i, 1] = 2 * int(np.ceil(np.abs(excess).max()))
+    for i in range(nswath):
+        margin[i, :] = int(swath.info[i][4])
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
@@ -805,8 +761,8 @@ def extract_spectrum(
         # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
         triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
         # Cut away the margins at the corners
-
         triangle = triangle[margin[j, 0] : len(triangle) - margin[i, 1]]
+
         # Set values
         weight[i][start_i:end_i] = 1 - triangle
         weight[j][start_j:end_j] = triangle

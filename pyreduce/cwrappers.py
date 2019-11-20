@@ -214,10 +214,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     y_lower_lim = int(yrange[0])
 
     mask = np.ma.getmaskarray(img)
-    mask |= ~np.isfinite(img)
     img = np.ma.getdata(img)
-    img[mask] = 0
-
+    mask2 = ~np.isfinite(img)
+    img[mask2] = 0
+    mask |= ~np.isfinite(img)
 
     # sp should never be all zero (thats a horrible guess) and leads to all nans
     # This is a simplified run of the algorithm without oversampling or curvature
@@ -230,24 +230,16 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     model = sl[:, None] * sp[None, :]
     dev = (model - img).std()
-    mask[np.abs(model - img) > 6 * dev] = True
-    img[mask] = 0
+    mask[np.abs(model - img) > 10 * dev] = True
     sp = np.sum(img, axis=0)
 
     mask = np.where(mask, c_int(0), c_int(1))
     pix_unc = np.copy(img)
     np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
 
-    PSF_curve = np.zeros((ncols, 3), dtype=c_double)
-    PSF_curve[:, 1] = tilt
-    PSF_curve[:, 2] = shear
-
-    yy = np.arange(-y_lower_lim, (nrows+1) - y_lower_lim)
-    # calculate the curvature polynomial
-    # Using Einsum is more efficient than polyval by several orders of magnitude
-    dx = np.einsum("i,j", tilt, yy) + np.einsum("i,j", shear, yy**2)
-    dx = int(np.ceil(np.max(np.abs(dx))))
-    nx = dx * 2 + 1
+    psf_curve = np.zeros((ncols, 3), dtype=c_double)
+    psf_curve[:, 1] = tilt
+    psf_curve[:, 2] = shear
 
     # Initialize arrays and ensure the correct datatype for C
     requirements = ["C", "A", "W", "O"]
@@ -259,21 +251,17 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
 
     # This memory could be reused between swaths
-    mask_out = np.ones((nrows, ncols), dtype=c_mask)
     sl = np.zeros(ny, dtype=c_double)
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
-    l_aij = np.zeros((ny, 4 * osample + 1), dtype=c_double)
-    l_bj = np.zeros(ny, dtype=c_double)
-    p_aij = np.zeros((ncols, 5), dtype=c_double)
-    p_bj = np.zeros(ncols, dtype=c_double)
-    info = np.zeros(4, dtype=c_double)
-    
+
+    # Info contains the folowing: sucess, cost, status, iteration, delta_x
+    info = np.zeros(5, dtype=c_double)
+
     # Call the C function
     slitfunc_2dlib.slit_func_curved(
         ffi.cast("int", ncols),
         ffi.cast("int", nrows),
-        ffi.cast("int", nx),
         ffi.cast("int", ny),
         ffi.cast("double *", img.ctypes.data),
         ffi.cast("double *", pix_unc.ctypes.data),
@@ -284,26 +272,33 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         ffi.cast("int", osample),
         ffi.cast("double", lambda_sp),
         ffi.cast("double", lambda_sf),
-        ffi.cast("double *", PSF_curve.ctypes.data),
+        ffi.cast("double *", psf_curve.ctypes.data),
         ffi.cast("double *", sp.ctypes.data),
         ffi.cast("double *", sl.ctypes.data),
         ffi.cast("double *", model.ctypes.data),
         ffi.cast("double *", unc.ctypes.data),
-        ffi.cast("unsigned char *", mask_out.ctypes.data),
-        ffi.cast("double *", l_aij.ctypes.data),
-        ffi.cast("double *", l_bj.ctypes.data),
-        ffi.cast("double *", p_aij.ctypes.data),
-        ffi.cast("double *", p_bj.ctypes.data),
         ffi.cast("double *", info.ctypes.data),
     )
 
-    if dx > 0:
-        sp[:dx] = 0
-        sp[-dx:] = 0
-
     if np.any(np.isnan(sp)):
-        print("Stop!")
+        logger.error("NaNs in the spectrum")
 
-    mask = mask_out == 0
+
+    # The decomposition failed
+    if info[0] == 0:
+        status = info[2]
+        if status == 0:
+            msg = "I dont't know what happened"
+        elif status == -1:
+            msg = "Did not finish convergence after maxiter iterations"
+        elif status == -2:
+            msg = "Curvature is larger than the swath. Check the curvature!"
+        else:
+            msg = f"Check the C code, for status = {status}"
+        logger.error(msg)
+        info[4] = 2
+        # raise RuntimeError(msg)
+
+    mask = mask == 0
 
     return sp, sl, model, unc, mask, info
