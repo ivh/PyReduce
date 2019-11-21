@@ -8,12 +8,12 @@
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
 
-#define CHECK_INDEX 0
+#define DEBUG 0
 
 // Store important sizes in global variables to make access easier
 // When calculating the proper indices
 // When not checking the indices just the variables directly
-#if CHECK_INDEX
+#if DEBUG
 int _ncols = 0;
 int _nrows = 0;
 int _ny = 0;
@@ -57,7 +57,7 @@ int _nd = 0;
 
 // If we want to check the index use functions to represent the index
 // Otherwise a simpler define will do, which should be faster ?
-#if CHECK_INDEX
+#if DEBUG
 static long zeta_index(long x, long y, long z)
 {
     long i = z + y * MAX_ZETA_Z + x * MAX_ZETA_Z * _nrows;
@@ -253,7 +253,7 @@ int bandsol(double *a, double *r, int n, int nd)
     double aa;
     int i, j, k;
 
-#if CHECK_INDEX
+#if DEBUG
     _n = n;
     _nd = nd;
 #endif
@@ -262,7 +262,7 @@ int bandsol(double *a, double *r, int n, int nd)
     for (i = 0; i < n - 1; i++)
     {
         aa = a[a_index(i, nd / 2)];
-#if CHECK_INDEX
+#if DEBUG
         if (aa == 0)
         {
             printf("1, index: %i, %i\n", i, nd / 2);
@@ -291,7 +291,7 @@ int bandsol(double *a, double *r, int n, int nd)
     }
 
     aa = a[a_index(0, nd / 2)];
-#if CHECK_INDEX
+#if DEBUG
     if (aa == 0)
     {
         printf("4, index: %i, %i\n", 0, nd / 2);
@@ -849,7 +849,7 @@ int slit_func_curved(int ncols,
 
     ny = osample * (nrows + 1) + 1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
 
-#if CHECK_INDEX
+#if DEBUG
     _ncols = ncols;
     _nrows = nrows;
     _ny = ny;
@@ -867,7 +867,7 @@ int slit_func_curved(int ncols,
     }
     nx = 2 * delta_x + 1; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
 
-#if CHECK_INDEX
+#if DEBUG
     _nx = nx;
 #endif
 
@@ -1091,7 +1091,7 @@ int slit_func_curved(int ncols,
             }
         }
 
-#if CHECK_INDEX
+#if DEBUG
         if (cost == 0)
         {
             printf("Iteration: %i, Reduced chi-square: %f\n", iter, cost);
