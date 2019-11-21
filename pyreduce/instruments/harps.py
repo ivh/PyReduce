@@ -121,7 +121,7 @@ class HARPS(instrument):
             )
 
         id_orddef = template.format(a="LAMP", b="DARK", c="*")
-        id_flat = template.format(a="LAMP", b="LAMP", c="*")
+        id_flat = "LAMP,LAMP,*" #template.format(a="LAMP", b="LAMP", c="*")
         id_spec = template.format(a="STAR", b="*", c="*")
 
         # Try matching with nights
@@ -279,6 +279,8 @@ class HARPS(instrument):
                     if len(files_this_night[key]["freq_comb"]) != 0
                     else files_this_night[key]["wavecal"]
                 )
+
+                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

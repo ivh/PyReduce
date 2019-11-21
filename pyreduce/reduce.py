@@ -620,7 +620,7 @@ class BackgroundScatter(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "orders"]
+        self._dependsOn += ["mask", "bias", "orders"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
@@ -633,12 +633,22 @@ class BackgroundScatter(Step):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, flat, orders):
-        flat, fhead = flat
+    def run(self, files, mask, bias, orders):
+        bias, bhead = bias
         orders, column_range = orders
 
+        scatter_img, shead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            bhead=bhead,
+            bias=bias,
+            plot=False,
+        )
+
         scatter = estimate_background_scatter(
-            flat,
+            scatter_img,
             orders,
             column_range=column_range,
             extraction_width=self.extraction_width,

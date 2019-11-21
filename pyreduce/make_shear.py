@@ -185,9 +185,9 @@ class Curvature:
 
     def _find_peaks(self, vec, cr):
         # This should probably be the same as in the wavelength calibration
-        vec -= np.ma.min(vec)
+        vec -= np.ma.median(vec)
         vec = np.ma.filled(vec, 0)
-        height = np.quantile(vec, 0.1) * self.threshold
+        height = np.percentile(vec, 68) * self.threshold
         peaks, _ = signal.find_peaks(vec, prominence=height)
 
         # Remove peaks at the edge
