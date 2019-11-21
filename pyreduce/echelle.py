@@ -30,6 +30,72 @@ class Echelle:
             return self._data["spec"].shape[1]
         return None
 
+    @property
+    def spec(self):
+        if "spec" in self._data.keys():
+            return self._data["spec"]
+        else:
+            return None
+
+    @spec.setter
+    def spec(self, value):
+        self._data["spec"] = value
+
+    @property
+    def sig(self):
+        if "sig" in self._data.keys():
+            return self._data["sig"]
+        else:
+            return None
+
+    @sig.setter
+    def sig(self, value):
+        self._data["sig"] = value
+
+    @property
+    def wave(self):
+        if "wave" in self._data.keys():
+            return self._data["wave"]
+        else:
+            return None
+
+    @wave.setter
+    def wave(self, value):
+        self._data["wave"] = value
+
+    @property
+    def cont(self):
+        if "cont" in self._data.keys():
+            return self._data["cont"]
+        else:
+            return None
+
+    @cont.setter
+    def cont(self, value):
+        self._data["cont"] = value
+
+    @property
+    def columns(self):
+        if "columns" in self._data.keys():
+            return self._data["columns"]
+        else:
+            return None
+
+    @columns.setter
+    def columns(self, value):
+        self._data["columns"] = value
+
+    @property
+    def mask(self):
+        if "mask" in self._data.keys():
+            return self._data["mask"]
+        else:
+            return None
+
+    @mask.setter
+    def mask(self, value):
+        self._data["mask"] = value
+
     def __getitem__(self, index):
         return self._data[index]
 
