@@ -843,7 +843,7 @@ int slit_func_curved(int ncols,
     double success, status, cost;
 
     maxiter = 100; // Maximum number of iterations
-    ftol = 1e-7;  // Maximum cost difference between two iterations to stop convergence
+    ftol = 1e-7;   // Maximum cost difference between two iterations to stop convergence
     success = 1;
     status = 0;
 
@@ -857,7 +857,9 @@ int slit_func_curved(int ncols,
     _osample = osample;
 #endif
 
-    delta_x = 0;
+    // If we want to smooth the spectrum we need at least delta_x = 1
+    // Otherwise delta_x = 0 works if there is no curvature
+    delta_x = lambda_sP == 0 ? 0 : 1;
     for (x = 0; x < ncols; x++)
     {
         for (y = -y_lower_lim; y < nrows - y_lower_lim + 1; y++)
@@ -876,14 +878,13 @@ int slit_func_curved(int ncols,
     // Usually that means that the curvature is messed up
     if (nx > ncols)
     {
-        info[0] = 0;  //failed
+        info[0] = 0;    //failed
         info[1] = cost; //INFINITY
-        info[2] = -2; // curvature to large
+        info[2] = -2;   // curvature to large
         info[3] = 0;
         info[4] = delta_x;
         return -1;
     }
-
 
     l_Aij = malloc(MAX_LAIJ * sizeof(double));
     p_Aij = malloc(MAX_PAIJ * sizeof(double));

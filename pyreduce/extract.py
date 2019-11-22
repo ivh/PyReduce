@@ -719,7 +719,7 @@ def extract_spectrum(
                 where = swath.model[ihalf] > threshold / gain
                 norm_img[ihalf] = np.ones_like(swath.model[ihalf])
                 np.divide(
-                    swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf]
+                    np.abs(swath_img), swath.model[ihalf], where=where, out=norm_img[ihalf]
                 )
                 norm_model[ihalf] = swath.model[ihalf]
 

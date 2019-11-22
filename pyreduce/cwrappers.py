@@ -229,8 +229,9 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     sl /= np.sum(sl)
 
     model = sl[:, None] * sp[None, :]
-    dev = (model - img).std()
-    mask[np.abs(model - img) > 10 * dev] = True
+    diff = model - img
+    mask[np.abs(diff) > 10 * diff.std()] = True
+
     sp = np.sum(img, axis=0)
 
     mask = np.where(mask, c_int(0), c_int(1))
@@ -258,6 +259,8 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     # Info contains the folowing: sucess, cost, status, iteration, delta_x
     info = np.zeros(5, dtype=c_double)
+
+    assert not np.any(np.sum(mask, axis=0) == 0), "At least one mask column is all 0."
 
     # Call the C function
     slitfunc_2dlib.slit_func_curved(

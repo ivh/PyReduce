@@ -94,6 +94,8 @@ def test_class_swath():
     assert len(swath.model) == 5
     assert len(swath.unc) == 5
     assert len(swath.mask) == 5
+    assert len(swath.info) == 5
+
 
     for i in range(5):
         assert swath.spec[i] is None
@@ -101,6 +103,8 @@ def test_class_swath():
         assert swath.model[i] is None
         assert swath.unc[i] is None
         assert swath.mask[i] is None
+        assert swath.info[i] is None
+
 
         tmp = swath[i]
         for j in range(5):
@@ -292,6 +296,7 @@ def test_optimal_extraction(sample_data, orders, height, width):
     assert res_spec.ndim == 2
     assert res_spec.shape[0] == 1
     assert res_spec.shape[1] == width
+    assert not np.any(np.isnan(res_spec))
 
     assert res_unc.ndim == 2
     assert res_unc.shape[0] == 1

@@ -5,6 +5,10 @@ from pyreduce.estimate_background_scatter import estimate_background_scatter
 
 
 def test_scatter(flat, orders, settings):
+    # The background scatter step in reduce possibly uses a
+    # different set of files for the image
+    # However it should still be able to create a scatter fit
+    # from the flat image as is done here
     img, _ = flat
     orders, column_range = orders
     settings = settings["scatter"]

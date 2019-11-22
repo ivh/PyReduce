@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dateutil import parser
 from scipy.ndimage.filters import median_filter
+from tqdm import tqdm
 
 from .clipnflip import clipnflip
 from .instruments.instrument_info import load_instrument
@@ -363,7 +364,7 @@ def combine_frames(
             probability = np.zeros((len(files), x_right - x_left))
 
             # for each row
-            for row in range(y_bottom, y_top):
+            for row in tqdm(range(y_bottom, y_top), desc="Rows"):
                 if (row) % DEBUG_NROWS == 0:
                     logger.debug(
                         "%i rows processed - %i pixels fixed so far", row, n_fixed

@@ -221,8 +221,9 @@ def continuum_normalize(
     par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.ma.median(spec))))
 
     b = np.clip(cont, 1, None)
+    mask = ~np.ma.getmaskarray(b)
     for i in range(nord):
-        b[i, ~b.mask[i]] = util.middle(b[i, ~b.mask[i]], 1)
+        b[i, mask[i]] = util.middle(b[i, mask[i]], 1)
     cont = b
 
     # Create new equispaced wavelength grid
@@ -287,7 +288,8 @@ def continuum_normalize(
     # Calculate the new continuum from intermediate values
     # new_cont = util.safe_interpolation(new_wave, contB, wsort)
     new_cont = np.interp(wsort, new_wave, contB)
-    cont[~cont.mask] = (new_cont * bbb)[index]
+    mask = np.ma.getmaskarray(cont)
+    cont[~mask] = (new_cont * bbb)[index]
 
     # Final output plot
     if plot:  # pragma: no cover

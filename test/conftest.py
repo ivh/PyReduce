@@ -448,17 +448,19 @@ def orders(step_args, settings, files, mask, bias):
 
 
 @pytest.fixture
-def scatter(step_args, settings, flat, orders):
+def scatter(step_args, settings, files, mask, bias, orders):
     name = "scatter"
     settings = settings[name]
     settings["plot"] = False
+    files = files[name]
+
 
     step = BackgroundScatter(*step_args, **settings)
 
     scatter = step.load()
     if scatter is None:
         try:
-            scatter = step.run(flat, orders)
+            scatter = step.run(files, mask, bias, orders)
         except FileNotFoundError:
             scatter = None
     return scatter

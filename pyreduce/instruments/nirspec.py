@@ -187,7 +187,7 @@ class NIRSPEC(instrument):
                     if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0
                     else files_this_observation["NIRSPEC"]["wavecal"]
                 )
-                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
+                files_this_observation["NIRSPEC"]["scatter"] = files_this_observation["NIRSPEC"]["orders"]
 
                 files_per_observation.append(files_this_observation)
                 nights_out.append(ind_night)
