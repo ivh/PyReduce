@@ -828,7 +828,7 @@ int slit_func_curved(int ncols,
     */
     int x, xx, xxx, y, yy, iy, jy, n, m, nx;
     double sum, norm, dev, lambda, diag_tot, ww, www;
-    double cost_old, cost_min, ftol, tmp;
+    double cost_old, ftol, tmp;
     int iter, isum, maxiter, delta_x;
 
     // For the solving of the equation system
@@ -842,11 +842,12 @@ int slit_func_curved(int ncols,
     // The Optimization results
     double success, status, cost;
 
-    maxiter = 20; // Maximum number of iterations
+    maxiter = 100; // Maximum number of iterations
     ftol = 1e-7;  // Maximum cost difference between two iterations to stop convergence
     success = 1;
     status = 0;
 
+    cost = INFINITY;
     ny = osample * (nrows + 1) + 1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
 
 #if DEBUG
@@ -856,7 +857,7 @@ int slit_func_curved(int ncols,
     _osample = osample;
 #endif
 
-    delta_x = 2;
+    delta_x = 0;
     for (x = 0; x < ncols; x++)
     {
         for (y = -y_lower_lim; y < nrows - y_lower_lim + 1; y++)
@@ -865,7 +866,7 @@ int slit_func_curved(int ncols,
             delta_x = max(delta_x, tmp);
         }
     }
-    nx = 2 * delta_x + 1; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
+    nx = 4 * delta_x + 1; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
 
 #if DEBUG
     _nx = nx;
@@ -876,15 +877,13 @@ int slit_func_curved(int ncols,
     if (nx > ncols)
     {
         info[0] = 0;  //failed
-        info[1] = INFINITY;
+        info[1] = cost; //INFINITY
         info[2] = -2; // curvature to large
         info[3] = 0;
         info[4] = delta_x;
         return -1;
     }
 
-    cost_min = 1;
-    cost = INFINITY;
 
     l_Aij = malloc(MAX_LAIJ * sizeof(double));
     p_Aij = malloc(MAX_PAIJ * sizeof(double));
@@ -1001,7 +1000,7 @@ int slit_func_curved(int ncols,
                                     xxx = zeta[zeta_index(xx, yy, m)].x;
                                     jy = zeta[zeta_index(xx, yy, m)].iy;
                                     www = zeta[zeta_index(xx, yy, m)].w;
-                                    p_Aij[paij_index(x, xxx - x + delta_x)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
+                                    p_Aij[paij_index(x, xxx - x + 2 * delta_x)] += sL[sl_index(jy)] * sL[sl_index(iy)] * www * ww * mask[im_index(xx, yy)];
                                 }
                                 p_bj[pbj_index(x)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sL[sl_index(iy)] * ww;
                             }
@@ -1021,16 +1020,16 @@ int slit_func_curved(int ncols,
             norm /= ncols;
             lambda = lambda_sP * norm; /* Scale regularization parameter */
 
-            p_Aij[paij_index(0, delta_x)] += lambda;     /* Main diagonal  */
-            p_Aij[paij_index(0, delta_x + 1)] -= lambda; /* Upper diagonal */
+            p_Aij[paij_index(0, 2 * delta_x)] += lambda;     /* Main diagonal  */
+            p_Aij[paij_index(0, 2 * delta_x + 1)] -= lambda; /* Upper diagonal */
             for (x = 1; x < ncols - 1; x++)
             {
-                p_Aij[paij_index(x, delta_x - 1)] -= lambda;    /* Lower diagonal */
-                p_Aij[paij_index(x, delta_x)] += lambda * 2.e0; /* Main diagonal  */
-                p_Aij[paij_index(x, delta_x + 1)] -= lambda;    /* Upper diagonal */
+                p_Aij[paij_index(x, 2 * delta_x - 1)] -= lambda;    /* Lower diagonal */
+                p_Aij[paij_index(x, 2 * delta_x)] += lambda * 2.e0; /* Main diagonal  */
+                p_Aij[paij_index(x, 2 * delta_x + 1)] -= lambda;    /* Upper diagonal */
             }
-            p_Aij[paij_index(ncols - 1, delta_x - 1)] -= lambda; /* Lower diagonal */
-            p_Aij[paij_index(ncols - 1, delta_x)] += lambda;     /* Main diagonal  */
+            p_Aij[paij_index(ncols - 1, 2 * delta_x - 1)] -= lambda; /* Lower diagonal */
+            p_Aij[paij_index(ncols - 1, 2 * delta_x)] += lambda;     /* Main diagonal  */
         }
 
         /* Solve the system of equations */
@@ -1072,7 +1071,8 @@ int slit_func_curved(int ncols,
                     tmp = model[im_index(x, y)] - im[im_index(x, y)];
                     sum += tmp * tmp;
                     isum++;
-                    cost += tmp * tmp / max(pix_unc[im_index(x, y)] * pix_unc[im_index(x, y)], 1);
+                    tmp /= max(pix_unc[im_index(x, y)], 1);
+                    cost += tmp * tmp;
                 }
             }
         }
@@ -1103,7 +1103,7 @@ int slit_func_curved(int ncols,
         }
 #endif
         /* Check for convergence */
-    } while (((iter++ < maxiter) && (cost_old - cost > ftol) && (cost > cost_min)) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
+    } while (((iter++ < maxiter) && (cost_old - cost > ftol)) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
 
     if (iter >= maxiter - 1)
     {
@@ -1112,8 +1112,6 @@ int slit_func_curved(int ncols,
     }
     else if (cost_old - cost <= ftol)
         status = 1; // cost did not improve enough between iterations
-    else if (cost > cost_min)
-        status = 2; // cost is already low enough
 
     /* Uncertainty estimate */
 
