@@ -204,6 +204,7 @@ class JWST_NIRISS(instrument):
                 files_this_night[key]["wavecal"] = []
                 files_this_night[key]["curvature"] = files_this_night[key]["wavecal"]
                 files_this_night[key]["science"] = []
+                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
 
                 f_science = [
                     f

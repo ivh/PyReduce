@@ -134,6 +134,7 @@ class LICK_APF(instrument):
                 # "freq_comb": files[(ty == info["id_comb"]) & select],
                 "science": files[(ty == info["id_spec"]) & (ob == target) & selection],
             }
+            files_this_night[key]["scatter"] = files_this_night[key]["orders"]
 
             if len(files_this_night["APF"]["science"]) != 0:
                 nights_out.append(ind_night)

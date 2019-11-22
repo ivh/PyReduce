@@ -148,6 +148,8 @@ class XSHOOTER(instrument):
 
             files_this_night[mode]["curvature"] = files_this_night[mode]["wavecal"]
             # files_this_night[mode]["orders"] = files_this_night[mode]["flat"]
+            files_this_night[key]["scatter"] = files_this_night[key]["orders"]
+
 
             if len(files_this_night[mode]["science"]) != 0:
                 nights_out.append(ind_night)

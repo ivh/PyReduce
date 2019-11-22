@@ -219,6 +219,7 @@ class MCDONALD(instrument):
                 }
                 # Use science frame to find orders
                 files_this_night[key]["orders"] = [files_this_night[key]["science"][0]]
+                files_this_night[key]["scatter"] = files_this_night[key]["flat"]
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

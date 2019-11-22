@@ -161,6 +161,7 @@ class UVES(instrument):
                     "science": files[(ty == info["id_spec"]) & (ob == target) & select],
                 }
                 files_this_night[key + "nm"]["freq_comb"] = []
+                files_this_night[key + "nm"]["scatter"] = files_this_night[key + "nm"]["orders"]
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

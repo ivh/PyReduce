@@ -144,6 +144,7 @@ class JWST_MIRI(instrument):
                 files_this_night[key]["flat"] = [files_this_night[key]["science"][0]]
                 files_this_night[key]["orders"] = [files_this_night[key]["science"][0]]
                 files_this_night[key]["curvature"] = files_this_night[key]["wavecal"]
+                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
                 
 
             if len(keys) != 0:
