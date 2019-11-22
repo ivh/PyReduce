@@ -52,7 +52,7 @@ def test_slitfunc_vert():
 
 def test_slitfunc_curved():
     img = np.full((100, 100), 1)
-    ycen = np.full(100, 0)
+    ycen = np.full(100, 50)
     tilt = np.full(100, 0)
     shear = np.full(100, 0)
     lambda_sp = 0

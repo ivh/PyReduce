@@ -14,11 +14,10 @@ typedef struct
 
 int slit_func_curved(int ncols,
                      int nrows,
-                     int nx,
                      int ny,
                      double *im,
                      double *pix_unc,
-                     int *mask_orig,
+                     unsigned char *mask,
                      double *ycen,
                      int *ycen_offset,
                      int y_lower_lim,
@@ -30,8 +29,4 @@ int slit_func_curved(int ncols,
                      double *sL,
                      double *model,
                      double *unc,
-                     int *mask,
-                     double *l_Aij,
-                     double *l_bj,
-                     double *p_Aij,
-                     double *p_bj);
+                     double *info);

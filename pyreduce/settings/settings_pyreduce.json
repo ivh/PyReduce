@@ -67,7 +67,7 @@
     "freq_comb": {
         "extraction_method": "arc",
         "extraction_width": 0.5,
-        "peak_width": 3,
+        "lfc_peak_width": 3,
         "dimensionality": "2D",
         "nstep": 0,
         "degree": [6, 6],

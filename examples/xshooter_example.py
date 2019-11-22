@@ -20,7 +20,7 @@ steps = (
     # "norm_flat",
     "curvature",
     # "wavecal",
-    # "science",
+    "science",
     # "continuum",
     # "finalize",
 )
@@ -34,7 +34,7 @@ base_dir = "/DATA/ESO/XShooter"
 input_dir = "raw"
 output_dir = "reduced"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,

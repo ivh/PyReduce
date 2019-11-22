@@ -285,7 +285,7 @@
                 {
                     "type": "object",
                     "properties": {
-                        "peak_width": {
+                        "lfc_peak_width": {
                             "description": "Required width of the frequency comb peaks, in the peak detection algorithm",
                             "type": [
                                 "integer",
@@ -300,7 +300,7 @@
                         }
                     },
                     "required": [
-                        "peak_width",
+                        "lfc_peak_width",
                         "degree",
                         "dimensionality",
                         "threshold"

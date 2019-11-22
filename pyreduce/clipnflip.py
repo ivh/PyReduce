@@ -4,8 +4,10 @@ Module that
     - Flips orients the image so that orders are roughly horizontal
 """
 
+import logging
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
 def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
     """
@@ -39,6 +41,7 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
 
     # This part depends on how many amplifiers were used for the readout
     n_amp = header.get("e_ampl", 1)
+    image = np.asarray(image)
 
     if n_amp > 1: # pragma: no cover
         raise NotImplementedError

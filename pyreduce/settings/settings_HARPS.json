@@ -33,12 +33,13 @@
         "threshold": 100,
         "dimensionality": "2D",
         "nstep": 0,
-        "degree": [5, 5],
+        "degree": [17, 8],
         "extraction_width": 10
     },
     "curvature": {
         "extraction_width": 10,
         "dimensionality": "1D",
+        "curv_degree": 1,
         "degree": 3
     },
     "science": {

@@ -1,19 +1,18 @@
 import pytest
 import numpy as np
 
-from pyreduce.util import load_fits
 from pyreduce.extract import extract
 from pyreduce.combine_frames import combine_frames
 from pyreduce.make_shear import Curvature as CurvatureModule
 
 
 @pytest.fixture
-def original(files, instrument, mode, extension, mask):
+def original(files, instrument, mode, mask):
     if len(files["curvature"]) == 0:
         return None, None
 
     files = files["curvature"]
-    original, chead = combine_frames(files, instrument, mode, extension, mask=mask)
+    original, chead = combine_frames(files, instrument, mode, mask=mask)
 
     return original, chead
 

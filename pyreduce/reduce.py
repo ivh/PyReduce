@@ -24,14 +24,17 @@ import sys
 import time
 import glob
 from os.path import join, dirname
+import warnings
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from tqdm import tqdm
 
 # PyReduce subpackages
 from . import echelle, instruments, util, __version__
+from .instruments.instrument_info import load_instrument
 from .combine_frames import combine_bias, combine_flat, combine_frames
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
@@ -46,6 +49,7 @@ from .estimate_background_scatter import estimate_background_scatter
 # TODO License
 
 # TODO automatic determination of the extraction width
+logger = logging.getLogger(__name__)
 
 
 def main(
@@ -146,18 +150,18 @@ def main(
                         input_dir, t, n, i, m, **config["instrument"]
                     )
                     if len(files) == 0:
-                        logging.warning(
+                        logger.warning(
                             f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m}"
                         )
                     for f, k in zip(files, nights):
-                        logging.info("Instrument: %s", i)
-                        logging.info("Target: %s", t)
-                        logging.info("Observation Date: %s", k)
-                        logging.info("Instrument Mode: %s", m)
+                        logger.info("Instrument: %s", i)
+                        logger.info("Target: %s", t)
+                        logger.info("Observation Date: %s", k)
+                        logger.info("Instrument Mode: %s", m)
 
                         for key in f.keys():
-                            logging.info("Group Identifier: %s", key)
-                            logging.debug("Files:\n%s", f[key])
+                            logger.info("Group Identifier: %s", key)
+                            logger.debug("Files:\n%s", f[key])
                             reducer = Reducer(
                                 f[key],
                                 output_dir,
@@ -173,8 +177,8 @@ def main(
                             data = reducer.run_steps(steps=steps)
                             output.append(data)
                             # except Exception as e:
-                            # logging.error("Reduction failed with error message: %s", str(e))
-                            # logging.info("------------")
+                            # logger.error("Reduction failed with error message: %s", str(e))
+                            # logger.info("------------")
     return output
 
 
@@ -182,15 +186,7 @@ class Step:
     """ Parent class for all steps """
 
     def __init__(
-        self,
-        instrument,
-        mode,
-        extension,
-        target,
-        night,
-        output_dir,
-        order_range,
-        **config,
+        self, instrument, mode, target, night, output_dir, order_range, **config
     ):
         self._dependsOn = []
         self._loadDependsOn = []
@@ -198,8 +194,6 @@ class Step:
         self.instrument = instrument
         #:str: Name of the instrument mode
         self.mode = mode
-        #:int: Number of the FITS extension to use
-        self.extension = extension
         #:str: Name of the observation target
         self.target = target
         #:str: Date of the observation (as a string)
@@ -271,7 +265,7 @@ class Step:
     def output_dir(self):
         """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
         return self._output_dir.format(
-            instrument=self.instrument,
+            instrument=self.instrument.name,
             target=self.target,
             night=self.night,
             mode=self.mode,
@@ -280,7 +274,7 @@ class Step:
     @property
     def prefix(self):
         """str: temporary file prefix"""
-        i = self.instrument.lower()
+        i = self.instrument.name.lower()
         m = self.mode.lower()
         return f"{i}_{m}"
 
@@ -290,7 +284,6 @@ class Mask(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self.extension = 0
         self._mask_dir = config["directory"]
 
     @property
@@ -302,7 +295,7 @@ class Mask(Step):
     @property
     def mask_file(self):
         """str: Name of the mask data file"""
-        i = self.instrument.lower()
+        i = self.instrument.name.lower()
         m = self.mode.lower()
         return f"mask_{i}_{m}.fits.gz"
 
@@ -326,12 +319,10 @@ class Mask(Step):
         """
         mask_file = join(self.mask_dir, self.mask_file)
         try:
-            mask, _ = util.load_fits(
-                mask_file, self.instrument, self.mode, extension=self.extension
-            )
+            mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
         except FileNotFoundError:
-            logging.error(
+            logger.error(
                 "Bad Pixel Mask datafile %s not found. Using all pixels instead.",
                 mask_file,
             )
@@ -389,12 +380,7 @@ class Bias(Step):
             header of the master bias
         """
         bias, bhead = combine_bias(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            extension=self.extension,
-            plot=self.plot,
+            files, self.instrument, self.mode, mask=mask, plot=self.plot
         )
         self.save(bias.data, bhead)
 
@@ -420,7 +406,7 @@ class Bias(Step):
             bias, bhead = bias.data, bias.header
             bias = np.ma.masked_array(bias, mask=mask)
         except FileNotFoundError:
-            logging.warning("No intermediate bias file found. Using Bias = 0 instead.")
+            logger.warning("No intermediate bias file found. Using Bias = 0 instead.")
             bias, bhead = None, None
         return bias, bhead
 
@@ -482,7 +468,6 @@ class Flat(Step):
             self.instrument,
             self.mode,
             mask=mask,
-            extension=self.extension,
             bhead=bhead,
             bias=bias,
             plot=self.plot,
@@ -511,7 +496,7 @@ class Flat(Step):
             flat, fhead = flat.data, flat.header
             flat = np.ma.masked_array(flat, mask=mask)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate file for the flat field found. Using Flat = 1 instead"
             )
             flat, fhead = None, None
@@ -575,7 +560,6 @@ class OrderTracing(Step):
             self.instrument,
             self.mode,
             mask=mask,
-            extension=self.extension,
             bhead=bias[1],
             bias=bias[0],
             plot=False,
@@ -636,7 +620,7 @@ class BackgroundScatter(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "orders"]
+        self._dependsOn += ["mask", "bias", "orders"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
@@ -649,12 +633,22 @@ class BackgroundScatter(Step):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, flat, orders):
-        flat, fhead = flat
+    def run(self, files, mask, bias, orders):
+        bias, bhead = bias
         orders, column_range = orders
 
+        scatter_img, shead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            bhead=bhead,
+            bias=bias,
+            plot=False,
+        )
+
         scatter = estimate_background_scatter(
-            flat,
+            scatter_img,
             orders,
             column_range=column_range,
             extraction_width=self.extraction_width,
@@ -688,7 +682,7 @@ class BackgroundScatter(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate files found for the scatter. Using scatter = 0 instead."
             )
             data = {"scatter": None}
@@ -798,7 +792,7 @@ class NormalizeFlatField(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No intermediate files found for the normalized flat field. Using flat = 1 instead."
             )
             data = {"blaze": None, "norm": None}
@@ -845,7 +839,7 @@ class WavelengthCalibration(Step):
         #:int: Number of iterations in the remove lines, auto id cycle
         self.iterations = config["iterations"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
-        self.wavecal_mode = config["dimensionality"]
+        self.dimensionality = config["dimensionality"]
         self.nstep = config["nstep"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
@@ -890,13 +884,7 @@ class WavelengthCalibration(Step):
 
         # Load wavecal image
         orig, thead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            self.extension,
-            mask=mask,
-            bias=bias,
-            bhead=bhead,
+            files, self.instrument, self.mode, mask=mask, bias=bias, bhead=bhead
         )
 
         # Extract wavecal spectrum
@@ -916,9 +904,7 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
-        reference = instruments.instrument_info.get_wavecal_filename(
-            thead, self.instrument, self.mode
-        )
+        reference = self.instrument.get_wavecal_filename(thead, self.mode)
         reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
 
@@ -928,7 +914,7 @@ class WavelengthCalibration(Step):
             degree=self.degree,
             threshold=self.threshold,
             iterations=self.iterations,
-            mode=self.wavecal_mode,
+            dimensionality=self.dimensionality,
             nstep=self.nstep,
             shift_window=self.shift_window,
             element=thead["e_wavecal_element"],
@@ -1010,10 +996,10 @@ class LaserFrequencyComb(Step):
         #:float: residual threshold in m/s above which to remove lines
         self.threshold = config["threshold"]
         #:{'1D', '2D'}: Whether to use 1D or 2D polynomials
-        self.wavecal_mode = config["dimensionality"]
+        self.dimensionality = config["dimensionality"]
         self.nstep = config["nstep"]
         #:int: Width of the peaks for finding them in the spectrum
-        self.peak_width = config["peak_width"]
+        self.lfc_peak_width = config["lfc_peak_width"]
 
     @property
     def savefile(self):
@@ -1048,9 +1034,7 @@ class LaserFrequencyComb(Step):
         if len(files) == 0:
             raise FileNotFoundError("No files for Laser Frequency Comb found")
 
-        orig, chead = combine_frames(
-            files, self.instrument, self.mode, self.extension, mask=mask
-        )
+        orig, chead = combine_frames(files, self.instrument, self.mode, mask=mask)
 
         comb, _, _, _ = extract(
             orig,
@@ -1075,9 +1059,9 @@ class LaserFrequencyComb(Step):
             plot=self.plot,
             degree=self.degree,
             threshold=self.threshold,
-            mode=self.wavecal_mode,
+            dimensionality=self.dimensionality,
             nstep=self.nstep,
-            lfc_peak_width=self.peak_width,
+            lfc_peak_width=self.lfc_peak_width,
         )
         wave = module.frequency_comb(comb, wave, linelist)
 
@@ -1116,7 +1100,7 @@ class LaserFrequencyComb(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning(
+            logger.warning(
                 "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
             )
             wave, thar, coef, linelist = wavecal
@@ -1179,9 +1163,7 @@ class SlitCurvatureDetermination(Step):
         """
         orders, column_range = orders
 
-        orig, thead = combine_frames(
-            files, self.instrument, self.mode, self.extension, mask=mask
-        )
+        orig, thead = combine_frames(files, self.instrument, self.mode, mask=mask)
 
         extracted, _, _, _ = extract(
             orig,
@@ -1240,7 +1222,7 @@ class SlitCurvatureDetermination(Step):
         try:
             data = np.load(self.savefile, allow_pickle=True)
         except FileNotFoundError:
-            logging.warning("No data for slit curvature found, setting it to 0.")
+            logger.warning("No data for slit curvature found, setting it to 0.")
             data = {"tilt": None, "shear": None}
 
         tilt = data["tilt"]
@@ -1328,14 +1310,9 @@ class ScienceExtraction(Step):
         tilt, shear = curvature
 
         heads, specs, sigmas, columns = [], [], [], []
-        for fname in files:
-            im, head = util.load_fits(
-                fname,
-                self.instrument,
-                self.mode,
-                self.extension,
-                mask=mask,
-                dtype=np.floating,
+        for fname in tqdm(files, desc="Files"):
+            im, head = self.instrument.load_fits(
+                fname, self.mode, mask=mask, dtype=np.floating
             )
             # Correct for bias and flat field
             if bias is not None:
@@ -1467,14 +1444,14 @@ class ContinuumNormalization(Step):
         heads, specs, sigmas, columns = science
         norm, blaze = norm_flat
 
-        logging.info("Continuum normalization")
+        logger.info("Continuum normalization")
         conts = [None for _ in specs]
         for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
-            logging.info("Splicing orders")
+            logger.info("Splicing orders")
             specs[j], wave, blaze, sigmas[j] = splice_orders(
                 spec, wave, blaze, sigma, scaling=True, plot=self.plot
             )
-            logging.info("Normalizing continuum")
+            logger.info("Normalizing continuum")
             conts[j] = continuum_normalize(
                 specs[j], wave, blaze, sigmas[j], plot=self.plot
             )
@@ -1527,7 +1504,7 @@ class ContinuumNormalization(Step):
             data = joblib.load(self.savefile)
         except FileNotFoundError:
             # Use science files instead
-            logging.warning(
+            logger.warning(
                 "No continuum normalized data found. Using unnormalized results instead."
             )
             heads, specs, sigmas, columns = science
@@ -1550,13 +1527,12 @@ class Finalize(Step):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["continuum", "freq_comb", "config"]
-
         self.filename = config["filename"]
 
     def output_file(self, number, name):
         """str: output file name"""
         out = self.filename.format(
-            instrument=self.instrument,
+            instrument=self.instrument.name,
             night=self.night,
             mode=self.mode,
             number=number,
@@ -1578,7 +1554,7 @@ class Finalize(Step):
                     value = "null"
                 elif not np.isscalar(value):
                     value = str(value)
-                head[f"{prefix} {key.upper()}"] = value
+                head[f"HIERARCH {prefix} {key.upper()}"] = value
         return head
 
     def run(self, continuum, freq_comb, config):
@@ -1616,17 +1592,17 @@ class Finalize(Step):
                     head["e_jd"],
                 )
 
-                logging.debug("Heliocentric correction: %f km/s", rv_corr)
-                logging.debug("Heliocentric Julian Date: %s", str(bjd))
+                logger.debug("Heliocentric correction: %f km/s", rv_corr)
+                logger.debug("Heliocentric Julian Date: %s", str(bjd))
             except KeyError:
-                logging.warning("Could not calculate heliocentric correction")
-                # logging.warning("Telescope is in space?")
+                logger.warning("Could not calculate heliocentric correction")
+                # logger.warning("Telescope is in space?")
                 rv_corr = 0
                 bjd = head["e_jd"]
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
-            head["PR_version"] = __version__
+            head["HIERARCH PR_version"] = __version__
 
             head = self.save_config_to_header(head, config)
 
@@ -1636,7 +1612,7 @@ class Finalize(Step):
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
             fnames.append(fname)
-            logging.info("science file: %s", os.path.basename(fname))
+            logger.info("science file: %s", os.path.basename(fname))
         return fnames
 
     def save(self, i, head, spec, sigma, cont, wave, columns):
@@ -1744,17 +1720,13 @@ class Reducer:
             instrument=instrument, target=target, night=night, mode=mode
         )
 
-        info = instruments.instrument_info.get_instrument_info(instrument)
-        extension = info["extension"]
-        if isinstance(extension, list):
-            imode = util.find_first_index(info["modes"], mode.upper())
-            extension = extension[imode]
+        instrument = load_instrument(instrument)
+        info = instrument.info
 
         self.data = {"files": files, "config": config}
         self.inputs = (
             instrument,
             mode,
-            extension,
             target,
             night,
             output_dir,
@@ -1779,16 +1751,16 @@ class Reducer:
         # But give a warning
         if load:
             try:
-                logging.info("Loading data from step '%s'", step)
+                logger.info("Loading data from step '%s'", step)
                 data = module.load(**args)
             except FileNotFoundError:
-                logging.warning(
+                logger.warning(
                     "Intermediate File(s) for loading step %s not found. Running it instead.",
                     step,
                 )
                 data = self.run_module(step, load=False)
         else:
-            logging.info("Running step '%s'", step)
+            logger.info("Running step '%s'", step)
             if step in self.files.keys():
                 args["files"] = self.files[step]
             data = module.run(**args)
@@ -1835,8 +1807,8 @@ class Reducer:
                 if exists[i]:
                     data["finalize"][i] = fname_out[0]
             if all(exists):
-                logging.info("All science files already exist, skipping this set")
-                logging.debug("--------------------------------")
+                logger.info("All science files already exist, skipping this set")
+                logger.debug("--------------------------------")
                 return data
 
         steps.sort(key=lambda x: self.step_order[x])
@@ -1844,7 +1816,7 @@ class Reducer:
         for step in steps:
             self.run_module(step)
 
-        logging.debug("--------------------------------")
+        logger.debug("--------------------------------")
         return self.data
 
 

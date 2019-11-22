@@ -14,6 +14,8 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class XSHOOTER(instrument):
     def add_header_info(self, header, mode, **kwargs):
@@ -109,7 +111,7 @@ class XSHOOTER(instrument):
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = [n for n in ni if n is not None]
             individual_nights = np.unique(individual_nights)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),

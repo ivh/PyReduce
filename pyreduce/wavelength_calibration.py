@@ -20,6 +20,8 @@ from astropy.io import fits
 
 from . import util
 
+logger = logging.getLogger(__name__)
+
 
 class AlignmentPlot:
     """
@@ -64,7 +66,7 @@ class AlignmentPlot:
             ref_image,
             aspect="auto",
             origin="lower",
-            extent=(-0.5, self.ncol + 0.5, -0.5, self.nord - 0.5),
+            extent=(-0.5, self.ncol - 0.5, -0.5, self.nord - 0.5),
         )
         self.im.figure.suptitle(
             "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
@@ -196,7 +198,7 @@ class WavelengthCalibration:
         threshold=100,
         degree=(6, 6),
         iterations=3,
-        mode="2D",
+        dimensionality="2D",
         nstep=0,
         shift_window=0.01,
         manual=False,
@@ -209,14 +211,14 @@ class WavelengthCalibration:
         self.threshold = threshold
         #:tuple(int, int): polynomial degree of the wavelength fit in (pixel, order) direction
         self.degree = degree
-        if mode == "1D":
+        if dimensionality == "1D":
             self.degree = int(degree)
-        elif mode == "2D":
+        elif dimensionality == "2D":
             self.degree = (int(degree[0]), int(degree[1]))
         #:int: Number of iterations in the remove residuals, auto id, loop
         self.iterations = iterations
         #:{"1D", "2D"}: Whether to use 1d or 2d fit
-        self.mode = mode
+        self.dimensionality = dimensionality
         #:bool: Whether to fit for pixel steps (offsets) in the detector
         self.nstep = nstep
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
@@ -242,18 +244,18 @@ class WavelengthCalibration:
         return self.nstep > 0
 
     @property
-    def mode(self):
+    def dimensionality(self):
         """{"1D", "2D"}: Whether to use 1D or 2D polynomials for the wavelength solution"""
-        return self._mode
+        return self._dimensionality
 
-    @mode.setter
-    def mode(self, value):
+    @dimensionality.setter
+    def dimensionality(self, value):
         accepted_values = ["1D", "2D"]
         if value in accepted_values:
-            self._mode = value
+            self._dimensionality = value
         else:
             raise ValueError(
-                f"Value for 'mode' not understood. Expected one of {accepted_values} but got {value} instead"
+                f"Value for 'dimensionality' not understood. Expected one of {accepted_values} but got {value} instead"
             )
 
     def normalize(self, obs, lines):
@@ -430,7 +432,7 @@ class WavelengthCalibration:
             offset = self.align_manual(obs, lines)
             lines = self.apply_alignment_offset(lines, offset)
 
-        logging.debug(f"Offset order: {offset[0]}, Offset pixel: {offset[1]}")
+        logger.debug(f"Offset order: {offset[0]}, Offset pixel: {offset[1]}")
 
         return lines
 
@@ -516,18 +518,18 @@ class WavelengthCalibration:
         m_pix = lines["posm"][mask]
         m_ord = lines["order"][mask]
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             nord = m_ord.max() + 1
             coef = np.zeros((nord, self.degree + 1))
             for i in range(nord):
                 select = m_ord == i
                 coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=self.degree)
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             # 2d polynomial fit with: x = column, y = order, z = wavelength
             coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
         if plot or self.plot >= 2:  # pragma: no cover
@@ -562,7 +564,7 @@ class WavelengthCalibration:
         nstep = self.nstep
         ncol = self.ncol
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             coef = {}
             for order in np.unique(m_ord):
                 select = m_ord == order
@@ -587,7 +589,7 @@ class WavelengthCalibration:
                 poly_coef = res[: self.degree + 1]
                 step_coef = res[self.degree + 1 :].reshape((nstep, 2))
                 coef[order] = [poly_coef, step_coef]
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             unique = np.unique(m_ord)
             nord = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
@@ -619,7 +621,7 @@ class WavelengthCalibration:
             coef = (poly_coef, step_coef)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
         return coef
@@ -627,12 +629,12 @@ class WavelengthCalibration:
     def evaluate_step_solution(self, pos, order, solution):
         if not np.array_equal(np.shape(pos), np.shape(order)):
             raise ValueError("pos and order must have the same shape")
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
                 result[select] = self.f(pos[select], solution[i][0], solution[i][1])
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             poly_coef, step_coef = solution
             pos = np.copy(pos)
             for i in np.unique(order):
@@ -640,7 +642,7 @@ class WavelengthCalibration:
             result = polyval2d(pos, order, poly_coef)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.dimensionality}"
             )
         return result
 
@@ -676,16 +678,16 @@ class WavelengthCalibration:
         if self.step_mode:
             return self.evaluate_step_solution(pos, order, solution)
 
-        if self.mode == "1D":
+        if self.dimensionality == "1D":
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
                 result[select] = np.polyval(solution[i], pos[select])
-        elif self.mode == "2D":
+        elif self.dimensionality == "2D":
             result = np.polynomial.polynomial.polyval2d(pos, order, solution)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.mode}"
+                f"Parameter 'mode' not understood, expected '1D' or '2D' but got {self.dimensionality}"
             )
         return result
 
@@ -852,7 +854,7 @@ class WavelengthCalibration:
                     lines["flag"][i] = True
                     lines["posm"][i] = low + peak_idx[idx]
 
-        logging.info("AutoID identified %i new lines", counter + len(new_lines))
+        logger.info("AutoID identified %i new lines", counter + len(new_lines))
 
         return lines
 
@@ -938,7 +940,7 @@ class WavelengthCalibration:
             wave_solution = self.build_2d_solution(lines)
             residual = self.calculate_residual(wave_solution, lines)
             nbad += 1
-        logging.info("Discarding %i lines", nbad)
+        logger.info("Discarding %i lines", nbad)
 
         if plot or self.plot >= 2:  # pragma: no cover
             mask = lines["flag"]
@@ -1020,14 +1022,41 @@ class WavelengthCalibration:
         orders = np.unique(lines["order"])
         norders = len(orders)
         plt.suptitle(title)
+        nplots = int(np.ceil(norders / 2))
         for i, order in enumerate(orders):
-            plt.subplot(int(np.ceil(norders / 2)), 2, i + 1)
+            plt.subplot(nplots, 2, i + 1)
             order_lines = lines[lines["order"] == order]
             if len(order_lines) > 0:
                 residual = self.calculate_residual(coef, order_lines)
                 plt.plot(order_lines["posm"], residual, "rX")
-                plt.hlines([0], order_lines["posm"].min(), order_lines["posm"].max())
-                # plt.ylim((-self.threshold, self.threshold))
+                plt.hlines([0], 0, self.ncol)
+
+            plt.xlim(0, self.ncol)
+            plt.ylim(-self.threshold, self.threshold)
+
+            if (i + 1) not in [norders, norders -1]:
+                plt.xticks([])
+            else:
+                plt.xlabel("x [Pixel]")
+
+            if (i + 1) % 2 == 0:
+                plt.yticks([])
+            # else:
+                # plt.yticks([-self.threshold, 0, self.threshold])
+
+        plt.subplots_adjust(hspace=0, wspace=0.1)
+
+        # order = 0
+        # order_lines = lines[lines["order"] == order]
+        # if len(order_lines) > 0:
+        #     residual = self.calculate_residual(coef, order_lines)
+        #     plt.plot(order_lines["posm"], residual, "rX")
+        #     plt.hlines([0], 0, self.ncol)
+        # plt.xlim(0, self.ncol)
+        # plt.ylim(-self.threshold, self.threshold)
+        # plt.xlabel("x [Pixel]")
+        # plt.ylabel("Residual [m/s]")
+
         plt.show()
 
     def _find_peaks(self, comb):
@@ -1042,16 +1071,6 @@ class WavelengthCalibration:
         distance = np.median(np.diff(peaks)) // 4
         peaks, _ = signal.find_peaks(c, height=height, distance=distance, width=width)
 
-        # TODO fix missed/double peaks
-        n = np.arange(len(peaks))
-        diff = np.diff(peaks)
-        idx = np.where(diff > 1.5 * np.median(diff))[0]
-        for j in idx:
-            n[j + 1 :] += 1
-
-        idx = np.where(diff < 0.5 * np.median(diff))[0]
-        for j in idx:
-            n[j + 1 :] -= 1
 
         # Fit peaks with gaussian to get accurate position
         new_peaks = peaks.astype(float)
@@ -1062,6 +1081,7 @@ class WavelengthCalibration:
             coef = util.gaussfit3(np.arange(len(idx)), c[idx])
             new_peaks[j] = coef[1] + p - width
 
+        n = np.arange(len(peaks))
         return n, new_peaks
 
     def frequency_comb(self, comb, wave, lines=None):
@@ -1088,6 +1108,10 @@ class WavelengthCalibration:
             # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
             res = Polynomial.fit(n, f_old, deg=1, domain=[])
             fd, fr = res.coef
+            n = np.round((f_old - fd) / fr)
+            res = Polynomial.fit(n, f_old, deg=1, domain=[])
+            fd, fr = res.coef
+
 
             # The first order is used as the baseline for all other orders
             # The choice is arbitrary and doesn't matter
@@ -1106,7 +1130,7 @@ class WavelengthCalibration:
             order += [y_ord]
 
             fd += n_offset * fr
-            logging.debug(
+            logger.debug(
                 "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd, fr, n_offset
             )
 
@@ -1119,8 +1143,8 @@ class WavelengthCalibration:
         res = Polynomial.fit(n_all, f_all, deg=1, domain=[])
         f0, fr = res.coef
 
-        logging.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
-        logging.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
+        logger.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
+        logger.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
 
         # All peaks are then given by f0 + n * fr
         wavelengths = speed_of_light / (f0 + n_all * fr)
@@ -1145,7 +1169,7 @@ class WavelengthCalibration:
         aic = self.calculate_AIC(laser_lines, coef)
 
         ngood = np.count_nonzero(laser_lines["flag"])
-        logging.info(f"Laser Frequency Comb solution based on {ngood} lines.")
+        logger.info(f"Laser Frequency Comb solution based on {ngood} lines.")
         if self.plot:
             residual = wave - new_wave
             residual = residual.ravel()
@@ -1193,12 +1217,12 @@ class WavelengthCalibration:
         p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
 
         if self.step_mode:
-            if self.mode == "1D":
+            if self.dimensionality == "1D":
                 k = 1
                 for _, v in wave_solution.items():
                     k += np.size(v[0])
                     k += np.size(v[1])
-            elif self.mode == "2D":
+            elif self.dimensionality == "2D":
                 k = 1
                 poly_coef, steps_coef = wave_solution
                 for _, v in steps_coef.items():
@@ -1246,7 +1270,7 @@ class WavelengthCalibration:
             try:
                 self.atlas = LineAtlas(self.element)
             except FileNotFoundError:
-                logging.warning("No Atlas file found for element %s", self.element)
+                logger.warning("No Atlas file found for element %s", self.element)
                 self.atlas = None
         else:
             self.atlas = None
@@ -1263,7 +1287,7 @@ class WavelengthCalibration:
         lines = self.fit_lines(obs, lines)
 
         for i in range(self.iterations):
-            logging.info(f"Wavelength calibration iteration: {i}")
+            logger.info(f"Wavelength calibration iteration: {i}")
             # Step 3: Create a wavelength solution on known lines
             wave_solution = self.build_2d_solution(lines)
             wave_img = self.make_wave(wave_solution)
@@ -1273,7 +1297,7 @@ class WavelengthCalibration:
             lines = self.reject_lines(lines)
         # lines = self.reject_lines(lines)
 
-        logging.info(
+        logger.info(
             "Number of lines used for wavelength calibration: %i",
             np.count_nonzero(lines["flag"]),
         )
@@ -1286,6 +1310,6 @@ class WavelengthCalibration:
             self.plot_results(wave_img, obs)
 
         aic = self.calculate_AIC(lines, wave_solution)
-        logging.info("AIC of wavelength fit: %f", aic)
+        logger.info("AIC of wavelength fit: %f", aic)
 
         return wave_img, wave_solution

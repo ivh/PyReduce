@@ -17,6 +17,8 @@ from scipy.signal import peak_widths, find_peaks
 
 from .util import polyfit1d
 
+logger = logging.getLogger(__name__)
+
 
 def fit(x, y, deg, regularization=0):
     # order = polyfit1d(y, x, deg, regularization)
@@ -199,7 +201,7 @@ def merge_clusters(
 
         if answer == "y":
             # just merge automatically
-            logging.info("Merging orders %i and %i", i, j)
+            logger.info("Merging orders %i and %i", i, j)
             x, y, merge = combine(
                 i, j, x, y, merge, mct, nrow, ncol, deg, merge_min_threshold
             )
@@ -369,7 +371,7 @@ def mark_orders(
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
         filter_size = im.shape[0] // npeaks
-        logging.info("Median filter size, estimated: %i", filter_size)
+        logger.info("Median filter size, estimated: %i", filter_size)
     elif filter_size <= 0:
         raise ValueError(f"Expected filter size > 0, but got {filter_size}")
 
@@ -380,13 +382,13 @@ def mark_orders(
         idx = np.argmax(col)
         width = peak_widths(col, [idx])[0][0]
         border_width = int(np.ceil(width))
-        logging.info("Image border width, estimated: %i", border_width)
+        logger.info("Image border width, estimated: %i", border_width)
     elif border_width < 0:
         raise ValueError(f"Expected border width > 0, but got {border_width}")
 
     if min_cluster is None:
         min_cluster = im.shape[1] // 4
-        logging.info("Minimum cluster size, estimated: %i", min_cluster)
+        logger.info("Minimum cluster size, estimated: %i", min_cluster)
     elif not np.isscalar(min_cluster):
         raise TypeError(f"Expected scalar minimum cluster size, but got {min_cluster}")
 
@@ -396,7 +398,7 @@ def mark_orders(
         pass
     elif isinstance(min_width, (float, np.floating)):
         min_width = int(min_width * im.shape[0])
-        logging.info("Minimum order width, estimated: %i", min_width)
+        logger.info("Minimum order width, estimated: %i", min_width)
 
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(im, filter_size, axis=0)
@@ -404,7 +406,7 @@ def mark_orders(
     if noise is None:
         tmp = np.abs(blurred.flatten())
         noise = np.percentile(tmp, 5)
-        logging.info("Background noise, estimated: %f", noise)
+        logger.info("Background noise, estimated: %f", noise)
     elif not np.isscalar(noise):
         raise TypeError(f"Expected scalar noise level, but got {noise}")
 

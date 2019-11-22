@@ -12,14 +12,17 @@ import logging
 import json
 import jsonschema
 
+logger = logging.getLogger(__name__)
+
 if int(jsonschema.__version__[0]) < 3:  # pragma: no cover
-    logging.warning(
+    logger.warning(
         "Jsonschema %s found, but at least 3.0.0 is required to check configuration. Skipping the check.",
         jsonschema.__version__,
     )
     hasJsonSchema = False
 else:
     hasJsonSchema = True
+
 
 
 def get_configuration_for_instrument(instrument, plot=None):
@@ -38,7 +41,7 @@ def get_configuration_for_instrument(instrument, plot=None):
 
 def load_config(configuration, instrument, j=0):
     if configuration is None:
-        logging.info(
+        logger.info(
             "No configuration specified, using default values for this instrument"
         )
         config = get_configuration_for_instrument(instrument, plot=False)
@@ -58,7 +61,7 @@ def load_config(configuration, instrument, j=0):
         config = configuration
 
     if isinstance(config, str):
-        logging.info("Loading configuration from %s", config)
+        logger.info("Loading configuration from %s", config)
         try:
             with open(config) as f:
                 config = json.load(f)
@@ -74,7 +77,7 @@ def load_config(configuration, instrument, j=0):
 
     # If it doesn't raise an Exception everything is as expected
     validate_config(settings)
-    logging.debug("Configuration succesfully validated")
+    logger.debug("Configuration succesfully validated")
 
     return settings
 
@@ -175,5 +178,5 @@ def validate_config(config):
     try:
         jsonschema.validate(schema=schema, instance=config)
     except jsonschema.ValidationError as ve:
-        logging.error("Configuration failed validation check.\n%s", ve.message)
+        logger.error("Configuration failed validation check.\n%s", ve.message)
         raise ValueError(ve.message)

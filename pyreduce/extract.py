@@ -20,8 +20,12 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter, convolve
 from scipy.ndimage.morphology import binary_hit_or_miss
 
+from tqdm import tqdm
+
 from .cwrappers import slitfunc, slitfunc_curved
 from .util import make_index, resample
+
+logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
@@ -56,7 +60,6 @@ class ProgressPlot:  # pragma: no cover
         # self.im_model = self.ax4.plot_surface(x, y, img)
         self.im_obs = self.ax1.imshow(img)
         self.im_model = self.ax4.imshow(img)
-
 
         self.dots_spec, = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
@@ -142,7 +145,6 @@ class ProgressPlot:  # pragma: no cover
         self.mask_slit.set_xdata(mask_slit_x)
         self.mask_slit.set_ydata(mask_slit)
 
-
         limit = np.nanmax(spec[5:-5]) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
@@ -200,6 +202,7 @@ class Swath:
         self.model = [None] * nswath
         self.unc = [None] * nswath
         self.mask = [None] * nswath
+        self.info = [None] * nswath
 
     def __len__(self):
         return self.nswath
@@ -211,6 +214,7 @@ class Swath:
             self.model[key],
             self.unc[key],
             self.mask[key],
+            self.info[key],
         )
 
     def __setitem__(self, key, value):
@@ -219,9 +223,39 @@ class Swath:
         self.model[key] = value[2]
         self.unc[key] = value[3]
         self.mask[key] = value[4]
+        self.info[key] = value[5]
 
 
 def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
+    """Fix extraction width and column range, so that all pixels used are within the image.
+    I.e. the column range is cut so that the everything is within the image
+    
+    Parameters
+    ----------
+    xwd : float, array
+        Extraction width, either one value for all orders, or the whole array
+    cr : 2-tuple(int), array
+        Column range, either one value for all orders, or the whole array
+    orders : array
+        polynomial coefficients that describe each order
+    nrow : int
+        Number of rows in the image
+    ncol : int
+        Number of columns in the image
+    nord : int
+        Number of orders in the image
+    ignore_column_range : bool, optional
+        if true does not change the column range, however this may lead to problems with the extraction, by default False
+    
+    Returns
+    -------
+    xwd : array
+        fixed extraction width
+    cr : array
+        fixed column range
+    orders : array
+        the same orders as before
+    """
 
     if xwd is None:
         xwd = 0.5
@@ -620,27 +654,10 @@ def extract_spectrum(
 
     ycen_int = np.floor(ycen).astype(int)
 
-    if tilt is None:
-        tilt = np.zeros(ncol)
-    if shear is None:
-        shear = np.zeros(ncol)
-
-    if out_spec is None:
-        spec = np.zeros(ncol)
-    else:
-        spec = out_spec
-    if out_sunc is None:
-        sunc = np.zeros(ncol)
-    else:
-        sunc = out_sunc
-    if out_mask is None:
-        mask = np.full(ncol, False)
-    else:
-        mask = out_mask
-    if out_slitf is None:
-        slitf = np.zeros(nslitf)
-    else:
-        slitf = out_slitf
+    spec = np.zeros(ncol) if out_spec is None else out_spec
+    sunc = np.zeros(ncol) if out_sunc is None else out_sunc
+    mask = np.full(ncol, False) if out_mask is None else out_mask
+    slitf = np.zeros(nslitf) if out_slitf is None else out_slitf
 
     nbin, bins_start, bins_end = make_bins(swath_width, xlow, xhigh, ycen)
     nswath = 2 * nbin - 1
@@ -653,48 +670,37 @@ def extract_spectrum(
 
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
-    for ihalf, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-        logging.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
+    with tqdm(
+        enumerate(zip(bins_start, bins_end)),
+        total=len(bins_start),
+        leave=False,
+        desc="Swath",
+    ) as t:
+        for ihalf, (ibeg, iend) in t:
+            logger.debug("Extracting Swath %i, Columns: %i - %i", ihalf, ibeg, iend)
 
-        # Cut out swath from image
-        index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
-        swath_img = img[index]
-        swath_ycen = ycen[ibeg:iend]
+            # Cut out swath from image
+            index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
+            swath_img = img[index]
+            swath_ycen = ycen[ibeg:iend]
 
-        # Corrections
-        # TODO: what is it even supposed to do?
-        if telluric is not None:  # pragma: no cover
-            telluric_correction = calc_telluric_correction(telluric, swath_img)
-        else:
-            telluric_correction = 0
+            # Corrections
+            # TODO: what is it even supposed to do?
+            if telluric is not None:  # pragma: no cover
+                telluric_correction = calc_telluric_correction(telluric, swath_img)
+            else:
+                telluric_correction = 0
 
-        if scatter is not None:
-            scatter_correction = calc_scatter_correction(scatter, index)
-        else:
-            scatter_correction = 0
+            if scatter is not None:
+                scatter_correction = calc_scatter_correction(scatter, index)
+            else:
+                scatter_correction = 0
 
-        swath_img -= scatter_correction + telluric_correction
-        swath_img = np.clip(swath_img, 0, None)
+            swath_img -= scatter_correction + telluric_correction
 
-        # Do Slitfunction extraction
-        swath_tilt = tilt[ibeg:iend]
-        swath_shear = shear[ibeg:iend]
-        swath[ihalf] = slitfunc_curved(
-            swath_img,
-            swath_ycen,
-            swath_tilt,
-            swath_shear,
-            lambda_sp=lambda_sp,
-            lambda_sf=lambda_sf,
-            osample=osample,
-            yrange=yrange,
-        )
-
-        # Catch bad Swaths, and run them again with more oversampling
-        i = 0
-        while np.any(np.isnan(swath.spec[ihalf])):
-            i += 1
-            print(f"What the fuck + {i}")
+            # Do Slitfunction extraction
+            swath_tilt = tilt[ibeg:iend] if tilt is not None else 0
+            swath_shear = shear[ibeg:iend] if shear is not None else 0
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
@@ -702,21 +708,22 @@ def extract_spectrum(
                 swath_shear,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
-                osample=osample + i,
+                osample=osample,
                 yrange=yrange,
             )
-            swath.slitf[ihalf] = resample(swath.slitf[ihalf], nslitf)
+            t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
-        if normalize:
-            # Save image and model for later
-            # Use np.divide to avoid divisions by zero
-            where = swath.model[ihalf] > threshold / gain
-            norm_img[ihalf] = np.ones_like(swath.model[ihalf])
-            np.divide(swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf])
-            norm_model[ihalf] = swath.model[ihalf]
+            if normalize:
+                # Save image and model for later
+                # Use np.divide to avoid divisions by zero
+                where = swath.model[ihalf] > threshold / gain
+                norm_img[ihalf] = np.ones_like(swath.model[ihalf])
+                np.divide(
+                    swath_img, swath.model[ihalf], where=where, out=norm_img[ihalf]
+                )
+                norm_model[ihalf] = swath.model[ihalf]
 
-        if plot >= 2:  # pragma: no cover
-            if not np.all(np.isnan(swath_img)):
+            if plot >= 2 and not np.all(np.isnan(swath_img)):  # pragma: no cover
                 if progress is None:
                     progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
                 progress.plot(
@@ -733,18 +740,8 @@ def extract_spectrum(
 
     # Remove points at the border of the each swath, if order has tilt
     # as those pixels have bad information
-    if tilt is not None:
-        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
-            swath_tilt = tilt[ibeg:iend]
-            swath_shear = shear[ibeg:iend]
-            tilt_first, tilt_last = swath_tilt[[0, -1]]
-            shear_first, shear_last = swath_shear[[0, -1]]
-
-            excess = np.polyval([shear_first, tilt_first, 0], [-ylow, yhigh])
-            margin[i, 0] = 2 * int(np.ceil(np.abs(excess).max()))
-
-            excess = np.polyval([shear_last, tilt_last, 0], [-ylow, yhigh])
-            margin[i, 1] = 2 * int(np.ceil(np.abs(excess).max()))
+    for i in range(nswath):
+        margin[i, :] = int(swath.info[i][4])
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
@@ -764,8 +761,8 @@ def extract_spectrum(
         # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
         triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
         # Cut away the margins at the corners
-
         triangle = triangle[margin[j, 0] : len(triangle) - margin[i, 1]]
+
         # Set values
         weight[i][start_i:end_i] = 1 - triangle
         weight[j][start_j:end_j] = triangle
@@ -873,7 +870,7 @@ def optimal_extraction(
         uncertainties on the spectrum
     """
 
-    logging.info("Using optimal extraction to produce spectrum")
+    logger.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
     nord = len(orders)
@@ -902,8 +899,8 @@ def optimal_extraction(
     else:
         progress = None
 
-    for i in range(nord):
-        logging.debug("Extracting relative order %i out of %i", i + 1, nord)
+    for i in tqdm(range(nord), desc="Order"):
+        logger.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[i], ix)
@@ -942,6 +939,7 @@ def optimal_extraction(
 
     return spectrum, slitfunction, uncertainties
 
+
 def correct_for_curvature(img_order, tilt, shear, xwd):
     img_order = np.ma.filled(img_order, 0)
     xt = np.arange(img_order.shape[1])
@@ -949,6 +947,7 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
         xi = xt + yt * tilt + yt ** 2 * shear
         img_order[y] = np.interp(xi, xt, img_order[y])
     return img_order
+
 
 def model_image(img, xwd, tilt, shear):
     # Correct image for curvature
@@ -965,12 +964,14 @@ def model_image(img, xwd, tilt, shear):
     model = correct_for_curvature(model, -tilt, -shear, xwd)
     return model, spec, slitf
 
+
 def get_mask(img, model):
     # 99.73 = 3 sigma, 2 * 3 = 6 sigma
     residual = np.ma.abs(img - model)
     median, vmax = np.percentile(np.ma.compressed(residual), (50, 99.73))
     vmax = median + 2 * (vmax - median)
     return residual > vmax
+
 
 def arc_extraction(
     img,
@@ -1018,7 +1019,7 @@ def arc_extraction(
         uncertainties on extracted spectrum
     """
 
-    logging.info("Using arc extraction to produce spectrum.")
+    logger.info("Using arc extraction to produce spectrum.")
     _, ncol = img.shape
     nord, _ = orders.shape
 
@@ -1034,7 +1035,9 @@ def arc_extraction(
 
     x = np.arange(ncol)
 
-    for i in range(nord):
+    for i in tqdm(range(nord), desc="Order"):
+        logger.debug("Calculating order %i out of %i", i + 1, nord)
+
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
 
@@ -1100,7 +1103,10 @@ def plot_comparison(
     plt.imshow(output, origin="lower", aspect="auto")
 
     for i in range(nord):
-        tmp = spectrum[i] - np.min(spectrum[i, column_range[i, 0] : column_range[i, 1]])
+        tmp = spectrum[i, column_range[i, 0] : column_range[i, 1]]
+        vmin = np.min(tmp[tmp != 0])
+        tmp = np.copy(spectrum[i])
+        tmp[tmp != 0] -= vmin
         np.log(tmp, out=tmp, where=tmp > 0)
         tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
         tmp += pos[i]

@@ -10,6 +10,8 @@ import numpy as np
 from .extract import fix_parameters, fix_extraction_width
 from .util import polyfit2d, polyfit2d_2, make_index
 
+logger = logging.getLogger(__name__)
+
 
 def estimate_background_scatter(
     img,
@@ -98,7 +100,7 @@ def estimate_background_scatter(
     y, x, z = y[mask], x[mask], z[mask]
 
     coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
-    logging.debug("Background scatter coefficients: %s", str(coeff))
+    logger.debug("Background scatter coefficients: %s", str(coeff))
 
     if plot:  # pragma: no cover
         # Calculate scatter at interorder positionsq

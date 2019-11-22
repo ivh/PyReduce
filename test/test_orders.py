@@ -6,12 +6,12 @@ from pyreduce import util
 from pyreduce.trace_orders import mark_orders
 
 
-def test_orders(instrument, mode, extension, files, settings, mask):
+def test_orders(instr, instrument, mode, files, settings, mask):
     if len(files["orders"]) == 0:
         pytest.skip(f"No order definition files found for instrument {instrument}")
 
     files = files["orders"][0]
-    order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
+    order_img, _ = instr.load_fits(files, mode, mask=mask)
     settings = settings["orders"]
 
     orders, column_range = mark_orders(

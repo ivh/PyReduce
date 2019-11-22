@@ -16,6 +16,8 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class JWST_MIRI(instrument):
 
@@ -66,7 +68,7 @@ class JWST_MIRI(instrument):
 
         # find all fits files in the input dir(s)
         input_dir = input_dir.format(
-            instrument=self.instrument.upper(), target=target, mode=mode, night=night
+            instrument=self.name.upper(), target=target, mode=mode, night=night
         )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
@@ -106,7 +108,7 @@ class JWST_MIRI(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),

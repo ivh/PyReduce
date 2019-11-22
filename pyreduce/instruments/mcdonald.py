@@ -17,11 +17,10 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class MCDONALD(instrument):
-    def __init__(self):
-        self.instrument = "mcdonald"
-
     def _convert_time_deg(self, v):
         v = [float(s) for s in v.split(":")]
         v = v[0] + v[1] / 60 + v[2] / 3600
@@ -129,7 +128,7 @@ class MCDONALD(instrument):
 
         info = self.load_info()
         target = target.upper()
-        instrument = self.instrument.upper()
+        instrument = "MCDONALD"
 
         # Try matching with nights
         try:
@@ -184,7 +183,7 @@ class MCDONALD(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),

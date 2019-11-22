@@ -23,6 +23,8 @@ import logging
 
 from cffi import FFI
 
+logger = logging.getLogger(__name__)
+
 
 CWD = os.path.dirname(__file__)
 CWD = os.path.abspath(CWD)
@@ -57,7 +59,7 @@ with open(os.path.join(CWD, "slit_func_2d_xi_zeta_bd.c"), "r") as f:
 
 def build():
     """Builds the C slitfunc library"""
-    logging.info("Building required C libraries, this might take a few seconds")
+    logger.info("Building required C libraries, this might take a few seconds")
 
     old_cwd = os.getcwd()
     path = os.path.abspath(CWD)

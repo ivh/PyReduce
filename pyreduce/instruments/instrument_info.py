@@ -51,7 +51,7 @@ def get_instrument_info(instrument):
     """
 
     instrument = load_instrument(instrument)
-    return instrument.load_info()
+    return instrument.info
 
 
 def sort_files(input_dir, target, night, instrument, mode, **kwargs):

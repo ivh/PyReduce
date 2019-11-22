@@ -23,6 +23,9 @@ from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 from . import __version__
 
+logger = logging.getLogger(__name__)
+
+
 def resample(array, new_size):
     x = np.arange(new_size)
     xp = np.linspace(0, new_size, len(array))
@@ -92,6 +95,12 @@ def in_ipynb():
         return False
 
 
+
+def log_version():
+    """ For Debug purposes """
+    logger.debug("----------------------")
+    logger.debug("PyReduce version: %s", __version__)
+
 def start_logging(log_file="log.log"):
     """Start logging to log file and command line
 
@@ -101,41 +110,16 @@ def start_logging(log_file="log.log"):
         name of the logging file (default: "log.log")
     """
 
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-    # Remove existing File handles
-    hasStream = False
-    for h in list(logger.handlers):
-        if isinstance(h, logging.FileHandler):
-            logger.removeHandler(h)
-        if isinstance(h, logging.StreamHandler):
-            hasStream = True
 
-    # Command Line output
-    # only if not running in notebook
-    if not hasStream:
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
-        ch.setFormatter(ch_formatter)
-        logger.addHandler(ch)
-
-    # Log file settings
-    if log_file is not None:
-        log_dir = os.path.dirname(log_file)
-        if log_dir != "" and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        file = logging.FileHandler(log_file)
-        file.setLevel(logging.DEBUG)
-        file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file.setFormatter(file_formatter)
-        logger.addHandler(file)
-
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format="%(asctime)-15s - %(levelname)s - %(name)-8s - %(message)s",
+    )
     logging.captureWarnings(True)
-
-    logging.debug("----------------------")
-    logging.debug("PyReduce version: %s", __version__)
+    log_version()
 
 
 def vac2air(wl_vac):
@@ -155,65 +139,6 @@ def vac2air(wl_vac):
     )
     wl_air[ii] = wl_vac[ii] / fact  # Convert to air wavelength
     return wl_air
-
-
-def load_fits(
-    fname, instrument, mode, extension, mask=None, header_only=False, dtype=None
-):
-    """
-    load fits file, REDUCE style
-
-    primary and extension header are combined
-    modeinfo is applied to header
-    data is clipnflipped
-    mask is applied
-
-    Parameters
-    ----------
-    fname : str
-        filename
-    instrument : str
-        name of the instrument
-    mode : str
-        instrument mode
-    extension : int
-        data extension of the FITS file to load
-    mask : array, optional
-        mask to add to the data
-    header_only : bool, optional
-        only load the header, not the data
-    dtype : str, optional
-        numpy datatype to convert the read data to
-
-    Returns
-    --------
-    data : masked_array
-        FITS data, clipped and flipped, and with mask
-    header : fits.header
-        FITS header (Primary and Extension + Modeinfo)
-
-    ONLY the header is returned if header_only is True
-    """
-    hdu = fits.open(fname)
-    header = hdu[extension].header
-    header.extend(hdu[0].header, strip=False)
-    header = modeinfo(header, instrument, mode)
-    header["e_input"] = (os.path.basename(fname), "Original input filename")
-
-    if header_only:
-        hdu.close()
-        return header
-
-    data = clipnflip(hdu[extension].data, header)
-
-    if dtype is not None:
-        data = data.astype(dtype)
-
-    data = np.ma.masked_array(data, mask=mask)
-
-    hdu.close()
-    return data, header
-
 
 def swap_extension(fname, ext, path=None):
     """ exchange the extension of the given file with a new one """
@@ -607,6 +532,8 @@ def _scale(x, y):
     # Mean 0, Variation 1
     offset_x, offset_y = np.mean(x), np.mean(y)
     norm_x, norm_y = np.std(x), np.std(y)
+    if norm_x == 0: norm_x = 1
+    if norm_y == 0: norm_y = 1
     x = (x - offset_x) / norm_x
     y = (y - offset_y) / norm_y
     return x, y, (norm_x, norm_y), (offset_x, offset_y)

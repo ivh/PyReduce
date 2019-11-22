@@ -15,9 +15,10 @@ from dateutil import parser
 from scipy.ndimage.filters import median_filter
 
 from .clipnflip import clipnflip
-from .instruments.instrument_info import get_instrument_info
-from .util import gaussbroad, gaussfit, load_fits, remove_bias
+from .instruments.instrument_info import load_instrument
+from .util import gaussbroad, gaussfit, remove_bias
 
+logger = logging.getLogger(__name__)
 
 def running_median(arr, size):
     """Calculate the running median of a 2D sequence
@@ -145,7 +146,7 @@ def combine_frames(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     threshold=3.5,
     window=50,
     dtype=np.float32,
@@ -212,6 +213,8 @@ def combine_frames(
         list of fits files to combine
     instrument : str
         instrument id for modinfo
+    mode : str
+        instrument mode
     extension : int, optional
         fits extension to load (default: 1)
     threshold : float, optional
@@ -236,29 +239,31 @@ def combine_frames(
     """
 
     DEBUG_NROWS = 100  # print status update every DEBUG_NROWS rows (if debug is True)
+    if instrument is None or isinstance(instrument, str):
+        instrument = load_instrument(instrument)
 
     # summarize file info
-    logging.info("Files:")
+    logger.debug("Files:")
     for i, fname in zip(range(len(files)), files):
-        logging.info("%i\t%s", i, fname)
+        logger.debug("%i\t%s", i, fname)
 
     # Only one image
     if len(files) == 0:
-        raise ValueError("No files defined")
+        raise ValueError("No files given for combine frames")
     elif len(files) == 1:
-        result, head = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        result, head = instrument.load_fits(
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        bias1, head1 = instrument.load_fits(
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp1 = head1.get("exptime", 0)
 
-        bias2, head2 = load_fits(
-            files[1], instrument, mode, extension, dtype=dtype, **kwargs
+        bias2, head2 = instrument.load_fits(
+            files[1], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -276,8 +281,8 @@ def combine_frames(
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(
-                f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs
+            instrument.load_fits(
+                f, mode, header_only=True, dtype=dtype, extension=extension, **kwargs
             )
             for f in files
         ]
@@ -317,14 +322,19 @@ def combine_frames(
 
         # Load all image hdus, but leave the data on the disk, using memmap
         # Need to scale data later
+        if extension is None:
+            extension = [instrument.get_extension(h, mode) for h in heads]
+        else:
+            extension = [extension] * len(heads)
+
         data = [
-            fits.open(f, memmap=True, do_not_scale_image_data=True)[extension]
-            for f in files
+            fits.open(f, memmap=True, do_not_scale_image_data=True)[e]
+            for f, e in zip(files, extension)
         ]
 
         if window >= n_columns / 2:
             window = n_columns // 10
-            logging.warning("Reduce Window size to fit the image")
+            logger.warning("Reduce Window size to fit the image")
 
         # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:
@@ -355,7 +365,7 @@ def combine_frames(
             # for each row
             for row in range(y_bottom, y_top):
                 if (row) % DEBUG_NROWS == 0:
-                    logging.debug(
+                    logger.debug(
                         "%i rows processed - %i pixels fixed so far", row, n_fixed
                     )
 
@@ -384,7 +394,7 @@ def combine_frames(
                 )
                 n_fixed += n_bad
 
-        logging.info("total cosmic ray hits identified and removed: %i", n_fixed)
+        logger.debug("total cosmic ray hits identified and removed: %i", n_fixed)
 
         result = clipnflip(result, head)
         result = np.ma.masked_array(result, mask=kwargs.get("mask"))
@@ -409,7 +419,7 @@ def combine_frames(
         "images coadded by combine_frames.py on %s" % datetime.datetime.now()
     )
 
-    if not linear: #pragma: no cover
+    if not linear:  # pragma: no cover
         # non-linearity was fixed. mark this in the header
         raise NotImplementedError()  # TODO Nonlinear
         # i = np.where(head["e_linear"] >= 0)
@@ -426,7 +436,9 @@ def combine_frames(
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, plot=False, **kwargs):
+def combine_flat(
+    files, instrument, mode, extension=None, bhead=None, bias=None, plot=False, **kwargs
+):
     """
     Combine several flat files into one master flat
 
@@ -452,23 +464,18 @@ def combine_flat(files, instrument, mode, extension=1, bhead=None, bias=None, pl
     flat, fhead
         image and header of master flat
     """
-
     flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
     # Subtract master dark
     # TODO: Why do we scale with number of files and not exposure time?
     if bias is not None:
-        if bhead["EXPTIME"] == 0:
-            flat -= bias * len(files)
-        else:
-            flat -= bias * fhead["EXPTIME"] / bhead["EXPTIME"]
+        flat -= bias * len(files)
 
-
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.title("Master Flat")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(flat, (10, 90))
-        plt.imshow(flat, vmin = bot, vmax=top, origin="lower")
+        plt.imshow(flat, vmin=bot, vmax=top, origin="lower")
         plt.show()
 
     return flat, fhead
@@ -478,7 +485,7 @@ def combine_bias(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     plot=False,
     science_observation_time=None,
     **kwargs
@@ -525,7 +532,7 @@ def combine_bias(
     #         list2 = files[times > science_observation_time]
     #         # np.digitize(science_observation_time, sorted(times))
     #     except KeyError:
-    #         logging.info("Could not sort files by observation time")
+    #         logger.info("Could not sort files by observation time")
     #         list1, list2 = files[: n // 2], files[n // 2 :]
     else:
         list1, list2 = files[: n // 2], files[n // 2 :]
@@ -560,7 +567,7 @@ def combine_bias(
         nbins = int((hmax - hmin) / bin_size)
 
         h, _ = np.histogram(diff, range=(hmin, hmax), bins=nbins)
-        xh = hmin + bin_size * (np.arange(0., nbins) + 0.5)
+        xh = hmin + bin_size * (np.arange(0.0, nbins) + 0.5)
 
         hfit, par = gaussfit(xh, h)
         noise = abs(par[2])  # noise in diff, bias
@@ -586,12 +593,12 @@ def combine_bias(
         bgnoise = biasnoise * np.sqrt(n)
 
         # Print diagnostics.
-        logging.info("change in bias between image sets= %f electrons", gain * par[1])
-        logging.info("measured background noise per image= %f", bgnoise)
-        logging.info("background noise in combined image= %f", biasnoise)
-        logging.info("fixing %i bad pixels", nbad)
+        logger.debug("change in bias between image sets= %f electrons", gain * par[1])
+        logger.debug("measured background noise per image= %f", bgnoise)
+        logger.debug("background noise in combined image= %f", biasnoise)
+        logger.debug("fixing %i bad pixels", nbad)
 
-        if debug: #pragma: no cover
+        if debug:  # pragma: no cover
             # Plot noise distribution.
             plt.subplot(211)
             plt.plot(xh, h)
@@ -611,10 +618,10 @@ def combine_bias(
             plt.show()
     else:
         diff = 0
-        biasnoise = 1.
+        biasnoise = 1.0
         nbad = 0
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.title("Master Bias")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")

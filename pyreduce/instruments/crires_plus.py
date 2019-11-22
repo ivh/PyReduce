@@ -16,11 +16,10 @@ from dateutil import parser
 
 from .common import getter, instrument, observation_date_to_night
 
+logger = logging.getLogger(__name__)
+
 
 class CRIRES_PLUS(instrument):
-    def __init__(self):
-        self.instrument = "crires_plus"
-
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
@@ -58,7 +57,6 @@ class CRIRES_PLUS(instrument):
         target = target.upper().replace("-", "")
         instrument = "CRIRES"
 
-
         # Try matching with nights
         try:
             night = parser.parse(night).date()
@@ -87,7 +85,6 @@ class CRIRES_PLUS(instrument):
         decker = np.zeros(len(files), dtype="U20")
         lamp = np.zeros(len(files), dtype="U20")
 
-
         se = np.zeros(len(files), dtype="U20")
 
         # observed night, parsed into a datetime object
@@ -114,7 +111,7 @@ class CRIRES_PLUS(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),
@@ -130,7 +127,7 @@ class CRIRES_PLUS(instrument):
             # Only look at the settings of observation files
             # match_ty = np.array([fnmatch.fnmatch(t, info["id_spec"]) for t in ty])
             # match_ob = np.array([fnmatch.fnmatch(t, target) for t in ob])
-            
+
             if mode != "":
                 keys = np.unique(se[selection & (se == mode)])
             else:
@@ -146,8 +143,16 @@ class CRIRES_PLUS(instrument):
                     "bias": files[(ty == info["id_bias"]) & selection],
                     "flat": files[(ty == info["id_flat"]) & select],
                     "orders": files[(ty == info["id_flat"]) & select],
-                    "wavecal": files[(ty == info["id_wave"]) & (lamp == info["id_lamp_wavecal"]) & select],
-                    "freq_comb": files[(ty == info["id_wave"]) & (lamp == info["id_lamp_etalon"]) & select],
+                    "wavecal": files[
+                        (ty == info["id_wave"])
+                        & (lamp == info["id_lamp_wavecal"])
+                        & select
+                    ],
+                    "freq_comb": files[
+                        (ty == info["id_wave"])
+                        & (lamp == info["id_lamp_etalon"])
+                        & select
+                    ],
                     "science": [],
                 }
                 files_this_night[key]["curvature"] = (
