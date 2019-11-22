@@ -17,7 +17,6 @@ del plt
 
 # add logger to console
 import logging
-import colorlog
 import tqdm
 
 # We need to use this to have logging messages handle properly with the progressbar
@@ -41,14 +40,22 @@ logger.setLevel(logging.DEBUG)
 
 console = TqdmLoggingHandler()
 console.setLevel(logging.INFO)
-console.setFormatter(
-    colorlog.ColoredFormatter("%(log_color)s%(levelname)s - %(message)s")
-)
+
+try:
+    import colorlog
+
+    console.setFormatter(
+        colorlog.ColoredFormatter("%(log_color)s%(levelname)s - %(message)s")
+    )
+    del colorlog
+except ImportError:
+    console.setFormatter("%(levelname)s - %(message)s")
+    print("Install colorlog for colored logging output")
+
 logger.addHandler(console)
 
-
 del logging
-del colorlog
+# do not del tqdm, it is needed in the Log Handler
 
 # Load externally available modules
 from . import reduce, datasets, instruments, util, configuration

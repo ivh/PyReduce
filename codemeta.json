@@ -48,5 +48,6 @@
     "url": "https://github.com/AWehrhahn/PyReduce",
     "programmingLanguage": "Python 3",
     "operatingSystem": "POSIX :: Linux",
-    "interfaceType": "LIB"
+    "interfaceType": "LIB",
+    "contIntegration": "https://travis-ci.org/AWehrhahn/PyReduce"
 }
