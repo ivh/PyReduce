@@ -234,8 +234,9 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     sp = np.sum(img, axis=0)
 
     mask = np.where(mask, c_int(0), c_int(1))
-    pix_unc = np.copy(img)
-    np.sqrt(np.abs(pix_unc), where=np.isfinite(pix_unc), out=pix_unc)
+    pix_unc = np.nan_to_num(np.abs(img), copy=False)
+    np.sqrt(pix_unc, out=pix_unc)
+    pix_unc[pix_unc < 1] = 1
 
     psf_curve = np.zeros((ncols, 3), dtype=c_double)
     psf_curve[:, 1] = tilt
@@ -296,7 +297,6 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         else:
             msg = f"Check the C code, for status = {status}"
         logger.error(msg)
-        info[4] = 2
         # raise RuntimeError(msg)
 
     mask = mask == 0
