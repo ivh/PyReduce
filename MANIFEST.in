@@ -16,3 +16,5 @@ include pyreduce/wavecal/*npz
 include setup.cfg
 include versioneer.py
 include pyreduce/_version.py
+
+include codemeta.json

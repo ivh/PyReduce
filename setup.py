@@ -19,6 +19,15 @@ except ModuleNotFoundError:
     pass
 
 
+cmdclass = versioneer.get_cmdclass()
+
+try:
+    from codemeta.codemeta import CodeMetaCommand
+
+    cmdclass["codemeta"] = CodeMetaCommand
+except ImportError:
+    pass
+
 # from pyreduce.clib import build_cluster
 # build_cluster.build()
 
@@ -32,7 +41,7 @@ with open("README.md", "r") as fh:
 setup(
     name="pyreduce-astro",
     version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
+    cmdclass=cmdclass,
     author="Ansgar Wehrhahn",
     author_email="ansgar.wehrhahn@physics.uu.se",
     description="A data reduction package for echelle spectrographs",
@@ -63,5 +72,6 @@ setup(
         "joblib",
         "jsonschema>=3.0.1",
         "tqdm",
+        "colorlog",
     ],
 )
