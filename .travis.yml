@@ -47,7 +47,6 @@ jobs:
     #       - $HOME/conda
     - name: "Deploy"
       stage: deploy
-      install: skip
       script: skip
       deploy:
         provider: pypi
