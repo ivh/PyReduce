@@ -138,6 +138,7 @@ class Curvature:
         self.order_range = order_range
         self.window_width = window_width
         self.threshold = peak_threshold
+        self.peak_width = 3
         self.fit_degree = fit_degree
         self.sigma_cutoff = sigma_cutoff
         self.mode = mode
@@ -188,10 +189,13 @@ class Curvature:
         vec -= np.ma.median(vec)
         vec = np.ma.filled(vec, 0)
         height = np.percentile(vec, 68) * self.threshold
-        peaks, _ = signal.find_peaks(vec, prominence=height)
+        peaks, _ = signal.find_peaks(vec, prominence=height, width=self.peak_width)
 
         # Remove peaks at the edge
-        peaks = peaks[(peaks >= self.window_width + 1) & (peaks < len(vec) - self.window_width - 1)]
+        peaks = peaks[
+            (peaks >= self.window_width + 1)
+            & (peaks < len(vec) - self.window_width - 1)
+        ]
         # Remove the offset, due to vec being a subset of extracted
         peaks += cr[0]
         return vec, peaks
@@ -256,11 +260,18 @@ class Curvature:
             warnings.simplefilter("ignore")
             w = np.sqrt(1 / wcen[idx])
             try:
-                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree, w=w)
+                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree)
+                res = least_squares(
+                    lambda coef: np.polyval(coef, xind[idx]) - xcen[idx],
+                    x0=coef,
+                    loss="soft_l1",
+                )
+                coef = res.x
             except ValueError:
                 # Polyfit failed for some reason
                 raise RuntimeError
 
+        # plt.plot(xind[idx], xcen[idx]); plt.plot(xind[idx], np.polyval(coef, xind[idx])); plt.show()
 
         if self.curv_degree == 1:
             tilt, shear = coef[0], 0
@@ -281,8 +292,26 @@ class Curvature:
             mask = (tilt >= middle - 5 * sigma[0]) & (tilt <= middle + 5 * sigma[1])
             peaks, tilt, shear = peaks[mask], tilt[mask], shear[mask]
 
-            coef_tilt = np.polyfit(peaks, tilt, self.fit_degree)
-            coef_shear = np.polyfit(peaks, shear, self.fit_degree)
+            coef_tilt = np.zeros(
+                self.fit_degree + 1
+            )  # np.polyfit(peaks, tilt, self.fit_degree)
+            res = least_squares(
+                lambda coef: np.polyval(coef, peaks) - tilt,
+                x0=coef_tilt,
+                loss="soft_l1",
+            )
+            coef_tilt = res.x
+
+            coef_shear = np.zeros(
+                self.fit_degree + 1
+            )  # np.polyfit(peaks, shear, self.fit_degree)
+            res = least_squares(
+                lambda coef: np.polyval(coef, peaks) - shear,
+                x0=coef_shear,
+                loss="soft_l1",
+            )
+            coef_shear = res.x
+
         except:
             logger.error(
                 "Could not fit the curvature of this order. Using no curvature instead"
@@ -310,14 +339,16 @@ class Curvature:
             # Find peaks
             vec = extracted[j, cr[0] : cr[1]]
             vec, peaks = self._find_peaks(vec, cr)
-            
+
             npeaks = len(peaks)
 
             # Determine curvature for each line seperately
             tilt = np.zeros(npeaks)
             shear = np.zeros(npeaks)
             mask = np.full(npeaks, True)
-            for ipeak, peak in tqdm(enumerate(peaks), total=len(peaks), desc="Peak", leave=False):
+            for ipeak, peak in tqdm(
+                enumerate(peaks), total=len(peaks), desc="Peak", leave=False
+            ):
                 if self.plot >= 2:  # pragma: no cover
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
@@ -347,9 +378,31 @@ class Curvature:
             y = [np.full(len(p), i) for i, p in enumerate(peaks)]
             y = np.concatenate(y)
             z = np.concatenate(tilt)
-            coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree)
+            
+            # coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree)
+
+            res = least_squares(
+                lambda coef: polyval2d(
+                    x, y, coef.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
+                ).ravel()
+                - z.ravel(),
+                x0=np.zeros((self.fit_degree[0] + 1) * (self.fit_degree[1] + 1)),
+                loss="soft_l1",
+            )
+            coef_tilt = res.x.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
+
             z = np.concatenate(shear)
-            coef_shear = polyfit2d(x, y, z, degree=self.fit_degree)
+
+            # coef_shear = polyfit2d(x, y, z, degree=self.fit_degree)
+            res = least_squares(
+                lambda coef: polyval2d(
+                    x, y, coef.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
+                ).ravel()
+                - z.ravel(),
+                x0=np.zeros((self.fit_degree[0] + 1) * (self.fit_degree[1] + 1)),
+                loss="soft_l1",
+            )
+            coef_shear = res.x.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
 
         return coef_tilt, coef_shear
 
@@ -480,7 +533,7 @@ class Curvature:
 
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
 
-        if self.plot >= 2: # pragma: no cover
+        if self.plot >= 2:  # pragma: no cover
             self.progress.close()
 
         if self.plot:  # pragma: no cover
