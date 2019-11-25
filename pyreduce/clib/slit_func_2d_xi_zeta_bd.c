@@ -842,7 +842,7 @@ int slit_func_curved(int ncols,
     // The Optimization results
     double success, status, cost;
 
-    maxiter = 100; // Maximum number of iterations
+    maxiter = 20; // Maximum number of iterations
     ftol = 1e-7;   // Maximum cost difference between two iterations to stop convergence
     success = 1;
     status = 0;
@@ -1120,6 +1120,7 @@ int slit_func_curved(int ncols,
     {
         unc[sp_index(x)] = 0.;
         p_bj[pbj_index(x)] = 0.;
+        p_Aij[paij_index(x, 0)] = 0;
     }
 
     for (y = 0; y < nrows; y++)
@@ -1130,12 +1131,15 @@ int slit_func_curved(int ncols,
             {
                 if (mask[im_index(x, y)])
                 {
+                    // Should pix_unc contribute here?
                     xx = zeta[zeta_index(x, y, m)].x;
                     iy = zeta[zeta_index(x, y, m)].iy;
                     ww = zeta[zeta_index(x, y, m)].w;
                     tmp = im[im_index(x, y)] - model[im_index(x, y)];
                     unc[sp_index(xx)] += tmp * tmp * ww;
                     p_bj[pbj_index(xx)] += ww; // Norm
+                    p_Aij[paij_index(xx, 0)] += ww * ww; // Norm squared
+
                 }
             }
         }
@@ -1143,7 +1147,8 @@ int slit_func_curved(int ncols,
 
     for (x = 0; x < ncols; x++)
     {
-        unc[sp_index(x)] = sqrt(unc[sp_index(x)] / p_bj[pbj_index(x)] * nrows);
+        norm = p_bj[pbj_index(x)] - p_Aij[paij_index(x, 0)] / p_bj[pbj_index(x)];
+        unc[sp_index(x)] = sqrt(unc[sp_index(x)] / norm * nrows);
     }
 
     for (x = 0; x < delta_x; x++)
