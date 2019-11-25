@@ -49,8 +49,11 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     """
     nord, _ = spec.shape  # Number of sp. orders, Order length in pixels
 
+    if cont is None:
+        cont = np.ones_like(spec)
+
     # Just to be extra safe that they are all the same
-    mask = np.ma.getmaskarray(spec) | (spec == 0) | (cont == 0)
+    mask = np.ma.getmaskarray(spec) | (np.ma.getdata(spec) == 0) | (np.ma.getdata(cont) == 0)
     spec = np.ma.masked_array(spec, mask=mask)
     wave = np.ma.masked_array(np.ma.getdata(wave), mask=mask)
     cont = np.ma.masked_array(np.ma.getdata(cont), mask=mask)
@@ -255,35 +258,37 @@ def continuum_normalize(
     # Keep the scale of the continuum
     bbb = util.middle(cont.compressed()[j], 1)
 
-    contB = 1
-    for i in range(iterations):
-        # Find new approximation of the top, smoothed by some parameter
-        c = ssB / contB
-        for _ in range(iterations):
-            _c = util.top(
-                c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
+    contB = np.ones_like(ssB)
+    if plot: # pragma: no cover
+        p = Plot_Normalization(wsort, sB, new_wave, contB, 0)
+
+    try:
+        for i in range(iterations):
+            # Find new approximation of the top, smoothed by some parameter
+            c = ssB / contB
+            for _ in range(iterations):
+                _c = util.top(
+                    c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
+                )
+                c = np.clip(_c, c, None)
+            c = (
+                util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
+                * contB
             )
-            c = np.clip(_c, c, None)
-        c = (
-            util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
-            * contB
-        )
 
-        # Scale it and update the weights of each point
-        contB = c * scale_vert
-        contB = util.middle(contB, 1)
-        weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
+            # Scale it and update the weights of each point
+            contB = c * scale_vert
+            contB = util.middle(contB, 1)
+            weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
 
-        # Plot the intermediate results
-        if plot:  # pragma: no cover
-            if i == 0:
-                p = Plot_Normalization(wsort, sB, new_wave, contB, i)
-            else:
+            # Plot the intermediate results
+            if plot:  # pragma: no cover
                 p.plot(wsort, sB, new_wave, contB, i)
-
-    # Need to close the plot afterwards
-    if plot:  # pragma: no cover
-        p.close()
+    except ValueError:
+        logger.error("Continuum fitting aborted")
+    finally:
+        if plot: # pragma: no cover
+            p.close()
 
     # Calculate the new continuum from intermediate values
     # new_cont = util.safe_interpolation(new_wave, contB, wsort)
