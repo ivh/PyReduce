@@ -22,6 +22,7 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
+from scipy.ndimage import median_filter, gaussian_filter1d
 from tqdm import tqdm
 
 from numpy.polynomial.polynomial import polyval2d
@@ -38,24 +39,13 @@ class ProgressPlot:  # pragma: no cover
     def __init__(self, ncol, width, height):
         plt.ion()
 
-        fig, (ax1, ax2) = plt.subplots(ncols=2)
+        fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
 
         fig.suptitle("Curvature in each order")
 
         line1, = ax1.plot(np.arange(ncol) + 1)
         line2, = ax1.plot(0, 0, "d")
         ax1.set_yscale("log")
-
-        lines = [None] * height
-        for i in range(height):
-            lines[i], = ax2.plot(
-                np.arange(-width, width + 1), np.arange(-width, width + 1)
-            )
-
-        line3, = ax2.plot(np.arange(height), "r--")
-        line4, = ax2.plot(np.arange(height), "rx")
-        ax2.set_xlim((-width, width))
-        ax2.set_ylim((0, height + 5))
 
         self.ncol = ncol
         self.width = width * 2 + 1
@@ -64,11 +54,9 @@ class ProgressPlot:  # pragma: no cover
         self.fig = fig
         self.ax1 = ax1
         self.ax2 = ax2
+        self.ax3 = ax3
         self.line1 = line1
         self.line2 = line2
-        self.line3 = line3
-        self.line4 = line4
-        self.lines = lines
 
     def update_plot1(self, vector, peak, offset=0):
         data = np.ones(self.ncol)
@@ -80,32 +68,21 @@ class ProgressPlot:  # pragma: no cover
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-    def update_plot2(self, segments, tilt, shear, positions, values):
-        l4_y = np.full(self.height, np.nan)
-        for i, (s, v) in enumerate(zip(segments, values)):
-            s, v = s - s.min(), v - s.min()
-            s, v = s / s.max() * 5, v / s.max() * 5
-            l4_y[i] = v + i
-            self.lines[i].set_ydata(s + i)
-        for i in range(len(segments), self.height):
-            self.lines[i].set_ydata(np.full(self.width, np.nan))
+    def update_plot2(self, img, model, tilt, shear):
+        self.ax2.clear()
+        self.ax3.clear()
 
-        y = np.arange(0, self.height) - self.height // 2
-        x = np.polyval((shear, tilt, 0), y)
-        y += np.arange(self.height)
-        y += self.height // 2
-        self.line3.set_xdata(x)
-        self.line3.set_ydata(y)
+        self.ax2.imshow(img)
+        self.ax3.imshow(model)
 
-        if positions.size > self.height:
-            positions = positions[: self.height]
-        elif positions.size < self.height:
-            positions = np.concatenate(
-                (positions, np.zeros(self.height - positions.size))
-            )
+        nrows, ncols = img.shape
+        middle = nrows//2
+        y = np.arange(-middle, -middle + nrows)
+        x = ncols/2 + (tilt + shear * y) * y
+        y += middle
 
-        self.line4.set_xdata(positions)
-        self.line4.set_ydata(l4_y)
+        self.ax2.plot(x, y, "r")
+        self.ax3.plot(x, y, "r")
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -201,87 +178,67 @@ class Curvature:
         return vec, peaks
 
     def _determine_curvature_single_line(self, original, peak, ycen, xwd):
-        nrow, ncol = original.shape
-        height = np.sum(xwd) + 1
+        _, ncol = original.shape
 
         # look at +- width pixels around the line
-        #:array of shape (2*width + 1,): indices of the pixels to the left and right of the line peak
-        index_x = np.arange(-self.window_width, self.window_width + 1)
-        #:array of shape (height,): stores the peak positions of the fits to each row
-        xcen = np.zeros(height)
-        vcen = np.zeros(height)
-        wcen = np.zeros(height)
-        #:array of shape (height,): indices of the rows in the order, with 0 being the central row
-        xind = np.arange(-xwd[0], xwd[1] + 1)
-        #:array of shape (height,): Scatter of the values within the row, to seperate in order and out of order rows
-        deviation = np.zeros(height)
-
-        segments = []
-
         # Extract short horizontal strip for each row in extraction width
         # Then fit a gaussian to each row, to find the center of the line
-        x = peak + index_x
+        x = peak + np.arange(-self.window_width, self.window_width + 1)
         x = x[(x >= 0) & (x < ncol)]
         xmin, xmax = x[0], x[-1] + 1
-        x = np.ma.masked_array(x)
-        for i, irow in enumerate(xind):
-            # Trying to access values outside the image
-            # assert not np.any((ycen + irow)[xmin:xmax] >= nrow)
 
-            # Just cutout this one row
-            idx = make_index(ycen + irow, ycen + irow, xmin, xmax)
-            segment = original[idx][0]
-            segment -= segment.min()
-            segments += [segment]
+        # Look above and below the line center
+        y =  np.arange(-xwd[0], xwd[1] + 1)
 
-            try:
-                x.mask = np.ma.getmaskarray(segment)
-                coef = gaussfit(x, segment)
-                # Store line center
-                xcen[i] = coef[1]
-                wcen[i] = coef[2]
-                vcen[i] = coef[0] + coef[3]
-                # Store the variation within the row
-                deviation[i] = np.ma.std(segment)
-            except Exception as e:
-                xcen[i] = peak + self.window_width
-                deviation[i] = 0
+        x = x[None, :]
+        y =  y[:, None]
+        idx = make_index(ycen - xwd[0], ycen + xwd[1], xmin, xmax)
+        img = original[idx]
 
-        # Seperate in order pixels from out of order pixels
-        # TODO: actually we want to weight them by the slitfunction?
-        # If any of this fails, we will just ignore this line
-        try:
-            idx = deviation > threshold_otsu(deviation)
-        except ValueError:
-            raise RuntimeError
+        sl = np.ma.median(img, axis=1)
+        img -= np.ma.min(sl)
+        sl -= np.ma.min(sl)
+        sl /= np.ma.max(sl)
+        sl = sl[:, None]
 
-        # Linear fit to slit image
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            w = np.sqrt(1 / wcen[idx])
-            try:
-                coef = np.polyfit(xind[idx], xcen[idx], self.curv_degree)
-                res = least_squares(
-                    lambda coef: np.polyval(coef, xind[idx]) - xcen[idx],
-                    x0=coef,
-                    loss="soft_l1",
-                )
-                coef = res.x
-            except ValueError:
-                # Polyfit failed for some reason
-                raise RuntimeError
+        def gaussian(x, A, mu, sig):
+            """
+            A: height
+            offset: standard deviation
+            sig: standard deviation
+            """
+            return A * np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
-        # plt.plot(xind[idx], xcen[idx]); plt.plot(xind[idx], np.polyval(coef, xind[idx])); plt.show()
+        def model(coef):
+            A, middle, sig, *curv = coef
+            mu = middle + shift(curv)
+            mod = gaussian(x, A, mu, sig)
+            mod *= sl
+            return (mod - img).ravel()
 
+        A = np.nanpercentile(img, 95)
+        sig = (xmax - xmin) / 4 #TODO
         if self.curv_degree == 1:
-            tilt, shear = coef[0], 0
+            shift = lambda curv: curv[0] * y
         elif self.curv_degree == 2:
-            tilt, shear = coef[1], coef[0]
+            shift = lambda curv: (curv[0] + curv[1] * y) * y
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
+        # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
+        x0 = [A, peak, sig] + [0] * self.curv_degree
+        res = least_squares(model, x0=x0, method="lm")
 
-        if self.plot >= 2:  # pragma: no cover
-            self.progress.update_plot2(segments, tilt, shear, xcen - peak, vcen)
+        if self.curv_degree == 1:
+            tilt, shear = res.x[3], 0
+        elif self.curv_degree == 2:
+            tilt, shear = res.x[3], res.x[4]
+        else:
+            tilt, shear = 0, 0
+
+        if self.plot >= 2:
+            model = res.fun.reshape(img.shape) + img
+            self.progress.update_plot2(img, model, tilt, shear)
+
         return tilt, shear
 
     def _fit_curvature_single_order(self, peaks, tilt, shear):
