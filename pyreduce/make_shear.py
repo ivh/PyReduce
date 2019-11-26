@@ -122,6 +122,15 @@ class Curvature:
         self.plot = plot
         self.curv_degree = curv_degree
 
+        if self.mode == "1D":
+            # fit degree is an integer
+            if not np.isscalar(self.fit_degree):
+                self.fit_degree = self.fit_degree[0]
+        elif self.mode == "2D":
+            # fit degree is a 2 tuple
+            if np.isscalar(self.fit_degree):
+                self.fit_degree = (self.fit_degree, self.fit_degree)
+
     @property
     def nord(self):
         return self.orders.shape[0]
