@@ -1,7 +1,6 @@
 stages:
   - test
-  - name: deploy
-    if: branch = master
+  - deploy
 
 jobs:
   include:
