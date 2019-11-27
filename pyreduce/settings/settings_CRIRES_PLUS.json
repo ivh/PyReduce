@@ -36,7 +36,7 @@
         "extraction_width": 10
     },
     "curvature": {
-        "peak_threshold" : 0,
+        "peak_threshold" : 1,
         "window_width": 15,
         "extraction_width": 100,
         "dimensionality": "2D",

@@ -678,7 +678,11 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     return coeff
 
 
-def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
+def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=False):
+
+    x = x.ravel()
+    y = y.ravel()
+    z = z.ravel()
 
     if np.isscalar(degree):
         degree_x = degree_y = degree + 1
@@ -694,13 +698,13 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=Fal
         return value - z
 
     if x0 is None:
-        x0 = np.random.random_sample(degree_x * degree_y) * 0.1
+        x0 = np.zeros(degree_x * degree_y)
     else:
         x0 = x0.ravel()
 
     res = least_squares(func, x0, loss=loss, method=method)
     coef = res.x
-    coef.shape = degree_x, degree_y
+    coef = coef.reshape(degree_x, degree_y)
 
     if plot:  # pragma: no cover
         # regular grid covering the domain of the data

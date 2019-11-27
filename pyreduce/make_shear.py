@@ -27,16 +27,15 @@ from tqdm import tqdm
 
 from numpy.polynomial.polynomial import polyval2d
 from scipy.optimize import least_squares
-from skimage.filters import threshold_otsu
 
 from .extract import fix_parameters
-from .util import make_index, gaussfit4 as gaussfit, polyfit2d
+from .util import make_index, polyfit2d_2 as polyfit2d
 
 logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, ncol, width, height):
+    def __init__(self, ncol, width):
         plt.ion()
 
         fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
@@ -49,7 +48,6 @@ class ProgressPlot:  # pragma: no cover
 
         self.ncol = ncol
         self.width = width * 2 + 1
-        self.height = height
 
         self.fig = fig
         self.ax1 = ax1
@@ -68,17 +66,17 @@ class ProgressPlot:  # pragma: no cover
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-    def update_plot2(self, img, model, tilt, shear):
+    def update_plot2(self, img, model, tilt, shear, peak):
         self.ax2.clear()
         self.ax3.clear()
 
         self.ax2.imshow(img)
         self.ax3.imshow(model)
 
-        nrows, ncols = img.shape
-        middle = nrows//2
+        nrows, _ = img.shape
+        middle = nrows // 2
         y = np.arange(-middle, -middle + nrows)
-        x = ncols/2 + (tilt + shear * y) * y
+        x = peak + (tilt + shear * y) * y
         y += middle
 
         self.ax2.plot(x, y, "r")
@@ -176,7 +174,9 @@ class Curvature:
         vec -= np.ma.median(vec)
         vec = np.ma.filled(vec, 0)
         height = np.percentile(vec, 68) * self.threshold
-        peaks, _ = signal.find_peaks(vec, prominence=height, width=self.peak_width, distance=self.window_width)
+        peaks, _ = signal.find_peaks(
+            vec, prominence=height, width=self.peak_width, distance=self.window_width
+        )
 
         # Remove peaks at the edge
         peaks = peaks[
@@ -187,7 +187,7 @@ class Curvature:
         peaks += cr[0]
         return vec, peaks
 
-    def _determine_curvature_single_line(self, original, peak, ycen, xwd):
+    def _determine_curvature_single_line(self, original, peak, ycen, ycen_int, xwd):
         """
         Fit the curvature of a single peak in the spectrum
 
@@ -222,11 +222,10 @@ class Curvature:
         xmin, xmax = x[0], x[-1] + 1
 
         # Look above and below the line center
-        y =  np.arange(-xwd[0], xwd[1] + 1)
+        y = np.arange(-xwd[0], xwd[1] + 1)[:, None] - ycen[xmin:xmax][None, :]
 
         x = x[None, :]
-        y =  y[:, None]
-        idx = make_index(ycen - xwd[0], ycen + xwd[1], xmin, xmax)
+        idx = make_index(ycen_int - xwd[0], ycen_int + xwd[1], xmin, xmax)
         img = original[idx]
 
         sl = np.ma.median(img, axis=1)
@@ -242,7 +241,7 @@ class Curvature:
             offset: standard deviation
             sig: standard deviation
             """
-            return A * np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+            return A * np.exp(-np.power(x - mu, 2.0) / (2 * np.power(sig, 2.0)))
 
         def model(coef):
             A, middle, sig, *curv = coef
@@ -252,7 +251,7 @@ class Curvature:
             return (mod - img).ravel()
 
         A = np.nanpercentile(img, 95)
-        sig = (xmax - xmin) / 4 #TODO
+        sig = (xmax - xmin) / 4  # TODO
         if self.curv_degree == 1:
             shift = lambda curv: curv[0] * y
         elif self.curv_degree == 2:
@@ -270,9 +269,30 @@ class Curvature:
         else:
             tilt, shear = 0, 0
 
+        # model = res.fun.reshape(img.shape) + img
+        # vmin = 0
+        # vmax = np.max(model)
+
+        # y = y.ravel()
+        # x = res.x[1] - xmin + (tilt + shear * y) * y
+        # y += xwd[0]
+
+        # plt.subplot(121)
+        # plt.imshow(img, vmin=vmin, vmax=vmax, origin="lower")
+        # plt.plot(xwd[0] + ycen[xmin:xmax], "r")
+        # plt.title("Input Image")
+
+        # plt.subplot(122)
+        # plt.imshow(model, vmin=vmin, vmax=vmax, origin="lower")
+        # plt.plot(x, y, "r", label="curvature")
+        # plt.title("Model")
+        # plt.ylim((-0.5, model.shape[0] - 0.5))
+
+        # plt.show()
+
         if self.plot >= 2:
             model = res.fun.reshape(img.shape) + img
-            self.progress.update_plot2(img, model, tilt, shear)
+            self.progress.update_plot2(img, model, tilt, shear, res.x[1] - xmin)
 
         return tilt, shear
 
@@ -284,23 +304,19 @@ class Curvature:
             mask = (tilt >= middle - 5 * sigma[0]) & (tilt <= middle + 5 * sigma[1])
             peaks, tilt, shear = peaks[mask], tilt[mask], shear[mask]
 
-            coef_tilt = np.zeros(
-                self.fit_degree + 1
-            )  # np.polyfit(peaks, tilt, self.fit_degree)
+            coef_tilt = np.zeros(self.fit_degree + 1)
             res = least_squares(
                 lambda coef: np.polyval(coef, peaks) - tilt,
                 x0=coef_tilt,
-                loss="soft_l1",
+                loss="arctan",
             )
             coef_tilt = res.x
 
-            coef_shear = np.zeros(
-                self.fit_degree + 1
-            )  # np.polyfit(peaks, shear, self.fit_degree)
+            coef_shear = np.zeros(self.fit_degree + 1)
             res = least_squares(
                 lambda coef: np.polyval(coef, peaks) - shear,
                 x0=coef_shear,
-                loss="soft_l1",
+                loss="arctan",
             )
             coef_shear = res.x
 
@@ -326,7 +342,9 @@ class Curvature:
 
             cr = self.column_range[j]
             xwd = self.extraction_width[j]
-            ycen = np.polyval(self.orders[j], np.arange(ncol)).astype(int)
+            ycen = np.polyval(self.orders[j], np.arange(ncol))
+            ycen_int = ycen.astype(int)
+            ycen -= ycen_int
 
             # Find peaks
             vec = extracted[j, cr[0] : cr[1]]
@@ -345,7 +363,7 @@ class Curvature:
                     self.progress.update_plot1(vec, peak, cr[0])
                 try:
                     tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
-                        original, peak, ycen, xwd
+                        original, peak, ycen, ycen_int, xwd
                     )
                 except RuntimeError:  # pragma: no cover
                     mask[ipeak] = False
@@ -370,31 +388,10 @@ class Curvature:
             y = [np.full(len(p), i) for i, p in enumerate(peaks)]
             y = np.concatenate(y)
             z = np.concatenate(tilt)
-            
-            # coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree)
-
-            res = least_squares(
-                lambda coef: polyval2d(
-                    x, y, coef.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
-                ).ravel()
-                - z.ravel(),
-                x0=np.zeros((self.fit_degree[0] + 1) * (self.fit_degree[1] + 1)),
-                loss="soft_l1",
-            )
-            coef_tilt = res.x.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
+            coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
 
             z = np.concatenate(shear)
-
-            # coef_shear = polyfit2d(x, y, z, degree=self.fit_degree)
-            res = least_squares(
-                lambda coef: polyval2d(
-                    x, y, coef.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
-                ).ravel()
-                - z.ravel(),
-                x0=np.zeros((self.fit_degree[0] + 1) * (self.fit_degree[1] + 1)),
-                loss="soft_l1",
-            )
-            coef_shear = res.x.reshape((self.fit_degree[0] + 1, self.fit_degree[1] + 1))
+            coef_shear = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
 
         return coef_tilt, coef_shear
 
@@ -516,8 +513,7 @@ class Curvature:
         self._fix_inputs(original)
 
         if self.plot >= 2:  # pragma: no cover
-            height = np.sum(self.extraction_width, axis=1).max() + 1
-            self.progress = ProgressPlot(ncol, self.window_width, height)
+            self.progress = ProgressPlot(ncol, self.window_width)
 
         peaks, tilt, shear, vec = self._determine_curvature_all_lines(
             original, extracted
