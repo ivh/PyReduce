@@ -90,7 +90,7 @@ class UVES(instrument):
 
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
-        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
+        i = [i for i, m in enumerate(info["modes"]) if m == mode.upper()][0]
         mode_id = info["modes_id"][i].upper()
 
         # Initialize arrays

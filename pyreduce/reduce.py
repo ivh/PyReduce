@@ -265,7 +265,7 @@ class Step:
     def output_dir(self):
         """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
         return self._output_dir.format(
-            instrument=self.instrument.name,
+            instrument=self.instrument.name.upper(),
             target=self.target,
             night=self.night,
             mode=self.mode,
@@ -1132,6 +1132,8 @@ class SlitCurvatureDetermination(Step):
         self.curvature_mode = config["dimensionality"]
         #:float: peak finding noise threshold
         self.peak_threshold = config["peak_threshold"]
+        #:int: peak width
+        self.peak_width = config["peak_width"]
         #:float": window width to search for peak in each row
         self.window_width = config["window_width"]
 
@@ -1189,6 +1191,7 @@ class SlitCurvatureDetermination(Step):
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             peak_threshold=self.peak_threshold,
+            peak_width=self.peak_width,
             window_width=self.window_width,
             plot=self.plot,
         )

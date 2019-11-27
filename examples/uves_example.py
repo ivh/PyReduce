@@ -18,8 +18,8 @@ steps = (
     # "flat",
     # "orders",
     # "norm_flat",
-    "wavecal",
-    # "curvature",
+    # "wavecal",
+    "curvature",
     # "science",
     # "continuum",
     # "finalize",
@@ -30,11 +30,11 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.UVES_HD132205()
+base_dir = datasets.UVES("/DATA/PyReduce")
 input_dir = "raw/"
-output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
+output_dir = "reduced/{night}/{mode}"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=True)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,

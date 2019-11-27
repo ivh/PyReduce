@@ -348,6 +348,16 @@
                             "type": "number",
                             "minimum": 0
                         },
+                        "peak_width" : {
+                            "description": "Minimum width of the peaks in the curvature detection. Usually 1 for sharp peaks as in the wavecal, or 3 for broader peaks of the freq comb",
+                            "type": ["null", "number", "array"],
+                            "minimum": 1,
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
                         "window_width" : {
                             "description": "Width of the window to look for the peak of each row, within each line. The value here speciefies only on direction the window size is actually twice this +1.",
                             "type": "integer",

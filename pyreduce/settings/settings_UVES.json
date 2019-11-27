@@ -34,7 +34,9 @@
     },
     "curvature": {
         "dimensionality": "1D",
-        "degree": 2
+        "degree": 1,
+        "curv_degree": 1,
+        "peak_width": 1
     },
     "science": {
         "oversampling": 1,

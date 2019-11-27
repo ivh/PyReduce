@@ -39,6 +39,7 @@
     "curvature": {
         "extraction_width": 10,
         "peak_threshold": 0,
+        "peak_width": 3,
         "window_width": 5,
         "dimensionality": "1D",
         "curv_degree": 1,

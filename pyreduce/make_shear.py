@@ -101,6 +101,7 @@ class Curvature:
         order_range=None,
         window_width=9,
         peak_threshold=10,
+        peak_width=1,
         fit_degree=2,
         sigma_cutoff=3,
         mode="1D",
@@ -115,7 +116,7 @@ class Curvature:
         self.order_range = order_range
         self.window_width = window_width
         self.threshold = peak_threshold
-        self.peak_width = 3
+        self.peak_width = peak_width
         self.fit_degree = fit_degree
         self.sigma_cutoff = sigma_cutoff
         self.mode = mode
@@ -175,7 +176,7 @@ class Curvature:
         vec -= np.ma.median(vec)
         vec = np.ma.filled(vec, 0)
         height = np.percentile(vec, 68) * self.threshold
-        peaks, _ = signal.find_peaks(vec, prominence=height, width=self.peak_width)
+        peaks, _ = signal.find_peaks(vec, prominence=height, width=self.peak_width, distance=self.window_width)
 
         # Remove peaks at the edge
         peaks = peaks[
@@ -187,6 +188,30 @@ class Curvature:
         return vec, peaks
 
     def _determine_curvature_single_line(self, original, peak, ycen, xwd):
+        """
+        Fit the curvature of a single peak in the spectrum
+
+        This is achieved by fitting a model, that consists of gaussians 
+        in spectrum direction, that are shifted by the curvature in each row.
+
+        Parameters
+        ----------
+        original : array of shape (nrows, ncols)
+            whole input image
+        peak : int
+            column position of the peak
+        ycen : array of shape (ncols,)
+            row center of the order of the peak
+        xwd : 2 tuple
+            extraction width above and below the order center to use
+        
+        Returns
+        -------
+        tilt : float
+            first order curvature
+        shear : float
+            second order curvature
+        """
         _, ncol = original.shape
 
         # look at +- width pixels around the line
@@ -210,6 +235,7 @@ class Curvature:
         sl /= np.ma.max(sl)
         sl = sl[:, None]
 
+        # TODO allow other line shapes
         def gaussian(x, A, mu, sig):
             """
             A: height
@@ -415,7 +441,7 @@ class Curvature:
             axes[j // 2, j % 2].plot(np.arange(cr[0], cr[1]), vec)
             axes[j // 2, j % 2].plot(peaks, vec[peaks - cr[0]], "X")
             axes[j // 2, j % 2].set_xlim([0, ncol])
-            axes[j // 2, j % 2].set_yscale("log")
+            # axes[j // 2, j % 2].set_yscale("log")
             if j not in (self.n - 1, self.n - 2):
                 axes[j // 2, j % 2].get_xaxis().set_ticks([])
 
