@@ -1821,17 +1821,3 @@ class Reducer:
 
         logger.debug("--------------------------------")
         return self.data
-
-
-if __name__ == "__main__":  # pragma: no cover
-    if len(sys.argv) > 1:
-        # Command Line arguments passed
-        args = util.parse_args()
-    else:
-        # Use "default" values set in main function
-        args = {}
-
-    start = time.time()
-    main(**args)
-    finish = time.time()
-    print("Execution time: %f s" % (finish - start))

@@ -37,6 +37,7 @@ class TqdmLoggingHandler(logging.Handler):
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logging.captureWarnings(True)
 
 console = TqdmLoggingHandler()
 console.setLevel(logging.INFO)
