@@ -102,6 +102,9 @@ class Echelle:
     def __setitem__(self, index, value):
         self._data[index] = value
 
+    def __delitem__(self, index):
+        del self._data[index]
+
     def __contains__(self, index):
         return index in self._data.keys()
 
@@ -170,10 +173,10 @@ class Echelle:
                 # - : towards observer
                 velocity_correction = 0
                 if barycentric_correction:
-                    velocity_correction += header.get("barycorr", 0)
+                    velocity_correction -= header.get("barycorr", 0)
                     header["barycorr"] = 0
                 if radial_velociy_correction:
-                    velocity_correction -= header.get("radvel", 0)
+                    velocity_correction += header.get("radvel", 0)
                     header["radvel"] = 0
 
                 speed_of_light = scipy.constants.speed_of_light * 1e-3
@@ -358,12 +361,17 @@ def save(fname, header, **kwargs):
             continue
         arr = value.ravel()[None, :]
 
-        if issubclass(arr.dtype.type, np.floating):
+        if np.issubdtype(arr.dtype, np.floating):
             arr = arr.astype(np.float32)
             dtype = "E"
-        elif issubclass(arr.dtype.type, np.integer):
+        elif np.issubdtype(arr.dtype, np.integer):
             arr = arr.astype(np.int16)
             dtype = "I"
+        elif np.issubdtype(arr.dtype, np.bool_):
+            arr = arr.astype(np.bool_)
+            dtype = "B"
+        else:
+            raise TypeError(f"Could not understand dtype {arr.dtype}")
 
         form = "%i%s" % (value.size, dtype)
         dim = str(value.shape[::-1])
