@@ -282,7 +282,14 @@ int bandsol(double *a, double *r, int n, int nd)
     }
 
     /* Backward sweep */
-    r[r_index(n - 1)] /= a[a_index(n - 1, nd / 2)];
+    aa = a[a_index(n - 1, nd / 2)];
+#if DEBUG
+    if (aa == 0){
+        printf("3, index: %i, %i\n", 0, nd / 2);
+        aa = 1;
+    }
+#endif
+    r[r_index(n - 1)] /= aa;
     for (i = n - 1; i > 0; i--)
     {
         for (j = 1; j <= min(nd / 2, i); j++)
