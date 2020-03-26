@@ -52,9 +52,31 @@ def test_expand_2d():
 
     cmp = np.linspace(501, 506, 100, endpoint=False)
     assert np.allclose(new[1], cmp)
-
-
-    wave = [0, 100, 2, 1, 0, 0, 0, 6, 3, 3, 1000, 100, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0]
+    wave = [
+        0,
+        100,
+        2,
+        1,
+        0,
+        0,
+        0,
+        6,
+        3,
+        3,
+        1000,
+        100,
+        0,
+        0,
+        100,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
     wave = np.array(wave)
     new = echelle.expand_polynomial(2, wave)
 
@@ -107,7 +129,7 @@ def test_wavelength_correction(fname, clight):
     ech = echelle.Echelle.read(
         fname, barycentric_correction=True, radial_velociy_correction=False
     )
-    assert np.allclose(ech["wave"], wave * (1 + bc / clight))
+    assert np.allclose(ech["wave"], wave * (1 - bc / clight))
     assert ech.header["barycorr"] == 0
     assert ech.header["radvel"] == rv
 
@@ -115,7 +137,7 @@ def test_wavelength_correction(fname, clight):
     ech = echelle.Echelle.read(
         fname, barycentric_correction=False, radial_velociy_correction=True
     )
-    assert np.allclose(ech["wave"], wave * (1 - rv / clight))
+    assert np.allclose(ech["wave"], wave * (1 + rv / clight))
     assert ech.header["barycorr"] == bc
     assert ech.header["radvel"] == 0
 
@@ -123,7 +145,7 @@ def test_wavelength_correction(fname, clight):
     ech = echelle.Echelle.read(
         fname, barycentric_correction=True, radial_velociy_correction=True
     )
-    assert np.allclose(ech["wave"], wave * (1 + (bc - rv) / clight))
+    assert np.allclose(ech["wave"], wave * (1 + (rv - bc) / clight))
     assert ech.header["barycorr"] == 0
     assert ech.header["radvel"] == 0
 
@@ -161,4 +183,3 @@ def test_continuum_normalization(fname):
     assert np.allclose(ech["spec"], spec / cont)
     assert np.allclose(ech["sig"], sig / cont)
     assert np.allclose(ech["cont"], cont)
-
