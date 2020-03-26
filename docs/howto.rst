@@ -44,7 +44,15 @@ will be replaced with the actual values {}
 
 Load dataset (and save the location)
 
+For the example dataset use
+
 >>> base_dir = datasets.UVES_HD132205()
+
+For your own observations set base_dir to the path that points to your files.
+Note that the full path is given by base_dir + input_dir / output_dir.
+If these are completely independant you can set base_dir = "" instead.
+
+>>> base_dir = "your-file-path-here"
 
 Start the extraction
 
