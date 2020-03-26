@@ -8,15 +8,17 @@ from setuptools import setup, find_packages
 
 import versioneer
 
-this = os.path.dirname(__file__)
-that = os.path.join(this, "pyreduce")
-sys.path.append(that)
-try:
-    from clib import build_extract
-except ModuleNotFoundError:
-    # Wait for pip to install CFFI first
-    print("Install CFFI")
-    pass
+import importlib
+
+# this = os.path.dirname(__file__)
+# that = os.path.join(this, "pyreduce")
+# sys.path.append(that)
+# try:
+#     from clib import build_extract
+# except ModuleNotFoundError:
+#     # Wait for pip to install CFFI first
+#     print("Install CFFI")
+#     pass
 
 
 cmdclass = versioneer.get_cmdclass()
@@ -71,6 +73,6 @@ setup(
         "wget",
         "joblib",
         "jsonschema>=3.0.1",
-        "tqdm"
+        "tqdm",
     ],
 )
