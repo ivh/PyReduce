@@ -53,7 +53,11 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         cont = np.ones_like(spec)
 
     # Just to be extra safe that they are all the same
-    mask = np.ma.getmaskarray(spec) | (np.ma.getdata(spec) == 0) | (np.ma.getdata(cont) == 0)
+    mask = (
+        np.ma.getmaskarray(spec)
+        | (np.ma.getdata(spec) == 0)
+        | (np.ma.getdata(cont) == 0)
+    )
     spec = np.ma.masked_array(spec, mask=mask)
     wave = np.ma.masked_array(np.ma.getdata(wave), mask=mask)
     cont = np.ma.masked_array(np.ma.getdata(cont), mask=mask)
@@ -235,7 +239,7 @@ def continuum_normalize(
     wmax = np.max(tmp)
     dwave = np.abs(tmp[tmp.size // 2] - tmp[tmp.size // 2 - 1]) * 0.5
     nwave = np.ceil((wmax - wmin) / dwave) + 1
-    new_wave = np.linspace(wmin, wmax, nwave, endpoint=True)
+    new_wave = np.linspace(wmin, wmax, int(nwave), endpoint=True)
 
     # Combine all orders into one big spectrum, sorted by wavelength
     wsort, j, index = np.unique(tmp, return_index=True, return_inverse=True)
@@ -259,7 +263,7 @@ def continuum_normalize(
     bbb = util.middle(cont.compressed()[j], 1)
 
     contB = np.ones_like(ssB)
-    if plot: # pragma: no cover
+    if plot:  # pragma: no cover
         p = Plot_Normalization(wsort, sB, new_wave, contB, 0)
 
     try:
@@ -272,7 +276,9 @@ def continuum_normalize(
                 )
                 c = np.clip(_c, c, None)
             c = (
-                util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
+                util.top(
+                    c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final
+                )
                 * contB
             )
 
@@ -287,7 +293,7 @@ def continuum_normalize(
     except ValueError:
         logger.error("Continuum fitting aborted")
     finally:
-        if plot: # pragma: no cover
+        if plot:  # pragma: no cover
             p.close()
 
     # Calculate the new continuum from intermediate values
