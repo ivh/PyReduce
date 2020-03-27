@@ -4,10 +4,28 @@
     "instrument": "INSTRUME",
     "telescope": "TELESCOP",
     "date": "DATE-OBS",
-    "modes": ["BLUE", "RED"],
-    "modes_id": ["HARPS", "HARPS"],
-    "extension": [1, 2],
-    "id": [[1, 1], [1, 2]],
+    "modes": [
+        "BLUE",
+        "RED"
+    ],
+    "modes_id": [
+        "HARPS",
+        "HARPS"
+    ],
+    "extension": [
+        1,
+        2
+    ],
+    "id": [
+        [
+            1,
+            1
+        ],
+        [
+            1,
+            2
+        ]
+    ],
     "orientation": 5,
     "prescan_x": "HIERARCH ESO DET OUT{id[0]} PRSCX",
     "overscan_x": "HIERARCH ESO DET OUT{id[0]} OVSCX",
@@ -15,6 +33,8 @@
     "overscan_y": 0,
     "naxis_x": "NAXIS1",
     "naxis_y": "NAXIS2",
+    "polarization_linear": "eso ins ret50 pos",
+    "polarization_circular": "eso ins ret25 pos",
     "gain": "HIERARCH ESO DET OUT{id[0]} CONAD",
     "readnoise": "HIERARCH ESO DET OUT{id[0]} RON",
     "dark": "HIERARCH ESO INS DET{id[1]} OFFDRK",

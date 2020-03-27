@@ -121,7 +121,7 @@ class HARPS(instrument):
             )
 
         id_orddef = template.format(a="LAMP", b="DARK", c="*")
-        id_flat = "LAMP,LAMP,*" #template.format(a="LAMP", b="LAMP", c="*")
+        id_flat = "LAMP,LAMP,*"  # template.format(a="LAMP", b="LAMP", c="*")
         id_spec = template.format(a="STAR", b="*", c="*")
 
         # Try matching with nights
@@ -159,6 +159,8 @@ class HARPS(instrument):
         ni = np.zeros(len(files), dtype=datetime)
         # instrument, used for observation
         it = np.zeros(len(files), dtype="U20")
+        # polarization
+        po = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
             h = fits.open(f)[0].header
@@ -171,7 +173,12 @@ class HARPS(instrument):
             ni_tmp = h.get(info["date"], "")
             it[i] = h.get(info["instrument"], "")
             se[i] = "HARPS"
-
+            if h.get(info["polarization_linear"]) is not None:
+                po[i] = "linear"
+            elif h.get(info["polarization_circular"]) is not None:
+                po[i] = "circular"
+            else:
+                po[i] = "none"
             # Sanitize input
             ni[i] = observation_date_to_night(ni_tmp)
             ob[i] = ob[i].replace("-", "").upper()
@@ -189,6 +196,11 @@ class HARPS(instrument):
         for ind_night in individual_nights:
             # Select files for this night, this instrument, this instrument mode
             selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
+
+            if polarimetry:
+                selection &= po != "none"
+            else:
+                selection &= po == "none"
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
