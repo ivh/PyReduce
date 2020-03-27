@@ -197,7 +197,9 @@ class HARPS(instrument):
             # Select files for this night, this instrument, this instrument mode
             selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
 
-            if polarimetry:
+            if polarimetry in ["linear", "circular", "none"]:
+                selection &= po == polarimetry
+            elif polarimetry:
                 selection &= po != "none"
             else:
                 selection &= po == "none"
