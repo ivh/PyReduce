@@ -120,9 +120,14 @@ class HARPS(instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
-        id_orddef = template.format(a="LAMP", b="DARK", c="*")
-        id_flat = "LAMP,LAMP,*"  # template.format(a="LAMP", b="LAMP", c="*")
-        id_spec = template.format(a="STAR", b="*", c="*")
+        if polarimetry and polarimetry != "none":
+            id_orddef = "LAMP,LAMP,*"
+            id_flat = "LAMP,LAMP,*"
+            id_spec = "STAR,*POL,*"
+        else:
+            id_orddef = template.format(a="LAMP", b="DARK", c="*")
+            id_flat = "LAMP,LAMP,*"  # template.format(a="LAMP", b="LAMP", c="*")
+            id_spec = template.format(a="STAR", b="*", c="*")
 
         # Try matching with nights
         try:
@@ -144,7 +149,10 @@ class HARPS(instrument):
         # Load the mode identifier for the current mode from the header
         # This could be anything really, e.g. the size of the data axis
         i = [i for i, m in enumerate(info["modes"]) if m == mode.upper()][0]
-        mode_id = info["modes_id"][i].upper()
+        if polarimetry and polarimetry != "none":
+            mode_id = info["modes_id_polarimetry"][i].upper()
+        else:
+            mode_id = info["modes_id"][i].upper()
 
         # Initialize arrays
         # observed object
@@ -167,9 +175,9 @@ class HARPS(instrument):
             ob[i] = h.get(info["target"], "")
             ty[i] = h.get(info["observation_type"], "")
             # The mode descriptor has different names in different files, so try different ids
-            mo[i] = h.get(info["instrument_mode"])
+            mo[i] = h.get(info["instrument_mode"]).upper()
             if mo[i] is None:
-                mo[i] = h.get(info["instrument_mode_alternative"], "")[:3]
+                mo[i] = h.get(info["instrument_mode_alternative"], "").upper()
             ni_tmp = h.get(info["date"], "")
             it[i] = h.get(info["instrument"], "")
             se[i] = "HARPS"

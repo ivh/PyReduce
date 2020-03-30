@@ -12,6 +12,10 @@
         "HARPS",
         "HARPS"
     ],
+    "modes_id_polarimetry": [
+        "HARPSpol",
+        "HARPSpol"
+    ],
     "extension": [
         1,
         2
