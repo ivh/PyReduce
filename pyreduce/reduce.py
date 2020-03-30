@@ -151,7 +151,7 @@ def main(
                     )
                     if len(files) == 0:
                         logger.warning(
-                            f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m}"
+                            f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m} in folder: {input_dir}"
                         )
                     for f, k in zip(files, nights):
                         logger.info("Instrument: %s", i)
