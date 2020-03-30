@@ -197,12 +197,10 @@ class HARPS(instrument):
             # Select files for this night, this instrument, this instrument mode
             selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
 
-            if polarimetry in ["linear", "circular", "none"]:
-                selection &= po == polarimetry
-            elif polarimetry:
-                selection &= po != "none"
+            if polarimetry:
+                match_po = po != "none"
             else:
-                selection &= po == "none"
+                match_po = po == "none"
 
             # Find all unique setting keys for this night and target
             # Only look at the settings of observation files
@@ -229,7 +227,7 @@ class HARPS(instrument):
                     "orders": files[match_ord & select],
                     "wavecal": files[match_wave & select],
                     "freq_comb": files[match_comb & select],
-                    "science": files[match_ty & match_ob & select],
+                    "science": files[match_ty & match_ob & match_po & select],
                 }
 
                 if len(files_this_night[key]["bias"]) == 0:
