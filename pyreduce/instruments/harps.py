@@ -197,7 +197,9 @@ class HARPS(instrument):
             # Select files for this night, this instrument, this instrument mode
             selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
 
-            if polarimetry:
+            if polarimetry in ["linear", "circular", "none"]:
+                match_po = po == polarimetry
+            elif polarimetry:
                 match_po = po != "none"
             else:
                 match_po = po == "none"
@@ -212,7 +214,8 @@ class HARPS(instrument):
             match_wave = ty == info["id_wave"]
             match_comb = ty == info["id_comb"]
 
-            keys = se[match_ty & match_ob & selection]
+            # Check if there are science files
+            keys = se[match_ty & match_ob & match_po & selection]
             keys = np.unique(keys)
 
             files_this_night = {}
@@ -297,6 +300,17 @@ class HARPS(instrument):
             if len(keys) != 0:
                 nights_out.append(ind_night)
                 files_per_night.append(files_this_night)
+            else:
+                logger.warning(f"No science files found for night: {ind_night}")
+                logger.debug("------------------")
+                logger.debug(f"files: {files}")
+                logger.debug(f"nights: {ni==ind_night}")
+                logger.debug(f"instrument: {it==instrument}")
+                logger.debug(f"mode: {mo == mode_id}")
+                logger.debug(f"observation type: {match_ty}")
+                logger.debug(f"target: {match_ob}")
+                logger.debug(f"polarization: {match_po}")
+                logger.debug("------------------")
 
         return files_per_night, nights_out
 
