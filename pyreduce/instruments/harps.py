@@ -303,13 +303,13 @@ class HARPS(instrument):
             else:
                 logger.warning(f"No science files found for night: {ind_night}")
                 logger.debug("------------------")
-                logger.debug(f"files: {files}")
-                logger.debug(f"nights: {ni==ind_night}")
-                logger.debug(f"instrument: {it==instrument}")
-                logger.debug(f"mode: {mo == mode_id}")
-                logger.debug(f"observation type: {match_ty}")
-                logger.debug(f"target: {match_ob}")
-                logger.debug(f"polarization: {match_po}")
+                logger.debug(f"files: {list(files)}")
+                logger.debug(f"nights: {list(ni==ind_night)}")
+                logger.debug(f"instrument: {list(it==instrument)}")
+                logger.debug(f"mode: {list(mo == mode_id)}")
+                logger.debug(f"observation type: {list(match_ty)}")
+                logger.debug(f"target: {list(match_ob)}")
+                logger.debug(f"polarization: {list(match_po)}")
                 logger.debug("------------------")
 
         return files_per_night, nights_out
