@@ -280,7 +280,10 @@ class WavelengthCalibration:
         # normalize order by order
         obs = np.ma.copy(obs)
         for i in range(len(obs)):
-            obs[i] -= np.ma.min(obs[i][obs[i] > 0])
+            try:
+                obs[i] -= np.ma.min(obs[i][obs[i] > 0])
+            except ValueError:
+                logger.warning(f"Could not determine the minimum value in order {i}. No positive values found")
             obs[i] /= np.ma.max(obs[i])
         obs[obs <= 0] = np.ma.masked
 
