@@ -27,18 +27,6 @@ class UVES(instrument):
         header["e_ra"] /= 15
         header["e_jd"] += header["EXPTIME"] / (7200 * 24) + 0.5
 
-        pol_angle = header.get("eso ins ret25 pos")
-        if pol_angle is None:
-            pol_angle = header.get("eso ins ret50 pos")
-            if pol_angle is None:
-                pol_angle = "no polarimeter"
-            else:
-                pol_angle = "lin %i" % pol_angle
-        else:
-            pol_angle = "cir %i" % pol_angle
-
-        header["e_pol"] = (pol_angle, "polarization angle")
-
         return header
 
     def sort_files(self, input_dir, target, night, mode, **kwargs):
@@ -161,7 +149,9 @@ class UVES(instrument):
                     "science": files[(ty == info["id_spec"]) & (ob == target) & select],
                 }
                 files_this_night[key + "nm"]["freq_comb"] = []
-                files_this_night[key + "nm"]["scatter"] = files_this_night[key + "nm"]["orders"]
+                files_this_night[key + "nm"]["scatter"] = files_this_night[key + "nm"][
+                    "orders"
+                ]
 
             if len(keys) != 0:
                 nights_out.append(ind_night)

@@ -24,9 +24,9 @@ else:
     hasJsonSchema = True
 
 
-
 def get_configuration_for_instrument(instrument, plot=None):
     local = dirname(__file__)
+    instrument = str(instrument)
     fname = join(local, "settings", f"settings_{instrument.upper()}.json")
 
     config = load_config(fname, instrument)
@@ -47,10 +47,10 @@ def load_config(configuration, instrument, j=0):
         config = get_configuration_for_instrument(instrument, plot=False)
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():
-            config = configuration[instrument]
+            config = configuration[str(instrument)]
         elif (
             "__instrument__" in configuration.keys()
-            and configuration["__instrument__"] == instrument.upper()
+            and configuration["__instrument__"] == str(instrument).upper()
         ):
             config = configuration
         else:
@@ -166,7 +166,7 @@ def validate_config(config):
         If there is a problem with the configuration.
         Usually that means a setting has an unallowed value.
     """
-    if not hasJsonSchema: #pragma: no cover
+    if not hasJsonSchema:  # pragma: no cover
         # Can't check with old version
         return
     fname = "settings_schema.json"

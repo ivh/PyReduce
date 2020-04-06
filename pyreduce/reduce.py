@@ -93,8 +93,7 @@ def main(
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
-    if np.isscalar(instrument):
-        instrument = [instrument]
+    instrument = [instrument]
     if np.isscalar(target):
         target = [target]
     if np.isscalar(night):
@@ -110,6 +109,7 @@ def main(
 
     # Loop over everything
     for j, i in enumerate(instrument):
+
         # settings: default settings of PyReduce
         # config: paramters for the current reduction
         # info: constant, instrument specific parameters
@@ -126,7 +126,10 @@ def main(
         input_dir = join(base_dir, input_dir)
         output_dir = join(base_dir, output_dir)
 
-        info = instruments.instrument_info.get_instrument_info(i)
+        if isinstance(i, str):
+            i = instruments.instrument_info.load_instrument(i)
+
+        info = i.info
 
         if isNone["modes"]:
             mode = info["modes"]
@@ -139,46 +142,41 @@ def main(
 
         for t in target:
             log_file = join(
-                base_dir.format(instrument=i, mode=mode, target=t), "logs/%s.log" % t
+                base_dir.format(instrument=str(i), mode=mode, target=t),
+                "logs/%s.log" % t,
             )
             util.start_logging(log_file)
 
             for n in night:
                 for m in mode:
                     # find input files and sort them by type
-                    files, nights = instruments.instrument_info.sort_files(
-                        input_dir, t, n, i, m, **config["instrument"]
-                    )
+                    files = i.sort_files(input_dir, t, n, m, **config["instrument"])
                     if len(files) == 0:
                         logger.warning(
                             f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m} in folder: {input_dir}"
                         )
-                    for f, k in zip(files, nights):
-                        logger.info("Instrument: %s", i)
-                        logger.info("Target: %s", t)
-                        logger.info("Observation Date: %s", k)
-                        logger.info("Instrument Mode: %s", m)
+                    for k, f in files:
+                        logger.info("Settings:")
+                        logger.info(k)
+                        logger.debug("Files:\n%s", f)
 
-                        for key in f.keys():
-                            logger.info("Group Identifier: %s", key)
-                            logger.debug("Files:\n%s", f[key])
-                            reducer = Reducer(
-                                f[key],
-                                output_dir,
-                                t,
-                                i,
-                                m,
-                                k,
-                                config,
-                                order_range=order_range,
-                                skip_existing=config["__skip_existing__"],
-                            )
-                            # try:
-                            data = reducer.run_steps(steps=steps)
-                            output.append(data)
-                            # except Exception as e:
-                            # logger.error("Reduction failed with error message: %s", str(e))
-                            # logger.info("------------")
+                        reducer = Reducer(
+                            f,
+                            output_dir,
+                            t,
+                            i,
+                            m,
+                            n,
+                            config,
+                            order_range=order_range,
+                            skip_existing=config["__skip_existing__"],
+                        )
+                        # try:
+                        data = reducer.run_steps(steps=steps)
+                        output.append(data)
+                        # except Exception as e:
+                        # logger.error("Reduction failed with error message: %s", str(e))
+                        # logger.info("------------")
     return output
 
 
@@ -1725,7 +1723,8 @@ class Reducer:
             instrument=instrument, target=target, night=night, mode=mode
         )
 
-        instrument = load_instrument(instrument)
+        if isinstance(instrument, str):
+            instrument = load_instrument(instrument)
         info = instrument.info
 
         self.data = {"files": files, "config": config}

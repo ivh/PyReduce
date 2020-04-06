@@ -7,6 +7,7 @@ import datetime
 import glob
 import logging
 import json
+from itertools import product
 
 import numpy as np
 from astropy.io import fits
@@ -14,6 +15,7 @@ from astropy.time import Time
 from dateutil import parser
 
 from ..clipnflip import clipnflip
+from .filters import Filter, ObjectFilter, InstrumentFilter, NightFilter
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +110,30 @@ class instrument:
         #:dict: Information about the instrument
         self.info = self.load_info()
 
+        self.filters = {
+            "instrument": InstrumentFilter(self.info["instrument"]),
+            "night": NightFilter(self.info["date"]),
+            "target": ObjectFilter(self.info["target"], regex=True),
+        }
+        self.night = "night"
+        self.science = "science"
+        self.shared = ["instrument", "night"]
+        self.find_closest = [
+            "bias",
+            "flat",
+            "wavecal",
+            "orders",
+            "scatter",
+            "curvature",
+        ]
+
+    def __str__(self):
+        return self.name
+
     def get_extension(self, header, mode):
         mode = mode.upper()
         extension = self.info.get("extension", 0)
-        
+
         if isinstance(extension, list):
             imode = find_first_index(self.info["modes"], mode)
             extension = extension[imode]
@@ -140,8 +162,8 @@ class instrument:
             info = json.load(f)
         return info
 
-    def load_fits(self,
-        fname, mode, extension=None, mask=None, header_only=False, dtype=None
+    def load_fits(
+        self, fname, mode, extension=None, mask=None, header_only=False, dtype=None
     ):
         """
         load fits file, REDUCE style
@@ -269,10 +291,186 @@ class instrument:
         header["e_obslat"] = get("latitude")
         header["e_obsalt"] = get("altitude")
 
-        header["HIERARCH e_wavecal_element"] = get("wavecal_element", info.get("wavecal_element", None))
+        header["HIERARCH e_wavecal_element"] = get(
+            "wavecal_element", info.get("wavecal_element", None)
+        )
         return header
 
-    def sort_files(self, input_dir, target, night, mode, **kwargs):
+    def find_files(self, input_dir):
+        """ Find fits files in the given folder
+        
+        Parameters
+        ----------
+        input_dir : string
+            directory to look for fits and fits.gz files in, may include bash style wildcards
+        
+        Returns
+        -------
+        files: array(string)
+            absolute path filenames
+        """
+        files = glob.glob(input_dir + "/*.fits")
+        files += glob.glob(input_dir + "/*.fits.gz")
+        files = np.array(files)
+        return files
+
+    def get_expected_values(self, target, night, *args, **kwargs):
+        expectations = {
+            "bias": {"instrument": self.name, "night": night},
+            "flat": {"instrument": self.name, "night": night},
+            "orders": {"instrument": self.name, "night": night},
+            "scatter": {"instrument": self.name, "night": night},
+            "curvature": {"instrument": self.name, "night": night},
+            "wavecal": {"instrument": self.name, "night": night},
+            "freq_comb": {"instrument": self.name, "night": night},
+            "science": {"instrument": self.name, "night": night, "target": target},
+        }
+        return expectations
+
+    def populate_filters(self, files):
+        """ Extract values from the fits headers and store them in self.filters
+        
+        Parameters
+        ----------
+        files : list(str)
+            list of fits files
+        
+        Returns
+        -------
+        filters: list(Filter)
+            list of populated filters (identical to self.filters)
+        """
+        # Empty filters
+        for _, fil in self.filters.items():
+            fil.clear()
+
+        for f in files:
+            h = fits.open(f)[0].header
+
+            for _, fil in self.filters.items():
+                fil.collect(h)
+
+        return self.filters
+
+    def apply_filters(self, files, expected):
+        """
+        Determine the relevant files for a given set of expected values.
+
+        Parameters
+        ----------
+        files : list(files)
+            list if fits files
+        expected : dict
+            dictionary with expected header values for each reduction step
+
+        Returns
+        -------
+        files: list((dict, dict))
+            list of files. The first element of each tuple is the used setting,
+            and the second are the files for each step.
+        """
+
+        # Fill the filters with header information
+        self.populate_filters(files)
+
+        # Use the header information determined in populate filters
+        # to find potential science and calibration files in the list of files
+        # result = {step : [ {setting : value}, [files] ] }
+        result = {}
+        for step, values in expected.items():
+            result[step] = []
+            data = {}
+            for name, value in values.items():
+                if isinstance(value, list):
+                    for v in value:
+                        data[name] = self.filters[name].classify(v)
+                        if len(data[name]) > 0:
+                            break
+                else:
+                    data[name] = self.filters[name].classify(value)
+            # Get all combinations of possible filter values
+            # e.g. if several nights are allowed
+            for thingy in product(*data.values()):
+                mask = np.copy(thingy[0][1])
+                for i in range(1, len(thingy)):
+                    mask &= thingy[i][1]
+                if np.count_nonzero(mask) == 0:
+                    continue
+                d = {k: v[0] for k, v in zip(values.keys(), thingy)}
+                f = files[mask]
+                result[step].append((d, f))
+
+        # Filter for only nights that have a science observation
+        # files = [{setting: value}, {step: files}]
+        files = []
+        for key, _ in result[self.science]:
+            f = {}
+            night = key[self.night]
+            # For each step look for files with matching settings
+            for step, step_data in result.items():
+                f[step] = []
+                for step_key, step_files in step_data:
+                    match = [
+                        key[shared] == step_key[shared]
+                        for shared in self.shared
+                        if shared in step_key.keys()
+                    ]
+                    if all(match):
+                        f[step] = step_files
+                        break
+                # If no matching files are found ...
+                if len(f[step]) == 0:
+                    if step not in self.find_closest:
+                        # Show a warning
+                        logger.warning(
+                            "Could not find any files for step '%s' with settings %s, sharing parameters %s",
+                            step,
+                            key,
+                            self.shared,
+                        )
+                    else:
+                        # Or find the closest night instead
+                        j = None
+                        for i, (step_key, step_files) in enumerate(step_data):
+                            match = [
+                                key[shared] == step_key[shared]
+                                for shared in self.shared
+                                if shared in step_key.keys() and shared != self.night
+                            ]
+                            if all(match):
+                                if j is None or abs(
+                                    step_data[j][0][self.night] - night
+                                ) > abs(step_data[i][0][self.night] - night):
+                                    j = i
+                        if j is None:
+                            # We still dont find any files
+                            logger.warning(
+                                "Could not find any files for step '%s' in any night with settings %s, sharing parameters %s",
+                                step,
+                                key,
+                                self.shared,
+                            )
+                        else:
+                            # We found files in a close night
+                            closest_key, closest_files = step_data[j]
+                            logger.warning(
+                                "Using '%s' files from night %s for observations of night %s",
+                                step,
+                                night,
+                                closest_key["night"],
+                            )
+                            f[step] = closest_files
+
+            files.append((key, f))
+        if len(files) == 0:
+            logger.warning(
+                "No %s files found matching the expected values %s",
+                self.science,
+                expected[self.science],
+            )
+        return files
+
+    def sort_files(self, input_dir, target, night, *args, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -295,102 +493,10 @@ class instrument:
         nights_out : list[datetime]
             a list of observation times, same order as files_per_night
         """
-
-        # TODO allow several names for the target?
-
-        info = self.load_info()
-        target = target.upper()
-        instrument = info.get("__instrument__", "").upper()
-
-        # Try matching with nights
-        try:
-            night = parser.parse(night).date()
-            individual_nights = [night]
-        except ValueError:
-            # if the input night can't be parsed, use all nights
-            # Usually the case if wildcards are involved
-            individual_nights = "all"
-
-        # find all fits files in the input dir(s)
-        input_dir = input_dir.format(
-            instrument=instrument.upper(), target=target, mode=mode, night=night
-        )
-        files = glob.glob(input_dir + "/*.fits")
-        files += glob.glob(input_dir + "/*.fits.gz")
-        files = np.array(files)
-
-        # Load the mode identifier for the current mode from the header
-        # This could be anything really, e.g. the size of the data axis
-        i = [i for i, m in enumerate(info["modes"]) if m == mode][0]
-        mode_id = info["modes_id"][i].upper()
-
-        # Initialize arrays
-        # observed object
-        ob = np.zeros(len(files), dtype="U20")
-        # observation type, bias, flat, spec, etc.
-        ty = np.zeros(len(files), dtype="U20")
-        # instrument mode, e.g. red, blue
-        mo = np.zeros(len(files), dtype="U20")
-        # special setting identifier, e.g. wavelength setting
-        se = np.zeros(len(files), dtype="U20")
-        # observed night, parsed into a datetime object
-        ni = np.zeros(len(files), dtype=datetime.datetime)
-        # instrument, used for observation
-        it = np.zeros(len(files), dtype="U20")
-
-        for i, f in enumerate(files):
-            h = fits.open(f)[0].header
-            ob[i] = h.get(info["target"], "")
-            ty[i] = h.get(info["observation_type"], "")
-            # The mode descriptor has different names in different files, so try different ids
-            mo[i] = h.get(info["instrument_mode"])
-            ni_tmp = h.get(info["date"], "")
-            it[i] = h.get(info["instrument"], "")
-            se[i] = h.get(info["setting_specifier"], "")
-
-            # Sanitize input
-            ni[i] = observation_date_to_night(ni_tmp)
-            ob[i] = ob[i].replace("-", "")
-
-        if isinstance(individual_nights, str) and individual_nights == "all":
-            individual_nights = np.unique(ni)
-            logger.info(
-                "Can't parse night %s, use all %i individual nights instead",
-                night,
-                len(individual_nights),
-            )
-
-        files_per_night = []
-        nights_out = []
-        for ind_night in individual_nights:
-            # Select files for this night, this instrument, this instrument mode
-            selection = (ni == ind_night) & (it == instrument) & (mo == mode_id)
-
-            # Find all unique setting keys for this night and target
-            # Only look at the settings of observation files
-            keys = se[(ty == info["id_spec"]) & (ob == target) & selection]
-            keys = np.unique(keys)
-
-            files_this_night = {}
-            for key in keys:
-                select = selection & (se == key)
-
-                # find all relevant files for this setting
-                # bias ignores the setting
-                files_this_night[key] = {
-                    "bias": files[(ty == info["id_bias"]) & selection],
-                    "flat": files[(ty == info["id_flat"]) & select],
-                    "orders": files[(ty == info["id_orders"]) & select],
-                    "wavecal": files[(ob == info["id_wave"]) & select],
-                    "science": files[(ty == info["id_spec"]) & (ob == target) & select],
-                }
-                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
-
-            if len(keys) != 0:
-                nights_out.append(ind_night)
-                files_per_night.append(files_this_night)
-
-        return files_per_night, nights_out
+        files = self.find_files(input_dir)
+        ev = self.get_expected_values(target, night, *args, **kwargs)
+        files = self.apply_filters(files, ev)
+        return files
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the pre-existing wavelength solution for the current setting
@@ -427,9 +533,11 @@ class instrument:
 class COMMON(instrument):
     def load_info(self):
         return {
+            "instrument": "INSTRUME",
+            "date": "DATE-OBS",
+            "target": "OBJECT",
             "naxis_x": "NAXIS1",
             "naxis_y": "NAXIS2",
             "modes": [""],
             "modes_id": [""],
         }
-

@@ -4,12 +4,19 @@
     "telescope": "JWST",
     "date": "DATE-OBS",
     "time": "TIME-OBS",
+    "target": "OBJECT",
     "instrument_mode": "EXP_TYPE",
-    "modes": ["LRS_SLITLESS"],
-    "modes_id": ["MIR_LRS-SLITLESS"],
-    "extension": ["SCI"],
+    "modes": [
+        "LRS_SLITLESS"
+    ],
+    "modes_id": [
+        "MIR_LRS-SLITLESS"
+    ],
+    "extension": [
+        "SCI"
+    ],
     "orientation": 3,
-    "overscan_x" : 5,
+    "overscan_x": 5,
     "prescan_x": 15,
     "naxis_x": "SUBSIZE1",
     "naxis_y": "SUBSIZE2",
