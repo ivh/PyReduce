@@ -806,7 +806,7 @@ class WavelengthCalibration(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders", "curvature", "bias"]
+        self._dependsOn += ["mask", "orders", "curvature", "bias", "config"]
 
         #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -849,7 +849,7 @@ class WavelengthCalibration(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar.npz")
 
-    def run(self, files, orders, mask, curvature, bias):
+    def run(self, files, orders, mask, curvature, bias, config):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -904,7 +904,9 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
-        reference = self.instrument.get_wavecal_filename(thead, self.mode)
+        reference = self.instrument.get_wavecal_filename(
+            thead, self.mode, **config["instrument"]
+        )
         reference = np.load(reference, allow_pickle=True)
         linelist = reference["cs_lines"]
 
@@ -1727,14 +1729,7 @@ class Reducer:
         info = instrument.info
 
         self.data = {"files": files, "config": config}
-        self.inputs = (
-            instrument,
-            mode,
-            target,
-            night,
-            output_dir,
-            order_range,
-        )
+        self.inputs = (instrument, mode, target, night, output_dir, order_range)
         self.config = config
         self.skip_existing = skip_existing
 

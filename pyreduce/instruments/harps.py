@@ -9,17 +9,220 @@ import logging
 from datetime import datetime
 import fnmatch
 import json
+from itertools import product
 
 import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
+import re
+
 from .common import getter, instrument, observation_date_to_night
+from .filters import Filter, ObjectFilter, InstrumentFilter, NightFilter
 
 logger = logging.getLogger(__name__)
 
 
+class TypeFilter(Filter):
+    def __init__(self, keyword="ESO DPR TYPE"):
+        super().__init__(keyword, regex=True)
+
+    def match(self, value):
+        regex = re.compile(value)
+        match = [regex.match(f) is not None for f in self.data]
+        result = np.asarray(match)
+        return result
+
+    def classify(self, value):
+        if value is not None:
+            match = self.match(value)
+            data = np.asarray(self.data)
+            data = np.unique(data[match])
+            try:
+                regex = re.compile(value)
+                data = [regex.match(f) for f in data]
+                data = [[g for g in d.groups() if g is not None][0] for d in data]
+                data = np.unique(data)
+            except IndexError:
+                data = np.asarray(self.data)
+                data = np.unique(data[match])
+        else:
+            data = np.unique(self.data)
+        data = [(d, self.match(d)) for d in data]
+        return data
+
+
+class FiberFilter(Filter):
+    def __init__(self, keyword="ESO DPR TYPE"):
+        super().__init__(keyword, regex=True)
+
+    def collect(self, header):
+        value = header.get(self.keyword)
+        value = value.split(",")
+        if value[0] in ["LAMP", "STAR"] and value[1] in ["LAMP", "STAR"]:
+            value = "AB"
+        elif value[1] in ["LAMP", "STAR"]:
+            value = "B"
+        elif value[0] in ["LAMP", "STAR"]:
+            value = "A"
+        else:
+            value = ""
+
+        self.data.append(value)
+        return value
+
+
+class PolarizationFilter(Filter):
+    def __init__(self, keyword="ESO INS RET?? POS"):
+        super().__init__(keyword)
+
+    def collect(self, header):
+        value = header.get("eso ins ret50 pos", None)
+        if value is not None:
+            value = "linear"
+        else:
+            value = header.get("eso ins ret25 pos", None)
+            if value is not None:
+                value = "circular"
+            else:
+                value = "none"
+        self.data.append(value)
+        return value
+
+
 class HARPS(instrument):
+    def __init__(self):
+        super().__init__()
+        self.filters = {
+            "instrument": InstrumentFilter(self.info["instrument"]),
+            "night": NightFilter(self.info["date"]),
+            # "branch": Filter(, regex=True),
+            "mode": Filter(self.info["instrument_mode"]),
+            "type": TypeFilter(self.info["observation_type"]),
+            "polarization": PolarizationFilter(),
+            "target": ObjectFilter(self.info["target"], regex=True),
+            "fiber": FiberFilter(),
+        }
+        self.night = "night"
+        self.science = "science"
+        self.shared = ["instrument", "night", "mode", "polarization", "fiber"]
+        self.find_closest = [
+            "bias",
+            "flat",
+            "wavecal",
+            "orders",
+            "scatter",
+            "curvature",
+        ]
+
+    def get_expected_values(self, target, night, branch, fiber, polarimetry):
+        """Determine the default expected values in the headers for a given observation configuration
+        
+        Any parameter may be None, to indicate that all values are allowed
+
+        Parameters
+        ----------
+        target : str
+            Name of the star / observation target
+        night : str
+            Observation night/nights
+        fiber : "A", "B", "AB"
+            Which of the fibers should carry observation signal
+        polarimetry : "none", "linear", "circular", bool
+            Whether the instrument is used in HARPS or HARPSpol mode
+            and which polarization is observed. Set to true for both kinds
+            of polarisation.
+        
+        Returns
+        -------
+        expectations: dict
+            Dictionary of expected header values, with one entry per step.
+            The entries for each step refer to the filters defined in self.filters
+        
+        Raises
+        ------
+        ValueError
+            Invalid combination of parameters
+        """
+        # target = target.replace(" ", r"[\s*-]")
+        if fiber == "AB":
+            template = r"$({a},{a}),{c}^"
+        elif fiber == "A":
+            template = r"$({a},{b}),{c}^"
+        elif fiber == "B":
+            template = r"$({b},{a}),{c}^"
+        elif fiber is None:
+            template = None
+            fiber = "(AB)|(A)|(B)"
+        else:
+            raise ValueError(
+                "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
+            )
+
+        if polarimetry == "none" or not polarimetry:
+            mode = "HARPS"
+            if template is not None:
+                id_orddef = template.format(a="LAMP", b="DARK", c=".*?")
+                id_spec = template.format(a="STAR", b="(?!STAR).*?", c=".*?")
+            else:
+                id_spec = (
+                    r"^(STAR,(?!STAR).*),.*$|^((?!STAR).*?,STAR),.*$|^(STAR,STAR),.*$"
+                )
+                id_orddef = r"^(LAMP,DARK),.*$|^(DARK,LAMP),.*$|^(LAMP,LAMP),.*$"
+            polarimetry = "none"
+        else:
+            mode = "HARPSpol"
+            id_orddef = r"(LAMP,LAMP),.*"
+            if polarimetry == r"linear":
+                id_spec = r"(STAR,LINPOL),.*"
+            elif polarimetry == "circular":
+                id_spec = r"(STAR,CIRPOL),.*"
+            else:
+                raise ValueError(
+                    f"polarization parameter not recognized. Expected one of 'none', 'linear', 'circular', but got {polarimetry}"
+                )
+
+        expectations = {
+            "bias": {"instrument": "HARPS", "night": night, "type": r"BIAS,BIAS"},
+            "flat": {"instrument": "HARPS", "night": night, "type": r"(LAMP,LAMP),.*"},
+            "orders": {
+                "instrument": "HARPS",
+                "night": night,
+                "fiber": fiber,
+                "type": id_orddef,
+            },
+            "scatter": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": id_orddef,  # Same as orders
+            },
+            "curvature": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": [r"(WAVE,WAVE,COMB)", r"(WAVE,WAVE,THAR)\d?"],
+            },
+            "wavecal": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": r"(WAVE,WAVE,THAR)\d?",
+            },
+            "freq_comb": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": r"(WAVE,WAVE,COMB)",
+            },
+            "science": {
+                "instrument": "HARPS",
+                "night": night,
+                "mode": mode,
+                "type": id_spec,
+                "fiber": fiber,
+                "polarization": polarimetry,
+                "target": target,
+            },
+        }
+        return expectations
+
     def get_extension(self, header, mode):
         extension = super().get_extension(header, mode)
 
@@ -322,11 +525,13 @@ class HARPS(instrument):
 
         return files_per_night, nights_out
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, mode, polarimetry, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(
-            instrument="harps", mode=mode.lower()
-        )
+        if polarimetry:
+            pol = "_pol"
+        else:
+            pol = ""
+        fname = f"harps_{mode}{pol}_2D.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
