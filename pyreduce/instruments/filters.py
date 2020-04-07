@@ -28,10 +28,10 @@ class Filter:
         if self.regex:
             regex = re.compile(f"^(?:{value})$")
             match = [regex.match(f) is not None for f in self.data]
-            result = np.asarray(match)
+            result = np.asarray(match, dtype=bool)
         elif self.wildcards:
             match = [fnmatch(f, value) for f in self.data]
-            result = np.asarray(match)
+            result = np.asarray(match, dtype=bool)
         else:
             match = np.asarray(self.data) == value
             result = match
@@ -77,13 +77,15 @@ class NightFilter(Filter):
 
     def collect(self, header):
         value = header.get(self.keyword)
-        value = Time(value, self.timeformat)
+        value = Time(value, format=self.timeformat)
         value = NightFilter.observation_date_to_night(value)
         self.data.append(value)
         return value
 
     def match(self, value):
-        if not isinstance(value, (datetime, date)):
+        try:
             value = parser.parse(value).date()
+        except Exception:
+            pass
         match = super().match(value)
         return match
