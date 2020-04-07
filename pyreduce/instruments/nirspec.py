@@ -173,8 +173,7 @@ class NIRSPEC(instrument):
                         else:
                             tp[i] = "bias"
                         cache[c] = tp[i]
-                files_this_observation = {}
-                files_this_observation["NIRSPEC"] = {
+                files_this_observation = {
                     "bias": caliblist[tp == "bias"],
                     "flat": caliblist[tp == "flat"],
                     "orders": caliblist[tp == "flat"],
@@ -182,17 +181,18 @@ class NIRSPEC(instrument):
                     "freq_comb": caliblist[tp == "freq_comb"],
                     "science": [file],
                 }
-                files_this_observation["NIRSPEC"]["curvature"] = (
-                    files_this_observation["NIRSPEC"]["freq_comb"]
-                    if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0
-                    else files_this_observation["NIRSPEC"]["wavecal"]
+                files_this_observation["curvature"] = (
+                    files_this_observation["freq_comb"]
+                    if len(files_this_observation["freq_comb"]) != 0
+                    else files_this_observation["wavecal"]
                 )
-                files_this_observation["NIRSPEC"]["scatter"] = files_this_observation["NIRSPEC"]["orders"]
+                files_this_observation["scatter"] = files_this_observation["orders"]
 
-                files_per_observation.append(files_this_observation)
-                nights_out.append(ind_night)
+                files_per_observation.append(
+                    ({"night": ind_night}, files_this_observation)
+                )
 
-        return files_per_observation, nights_out
+        return files_per_observation
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

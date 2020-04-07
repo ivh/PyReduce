@@ -134,7 +134,7 @@ def main(
         if isNone["modes"]:
             mode = info["modes"]
         elif isinstance(modes, dict):
-            mode = modes[i]
+            mode = modes[str(i)]
         else:
             mode = modes
         if np.isscalar(mode):
@@ -902,6 +902,7 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
+        print(config)
         reference = self.instrument.get_wavecal_filename(
             thead, self.mode, **config["instrument"]
         )

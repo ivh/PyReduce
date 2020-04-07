@@ -10,7 +10,7 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
         instrument,
         target,
         night,
-        {instrument: mode},
+        mode,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
@@ -18,7 +18,7 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
     )
 
     assert isinstance(output, list)
-    assert len(output) == 1
+    assert len(output) >= 1
     assert "config" in output[0].keys()
     assert "files" in output[0].keys()
 

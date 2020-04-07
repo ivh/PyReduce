@@ -209,7 +209,7 @@ class MCDONALD(instrument):
 
                 # find all relevant files for this setting
                 # bias ignores the setting
-                files_this_night[key] = {
+                files_this_night = {
                     "bias": files[(ob == info["id_bias"]) & selection],
                     "flat": files[(ty == info["id_flat"]) & select],
                     "orders": files[(ty == info["id_flat"]) & select],
@@ -218,14 +218,13 @@ class MCDONALD(instrument):
                     "science": files[match_ty & match_ob & select],
                 }
                 # Use science frame to find orders
-                files_this_night[key]["orders"] = [files_this_night[key]["science"][0]]
-                files_this_night[key]["scatter"] = files_this_night[key]["flat"]
+                files_this_night["orders"] = [files_this_night["science"][0]]
+                files_this_night["scatter"] = files_this_night["flat"]
+                files_per_night.append(
+                    ({"night": ind_night, "key": key}, files_this_night)
+                )
 
-            if len(keys) != 0:
-                nights_out.append(ind_night)
-                files_per_night.append(files_this_night)
-
-        return files_per_night, nights_out
+        return files_per_night
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

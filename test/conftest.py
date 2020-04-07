@@ -5,6 +5,9 @@ import tempfile
 from os.path import dirname, join
 from shutil import rmtree
 
+# This fixes a problem when using the remote debugger
+os.environ["DISPLAY"] = "localhost:10.0"
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -24,6 +27,7 @@ from pyreduce.reduce import (
     Finalize,
 )
 from pyreduce import configuration, datasets, echelle, instruments, util
+
 
 @pytest.fixture(scope="function")
 def tempfiles():
@@ -68,6 +72,7 @@ def instrument(dataset):
         Observing instrument
     """
     return dataset[0]
+
 
 @pytest.fixture
 def instr(instrument):
@@ -200,6 +205,7 @@ def data(dataset, settings, target, night, mode):
     odir = _odir(folder, settings, instrument, target, night, mode)
     rmtree(odir, ignore_errors=True)
 
+
 @pytest.fixture
 def settings(instrument):
     """Combine run specific configuration with default settings
@@ -239,11 +245,13 @@ def input_dir(data, target, instrument, settings, night, mode):
     odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
     return join(data, odir)
 
+
 def _odir(data, settings, instrument, target, night, mode):
     odir = settings["reduce"]["output_dir"]
     odir = odir.format(instrument=instrument, target=target, night=night, mode=mode)
     odir = join(data, odir)
     return odir
+
 
 @pytest.fixture
 def output_dir(data, settings, instrument, target, night, mode):
@@ -301,10 +309,8 @@ def files(input_dir, instrument, target, night, mode, settings, instr):
     """
 
     print(input_dir, target, night, instrument, mode, *settings["instrument"])
-    files, _ = instr.sort_files(
-        input_dir, target, night, mode, **settings["instrument"]
-    )
-    files = files[0][list(files[0].keys())[0]]
+    files = instr.sort_files(input_dir, target, night, mode, **settings["instrument"])
+    files = files[0][1]
     return files
 
 
@@ -454,7 +460,6 @@ def scatter(step_args, settings, files, mask, bias, orders):
     settings["plot"] = False
     files = files[name]
 
-
     step = BackgroundScatter(*step_args, **settings)
 
     scatter = step.load()
@@ -551,16 +556,17 @@ def wave(step_args, settings, files, orders, mask, curvature, bias):
     """
     name = "wavecal"
     files = files[name]
-    settings = settings[name]
-    settings["plot"] = False
+    settings[name]["plot"] = False
 
-    step = WavelengthCalibration(*step_args, **settings)
+    step = WavelengthCalibration(*step_args, **settings[name])
 
     try:
         wave, thar, coef, linelist = step.load()
     except FileNotFoundError:
         try:
-            wave, thar, coef, linelist = step.run(files, orders, mask, curvature, bias)
+            wave, thar, coef, linelist = step.run(
+                files, orders, mask, curvature, bias, settings
+            )
         except FileNotFoundError:
             wave, thar = None, None
     return wave, thar

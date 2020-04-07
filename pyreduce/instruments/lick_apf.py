@@ -120,13 +120,9 @@ class LICK_APF(instrument):
             selection = (ni == ind_night) & (it == instrument)
             if len(selection) == 0:
                 continue
-
-            keys = ["APF"]
-            files_this_night = {}
-
             # find all relevant files for this setting
             # bias ignores the setting
-            files_this_night["APF"] = {
+            files_this_night = {
                 "bias": files[(ty == info["id_bias"]) & selection],
                 "flat": files[(ob == info["id_flat"]) & selection],
                 "orders": files[(ob == info["id_order"]) & selection],
@@ -134,13 +130,12 @@ class LICK_APF(instrument):
                 # "freq_comb": files[(ty == info["id_comb"]) & select],
                 "science": files[(ty == info["id_spec"]) & (ob == target) & selection],
             }
-            files_this_night[key]["scatter"] = files_this_night[key]["orders"]
+            files_this_night["scatter"] = files_this_night["orders"]
 
-            if len(files_this_night["APF"]["science"]) != 0:
-                nights_out.append(ind_night)
-                files_per_night.append(files_this_night)
+            if len(files_this_night["science"]) != 0:
+                files_per_night.append(({"night": ind_night}, files_this_night))
 
-        return files_per_night, nights_out
+        return files_per_night
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

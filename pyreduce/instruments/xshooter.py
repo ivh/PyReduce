@@ -126,8 +126,7 @@ class XSHOOTER(instrument):
             # Select files for this night, this instrument, this instrument mode
             selection = (ni == ind_night) & (it == instrument) & (mo == mode)
 
-            files_this_night = {}
-            files_this_night[mode] = {
+            files_this_night = {
                 "bias": files[(ty == info["id_dark"]) & selection],
                 "flat": files[(ty == info["id_flat"]) & selection],
                 "orders": files[(ty == info["id_orders"]) & selection],
@@ -137,25 +136,27 @@ class XSHOOTER(instrument):
             }
 
             for step in ["bias", "flat", "orders", "wavecal"]:
-                if len(files_this_night[mode][step]) == 0:
+                if len(files_this_night[step]) == 0:
                     id_step = ty == info[f"id_{step}"]
                     try:
                         i = np.argsort(np.abs(ni[id_step] - ind_night))[0]
                         closest = ni[id_step][i]
-                        files_this_night[mode][step] = files[id_step & (ni == closest) & (it == instrument) & (mo == mode)]
+                        files_this_night[step] = files[
+                            id_step
+                            & (ni == closest)
+                            & (it == instrument)
+                            & (mo == mode)
+                        ]
                     except IndexError:
                         pass
 
-            files_this_night[mode]["curvature"] = files_this_night[mode]["wavecal"]
-            # files_this_night[mode]["orders"] = files_this_night[mode]["flat"]
-            files_this_night[mode]["scatter"] = files_this_night[mode]["orders"]
+            files_this_night["curvature"] = files_this_night["wavecal"]
+            files_this_night["scatter"] = files_this_night["orders"]
+            files_per_night.append(
+                ({"night": ind_night, "mode": mode}, files_this_night)
+            )
 
-
-            if len(files_this_night[mode]["science"]) != 0:
-                nights_out.append(ind_night)
-                files_per_night.append(files_this_night)
-
-        return files_per_night, nights_out
+        return files_per_night
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

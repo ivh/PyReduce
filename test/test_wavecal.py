@@ -8,14 +8,11 @@ from pyreduce.wavelength_calibration import WavelengthCalibration
 from pyreduce import instruments
 
 
-def test_wavecal(
-    files, instr, instrument, mode, mask, orders, settings, order_range
-):
+def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_range):
     if len(files["wavecal"]) == 0:
         pytest.skip(f"No wavecal files found for instrument {instrument}")
 
     orders, column_range = orders
-    settings = settings["wavecal"]
     files = files["wavecal"][0]
     orig, thead = instr.load_fits(files, mode, mask=mask)
     thead["obase"] = (0, "base order number")
@@ -30,7 +27,7 @@ def test_wavecal(
         extraction_type="arc",
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["extraction_width"],
+        extraction_width=settings["wavecal"]["extraction_width"],
         plot=False,
     )
 
@@ -43,17 +40,15 @@ def test_wavecal(
     # assert np.min(thar) == 0
     # assert np.max(thar) == 1
 
-    reference = instr.get_wavecal_filename(
-        thead, mode
-    )
+    reference = instr.get_wavecal_filename(thead, mode, **settings["instrument"])
     reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]
 
     module = WavelengthCalibration(
         plot=False,
         manual=False,
-        threshold=settings["threshold"],
-        degree=settings["degree"],
+        threshold=settings["wavecal"]["threshold"],
+        degree=settings["wavecal"]["degree"],
     )
     wave, solution = module.execute(thar, linelist)
 

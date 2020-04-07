@@ -195,16 +195,14 @@ class JWST_NIRISS(instrument):
                 #     "science": files[select],
                 # }
                 # TODO find actual flat files
-                files_this_night[key] = {}
-                files_this_night[key]["bias"] = []
-                files_this_night[key]["flat"] = [
-                    f for f in files if f.endswith("flat.fits")
-                ]
-                files_this_night[key]["orders"] = [files_this_night[key]["flat"][0]]
-                files_this_night[key]["wavecal"] = []
-                files_this_night[key]["curvature"] = files_this_night[key]["wavecal"]
-                files_this_night[key]["science"] = []
-                files_this_night[key]["scatter"] = files_this_night[key]["orders"]
+                files_this_night = {}
+                files_this_night["bias"] = []
+                files_this_night["flat"] = [f for f in files if f.endswith("flat.fits")]
+                files_this_night["orders"] = [files_this_night["flat"][0]]
+                files_this_night["wavecal"] = []
+                files_this_night["curvature"] = files_this_night["wavecal"]
+                files_this_night["science"] = []
+                files_this_night["scatter"] = files_this_night["orders"]
 
                 f_science = [
                     f
@@ -212,13 +210,12 @@ class JWST_NIRISS(instrument):
                     if not (f.endswith("flat.fits") or f.endswith("bias.fits"))
                 ]
                 for f in f_science:
-                    files_this_night[key]["science"] += self.split_observation(f, mode)
+                    files_this_night["science"] += self.split_observation(f, mode)
+                files_per_night.append(
+                    ({"night": ind_night, "key": key}, files_this_night)
+                )
 
-            if len(keys) != 0:
-                nights_out.append(ind_night)
-                files_per_night.append(files_this_night)
-
-        return files_per_night, nights_out
+        return files_per_night
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

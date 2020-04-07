@@ -22,6 +22,7 @@ def supported_instrument(request):
 def supported_modes(supported_instrument):
     return instrument_info.get_supported_modes(supported_instrument)
 
+
 @pytest.fixture
 def config(supported_instrument):
     return get_configuration_for_instrument(supported_instrument)
@@ -75,12 +76,11 @@ def test_modeinfo(supported_instrument, supported_modes):
 
 def test_sort_files(supported_instrument, supported_modes, config):
     for mode in supported_modes:
-        files, nights = instrument_info.sort_files(
+        files = instrument_info.sort_files(
             ".", "", "", supported_instrument, mode, **config["instrument"]
         )
+        print(files)
         assert isinstance(files, list)
-        assert isinstance(nights, list)
-        assert len(files) == len(nights)
 
         # TODO Test contents of the lists
         # Maybe create debug files for each instrument and then make sure only the correct ones are in each list?
@@ -94,7 +94,10 @@ def test_sort_files(supported_instrument, supported_modes, config):
         # assert "orders" in f.keys()
         # assert "science" in f.keys()
 
-@pytest.mark.skip(reason="No wavelength calibration files for most instruments present at the moment")
+
+@pytest.mark.skip(
+    reason="No wavelength calibration files for most instruments present at the moment"
+)
 def test_get_wavecal_name(supported_instrument, supported_modes):
     for mode in supported_modes:
         wname = instrument_info.get_wavecal_filename({}, supported_instrument, mode)
