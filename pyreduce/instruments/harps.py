@@ -27,15 +27,18 @@ class TypeFilter(Filter):
             data = np.unique(data[match])
             try:
                 regex = re.compile(value)
-                data = [regex.match(f) for f in data]
-                data = [[g for g in d.groups() if g is not None][0] for d in data]
-                data = np.unique(data)
+                keys = [regex.match(f) for f in data]
+                keys = [[g for g in d.groups() if g is not None][0] for d in keys]
+                unique = np.unique(keys)
+                assign = {u: [d for k, d in zip(keys, data) if k == u] for u in unique}
+                data = [(u, self.match("|".join(a))) for u, a in assign.items()]
             except IndexError:
                 data = np.asarray(self.data)
                 data = np.unique(data[match])
+                data = [(d, self.match(d)) for d in data]
         else:
             data = np.unique(self.data)
-        data = [(d, self.match(d)) for d in data]
+            data = [(d, self.match(d)) for d in data]
         return data
 
 
