@@ -20,12 +20,6 @@ class TypeFilter(Filter):
     def __init__(self, keyword="ESO DPR TYPE"):
         super().__init__(keyword, regex=True)
 
-    def match(self, value):
-        regex = re.compile(value)
-        match = [regex.match(f) is not None for f in self.data]
-        result = np.asarray(match)
-        return result
-
     def classify(self, value):
         if value is not None:
             match = self.match(value)
@@ -171,6 +165,8 @@ class HARPS(instrument):
                 id_spec = r"(STAR,LINPOL),.*"
             elif polarimetry == "circular":
                 id_spec = r"(STAR,CIRPOL),.*"
+            elif polarimetry:
+                id_spec = r"(STAR,(?:LIN|CIR)POL),.*"
             else:
                 raise ValueError(
                     f"polarization parameter not recognized. Expected one of 'none', 'linear', 'circular', but got {polarimetry}"
