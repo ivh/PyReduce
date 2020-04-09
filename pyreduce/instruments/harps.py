@@ -87,7 +87,9 @@ class HARPS(instrument):
             "instrument": InstrumentFilter(self.info["instrument"]),
             "night": NightFilter(self.info["date"]),
             # "branch": Filter(, regex=True),
-            "mode": Filter(self.info["instrument_mode"]),
+            "mode": Filter(
+                self.info["instrument_mode"], regex=True, flags=re.IGNORECASE
+            ),
             "type": TypeFilter(self.info["observation_type"]),
             "polarization": PolarizationFilter(),
             "target": ObjectFilter(self.info["target"], regex=True),

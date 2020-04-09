@@ -11,11 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 class Filter:
-    def __init__(self, keyword, dtype="U20", wildcards=False, regex=False):
+    def __init__(self, keyword, dtype="U20", wildcards=False, regex=False, flags=0):
         self.keyword = keyword
         self.dtype = dtype
         self.wildcards = wildcards
         self.regex = regex
+        self.flags = flags
         self.data = []
 
     def collect(self, header):
@@ -26,7 +27,7 @@ class Filter:
     def match(self, value):
         # result = np.full(len(self.data), False)
         if self.regex:
-            regex = re.compile(f"^(?:{value})$")
+            regex = re.compile(f"^(?:{value})$", flags=self.flags)
             match = [regex.match(f) is not None for f in self.data]
             result = np.asarray(match, dtype=bool)
         elif self.wildcards:
