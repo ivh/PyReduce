@@ -45,15 +45,16 @@ class TypeFilter(Filter):
 class FiberFilter(Filter):
     def __init__(self, keyword="ESO DPR TYPE"):
         super().__init__(keyword, regex=True)
+        self.lamp_values = ["LAMP", "STAR", "CIRPOL", "LINPOL"]
 
     def collect(self, header):
         value = header.get(self.keyword)
         value = value.split(",")
-        if value[0] in ["LAMP", "STAR"] and value[1] in ["LAMP", "STAR"]:
+        if value[0] in self.lamp_values and value[1] in self.lamp_values:
             value = "AB"
-        elif value[1] in ["LAMP", "STAR"]:
+        elif value[1] in self.lamp_values:
             value = "B"
-        elif value[0] in ["LAMP", "STAR"]:
+        elif value[0] in self.lamp_values:
             value = "A"
         else:
             value = ""
@@ -64,18 +65,19 @@ class FiberFilter(Filter):
 
 class PolarizationFilter(Filter):
     def __init__(self, keyword="ESO INS RET?? POS"):
-        super().__init__(keyword)
+        super().__init__(keyword, regex=True)
 
     def collect(self, header):
-        value = header.get("eso ins ret50 pos", None)
-        if value is not None:
+        dpr_type = header.get("ESO DPR TYPE", None)
+        match = re.match(r"^.*,(CIR|LIN)POL,.*$", dpr_type)
+        if match is None:
+            value = "none"
+        elif match.group(1) == "CIR":
+            value = "circular"
+        elif match.group(1) == "LIN":
             value = "linear"
         else:
-            value = header.get("eso ins ret25 pos", None)
-            if value is not None:
-                value = "circular"
-            else:
-                value = "none"
+            raise ValueError("Polarization not recognised")
         self.data.append(value)
         return value
 
@@ -136,7 +138,10 @@ class HARPS(instrument):
         ValueError
             Invalid combination of parameters
         """
-        target = target.replace(" ", r"(?:\s*|-)")
+        if target is not None:
+            target = target.replace(" ", r"(?:\s*|-)")
+        else:
+            target = ".*"
 
         if fiber == "AB":
             template = r"({a},{a}),{c}"
@@ -172,6 +177,7 @@ class HARPS(instrument):
                 id_spec = r"(STAR,CIRPOL),.*"
             elif polarimetry:
                 id_spec = r"(STAR,(?:LIN|CIR)POL),.*"
+                polarimetry = r"(circular|linear)"
             else:
                 raise ValueError(
                     f"polarization parameter not recognized. Expected one of 'none', 'linear', 'circular', but got {polarimetry}"
