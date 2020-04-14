@@ -94,7 +94,7 @@ def main(
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
     instrument = [instrument]
-    if np.isscalar(target):
+    if target is None or np.isscalar(target):
         target = [target]
     if night is None or np.isscalar(night):
         night = [night]
