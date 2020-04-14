@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 def main(
     instrument,
     target,
-    night="????-??-??",
+    night=None,
     modes=None,
     steps="all",
     base_dir=None,
@@ -96,7 +96,7 @@ def main(
     instrument = [instrument]
     if np.isscalar(target):
         target = [target]
-    if np.isscalar(night):
+    if night is None or np.isscalar(night):
         night = [night]
 
     isNone = {
