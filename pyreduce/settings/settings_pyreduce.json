@@ -21,7 +21,10 @@
         "degree": 4,
         "degree_before_merge": 2,
         "regularization": 0,
-        "closing_shape": [5, 5],
+        "closing_shape": [
+            5,
+            5
+        ],
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.1,
         "split_sigma": 0,
@@ -43,7 +46,7 @@
     "norm_flat": {
         "extraction_method": "normalize",
         "smooth_slitfunction": 4,
-        "smooth_spectrum": 0,
+        "smooth_spectrum": 1e-7,
         "oversampling": 10,
         "swath_width": 200,
         "extraction_width": 0.2,
@@ -58,7 +61,10 @@
         "threshold": 100,
         "iterations": 3,
         "dimensionality": "2D",
-        "degree": [6, 6],
+        "degree": [
+            6,
+            6
+        ],
         "nstep": 0,
         "shift_window": 0.01,
         "extraction_cutoff": 20,
@@ -70,7 +76,10 @@
         "lfc_peak_width": 3,
         "dimensionality": "2D",
         "nstep": 0,
-        "degree": [6, 6],
+        "degree": [
+            6,
+            6
+        ],
         "threshold": 100,
         "extraction_cutoff": 20,
         "plot": true
@@ -92,8 +101,8 @@
         "extraction_width": 0.25,
         "oversampling": 10,
         "swath_width": 300,
-        "smooth_slitfunction": 20,
-        "smooth_spectrum": 0.0,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 1e-7,
         "extraction_cutoff": 20,
         "plot": true
     },

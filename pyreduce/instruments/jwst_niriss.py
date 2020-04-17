@@ -212,7 +212,10 @@ class JWST_NIRISS(instrument):
                 for f in f_science:
                     files_this_night["science"] += self.split_observation(f, mode)
                 files_per_night.append(
-                    ({"night": ind_night, "key": key}, files_this_night)
+                    (
+                        {"night": ind_night, "key": key, "target": target},
+                        files_this_night,
+                    )
                 )
 
         return files_per_night

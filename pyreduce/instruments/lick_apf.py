@@ -133,7 +133,9 @@ class LICK_APF(instrument):
             files_this_night["scatter"] = files_this_night["orders"]
 
             if len(files_this_night["science"]) != 0:
-                files_per_night.append(({"night": ind_night}, files_this_night))
+                files_per_night.append(
+                    ({"night": ind_night, "target": target}, files_this_night)
+                )
 
         return files_per_night
 

@@ -153,7 +153,7 @@ class XSHOOTER(instrument):
             files_this_night["curvature"] = files_this_night["wavecal"]
             files_this_night["scatter"] = files_this_night["orders"]
             files_per_night.append(
-                ({"night": ind_night, "mode": mode}, files_this_night)
+                ({"night": ind_night, "mode": mode, "target": target}, files_this_night)
             )
 
         return files_per_night

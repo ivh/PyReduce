@@ -287,7 +287,6 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     if np.any(np.isnan(sp)):
         logger.error("NaNs in the spectrum")
 
-
     # The decomposition failed
     if info[0] == 0:
         status = info[2]

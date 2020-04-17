@@ -151,7 +151,10 @@ class UVES(instrument):
                 files_this_night["freq_comb"] = []
                 files_this_night["scatter"] = files_this_night["orders"]
                 files_per_night.append(
-                    ({"night": ind_night, "key": key}, files_this_night)
+                    (
+                        {"night": ind_night, "key": key, "target": target},
+                        files_this_night,
+                    )
                 )
 
         return files_per_night

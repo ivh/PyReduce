@@ -189,7 +189,7 @@ class NIRSPEC(instrument):
                 files_this_observation["scatter"] = files_this_observation["orders"]
 
                 files_per_observation.append(
-                    ({"night": ind_night}, files_this_observation)
+                    ({"night": ind_night, "target": target}, files_this_observation)
                 )
 
         return files_per_observation

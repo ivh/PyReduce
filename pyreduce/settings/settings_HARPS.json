@@ -16,7 +16,7 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0,
+        "smooth_spectrum": 1e-7,
         "extraction_width": 10,
         "oversampling": 12,
         "swath_width": 200,
@@ -25,7 +25,10 @@
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [2, 5],
+        "degree": [
+            2,
+            5
+        ],
         "manual": false,
         "extraction_width": 10
     },
@@ -33,7 +36,10 @@
         "threshold": 100,
         "dimensionality": "2D",
         "nstep": 0,
-        "degree": [17, 8],
+        "degree": [
+            17,
+            8
+        ],
         "extraction_width": 10
     },
     "curvature": {
@@ -49,7 +55,7 @@
         "oversampling": 10,
         "extraction_width": 10,
         "swath_width": 300,
-        "smooth_slitfunction": 0.1,
-        "smooth_spectrum": 0
+        "smooth_slitfunction": 1,
+        "smooth_spectrum": 1e-7
     }
 }

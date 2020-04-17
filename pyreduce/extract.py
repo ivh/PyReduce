@@ -719,7 +719,10 @@ def extract_spectrum(
                 where = swath.model[ihalf] > threshold / gain
                 norm_img[ihalf] = np.ones_like(swath.model[ihalf])
                 np.divide(
-                    np.abs(swath_img), swath.model[ihalf], where=where, out=norm_img[ihalf]
+                    np.abs(swath_img),
+                    swath.model[ihalf],
+                    where=where,
+                    out=norm_img[ihalf],
                 )
                 norm_model[ihalf] = swath.model[ihalf]
 
@@ -741,7 +744,7 @@ def extract_spectrum(
     # Remove points at the border of the each swath, if order has tilt
     # as those pixels have bad information
     for i in range(nswath):
-        margin[i, :] = int(swath.info[i][4])
+        margin[i, :] = int(swath.info[i][4]) + 1
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]

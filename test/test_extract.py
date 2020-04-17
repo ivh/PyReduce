@@ -80,7 +80,9 @@ def sample_data(width, height, spec, slitf, oversample, ycen, tilt=0):
     # TODO more sophisticated sample data creation
     out = np.zeros((height, width))
     for i in range(width):
-        out[:, i] = np.interp(np.arange(height), np.linspace(0, height, height*oversample), img[:, i])
+        out[:, i] = np.interp(
+            np.arange(height), np.linspace(0, height, height * oversample), img[:, i]
+        )
 
     return out, spec, slitf
 
@@ -96,7 +98,6 @@ def test_class_swath():
     assert len(swath.mask) == 5
     assert len(swath.info) == 5
 
-
     for i in range(5):
         assert swath.spec[i] is None
         assert swath.slitf[i] is None
@@ -104,7 +105,6 @@ def test_class_swath():
         assert swath.unc[i] is None
         assert swath.mask[i] is None
         assert swath.info[i] is None
-
 
         tmp = swath[i]
         for j in range(5):
@@ -321,10 +321,10 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
     out_mask = np.zeros(width)
 
     extract.extract_spectrum(
-        img,
-        ycen,
-        yrange,
-        xrange,
+        np.copy(img),
+        np.copy(ycen),
+        np.copy(yrange),
+        np.copy(xrange),
         out_spec=out_spec,
         out_sunc=out_sunc,
         out_slitf=out_slitf,
@@ -336,7 +336,9 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
     assert np.any(out_slitf != 0)
     assert np.any(out_mask)
 
-    spec, slitf, mask, sunc = extract.extract_spectrum(img, ycen, yrange, xrange)
+    spec, slitf, mask, sunc = extract.extract_spectrum(
+        np.copy(img), np.copy(ycen), np.copy(yrange), np.copy(xrange)
+    )
 
     assert np.array_equal(out_spec, spec)
     assert np.array_equal(out_sunc, sunc)
