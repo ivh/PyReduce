@@ -10,6 +10,7 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d, Polynomial
+from tqdm import tqdm
 
 from scipy import signal
 from scipy.constants import speed_of_light
@@ -283,7 +284,10 @@ class WavelengthCalibration:
             try:
                 obs[i] -= np.ma.min(obs[i][obs[i] > 0])
             except ValueError:
-                logger.warning(f"Could not determine the minimum value in order {i}. No positive values found")
+                logger.warning(
+                    f"Could not determine the minimum value in order %i. No positive values found",
+                    i,
+                )
             obs[i] /= np.ma.max(obs[i])
         obs[obs <= 0] = np.ma.masked
 
@@ -458,7 +462,9 @@ class WavelengthCalibration:
             Updated line information (posm is changed)
         """
         # For each line fit a gaussian to the observation
-        for i, line in enumerate(lines):
+        for i, line in tqdm(
+            enumerate(lines), total=len(lines), leave=False, desc="Lines"
+        ):
             if line["posm"] < 0 or line["posm"] >= obs.shape[1]:
                 # Line outside pixel range
                 continue
@@ -1037,7 +1043,7 @@ class WavelengthCalibration:
             plt.xlim(0, self.ncol)
             plt.ylim(-self.threshold, self.threshold)
 
-            if (i + 1) not in [norders, norders -1]:
+            if (i + 1) not in [norders, norders - 1]:
                 plt.xticks([])
             else:
                 plt.xlabel("x [Pixel]")
@@ -1045,7 +1051,7 @@ class WavelengthCalibration:
             if (i + 1) % 2 == 0:
                 plt.yticks([])
             # else:
-                # plt.yticks([-self.threshold, 0, self.threshold])
+            # plt.yticks([-self.threshold, 0, self.threshold])
 
         plt.subplots_adjust(hspace=0, wspace=0.1)
 
@@ -1073,7 +1079,6 @@ class WavelengthCalibration:
         peaks, _ = signal.find_peaks(c, height=height, width=width)
         distance = np.median(np.diff(peaks)) // 4
         peaks, _ = signal.find_peaks(c, height=height, distance=distance, width=width)
-
 
         # Fit peaks with gaussian to get accurate position
         new_peaks = peaks.astype(float)
@@ -1114,7 +1119,6 @@ class WavelengthCalibration:
             n = np.round((f_old - fd) / fr)
             res = Polynomial.fit(n, f_old, deg=1, domain=[])
             fd, fr = res.coef
-
 
             # The first order is used as the baseline for all other orders
             # The choice is arbitrary and doesn't matter

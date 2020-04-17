@@ -25,6 +25,7 @@ import time
 import glob
 from os.path import join, dirname
 import warnings
+from itertools import product
 
 import joblib
 import matplotlib.pyplot as plt
@@ -64,7 +65,7 @@ def main(
     configuration=None,
     order_range=None,
 ):
-    """
+    r"""
     Main entry point for REDUCE scripts,
     default values can be changed as required if reduce is used as a script
     Finds input directories, and loops over observation nights and instrument modes
@@ -93,7 +94,6 @@ def main(
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
-    instrument = [instrument]
     if target is None or np.isscalar(target):
         target = [target]
     if night is None or np.isscalar(night):
@@ -108,75 +108,72 @@ def main(
     output = []
 
     # Loop over everything
-    for j, i in enumerate(instrument):
 
-        # settings: default settings of PyReduce
-        # config: paramters for the current reduction
-        # info: constant, instrument specific parameters
-        config = load_config(configuration, i, j)
+    # settings: default settings of PyReduce
+    # config: paramters for the current reduction
+    # info: constant, instrument specific parameters
+    config = load_config(configuration, instrument, 0)
+    if isinstance(instrument, str):
+        instrument = instruments.instrument_info.load_instrument(instrument)
+    info = instrument.info
 
-        # load default settings from settings_pyreduce.json
-        if isNone["base_dir"]:
-            base_dir = config["reduce"]["base_dir"]
-        if isNone["input_dir"]:
-            input_dir = config["reduce"]["input_dir"]
-        if isNone["output_dir"]:
-            output_dir = config["reduce"]["output_dir"]
+    # load default settings from settings_pyreduce.json
+    if base_dir is None:
+        base_dir = config["reduce"]["base_dir"]
+    if input_dir is None:
+        input_dir = config["reduce"]["input_dir"]
+    if output_dir is None:
+        output_dir = config["reduce"]["output_dir"]
 
-        input_dir = join(base_dir, input_dir)
-        output_dir = join(base_dir, output_dir)
+    input_dir = join(base_dir, input_dir)
+    output_dir = join(base_dir, output_dir)
 
-        if isinstance(i, str):
-            i = instruments.instrument_info.load_instrument(i)
+    if modes is None:
+        modes = info["modes"]
+    if np.isscalar(modes):
+        modes = [modes]
 
-        info = i.info
-
-        if isNone["modes"]:
-            mode = info["modes"]
-        elif isinstance(modes, dict):
-            mode = modes[str(i)]
-        else:
-            mode = modes
-        if np.isscalar(mode):
-            mode = [mode]
-
-        for t in target:
-            log_file = join(
-                base_dir.format(instrument=str(i), mode=mode, target=t),
-                "logs/%s.log" % t,
+    for t, n, m in product(target, night, modes):
+        log_file = join(
+            base_dir.format(instrument=str(instrument), mode=modes, target=t),
+            "logs/%s.log" % t,
+        )
+        util.start_logging(log_file)
+        # find input files and sort them by type
+        files = instrument.sort_files(input_dir, t, n, m, **config["instrument"])
+        if len(files) == 0:
+            logger.warning(
+                f"No files found for instrument: %s, target: %s, night: %s, mode: %s in folder: %s",
+                instrument,
+                t,
+                n,
+                m,
+                input_dir,
             )
-            util.start_logging(log_file)
+            continue
+        for k, f in files:
+            logger.info("Settings:")
+            for key, value in k.items():
+                logger.info("%s: %s", key, value)
+            logger.debug("Files:\n%s", f)
 
-            for n in night:
-                for m in mode:
-                    # find input files and sort them by type
-                    files = i.sort_files(input_dir, t, n, m, **config["instrument"])
-                    if len(files) == 0:
-                        logger.warning(
-                            f"No files found for instrument:{i}, target:{t}, night:{n}, mode:{m} in folder: {input_dir}"
-                        )
-                    for k, f in files:
-                        logger.info("Settings:")
-                        logger.info(k)
-                        logger.debug("Files:\n%s", f)
-
-                        reducer = Reducer(
-                            f,
-                            output_dir,
-                            t,
-                            i,
-                            m,
-                            n,
-                            config,
-                            order_range=order_range,
-                            skip_existing=config["__skip_existing__"],
-                        )
-                        # try:
-                        data = reducer.run_steps(steps=steps)
-                        output.append(data)
-                        # except Exception as e:
-                        # logger.error("Reduction failed with error message: %s", str(e))
-                        # logger.info("------------")
+            reducer = Reducer(
+                f,
+                output_dir,
+                k["target"],
+                instrument,
+                m,
+                k["night"],
+                config,
+                order_range=order_range,
+                skip_existing=config["__skip_existing__"],
+            )
+            try:
+                data = reducer.run_steps(steps=steps)
+                output.append(data)
+            except Exception as e:
+                logger.error("Reduction failed with error message: %s", str(e))
+                logger.info("------------")
     return output
 
 
@@ -902,7 +899,6 @@ class WavelengthCalibration(Step):
         )
 
         # load reference linelist
-        print(config)
         reference = self.instrument.get_wavecal_filename(
             thead, self.mode, **config["instrument"]
         )
@@ -1721,12 +1717,11 @@ class Reducer:
         #:dict(str:str): Filenames sorted by usecase
         self.files = files
         self.output_dir = output_dir.format(
-            instrument=instrument, target=target, night=night, mode=mode
+            instrument=str(instrument), target=target, night=night, mode=mode
         )
 
         if isinstance(instrument, str):
             instrument = load_instrument(instrument)
-        info = instrument.info
 
         self.data = {"files": files, "config": config}
         self.inputs = (instrument, mode, target, night, output_dir, order_range)
