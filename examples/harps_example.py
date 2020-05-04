@@ -6,25 +6,26 @@ Loads a sample UVES dataset, and runs the full extraction
 import os.path
 import pyreduce
 from pyreduce import datasets
+from pyreduce.instruments.harps import HARPS
 
 
 # define parameters
 instrument = "HARPS"
 target = "HD109200"
-night = "2015-04-09"
+night = None
 mode = "red"
 steps = (
-    "bias",
-    "flat",
-    "orders",
-    "curvature",
-    "scatter",
-    "norm_flat",
-    "wavecal",
+    # "bias",
+    # "flat",
+    # "orders",
+    # "curvature",
+    # "scatter",
+    # "norm_flat",
+    # "wavecal",
     "freq_comb",
-    "science",
+    # "science",
     # "continuum",
-    "finalize",
+    # "finalize",
 )
 
 # some basic settings
@@ -36,8 +37,15 @@ base_dir = datasets.HARPS("/DATA/PyReduce")
 input_dir = "raw"
 output_dir = "reduced_{mode}"
 
+# instrument = HARPS()
+# files = instrument.find_files(base_dir + "/" + input_dir)
+# ev = instrument.get_expected_values(None, None, "red", None, True)
+# files = instrument.apply_filters(files, ev)
+
 # Path to the configuration parameters, that are to be used for this reduction
 config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
+config["freq_comb"]["dimensionality"] = "1D"
+config["freq_comb"]["degree"] = 5
 
 pyreduce.reduce.main(
     instrument,
