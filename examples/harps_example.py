@@ -15,17 +15,17 @@ target = "HD109200"
 night = None
 mode = "red"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "curvature",
-    # "scatter",
-    # "norm_flat",
-    # "wavecal",
+    "bias",
+    "flat",
+    "orders",
+    "curvature",
+    "scatter",
+    "norm_flat",
+    "wavecal",
     "freq_comb",
-    # "science",
-    # "continuum",
-    # "finalize",
+    "science",
+    "continuum",
+    "finalize",
 )
 
 # some basic settings
@@ -44,8 +44,6 @@ output_dir = "reduced_{mode}"
 
 # Path to the configuration parameters, that are to be used for this reduction
 config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
-config["freq_comb"]["dimensionality"] = "1D"
-config["freq_comb"]["degree"] = 5
 
 pyreduce.reduce.main(
     instrument,
