@@ -7,6 +7,12 @@
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
+#define ELEM_SWAP(a, b)          \
+    {                            \
+        register double t = (a); \
+        (a) = (b);               \
+        (b) = t;                 \
+    }
 
 #define DEBUG 0
 
@@ -284,7 +290,8 @@ int bandsol(double *a, double *r, int n, int nd)
     /* Backward sweep */
     aa = a[a_index(n - 1, nd / 2)];
 #if DEBUG
-    if (aa == 0){
+    if (aa == 0)
+    {
         printf("3, index: %i, %i\n", 0, nd / 2);
         aa = 1;
     }
@@ -307,6 +314,74 @@ int bandsol(double *a, double *r, int n, int nd)
 #endif
     r[r_index(0)] /= aa;
     return 0;
+}
+
+// This is the faster median determination method.
+// Algorithm from Numerical recipes in C of 1992
+// see https://stackoverflow.com/questions/1961173/median-function-in-c-math-library
+
+double quick_select_median(double arr[], unsigned int n)
+{
+    unsigned int low, high;
+    unsigned int median;
+    unsigned int middle, ll, hh;
+    low = 0;
+    high = n - 1;
+    median = (low + high) / 2;
+    for (;;)
+    {
+        if (high <= low) /* One element only */
+            return arr[median];
+        if (high == low + 1)
+        { /* Two elements only */
+            if (arr[low] > arr[high])
+                ELEM_SWAP(arr[low], arr[high]);
+            return arr[median];
+        }
+        /* Find median of low, middle and high items; swap into position low */
+        middle = (low + high) / 2;
+        if (arr[middle] > arr[high])
+            ELEM_SWAP(arr[middle], arr[high]);
+        if (arr[low] > arr[high])
+            ELEM_SWAP(arr[low], arr[high]);
+        if (arr[middle] > arr[low])
+            ELEM_SWAP(arr[middle], arr[low]);
+        /* Swap low item (now in position middle) into position (low+1) */
+        ELEM_SWAP(arr[middle], arr[low + 1]);
+        /* Nibble from each end towards middle, swapping items when stuck */
+        ll = low + 1;
+        hh = high;
+        for (;;)
+        {
+            do
+                ll++;
+            while (arr[low] > arr[ll]);
+            do
+                hh--;
+            while (arr[hh] > arr[low]);
+            if (hh < ll)
+                break;
+            ELEM_SWAP(arr[ll], arr[hh]);
+        }
+        /* Swap middle item (in position low) back into correct position */
+        ELEM_SWAP(arr[low], arr[hh]);
+        /* Re-set active partition */
+        if (hh <= median)
+            low = ll;
+        if (hh >= median)
+            high = hh - 1;
+    }
+    return arr[median];
+}
+
+double median_absolute_deviation(double arr[], unsigned int n){
+    double median = quick_select_median(arr, n);
+    for (size_t i = 0; i < n; i++)
+    {
+        arr[i] = fabs(arr[i] - median);
+    }
+    double mad = quick_select_median(arr, n);
+    return mad;
 }
 
 int xi_zeta_tensors(
@@ -834,12 +909,14 @@ int slit_func_curved(int ncols,
         0 on success, -1 on failure (see also bandsol)
     */
     int x, xx, xxx, y, yy, iy, jy, n, m, nx;
-    double sum, norm, dev, lambda, diag_tot, ww, www;
+    double norm, dev, lambda, diag_tot, ww, www;
     double cost_old, ftol, tmp;
-    int iter, isum, maxiter, delta_x;
+    int iter, maxiter, delta_x;
+    unsigned int isum;
 
     // For the solving of the equation system
     double *l_Aij, *l_bj, *p_Aij, *p_bj;
+    double * diff;
 
     // For the geometry
     xi_ref *xi;
@@ -850,7 +927,7 @@ int slit_func_curved(int ncols,
     double success, status, cost;
 
     maxiter = 20; // Maximum number of iterations
-    ftol = 1e-7;   // Maximum cost difference between two iterations to stop convergence
+    ftol = 1e-7;  // Maximum cost difference between two iterations to stop convergence
     success = 1;
     status = 0;
 
@@ -900,6 +977,7 @@ int slit_func_curved(int ncols,
     xi = malloc(MAX_XI * sizeof(xi_ref));
     zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
     m_zeta = malloc(MAX_MZETA * sizeof(int));
+    diff = malloc(MAX_IM * sizeof(double));
 
     xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
@@ -1067,9 +1145,8 @@ int slit_func_curved(int ncols,
         }
 
         /* Compare model and data */
-        sum = 0.e0;
-        isum = 0;
         cost = 0;
+        isum = 0;
         for (y = 0; y < nrows; y++)
         {
             for (x = delta_x; x < ncols - delta_x; x++)
@@ -1077,22 +1154,28 @@ int slit_func_curved(int ncols,
                 if (mask[im_index(x, y)])
                 {
                     tmp = model[im_index(x, y)] - im[im_index(x, y)];
-                    sum += tmp * tmp;
-                    isum++;
+                    diff[isum] = tmp;
                     tmp /= max(pix_unc[im_index(x, y)], 1);
                     cost += tmp * tmp;
+                    isum++;
                 }
             }
         }
         cost /= (isum - (ncols + ny));
-        dev = sqrt(sum / isum);
+        dev = median_absolute_deviation(diff, isum);
+        // This is the "conversion" factor betweem MAD and STD
+        // i.e. a perfect normal distribution has MAD = sqrt(2/pi) * STD
+        dev *= 1.4826;
 
         /* Adjust the mask marking outlyers */
         for (y = 0; y < nrows; y++)
         {
             for (x = delta_x; x < ncols - delta_x; x++)
             {
-                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * dev)
+                // The MAD is significantly smaller than the STD was, since it describes
+                // only the central peak, not the distribution
+                // The factor 40 was chosen, since it is roughly equal to 6 * STD
+                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 40. * dev)
                     mask[im_index(x, y)] = 1;
                 else
                     mask[im_index(x, y)] = 0;
@@ -1104,7 +1187,6 @@ int slit_func_curved(int ncols,
         {
             printf("Iteration: %i, Reduced chi-square: %f\n", iter, cost);
             printf("dev: %f\n", dev);
-            printf("sum: %f\n", sum);
             printf("isum: %i\n", isum);
             printf("iteration: %i\n", iter);
             printf("-----------\n");
@@ -1144,9 +1226,8 @@ int slit_func_curved(int ncols,
                     ww = zeta[zeta_index(x, y, m)].w;
                     tmp = im[im_index(x, y)] - model[im_index(x, y)];
                     unc[sp_index(xx)] += tmp * tmp * ww;
-                    p_bj[pbj_index(xx)] += ww; // Norm
+                    p_bj[pbj_index(xx)] += ww;           // Norm
                     p_Aij[paij_index(xx, 0)] += ww * ww; // Norm squared
-
                 }
             }
         }
@@ -1167,6 +1248,7 @@ int slit_func_curved(int ncols,
         sP[sp_index(x)] = unc[sp_index(x)] = 0;
     }
 
+    free(diff);
     free(l_Aij);
     free(p_Aij);
     free(p_bj);
