@@ -1145,6 +1145,16 @@ int slit_func_curved(int ncols,
         }
 
         /* Compare model and data */
+        // We use the Median absolute derivation to estimate the distribution
+        // The MAD is more robust than the usual STD as it uses the median
+        // However the MAD << STD, since we are not dealing with a Gaussian
+        // at all, but a distribution with heavy wings.
+        // Therefore we use the factor 40, instead of 6 to estimate a reasonable range
+        // of values. The cutoff is roughly the same.
+        // Technically the distribution might best be described by a Voigt profile
+        // which we then would have to fit to the distrubtion and then determine,
+        // the range that covers 99% of the data.
+        // Since that is much more complicated we just use the MAD.
         cost = 0;
         isum = 0;
         for (y = 0; y < nrows; y++)
