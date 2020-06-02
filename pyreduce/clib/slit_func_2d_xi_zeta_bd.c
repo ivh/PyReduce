@@ -7,13 +7,6 @@
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define signum(a) (((a) > 0) ? 1 : ((a) < 0) ? -1 : 0)
-#define ELEM_SWAP(a, b)          \
-    {                            \
-        register double t = (a); \
-        (a) = (b);               \
-        (b) = t;                 \
-    }
-
 #define DEBUG 0
 
 // Store important sizes in global variables to make access easier
@@ -318,13 +311,21 @@ int bandsol(double *a, double *r, int n, int nd)
 
 // This is the faster median determination method.
 // Algorithm from Numerical recipes in C of 1992
-// see https://stackoverflow.com/questions/1961173/median-function-in-c-math-library
+// see http://ndevilla.free.fr/median/median/
+
+#define ELEM_SWAP(a, b)          \
+    {                            \
+        register double t = (a); \
+        (a) = (b);               \
+        (b) = t;                 \
+    }
 
 double quick_select_median(double arr[], unsigned int n)
 {
-    unsigned int low, high;
-    unsigned int median;
-    unsigned int middle, ll, hh;
+    int low, high;
+    int median;
+    int middle, ll, hh;
+
     low = 0;
     high = n - 1;
     median = (low + high) / 2;
@@ -371,10 +372,10 @@ double quick_select_median(double arr[], unsigned int n)
         if (hh >= median)
             high = hh - 1;
     }
-    return arr[median];
 }
 
-double median_absolute_deviation(double arr[], unsigned int n){
+double median_absolute_deviation(double arr[], unsigned int n)
+{
     double median = quick_select_median(arr, n);
     for (size_t i = 0; i < n; i++)
     {
@@ -916,7 +917,7 @@ int slit_func_curved(int ncols,
 
     // For the solving of the equation system
     double *l_Aij, *l_bj, *p_Aij, *p_bj;
-    double * diff;
+    double *diff;
 
     // For the geometry
     xi_ref *xi;
@@ -1145,6 +1146,16 @@ int slit_func_curved(int ncols,
         }
 
         /* Compare model and data */
+        // We use the Median absolute derivation to estimate the distribution
+        // The MAD is more robust than the usual STD as it uses the median
+        // However the MAD << STD, since we are not dealing with a Gaussian
+        // at all, but a distribution with heavy wings.
+        // Therefore we use the factor 40, instead of 6 to estimate a reasonable range
+        // of values. The cutoff is roughly the same.
+        // Technically the distribution might best be described by a Voigt profile
+        // which we then would have to fit to the distrubtion and then determine,
+        // the range that covers 99% of the data.
+        // Since that is much more complicated we just use the MAD.
         cost = 0;
         isum = 0;
         for (y = 0; y < nrows; y++)
