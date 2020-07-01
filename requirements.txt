@@ -10,6 +10,6 @@ joblib==0.15.1
 pytest==5.4.3
 pytest-cov==2.10.0
 jsonschema==3.2.0
-tqdm==4.46.0
+tqdm==4.47.0
 colorlog==4.1.0
 git+https://github.com/cylammarco/SpectRes
