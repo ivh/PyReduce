@@ -1204,7 +1204,7 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
     dec2000 : float
         Declination of object for epoch 2000.0 (degrees)
     jd : float
-        Julian date for the middle of exposure
+        Julian date for the middle of exposure in MJD
     system : {"barycentric", "heliocentric"}, optional
         reference system of the result, barycentric: around earth-sun gravity center,
         heliocentric: around sun, usually barycentric is preferred (default: "barycentric)
@@ -1217,8 +1217,8 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
         Heliocentric Julian date for middle of exposure
     """
 
-    jd = 2400000.5 + jd
-    jd = time.Time(jd, format="jd")
+    # jd = 2400000.5 + jd
+    jd = time.Time(jd, format="mjd")
 
     ra = coord.Longitude(ra2000, unit=u.hour)
     dec = coord.Latitude(dec2000, unit=u.degree)
