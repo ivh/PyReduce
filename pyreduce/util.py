@@ -31,6 +31,7 @@ def resample(array, new_size):
     xp = np.linspace(0, new_size, len(array))
     return np.interp(x, xp, array)
 
+
 def remove_bias(img, ihead, bias, bhead, nfiles=1):
     if bias is not None and bhead is not None:
         b_exptime = bhead["EXPTIME"]
@@ -53,11 +54,11 @@ def in_ipynb():
         return False
 
 
-
 def log_version():
     """ For Debug purposes """
     logger.debug("----------------------")
     logger.debug("PyReduce version: %s", __version__)
+
 
 def start_logging(log_file="log.log"):
     """Start logging to log file and command line
@@ -69,7 +70,6 @@ def start_logging(log_file="log.log"):
     """
 
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
-
 
     logging.basicConfig(
         filename=log_file,
@@ -97,6 +97,7 @@ def vac2air(wl_vac):
     )
     wl_air[ii] = wl_vac[ii] / fact  # Convert to air wavelength
     return wl_air
+
 
 def swap_extension(fname, ext, path=None):
     """ exchange the extension of the given file with a new one """
@@ -253,7 +254,7 @@ def gaussfit(x, y):
         fitted values for x, fit paramters (a, mu, sigma)
     """
 
-    gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2) ** 2 / 2)
+    gauss = lambda x, A0, A1, A2: A0 * np.exp(-(((x - A1) / A2) ** 2) / 2)
     popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 
@@ -411,7 +412,7 @@ def gaussfit_linear(x, y):
 
 
 def gaussval2(x, a, mu, sig, const):
-    return a * np.exp(-(x - mu) ** 2 / (2 * sig)) + const
+    return a * np.exp(-((x - mu) ** 2) / (2 * sig)) + const
 
 
 def gaussbroad(x, y, hwhm):
@@ -490,8 +491,10 @@ def _scale(x, y):
     # Mean 0, Variation 1
     offset_x, offset_y = np.mean(x), np.mean(y)
     norm_x, norm_y = np.std(x), np.std(y)
-    if norm_x == 0: norm_x = 1
-    if norm_y == 0: norm_y = 1
+    if norm_x == 0:
+        norm_x = 1
+    if norm_y == 0:
+        norm_y = 1
     x = (x - offset_x) / norm_x
     y = (y - offset_y) / norm_y
     return x, y, (norm_x, norm_y), (offset_x, offset_y)
@@ -1214,7 +1217,7 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
         Heliocentric Julian date for middle of exposure
     """
 
-    jd = 2400000.0 + jd
+    jd = 2400000.5 + jd
     jd = time.Time(jd, format="jd")
 
     ra = coord.Longitude(ra2000, unit=u.hour)
