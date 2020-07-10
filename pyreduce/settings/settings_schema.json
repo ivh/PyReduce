@@ -53,7 +53,8 @@
             "$ref": "#/definitions/step"
         },
         "orders": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -119,7 +120,10 @@
                         },
                         "min_width": {
                             "description": "Minimum width of a cluster to be considered after merging. If between 0 and 1, use that fraction of the detector width. Estimated automatically if null",
-                            "type": ["number", "null"],
+                            "type": [
+                                "number",
+                                "null"
+                            ],
                             "minimum": 0
                         },
                         "noise": {
@@ -155,7 +159,8 @@
             ]
         },
         "scatter": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -194,16 +199,24 @@
                         },
                         "border_width": {
                             "description": "Border Width to ignore for background fit.",
-                            "type": ["number", "null"],
+                            "type": [
+                                "number",
+                                "null"
+                            ],
                             "minimum": 0
                         }
                     },
-                    "required": ["scatter_degree", "scatter_cutoff", "border_width"]
+                    "required": [
+                        "scatter_degree",
+                        "scatter_cutoff",
+                        "border_width"
+                    ]
                 }
             ]
         },
         "norm_flat": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -228,7 +241,8 @@
             ]
         },
         "wavecal": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -273,7 +287,8 @@
             ]
         },
         "freq_comb": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -309,7 +324,8 @@
             ]
         },
         "curvature": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -343,14 +359,18 @@
                             "type": "number",
                             "exclusiveMinimum": 0
                         },
-                        "peak_threshold" : {
+                        "peak_threshold": {
                             "description": "Peak detection noise threshold. This much times * 10% noise must be the prominence of the peaks",
                             "type": "number",
                             "minimum": 0
                         },
-                        "peak_width" : {
+                        "peak_width": {
                             "description": "Minimum width of the peaks in the curvature detection. Usually 1 for sharp peaks as in the wavecal, or 3 for broader peaks of the freq comb",
-                            "type": ["null", "number", "array"],
+                            "type": [
+                                "null",
+                                "number",
+                                "array"
+                            ],
                             "minimum": 1,
                             "items": {
                                 "type": "number"
@@ -358,10 +378,18 @@
                             "minItems": 2,
                             "maxItems": 2
                         },
-                        "window_width" : {
+                        "window_width": {
                             "description": "Width of the window to look for the peak of each row, within each line. The value here speciefies only on direction the window size is actually twice this +1.",
                             "type": "integer",
                             "minimum": 1
+                        },
+                        "peak_function": {
+                            "description": "Function that is used to fit individual line peaks",
+                            "type": "string",
+                            "enum": [
+                                "gaussian",
+                                "lorentzian"
+                            ]
                         }
                     },
                     "required": [
@@ -374,7 +402,8 @@
             ]
         },
         "science": {
-            "allOf": [{
+            "allOf": [
+                {
                     "$ref": "#/definitions/step"
                 },
                 {
@@ -386,16 +415,19 @@
             "$ref": "#/definitions/step"
         },
         "finalize": {
-            "allOf": [{
-                "$ref": "#/definitions/step"
-            }, {
-                "properties": {
-                    "filename": {
-                        "description": "Name of the output file. Can include placeholders for instrument, mode, night and observation this night",
-                        "type": "string"
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "properties": {
+                        "filename": {
+                            "description": "Name of the output file. Can include placeholders for instrument, mode, night and observation this night",
+                            "type": "string"
+                        }
                     }
                 }
-            }]
+            ]
         }
     },
     "required": [
@@ -419,7 +451,10 @@
             "properties": {
                 "plot": {
                     "description": "Plot results and progress if true",
-                    "type": ["boolean", "integer"],
+                    "type": [
+                        "boolean",
+                        "integer"
+                    ],
                     "minimum": 0
                 }
             },
@@ -431,7 +466,8 @@
             "description": "Common settings for an extraction",
             "type": "object",
             "$comment": "There are two options for the extraction. Each has its own set of parameters that need to be present",
-            "oneOf": [{
+            "oneOf": [
+                {
                     "title": "Optimal Extraction",
                     "properties": {
                         "extraction_method": {
@@ -532,7 +568,8 @@
         },
         "polynomialfit": {
             "type": "object",
-            "oneOf": [{
+            "oneOf": [
+                {
                     "properties": {
                         "dimensionality": {
                             "type": "string",

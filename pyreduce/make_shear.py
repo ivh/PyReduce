@@ -42,8 +42,8 @@ class ProgressPlot:  # pragma: no cover
 
         fig.suptitle("Curvature in each order")
 
-        line1, = ax1.plot(np.arange(ncol) + 1)
-        line2, = ax1.plot(0, 0, "d")
+        (line1,) = ax1.plot(np.arange(ncol) + 1)
+        (line2,) = ax1.plot(0, 0, "d")
         ax1.set_yscale("log")
 
         self.ncol = ncol
@@ -104,6 +104,7 @@ class Curvature:
         sigma_cutoff=3,
         mode="1D",
         plot=False,
+        peak_function="gaussian",
         curv_degree=2,
     ):
         self.orders = orders
@@ -120,6 +121,7 @@ class Curvature:
         self.mode = mode
         self.plot = plot
         self.curv_degree = curv_degree
+        self.peak_function = peak_function
 
         if self.mode == "1D":
             # fit degree is an integer
@@ -234,19 +236,13 @@ class Curvature:
         sl /= np.ma.max(sl)
         sl = sl[:, None]
 
-        # TODO allow other line shapes
-        def gaussian(x, A, mu, sig):
-            """
-            A: height
-            offset: standard deviation
-            sig: standard deviation
-            """
-            return A * np.exp(-np.power(x - mu, 2.0) / (2 * np.power(sig, 2.0)))
+        peak_func = {"gaussian": gaussian, "lorentzian": lorentzian}
+        peak_func = peak_func[self.peak_function]
 
         def model(coef):
             A, middle, sig, *curv = coef
             mu = middle + shift(curv)
-            mod = gaussian(x, A, mu, sig)
+            mod = peak_func(x, A, mu, sig)
             mod *= sl
             return (mod - img).ravel()
 
@@ -281,12 +277,16 @@ class Curvature:
         # plt.imshow(img, vmin=vmin, vmax=vmax, origin="lower")
         # plt.plot(xwd[0] + ycen[xmin:xmax], "r")
         # plt.title("Input Image")
+        # plt.xlabel("x [pixel]")
+        # plt.ylabel("y [pixel]")
 
         # plt.subplot(122)
         # plt.imshow(model, vmin=vmin, vmax=vmax, origin="lower")
         # plt.plot(x, y, "r", label="curvature")
-        # plt.title("Model")
         # plt.ylim((-0.5, model.shape[0] - 0.5))
+        # plt.title("Model")
+        # plt.xlabel("x [pixel]")
+        # plt.ylabel("y [pixel]")
 
         # plt.show()
 
@@ -423,6 +423,26 @@ class Curvature:
         fig2.suptitle("2nd Order Curvature")
         plt.subplots_adjust(hspace=0)
 
+        def trim_axs(axs, N):
+            """little helper to massage the axs list to have correct length..."""
+            axs = axs.flat
+            for ax in axs[N:]:
+                ax.remove()
+            return axs[:N]
+
+        t, s = [None for _ in range(self.n)], [None for _ in range(self.n)]
+        for j in range(self.n):
+            cr = self.column_range[j]
+            x = np.arange(cr[0], cr[1])
+            order = np.full(len(x), j)
+            t[j], s[j] = self.eval(x, order, tilt_x, shear_x)
+
+        t_lower = min([t.min() * (0.5 if t.min() > 0 else 1.5) for t in t])
+        t_upper = max([t.max() * (1.5 if t.max() > 0 else 0.5) for t in t])
+
+        s_lower = min([s.min() * (0.5 if s.min() > 0 else 1.5) for s in s])
+        s_upper = max([s.max() * (1.5 if s.max() > 0 else 0.5) for s in s])
+
         for j in range(self.n):
             cr = self.column_range[j]
             peaks = plot_peaks[j]
@@ -430,10 +450,6 @@ class Curvature:
             tilt = plot_tilt[j]
             shear = plot_shear[j]
             x = np.arange(cr[0], cr[1])
-
-            order = np.full(len(x), j)
-            t, s = self.eval(x, order, tilt_x, shear_x)
-
             # Figure Peaks found (and used)
             axes[j // 2, j % 2].plot(np.arange(cr[0], cr[1]), vec)
             axes[j // 2, j % 2].plot(peaks, vec[peaks - cr[0]], "X")
@@ -444,25 +460,32 @@ class Curvature:
 
             # Figure 1st order
             axes1[j // 2, j % 2].plot(peaks, tilt, "rX")
-            axes1[j // 2, j % 2].plot(x, t)
+            axes1[j // 2, j % 2].plot(x, t[j])
             axes1[j // 2, j % 2].set_xlim(0, ncol)
 
-            lower = t.min() * (0.5 if t.min() > 0 else 1.5)
-            upper = t.max() * (1.5 if t.max() > 0 else 0.5)
-            axes1[j // 2, j % 2].set_ylim(lower, upper)
+            axes1[j // 2, j % 2].set_ylim(t_lower, t_upper)
             if j not in (self.n - 1, self.n - 2):
                 axes1[j // 2, j % 2].get_xaxis().set_ticks([])
+            else:
+                axes1[j // 2, j % 2].set_xlabel("x [pixel]")
+            if j == self.n // 2 + 1:
+                axes1[j // 2, j % 2].set_ylabel("tilt [pixel/pixel]")
 
             # Figure 2nd order
             axes2[j // 2, j % 2].plot(peaks, shear, "rX")
-            axes2[j // 2, j % 2].plot(x, s)
+            axes2[j // 2, j % 2].plot(x, s[j])
             axes2[j // 2, j % 2].set_xlim(0, ncol)
 
-            lower = s.min() * (0.5 if s.min() > 0 else 1.5)
-            upper = s.max() * (1.5 if s.max() > 0 else 0.5)
-            axes2[j // 2, j % 2].set_ylim(lower, upper)
+            axes2[j // 2, j % 2].set_ylim(s_lower, s_upper)
             if j not in (self.n - 1, self.n - 2):
                 axes2[j // 2, j % 2].get_xaxis().set_ticks([])
+            else:
+                axes2[j // 2, j % 2].set_xlabel("x [pixel]")
+            if j == self.n // 2 + 1:
+                axes2[j // 2, j % 2].set_ylabel("shear [pixel/pixel**2]")
+
+        axes1 = trim_axs(axes1, self.n)
+        axes2 = trim_axs(axes2, self.n)
 
         plt.show()
 
@@ -534,3 +557,22 @@ class Curvature:
             self.plot_comparison(original, tilt, shear, peaks)
 
         return tilt, shear
+
+
+# TODO allow other line shapes
+def gaussian(x, A, mu, sig):
+    """
+    A: height
+    mu: offset from central line
+    sig: standard deviation
+    """
+    return A * np.exp(-np.power(x - mu, 2.0) / (2 * np.power(sig, 2.0)))
+
+
+def lorentzian(x, A, x0, mu):
+    """
+    A: height
+    x0: offset from central line
+    mu: width of lorentzian
+    """
+    return A * mu / ((x - x0) ** 2 + 0.25 * mu ** 2)

@@ -1,7 +1,6 @@
 {
     "__instrument__": "CRIRES_PLUS",
-    "instrument": {
-    },
+    "instrument": {},
     "orders": {
         "degree": 4,
         "filter_size": 250,
@@ -36,12 +35,16 @@
         "extraction_width": 10
     },
     "curvature": {
-        "peak_threshold" : 1,
+        "peak_threshold": 1,
         "window_width": 15,
         "extraction_width": 100,
         "dimensionality": "2D",
-        "degree": [1, 1],
-        "curv_degree": 1
+        "degree": [
+            1,
+            1
+        ],
+        "curv_degree": 1,
+        "peak_function": "lorentzian"
     },
     "science": {
         "oversampling": 1,

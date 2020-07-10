@@ -1131,8 +1131,10 @@ class SlitCurvatureDetermination(Step):
         self.peak_threshold = config["peak_threshold"]
         #:int: peak width
         self.peak_width = config["peak_width"]
-        #:float": window width to search for peak in each row
+        #:float: window width to search for peak in each row
         self.window_width = config["window_width"]
+        #:str: Function shape that is fit to individual peaks
+        self.peak_function = config["peak_function"]
 
     @property
     def savefile(self):
@@ -1190,6 +1192,7 @@ class SlitCurvatureDetermination(Step):
             peak_threshold=self.peak_threshold,
             peak_width=self.peak_width,
             window_width=self.window_width,
+            peak_function=self.peak_function,
             plot=self.plot,
         )
         tilt, shear = module.execute(extracted, orig)

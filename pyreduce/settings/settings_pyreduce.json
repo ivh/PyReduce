@@ -94,6 +94,7 @@
         "peak_threshold": 10,
         "peak_width": 1,
         "window_width": 9,
+        "peak_function": "gaussian",
         "plot": true
     },
     "science": {

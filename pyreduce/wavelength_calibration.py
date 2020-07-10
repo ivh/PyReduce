@@ -1218,11 +1218,6 @@ class WavelengthCalibration:
         return new_wave
 
     def calculate_AIC(self, lines, wave_solution):
-        m_pix = lines["posc"]
-        m_wave = lines["wll"]
-        m_ord = lines["order"]
-        p_wave = self.evaluate_solution(m_pix, m_ord, wave_solution)
-
         if self.step_mode:
             if self.dimensionality == "1D":
                 k = 1
@@ -1237,8 +1232,11 @@ class WavelengthCalibration:
                 k += np.size(poly_coef)
         else:
             k = np.size(wave_solution) + 1
-        n = len(p_wave)
-        rss = np.sum((p_wave - m_wave) ** 2)
+
+        rss = self.calculate_residual(wave_solution, lines)
+        n = rss.size - np.count_nonzero(np.ma.getmaskarray(rss.mask))
+        rss = np.ma.sum(rss ** 2)
+
         logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
         aic = 2 * k - 2 * logl
         self.logl = logl
