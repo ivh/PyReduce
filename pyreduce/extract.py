@@ -124,11 +124,11 @@ class ProgressPlot:  # pragma: no cover
         # y, x = np.indices(img.shape)
         # self.im_obs = self.ax1.plot_surface(x, y, img)
         self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
-
+        vmin, vmax = self.im_obs.norm.vmin, self.im_obs.norm.vmax
         self.im_model.remove()
         # y, x = np.indices(model.shape)
         # self.im_model = self.ax4.plot_surface(x, y, model)
-        self.im_model = self.ax4.imshow(model, aspect="auto", origin="lower")
+        self.im_model = self.ax4.imshow(model, aspect="auto", origin="lower", vmin=vmin, vmax=vmax)
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
