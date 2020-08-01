@@ -11,5 +11,5 @@ pytest==6.0.1
 pytest-cov==2.10.0
 jsonschema==3.2.0
 tqdm==4.48.0
-colorlog==4.1.0
+colorlog==4.2.1
 git+https://github.com/cylammarco/SpectRes
