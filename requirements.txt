@@ -6,7 +6,7 @@ cffi==1.14.1
 scikit-image==0.17.2
 python-dateutil==2.8.1
 wget==3.2
-joblib==0.15.1
+joblib==0.16.0
 pytest==5.4.3
 pytest-cov==2.10.0
 jsonschema==3.2.0
