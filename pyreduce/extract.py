@@ -37,20 +37,29 @@ class ProgressPlot:  # pragma: no cover
 
         plt.ion()
         self.fig = plt.figure(figsize=(12, 4))
-        # self.fig.tight_layout(pad=0.05)
 
         # self.ax1 = self.fig.add_subplot(231, projection="3d")
         self.ax1 = self.fig.add_subplot(231)
         self.ax1.set_title("Swath")
+        self.ax1.set_ylabel("y [pixel]")
         self.ax2 = self.fig.add_subplot(132)
         self.ax2.set_title("Spectrum")
+        self.ax2.set_xlabel("x [pixel]")
+        self.ax2.set_ylabel("flux [arb. unit]")
         self.ax2.set_xlim((0, ncol))
         self.ax3 = self.fig.add_subplot(133)
         self.ax3.set_title("Slit")
+        self.ax3.set_xlabel("y [pixel]")
+        self.ax3.set_ylabel("contribution [1]")
         self.ax3.set_xlim((0, nrow))
         # self.ax4 = self.fig.add_subplot(234, projection="3d")
         self.ax4 = self.fig.add_subplot(234)
         self.ax4.set_title("Model")
+        self.ax4.set_xlabel("x [pixel]")
+        self.ax4.set_ylabel("y [pixel]")
+
+        self.fig.tight_layout()
+
 
         # Just plot empty pictures, to create the plots
         # Update the data later
