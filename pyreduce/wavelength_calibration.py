@@ -502,13 +502,13 @@ class WavelengthCalibration:
     def build_2d_solution(self, lines, plot=False):
         """
         Create a 2D polynomial fit to flagged lines
+        degree : tuple(int, int), optional
+            polynomial degree of the fit in (column, order) dimension (default: (6, 6))
 
         Parameters
         ----------
         lines : struc_array
             line data
-        degree : tuple(int, int), optional
-            polynomial degree of the fit in (column, order) dimension (default: (6, 6))
         plot : bool, optional
             wether to plot the solution (default: False)
 
@@ -546,25 +546,47 @@ class WavelengthCalibration:
 
         return coef
 
-    def g(self, x, step_coef):
+    def g(self, x, step_coef_pos, step_coef_diff):
         try:
-            bins = step_coef[:, 0]
+            bins = step_coef_pos
             digits = np.digitize(x, bins) - 1
         except ValueError as e:
             return np.inf
 
-        cumsum = np.cumsum(step_coef[:, 1])
+        cumsum = np.cumsum(step_coef_diff)
         x = x + cumsum[digits]
         return x
 
-    def f(self, x, poly_coef, step_coef):
-        xdash = self.g(x, step_coef)
+    def f(self, x, poly_coef, step_coef_pos, step_coef_diff):
+        xdash = self.g(x, step_coef_pos, step_coef_diff)
         if np.all(np.isinf(xdash)):
             return np.inf
         y = np.polyval(poly_coef, xdash)
         return y
 
     def build_step_solution(self, lines, plot=False):
+        """
+        Fit the least squares fit to the wavelength points,
+        with additional free parameters for detector gaps, e.g. due to stitching.
+
+        The exact method of the fit depends on the dimensionality.
+        Either way we are using the usual polynomial fit for the wavelength, but
+        the x points are modified beforehand by shifting them some amount, at specific
+        indices. We assume that the stitching effects are distributed evenly and we know how
+        many steps we expect (this is set as "nstep").
+
+        Parameters
+        ----------
+        lines : np.recarray
+            linedata
+        plot : bool, optional
+            whether to plot results or not, by default False
+
+        Returns
+        -------
+        coef
+            coefficients of the best fit
+        """
         mask = lines["flag"]  # True: use line, False: dont use line
         m_wave = lines["wll"][mask]
         m_pix = lines["posm"][mask]
@@ -577,60 +599,72 @@ class WavelengthCalibration:
             coef = {}
             for order in np.unique(m_ord):
                 select = m_ord == order
-                x = m_pix[select]
+                x = xl = m_pix[select]
                 y = m_wave[select]
-
-                poly_coef = np.polyfit(x, y, self.degree)
                 step_coef = np.zeros((nstep, 2))
-                step_coef[:, 0] = np.linspace(ncol / nstep, ncol, nstep)
+                step_coef[:, 0] = np.linspace(ncol / (nstep + 1), ncol, nstep + 1)[:-1]
 
                 def func(x, *param):
-                    poly_coef = param[: self.degree + 1]
-                    step_coef = np.asarray(param[self.degree + 1 :]).reshape((nstep, 2))
-                    return self.f(x, poly_coef, step_coef)
+                    return self.f(x, poly_coef, step_coef[:, 0], param)
 
-                bounds = ([[-np.inf, np.inf]] * (self.degree + 1)) + (
-                    [[0, ncol], [-1, 1]] * nstep
-                )
-                bounds = np.array(bounds).T
+                for i in range(5):
+                    poly_coef = np.polyfit(xl, y, self.degree)
+                    res, _ = curve_fit(func, x, y, p0=step_coef[:, 1], bounds=[-1, 1])
+                    step_coef[:, 1] = res
+                    xl = self.g(x, step_coef[:, 0], step_coef[:, 1])
 
-                res, _ = curve_fit(func, x, y, p0=[*poly_coef, *step_coef.ravel()])
-                poly_coef = res[: self.degree + 1]
-                step_coef = res[self.degree + 1 :].reshape((nstep, 2))
                 coef[order] = [poly_coef, step_coef]
         elif self.dimensionality == "2D":
             unique = np.unique(m_ord)
             nord = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
-            poly_coef = util.polyfit2d(
-                m_pix, m_ord, m_wave, degree=self.degree, plot=False
-            )
-            step_coef = np.zeros((nord, nstep, 2))
-            step_coef[:, :, 0] = np.linspace(ncol / nstep, ncol, nstep)
             n = np.prod(shape)
+
+            step_coef = np.zeros((nord, nstep, 2))
+            step_coef[:, :, 0] = np.linspace(ncol / (nstep + 1), ncol, nstep + 1)[:-1]
 
             def func(x, *param):
                 x, y = x[: len(x) // 2], x[len(x) // 2 :]
-                poly_coef = np.asarray(param[:n]).reshape(shape)
-                step_coef = np.asarray(param[n:]).reshape((nord, nstep, 2))
-
-                x = np.copy(x)
+                theta = np.asarray(param).reshape((nord, nstep))
+                xl = np.copy(x)
                 for j, i in enumerate(unique):
-                    x[m_ord == i] = self.g(x[m_ord == i], step_coef[j])
-                if np.all(np.isinf(x)):
-                    return np.inf
-                z = polyval2d(x, y, poly_coef)
+                    xl[y == i] = self.g(x[y == i], step_coef[j, :, 0], theta[j])
+                z = polyval2d(xl, y, poly_coef)
                 return z
 
-            p0 = np.concatenate([poly_coef.ravel(), step_coef.ravel()])
-            res, _ = curve_fit(func, np.concatenate((m_pix, m_ord)), m_wave, p0=p0)
-            poly_coef = res[:n].reshape(shape)
-            step_coef = res[n:].reshape((nord, nstep, 2))
+            # TODO: this could use some optimization
+            x = np.copy(m_pix)
+            x0 = np.concatenate((m_pix, m_ord))
+            resid_old = np.inf
+            for k in tqdm(range(5)):
+                poly_coef = util.polyfit2d(
+                    x, m_ord, m_wave, degree=self.degree, plot=False
+                )
+
+                res, _ = curve_fit(func, x0, m_wave, p0=step_coef[:, :, 1])
+                step_coef[:, :, 1] = res.reshape((nord, nstep))
+                for j, i in enumerate(unique):
+                    x[m_ord == i] = self.g(
+                        m_pix[m_ord == i], step_coef[j][:, 0], step_coef[j][:, 1]
+                    )
+
+                resid = polyval2d(x, m_ord, poly_coef) - m_wave
+                resid = np.sum(resid ** 2)
+                improvement = resid_old - resid
+                resid_old = resid
+                logger.info(
+                    "Iteration: %i, Residuals: %.5g, Improvement: %.5g",
+                    k,
+                    resid,
+                    improvement,
+                )
+
+            poly_coef = util.polyfit2d(x, m_ord, m_wave, degree=self.degree, plot=False)
             step_coef = {i: step_coef[j] for j, i in enumerate(unique)}
             coef = (poly_coef, step_coef)
         else:
             raise ValueError(
-                f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
+                f"Parameter 'dimensionality' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
         return coef
@@ -642,12 +676,19 @@ class WavelengthCalibration:
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
-                result[select] = self.f(pos[select], solution[i][0], solution[i][1])
+                result[select] = self.f(
+                    pos[select],
+                    solution[i][0],
+                    solution[i][1][:, 0],
+                    solution[i][1][:, 1],
+                )
         elif self.dimensionality == "2D":
             poly_coef, step_coef = solution
             pos = np.copy(pos)
             for i in np.unique(order):
-                pos[order == i] = self.g(pos[order == i], step_coef[i])
+                pos[order == i] = self.g(
+                    pos[order == i], step_coef[i][:, 0], step_coef[i][:, 1]
+                )
             result = polyval2d(pos, order, poly_coef)
         else:
             raise ValueError(
@@ -1166,17 +1207,17 @@ class WavelengthCalibration:
         # Use now better resolution to find the new solution
         # A single pass of discarding outliers should be enough
         coef = self.build_2d_solution(laser_lines)
-        resid = self.calculate_residual(coef, laser_lines)
-        laser_lines["flag"] = np.abs(resid) < self.threshold
-        # laser_lines["flag"] = np.abs(resid) < resid.std() * 5
-
-        coef = self.build_2d_solution(laser_lines)
+        # resid = self.calculate_residual(coef, laser_lines)
+        # laser_lines["flag"] = np.abs(resid) < self.threshold
+        # coef = self.build_2d_solution(laser_lines)
         new_wave = self.make_wave(coef)
 
         aic = self.calculate_AIC(laser_lines, coef)
 
-        ngood = np.count_nonzero(laser_lines["flag"])
-        logger.info(f"Laser Frequency Comb solution based on {ngood} lines.")
+        self.n_lines_good = np.count_nonzero(laser_lines["flag"])
+        logger.info(
+            f"Laser Frequency Comb solution based on {self.n_lines_good} lines."
+        )
         if self.plot:
             residual = wave - new_wave
             residual = residual.ravel()
@@ -1233,12 +1274,22 @@ class WavelengthCalibration:
         else:
             k = np.size(wave_solution) + 1
 
-        rss = self.calculate_residual(wave_solution, lines)
-        n = rss.size - np.count_nonzero(np.ma.getmaskarray(rss.mask))
+        # We get the residuals in velocity space
+        # but need to remove the speed of light component, to get dimensionless parameters
+        x = lines["posm"]
+        y = lines["order"]
+        mask = ~lines["flag"]
+        solution = self.evaluate_solution(x, y, wave_solution)
+        rss = (solution - lines["wll"]) / lines["wll"]
+
+        # rss = self.calculate_residual(wave_solution, lines)
+        # rss /= speed_of_light
+        n = rss.size
         rss = np.ma.sum(rss ** 2)
 
-        logl = -n / 2 * (1 + np.log(2 * np.pi) + np.log(rss / n))
-        aic = 2 * k - 2 * logl
+        # As per Wikipedia https://en.wikipedia.org/wiki/Akaike_information_criterion
+        logl = np.log(rss)
+        aic = 2 * k + n * logl
         self.logl = logl
         self.aicc = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
         self.aic = aic
