@@ -370,7 +370,7 @@ def mark_orders(
         col = median_filter(col, 5)
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
-        filter_size = im.shape[0] // npeaks
+        filter_size = im.shape[0] // (npeaks *  2)
         logger.info("Median filter size, estimated: %i", filter_size)
     elif filter_size <= 0:
         raise ValueError(f"Expected filter size > 0, but got {filter_size}")
@@ -410,8 +410,7 @@ def mark_orders(
     elif not np.isscalar(noise):
         raise TypeError(f"Expected scalar noise level, but got {noise}")
 
-    threshold = np.ma.median(blurred - im, axis=0)
-    mask = im > blurred + noise + np.abs(threshold)
+    mask = im > blurred + noise
     # remove borders
     if border_width != 0:
         mask[:border_width, :] = mask[-border_width:, :] = False
