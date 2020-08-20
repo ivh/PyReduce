@@ -26,8 +26,8 @@
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [
-            2,
-            5
+            3,
+            6
         ],
         "manual": false,
         "extraction_width": 10
@@ -35,10 +35,10 @@
     "freq_comb": {
         "threshold": 100,
         "dimensionality": "2D",
-        "nstep": 0,
+        "nstep": 7,
         "degree": [
-            17,
-            8
+            9,
+            7
         ],
         "extraction_width": 10
     },
