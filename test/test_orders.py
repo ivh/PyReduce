@@ -23,6 +23,7 @@ def test_orders(instr, instrument, mode, files, settings, mask):
         border_width=settings["border_width"],
         manual=False,
         plot=False,
+        sigma=settings["split_sigma"],
     )
 
     assert isinstance(orders, np.ndarray)

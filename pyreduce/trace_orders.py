@@ -297,10 +297,10 @@ def plot_order(i, j, x, y, img, deg, title=""):
     ymin = min(np.min(y[i]), np.min(y[j])) - 50
     ymax = max(np.max(y[i]), np.max(y[j])) + 50
 
-    yymin = min(max(0, ymin), img.shape[0]-2)
-    yymax = min(ymax, img.shape[0]-1)
-    xxmin = min(max(0, xmin), img.shape[1]-2)
-    xxmax = min(xmax, img.shape[1]-1)
+    yymin = min(max(0, ymin), img.shape[0] - 2)
+    yymax = min(ymax, img.shape[0] - 1)
+    xxmin = min(max(0, xmin), img.shape[1] - 2)
+    xxmax = min(xmax, img.shape[1] - 1)
 
     vmin, vmax = np.percentile(img[yymin:yymax, xxmin:xxmax], (5, 95))
 
@@ -332,7 +332,7 @@ def mark_orders(
     manual=True,
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
-    sigma=2,
+    sigma=0,
 ):
     """ Identify and trace orders
 
@@ -370,7 +370,7 @@ def mark_orders(
         col = median_filter(col, 5)
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
-        filter_size = im.shape[0] // (npeaks *  2)
+        filter_size = im.shape[0] // (npeaks * 2)
         logger.info("Median filter size, estimated: %i", filter_size)
     elif filter_size <= 0:
         raise ValueError(f"Expected filter size > 0, but got {filter_size}")
@@ -476,7 +476,8 @@ def mark_orders(
         #
 
         m = {
-            i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff for i in x.keys()
+            i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff
+            for i in x.keys()
         }
 
         k = max(x.keys()) + 1
@@ -503,7 +504,7 @@ def mark_orders(
                 # plt.imshow(clusters, origin="lower")
                 # plt.show()
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plt.title("Identified clusters")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
@@ -564,7 +565,7 @@ def mark_orders(
 
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
-    if plot: #pragma: no cover
+    if plot:  # pragma: no cover
         plot_orders(im, x, y, n, orders, column_range)
 
     return orders, column_range
