@@ -2,17 +2,17 @@
     "__instrument__": "XSHOOTER",
     "orders": {
         "degree": 5,
-        "degree_before_merge" : 5,
+        "degree_before_merge": 5,
         "filter_size": 50,
         "min_cluster": 500,
-        "noise": 1,
+        "noise": 100,
         "border_width": 20,
         "auto_merge_threshold": 1,
         "merge_min_threshold": 1,
         "manual": true,
         "min_width": null
     },
-    "scatter":{
+    "scatter": {
         "extraction_width": 0.45,
         "border_width": 20
     },
@@ -28,18 +28,27 @@
         "dimensionality": "2D",
         "curv_degree": 1,
         "extraction_width": 0.45,
-        "degree": [1, 1]
+        "degree": [
+            1,
+            1
+        ]
     },
     "wavecal": {
         "extraction_method": "arc",
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [6, 6],
+        "degree": [
+            6,
+            6
+        ],
         "manual": false
     },
     "freq_comb": {
         "dimensionality": "2D",
-        "degree": [6, 6]
+        "degree": [
+            6,
+            6
+        ]
     },
     "science": {
         "oversampling": 10,
