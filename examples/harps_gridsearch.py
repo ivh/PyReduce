@@ -8,10 +8,10 @@ from pyreduce.wavelength_calibration import (
 )
 
 
-def func_wavecal(
-    deg, thar, instrument, mode, **kwargs
-):
-    reference = instruments.instrument_info.get_wavecal_filename(None, instrument, mode)
+def func_wavecal(deg, thar, instrument, mode, **kwargs):
+    reference = instruments.instrument_info.get_wavecal_filename(
+        None, instrument, mode, polarimetry=False
+    )
     reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]
     kwargs["degree"] = deg
@@ -26,6 +26,8 @@ def func_freq_comb(deg, comb, wave, **kwargs):
     kwargs["degree"] = deg
     module = WavelengthCalibrationModule(**kwargs)
     wave = module.frequency_comb(comb, wave)
+    if module.n_lines_good < 8000:
+        raise ValueError("Not enough lines found")
     return module.aic
 
 
@@ -60,37 +62,48 @@ kwargs = config["wavecal"]
 kwargs_comb = config["freq_comb"]
 kwargs["dimensionality"] = f"{ndim}D"
 kwargs_comb["dimensionality"] = f"{ndim}D"
+kwargs_comb["nstep"] = 0
+kwargs["plot"] = False
+
 
 for key in ["extraction_method", "extraction_width", "extraction_cutoff"]:
     del kwargs_comb[key]
     del kwargs[key]
 
-shape = tuple([20] * ndim)
+shape = tuple([15] * ndim)
 grid = np.zeros((*shape, ndim), int)
 for i in np.ndindex(shape):
     grid[i] = i
     grid[i] += 1
 
-matrix = util.gridsearch(func_wavecal, grid, args=(thar, instrument, mode), kwargs=kwargs)
-np.save(f"matrix_{ndim}D.npy", matrix)
+# aic = func_freq_comb((3, 6), comb, wave, **kwargs_comb)
+# aic = func_wavecal((3, 6), thar, instrument, mode, **kwargs)
+
+# matrix = util.gridsearch(
+#     func_wavecal, grid, args=(thar, instrument, mode), kwargs=kwargs
+# )
+# np.save(f"matrix_{ndim}D.npy", matrix)
+# matrix = np.load(f"matrix_{ndim}D.npy")
 
 # matrix = util.gridsearch(func_freq_comb, grid, args=(comb, wave), kwargs=kwargs_comb)
-# np.save(f"matrix_comb_{ndim}D.npy", matrix)
+# np.save(f"matrix_comb_{ndim}D_nstep.npy", matrix)
 
-# matrix = np.load(f"matrix_comb_{ndim}D.npy")
+matrix = np.load(f"matrix_comb_{ndim}D_nstep.npy")
 
 if ndim == 1:
+    idx = np.argmin(np.nan_to_num(matrix, nan=np.inf))
     plt.plot(grid[:, 0], matrix)
+    plt.plot(grid[idx, 0], matrix[idx], "rD")
 elif ndim == 2:
-    idx = np.unravel_index(np.argmin(np.nan_to_num(matrix)), matrix.shape)
+    idx = np.unravel_index(np.argmin(np.nan_to_num(matrix, nan=np.inf)), matrix.shape)
     # matrix = np.log(np.abs(matrix)) * np.sign(matrix)
-    plt.imshow(matrix, origin="lower", cmap="viridis_r", vmax=-100000)
+    plt.imshow(matrix, origin="lower", cmap="viridis_r", vmax=-190000)
     cb = plt.colorbar()
     plt.plot(idx[1], idx[0], "rD")
-    plt.xticks(range(shape[0]), labels=grid[:, 0, 0])
-    plt.yticks(range(shape[1]), labels=grid[0, :, 1])
-    plt.xlabel("degree in dispersion direction")
-    plt.ylabel("degree in cross-dispersion direction")
+    plt.xticks(range(len(grid[:, 0, 0])), labels=grid[:, 0, 0])
+    plt.yticks(range(len(grid[0, :, 1])), labels=grid[0, :, 1])
+    plt.xlabel("degree in cross-dispersion direction")
+    plt.ylabel("degree in dispersion direction")
     cb.ax.set_ylabel("AIC", rotation=-90, va="bottom")
     plt.tight_layout()
 plt.show()
