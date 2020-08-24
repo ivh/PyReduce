@@ -60,7 +60,6 @@ class ProgressPlot:  # pragma: no cover
 
         self.fig.tight_layout()
 
-
         # Just plot empty pictures, to create the plots
         # Update the data later
         img = np.ones((nrow, ncol))
@@ -70,16 +69,16 @@ class ProgressPlot:  # pragma: no cover
         self.im_obs = self.ax1.imshow(img)
         self.im_model = self.ax4.imshow(img)
 
-        self.dots_spec, = self.ax2.plot(
+        (self.dots_spec,) = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
-        self.line_spec, = self.ax2.plot(np.zeros(ncol), "-k")
-        self.mask_spec, = self.ax2.plot(np.zeros(self.nbad), "Pg")
-        self.dots_slit, = self.ax3.plot(
+        (self.line_spec,) = self.ax2.plot(np.zeros(ncol), "-k")
+        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), "Pg")
+        (self.dots_slit,) = self.ax3.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
-        self.line_slit, = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
-        self.mask_slit, = self.ax3.plot(np.zeros(self.nbad), "Pg")
+        (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
+        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), "Pg")
 
         # self.ax1.set_zscale("log")
         # self.ax4.set_zscale("log")
@@ -137,7 +136,9 @@ class ProgressPlot:  # pragma: no cover
         self.im_model.remove()
         # y, x = np.indices(model.shape)
         # self.im_model = self.ax4.plot_surface(x, y, model)
-        self.im_model = self.ax4.imshow(model, aspect="auto", origin="lower", vmin=vmin, vmax=vmax)
+        self.im_model = self.ax4.imshow(
+            model, aspect="auto", origin="lower", vmin=vmin, vmax=vmax
+        )
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
