@@ -1315,7 +1315,7 @@ class ScienceExtraction(Step):
         heads, specs, sigmas, columns = [], [], [], []
         for fname in tqdm(files, desc="Files"):
             im, head = self.instrument.load_fits(
-                fname, self.mode, mask=mask, dtype=np.floating
+                fname, self.mode, mask=mask, dtype="f8"
             )
             # Correct for bias and flat field
             if bias is not None:
