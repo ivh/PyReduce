@@ -5,7 +5,7 @@
         "degree_before_merge": 5,
         "filter_size": 50,
         "min_cluster": 500,
-        "noise": 100,
+        "noise": 50,
         "border_width": 20,
         "auto_merge_threshold": 1,
         "merge_min_threshold": 1,

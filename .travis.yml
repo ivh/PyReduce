@@ -2,8 +2,9 @@
 #   - test
 #   - deploy
 
+# For whatever reason it fails 
 os: linux
-dist: xenial
+dist: bionic
 language: python
 python:
   - "3.6"
