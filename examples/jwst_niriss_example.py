@@ -10,8 +10,8 @@ from pyreduce import datasets
 
 # define parameters
 instrument = "JWST_NIRISS"
-target = ""
-night = "????-??-??"
+target = None
+night = None
 mode = "GR700XD"
 steps = (
     "bias",

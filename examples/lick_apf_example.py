@@ -11,7 +11,7 @@ from pyreduce import datasets
 # define parameters
 instrument = "Lick_APF"
 target = "KIC05005618"
-night = "????-??-??"
+night = None
 mode = ""
 steps = (
     "bias",

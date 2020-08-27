@@ -1,8 +1,10 @@
 {
     "__instrument__": "NIRSPEC",
     "instrument": "CURRINST",
+    "id_instrument": "NIRSPEC",
     "telescope": "Keck",
     "date": "DATE-OBS",
+    "date_format": "fits",
     "modes": ["NIRSPEC"],
     "extension": 0,
     "orientation": 0,
@@ -27,11 +29,27 @@
     "latitude": 19.8283333,
     "altitude": 4160,
     "target": "OBJECT",
-    "id_bias": "BIAS",
-    "id_flat": "FLAT",
+
     "id_neon": "NEON",
     "id_argon": "ARGON",
     "id_krypton": "KRYPTON",
     "id_xenon": "XENON",
-    "id_etalon": "ETALON"
+    "id_etalon": "ETALON",
+
+    "kw_bias" : null,
+    "kw_flat" : null,
+    "kw_curvature": null,
+    "kw_scatter": null,
+    "kw_orders" : null,
+    "kw_wave": null,
+    "kw_comb": null,
+    "kw_spec": null,
+    "id_bias" : "BIAS",
+    "id_flat": "FLAT",
+    "id_orders": null,
+    "id_curvature": null,
+    "id_scatter": null,
+    "id_wave": null,
+    "id_comb": null,
+    "id_spec": null
 }

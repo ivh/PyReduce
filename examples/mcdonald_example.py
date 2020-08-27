@@ -11,7 +11,7 @@ from pyreduce import datasets
 # define parameters
 instrument = "McDonald"
 target = "Vega"
-night = "all"
+night = None
 mode = "R240"
 steps = (
     # "bias",

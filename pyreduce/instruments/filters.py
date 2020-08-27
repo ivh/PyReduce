@@ -22,8 +22,14 @@ class Filter:
 
     def collect(self, header):
         if self.keyword is None:
-            return None
-        value = header.get(self.keyword)
+            value = ""
+        else:
+            value = header.get(self.keyword)
+        if value.__class__ == header.__class__:
+            if len(value) > 0:
+                value = value[0]
+            else:
+                value = ""
         self.data.append(value)
         return value
 

@@ -35,9 +35,9 @@
         },
         "extension": {
             "description": "the extension of the fits file to use to access the data",
-            "value": ["integer", "array"],
+            "value": ["integer", "string", "array"],
             "items": {
-                "value": "integer"
+                "value": ["integer", "string"]
             }
         },
         "orientation": {

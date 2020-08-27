@@ -11,9 +11,9 @@ from pyreduce.configuration import get_configuration_for_instrument
 
 # define parameters
 instrument = "Crires_plus"
-target = ""
+target = None
 night = "2019-07-21"
-mode = "J_2_3_OPEN"
+mode = "J/2/3_Open"
 steps = (
     # "bias",
     # "flat",
