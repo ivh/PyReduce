@@ -113,7 +113,7 @@ class instrument:
 
         self.filters = {
             "instrument": InstrumentFilter(self.info["instrument"], regex=True),
-            "night": NightFilter(self.info["date"], timeformat=self.info["date_format"]),
+            "night": NightFilter(self.info["date"], timeformat=self.info.get("date_format", "fits")),
             "target": ObjectFilter(self.info["target"], regex=True),
             "bias": Filter(self.info["kw_bias"]),
             "flat": Filter(self.info["kw_flat"]),
