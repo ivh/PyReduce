@@ -1,8 +1,10 @@
 {
     "__instrument__": "XSHOOTER",
     "instrument": "INSTRUME",
+    "id_instrument": "SHOOT|XSHOOTER",
     "telescope": "VLT",
-    "date": "DATE-OBS",
+    "date": "MJD-OBS",
+    "date_format": "mjd",
     "modes": ["NIR"],
     "extension": [0],
     "orientation": 0,
@@ -27,12 +29,29 @@
     "observation_category": "HIERARCH ESO DPR CATG",
     "target": "HIERARCH ESO OBS TARG NAME",
     "object": "OBJECT",
+
     "id_dark": "DARK",
+    "id_format": "LAMP,FMTCHK",
+    "id_tell": "STD,TELLURIC",
+
+    "kw_mode": null,
+    "kw_bias" : "HIERARCH ESO DPR TYPE",
+    "kw_flat" : "HIERARCH ESO DPR TYPE",
+    "kw_curvature": "HIERARCH ESO DPR TYPE",
+    "kw_scatter": "HIERARCH ESO DPR TYPE",
+    "kw_orders" : "HIERARCH ESO DPR TYPE",
+    "kw_wave": "HIERARCH ESO DPR TYPE",
+    "kw_comb": null,
+    "kw_spec": "HIERARCH ESO DPR TYPE",
+
+    "id_mode": null,
     "id_bias": "DARK",
     "id_flat": "LAMP,FLAT",
-    "id_format": "LAMP,FMTCHK",
-    "id_wavecal": "LAMP,WAVE",
     "id_orders": "LAMP,ORDERDEF",
-    "id_spec": "OBJECT",
-    "id_tell": "STD,TELLURIC"
+    "id_curvature": "LAMP,WAVE",
+    "id_scatter": "LAMP,FLAT",
+    "id_wave": "LAMP,WAVE",
+    "id_comb": null,
+    "id_spec": "OBJECT"
+
 }

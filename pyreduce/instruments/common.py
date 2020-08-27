@@ -8,6 +8,7 @@ import glob
 import logging
 import json
 from itertools import product
+from tqdm import tqdm
 
 import numpy as np
 from astropy.io import fits
@@ -111,10 +112,19 @@ class instrument:
         self.info = self.load_info()
 
         self.filters = {
-            "instrument": InstrumentFilter(self.info["instrument"]),
-            "night": NightFilter(self.info["date"]),
+            "instrument": InstrumentFilter(self.info["instrument"], regex=True),
+            "night": NightFilter(self.info["date"], timeformat=self.info["date_format"]),
             "target": ObjectFilter(self.info["target"], regex=True),
+            "bias": Filter(self.info["kw_bias"]),
+            "flat": Filter(self.info["kw_flat"]),
+            "orders": Filter(self.info["kw_orders"]),
+            "curvature": Filter(self.info["kw_curvature"]),
+            "scatter": Filter(self.info["kw_scatter"]),
+            "wave": Filter(self.info["kw_wave"]),
+            "comb": Filter(self.info["kw_comb"]),
+            "spec": Filter(self.info["kw_spec"]),
         }
+
         self.night = "night"
         self.science = "science"
         self.shared = ["instrument", "night"]
@@ -122,6 +132,7 @@ class instrument:
             "bias",
             "flat",
             "wavecal",
+            "comb",
             "orders",
             "scatter",
             "curvature",
@@ -249,13 +260,9 @@ class instrument:
         header["INSTRUME"] = get("instrument", self.__class__.__name__)
         header["TELESCOP"] = get("telescope", "")
         header["EXPTIME"] = get("exposure_time", 0)
-        header["MJD-OBS"] = get("date", 0)
-
-        if isinstance(header["MJD-OBS"], str):
-            try:
-                header["MJD-OBS"] = Time(header["MJD-OBS"]).mjd
-            except:
-                logger.warning("Unable to determine the MJD date of the observation")
+        
+        jd = Time(get("date"), format=self.info["date_format"])
+        header["MJD-OBS"] = jd.to_value("mjd")
 
         header["e_orient"] = get("orientation", 0)
 
@@ -285,7 +292,7 @@ class instrument:
 
         header["e_ra"] = get("ra", 0)
         header["e_dec"] = get("dec", 0)
-        header["e_jd"] = get("jd", 0)
+        header["e_jd"] = jd.to_value("mjd")
 
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
@@ -316,14 +323,14 @@ class instrument:
 
     def get_expected_values(self, target, night, *args, **kwargs):
         expectations = {
-            "bias": {"instrument": self.name, "night": night},
-            "flat": {"instrument": self.name, "night": night},
-            "orders": {"instrument": self.name, "night": night},
-            "scatter": {"instrument": self.name, "night": night},
-            "curvature": {"instrument": self.name, "night": night},
-            "wavecal": {"instrument": self.name, "night": night},
-            "freq_comb": {"instrument": self.name, "night": night},
-            "science": {"instrument": self.name, "night": night, "target": target},
+            "bias": {"instrument": self.info["id_instrument"], "night": night, "bias": self.info["id_bias"]},
+            "flat": {"instrument": self.info["id_instrument"], "night": night, "flat": self.info["id_flat"]},
+            "orders": {"instrument": self.info["id_instrument"], "night": night, "orders": self.info["id_orders"]},
+            "scatter": {"instrument": self.info["id_instrument"], "night": night, "scatter": self.info["id_scatter"]},
+            "curvature": {"instrument": self.info["id_instrument"], "night": night, "curvature": self.info["id_curvature"]},
+            "wavecal": {"instrument": self.info["id_instrument"], "night": night, "wave": self.info["id_wave"]},
+            "freq_comb": {"instrument": self.info["id_instrument"], "night": night, "comb": self.info["id_comb"]},
+            "science": {"instrument": self.info["id_instrument"], "night": night, "target": target, "spec": self.info["id_spec"]},
         }
         return expectations
 
@@ -344,7 +351,7 @@ class instrument:
         for _, fil in self.filters.items():
             fil.clear()
 
-        for f in files:
+        for f in tqdm(files):
             h = fits.open(f)[0].header
 
             for _, fil in self.filters.items():

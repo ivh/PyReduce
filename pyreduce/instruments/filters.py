@@ -11,24 +11,28 @@ logger = logging.getLogger(__name__)
 
 
 class Filter:
-    def __init__(self, keyword, dtype="U20", wildcards=False, regex=False, flags=0):
+    def __init__(self, keyword, dtype="U20", wildcards=False, regex=False, flags=0, unique=True):
         self.keyword = keyword
         self.dtype = dtype
         self.wildcards = wildcards
         self.regex = regex
         self.flags = flags
         self.data = []
+        self.unique = unique
 
     def collect(self, header):
+        if self.keyword is None:
+            return None
         value = header.get(self.keyword)
         self.data.append(value)
         return value
 
     def match(self, value):
-        # result = np.full(len(self.data), False)
-        if self.regex:
+        if self.keyword is None:
+            result = np.full(len(self.data), False)
+        elif self.regex:
             regex = re.compile(f"^(?:{value})$", flags=self.flags)
-            match = [regex.match(f) is not None for f in self.data]
+            match = [regex.match(f) is not None if f is not None else False for f in self.data]
             result = np.asarray(match, dtype=bool)
         elif self.wildcards:
             match = [fnmatch(f, value) for f in self.data]
@@ -39,13 +43,20 @@ class Filter:
         return result
 
     def classify(self, value):
-        if value is not None:
-            match = self.match(value)
-            data = np.asarray(self.data)
-            data = np.unique(data[match])
+        if self.unique:
+            if value is not None and value != "":
+                match = self.match(value)
+                data = np.asarray(self.data)
+                data = np.unique(data[match])
+            else:
+                data = np.unique(self.data)
+            data = [(d, self.match(d)) for d in data]
         else:
-            data = np.unique(self.data)
-        data = [(d, self.match(d)) for d in data]
+            if value is not None and value != "":
+                match = self.match(value)
+            else:
+                match = np.full(len(self.data), True)
+            data = [(value, match)]
         return data
 
     def clear(self):
@@ -54,12 +65,16 @@ class Filter:
 
 class InstrumentFilter(Filter):
     def __init__(self, keyword="INSTRUME", **kwargs):
-        super().__init__(keyword, dtype="U20", **kwargs)
+        kwargs["dtype"] = "U20"
+        kwargs["unique"] = False
+        super().__init__(keyword, **kwargs)
 
 
 class ObjectFilter(Filter):
     def __init__(self, keyword="OBJECT", **kwargs):
-        super().__init__(keyword, dtype="U20", **kwargs)
+        kwargs["dtype"] = "U20"
+        kwargs["unique"] = False
+        super().__init__(keyword, **kwargs)
 
 
 class NightFilter(Filter):
@@ -78,8 +93,11 @@ class NightFilter(Filter):
 
     def collect(self, header):
         value = header.get(self.keyword)
-        value = Time(value, format=self.timeformat)
-        value = NightFilter.observation_date_to_night(value)
+        if value is not None:
+            value = Time(value, format=self.timeformat)
+            value = NightFilter.observation_date_to_night(value)
+        else:
+            logger.warning("Could not determine the observation date of %s, skipping it", header)
         self.data.append(value)
         return value
 
