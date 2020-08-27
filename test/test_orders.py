@@ -4,26 +4,32 @@ import numpy as np
 
 from pyreduce import util
 from pyreduce.trace_orders import mark_orders
+from pyreduce.combine_frames import combine_frames
 
 
 def test_orders(instr, instrument, mode, files, settings, mask):
     if len(files["orders"]) == 0:
         pytest.skip(f"No order definition files found for instrument {instrument}")
 
-    files = files["orders"][0]
-    order_img, _ = instr.load_fits(files, mode, mask=mask)
+    order_img, _ = combine_frames(files["orders"], instrument, mode, mask=mask)
     settings = settings["orders"]
 
     orders, column_range = mark_orders(
         order_img,
         min_cluster=settings["min_cluster"],
+        min_width=settings["min_width"],
         filter_size=settings["filter_size"],
         noise=settings["noise"],
         opower=settings["degree"],
+        degree_before_merge=settings["degree_before_merge"],
+        regularization=settings["regularization"],
+        closing_shape=settings["closing_shape"],
         border_width=settings["border_width"],
         manual=False,
-        plot=False,
+        auto_merge_threshold=settings["auto_merge_threshold"],
+        merge_min_threshold=settings["merge_min_threshold"],
         sigma=settings["split_sigma"],
+        plot=False,
     )
 
     assert isinstance(orders, np.ndarray)
