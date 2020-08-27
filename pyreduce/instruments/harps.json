@@ -1,9 +1,11 @@
 {
     "__comment__": "red and middle are in the same fits file, with different extensions, i.e. share the same mode identifier, but have different extensions",
     "__instrument__": "HARPS",
+    "id_instrument": "HARPS(pol)?",
     "instrument": "INSTRUME",
     "telescope": "TELESCOP",
     "date": "DATE-OBS",
+    "date_format": "fits",
     "modes": [
         "BLUE",
         "RED"
@@ -48,19 +50,32 @@
     "category": "HIERARCH ESO DPR CATG",
     "ra": "RA",
     "dec": "DEC",
-    "jd": "MJD-OBS",
     "longitude": "HIERARCH ESO TEL GEOLON",
     "latitude": "HIERARCH ESO TEL GEOLAT",
     "altitude": "HIERARCH ESO TEL GEOELEV",
     "target": "OBJECT",
+
+    "instrument_mode": "ESO INS MODE",
+    "instrument_mode_alternative": "ESO TPL NAME",
+
     "observation_type": "ESO DPR TYPE",
-    "id_bias": "BIAS,BIAS",
-    "id_flat": "LAMP,LAMP,TUN",
-    "id_wave": "WAVE,WAVE,THAR2",
-    "id_spec": "STAR,*,*",
-    "id_comb": "WAVE,WAVE,COMB",
     "id_fiber_a": "LAMP,DARK,TUN",
     "id_fiber_b": "DARK,LAMP,TUN",
-    "instrument_mode": "ESO INS MODE",
-    "instrument_mode_alternative": "ESO TPL NAME"
+
+    "kw_bias" : "ESO DPR TYPE",
+    "kw_flat" : "ESO DPR TYPE",
+    "kw_curvature": "ESO DPR TYPE",
+    "kw_scatter": "ESO DPR TYPE",
+    "kw_orders" : "ESO DPR TYPE",
+    "kw_wave": "ESO DPR TYPE",
+    "kw_comb": "ESO DPR TYPE",
+    "kw_spec": "ESO DPR TYPE",
+    "id_bias" : "BIAS,BIAS",
+    "id_flat": "LAMP,LAMP,TUN",
+    "id_orders": "LAMP,LAMP,TUN",
+    "id_curvature": "WAVE,WAVE,THAR2",
+    "id_scatter": "LAMP,LAMP,TUN",
+    "id_wave": "WAVE,WAVE,THAR2",
+    "id_comb": "WAVE,WAVE,COMB",
+    "id_spec": "STAR,*,*"
 }

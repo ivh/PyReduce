@@ -1,5 +1,4 @@
 {
-    "__comment__": "This is the schema for the instrument specific data",
     "__instrument__": "COMMON",
     "instrument": "INSTRUME",
     "id_instrument": "COMMON",
@@ -30,7 +29,7 @@
     "kw_flat" : "",
     "kw_curvature": "",
     "kw_scatter": "",
-    "kw_order" : "",
+    "kw_orders" : "",
     "kw_wave": "",
     "kw_comb": "",
     "kw_spec": "",
