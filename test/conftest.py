@@ -46,7 +46,7 @@ def tempfiles():
 # TODO Add more datasets
 @pytest.fixture(
     params=[
-        ("UVES", "HD132205"),
+        ("UVES", "HD[ -]?132205"),
         ("XSHOOTER", "UX-Ori"),
         ("NIRSPEC", "GJ1214"),
         ("JWST_NIRISS", ""),

@@ -85,7 +85,7 @@ class JWST_NIRISS(instrument):
             files_split = []
             for f in file["science"]:
                 files_split += self.split_observation(f, mode)
-            files[i]["science"] = files_split
+            files[i][1]["science"] = files_split
         return files
 
     def get_wavecal_filename(self, header, mode, **kwargs):

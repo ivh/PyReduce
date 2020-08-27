@@ -7,7 +7,7 @@
     "date": "DATE-OBS",
     "date_format": "fits",
     "extension": 0,
-    "orientation": 5,
+    "orientation": 0,
     "prescan_x": 0,
     "overscan_x": 0,
     "prescan_y": 0,

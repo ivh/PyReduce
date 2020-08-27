@@ -30,7 +30,7 @@ def create_file(file, nx=100, ny=100, ovscx=5):
             "EXPTIME": 1,
             "RA": 100,
             "DEC": 51,
-            "DATE-OBS": 12030,
+            "DATE-OBS": "2011-07-17T21:09:37.7545",
         }
     )
     fits.writeto(file, data=data, header=head)

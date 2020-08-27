@@ -257,12 +257,14 @@ class instrument:
         info = self.load_info()
         get = getter(header, info, mode)
 
-        header["INSTRUME"] = get("instrument", self.__class__.__name__)
-        header["TELESCOP"] = get("telescope", "")
-        header["EXPTIME"] = get("exposure_time", 0)
+        header["e_instrument"] = get("instrument", self.__class__.__name__)
+        header["e_telescope"] = get("telescope", "")
+        header["e_exptime"] = get("exposure_time", 0)
         
-        jd = Time(get("date"), format=self.info["date_format"])
-        header["MJD-OBS"] = jd.to_value("mjd")
+        jd = get("date")
+        if jd is not None:
+            jd = Time(jd, format=self.info.get("date_format", "fits"))
+            jd = jd.to_value("mjd")
 
         header["e_orient"] = get("orientation", 0)
 
@@ -292,7 +294,7 @@ class instrument:
 
         header["e_ra"] = get("ra", 0)
         header["e_dec"] = get("dec", 0)
-        header["e_jd"] = jd.to_value("mjd")
+        header["e_jd"] = jd
 
         header["e_obslon"] = get("longitude")
         header["e_obslat"] = get("latitude")
@@ -538,13 +540,14 @@ class instrument:
 
 
 class COMMON(instrument):
-    def load_info(self):
-        return {
-            "instrument": "INSTRUME",
-            "date": "DATE-OBS",
-            "target": "OBJECT",
-            "naxis_x": "NAXIS1",
-            "naxis_y": "NAXIS2",
-            "modes": [""],
-            "modes_id": [""],
-        }
+    pass
+    # def load_info(self):
+    #     return {
+    #         "instrument": "INSTRUME",
+    #         "date": "DATE-OBS",
+    #         "target": "OBJECT",
+    #         "naxis_x": "NAXIS1",
+    #         "naxis_y": "NAXIS2",
+    #         "modes": [""],
+    #         "modes_id": [""],
+    #     }

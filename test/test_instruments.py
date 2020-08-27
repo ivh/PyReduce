@@ -10,7 +10,7 @@ from pyreduce.instruments import common
 
 supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.json"))
 supported_instruments = [basename(f)[:-5] for f in supported_instruments]
-supported_instruments = [f for f in supported_instruments if f not in ["common"]]
+supported_instruments = [f for f in supported_instruments if f not in ["common", "instrument_schema"]]
 
 
 @pytest.fixture(params=supported_instruments)
@@ -46,7 +46,7 @@ def test_get_instrument_info(supported_instrument):
 
 def test_modeinfo(supported_instrument, supported_modes):
     # Standard FITS header keywords
-    required_keywords = ["INSTRUME", "TELESCOP", "EXPTIME", "MJD-OBS"]
+    required_keywords = ["e_instrument", "e_telescope", "e_exptime", "e_jd"]
     # PyReduce keywords
     required_keywords += [
         "e_xlo",
@@ -62,7 +62,6 @@ def test_modeinfo(supported_instrument, supported_modes):
         "e_ctg",
         "e_ra",
         "e_dec",
-        "e_jd",
         "e_obslon",
         "e_obslat",
         "e_obsalt",

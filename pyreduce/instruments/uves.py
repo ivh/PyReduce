@@ -25,7 +25,8 @@ class UVES(instrument):
         header = super().add_header_info(header, mode)
 
         header["e_ra"] /= 15
-        header["e_jd"] += header["EXPTIME"] / (7200 * 24) + 0.5
+        if header["e_jd"] is not None:
+            header["e_jd"] += header["e_exptime"] / (7200 * 24) + 0.5
 
         return header
 

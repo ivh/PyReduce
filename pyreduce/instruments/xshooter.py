@@ -25,11 +25,12 @@ class XSHOOTER(instrument):
         header = super().add_header_info(header, mode)
 
         header["e_backg"] = (
-            header["e_readn"] + header["EXPTIME"] * header["e_drk"] / 3600
+            header["e_readn"] + header["e_exptime"] * header["e_drk"] / 3600
         )
 
         header["e_ra"] /= 15
-        header["e_jd"] += header["MJD-OBS"] + header["EXPTIME"] / 2 / 3600 / 24 + 0.5
+        if header["e_jd"] is not None:
+            header["e_jd"] += header["e_exptime"] / 2 / 3600 / 24 + 0.5
 
         return header
 
