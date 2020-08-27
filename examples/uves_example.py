@@ -10,7 +10,7 @@ from pyreduce import datasets
 
 # define parameters
 instrument = "UVES"
-target = "HD132205"
+target = "HD[- ]?132205"
 night = "2010-04-01"
 mode = "middle"
 steps = (
