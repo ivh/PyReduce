@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/AWehrhahn/PyReduce.svg?branch=master)](https://travis-ci.org/AWehrhahn/PyReduce)
+[![Build Status](https://travis-ci.com/AWehrhahn/PyReduce.svg?branch=master)](https://travis-ci.com/AWehrhahn/PyReduce)
 [![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
 [![Updates](https://pyup.io/repos/github/AWehrhahn/PyReduce/shield.svg)](https://pyup.io/repos/github/AWehrhahn/PyReduce/)
 
