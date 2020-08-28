@@ -19,7 +19,7 @@
     "norm_flat": {
         "smooth_slitfunction": 1e3,
         "smooth_spectrum": 1e-7,
-        "extraction_width": 0.3,
+        "extraction_width": 0.5,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -35,13 +35,15 @@
     },
     "wavecal": {
         "extraction_method": "arc",
-        "threshold": 100,
+        "threshold": 100000000,
+        "iterations": 0,
         "dimensionality": "2D",
         "degree": [
             6,
-            6
+            2
         ],
-        "manual": false
+        "manual": false,
+        "shift_window": 0
     },
     "freq_comb": {
         "dimensionality": "2D",

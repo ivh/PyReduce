@@ -16,6 +16,7 @@ from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
+from scipy.ndimage.morphology import grey_closing
 
 from astropy.io import fits
 
@@ -205,6 +206,7 @@ class WavelengthCalibration:
         manual=False,
         polarim=False,
         lfc_peak_width=3,
+        closing=5,
         element=None,
         plot=True,
     ):
@@ -234,7 +236,8 @@ class WavelengthCalibration:
         self.element = element
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
         self.lfc_peak_width = lfc_peak_width
-
+        #:int: grey closing range for the input image
+        self.closing = 5
         #:int: Number of orders in the observation
         self.nord = None
         #:int: Number of columns in the observation
@@ -281,6 +284,8 @@ class WavelengthCalibration:
         # normalize order by order
         obs = np.ma.copy(obs)
         for i in range(len(obs)):
+            if self.closing > 0:
+                obs[i] = grey_closing(obs[i], self.closing)
             try:
                 obs[i] -= np.ma.min(obs[i][obs[i] > 0])
             except ValueError:
@@ -487,7 +492,7 @@ class WavelengthCalibration:
                 # Gaussian fit failed, dont use line
                 lines[i]["flag"] = False
 
-            if self.plot >= 2:
+            if self.plot >= 2 and lines[i]["flag"]:
                 x2 = np.linspace(x.min(), x.max(), len(x) * 100)
                 plt.plot(x, section, label="Observation")
                 plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
@@ -528,11 +533,14 @@ class WavelengthCalibration:
         m_ord = lines["order"][mask]
 
         if self.dimensionality == "1D":
-            nord = m_ord.max() + 1
+            nord = int(m_ord.max() + 1)
             coef = np.zeros((nord, self.degree + 1))
             for i in range(nord):
                 select = m_ord == i
-                coef[i] = np.polyfit(m_pix[select], m_wave[select], deg=self.degree)
+                deg = max(min(self.degree, np.count_nonzero(select) - 2), 0)
+                coef[i, -(deg + 1) :] = np.polyfit(
+                    m_pix[select], m_wave[select], deg=deg
+                )
         elif self.dimensionality == "2D":
             # 2d polynomial fit with: x = column, y = order, z = wavelength
             coef = util.polyfit2d(m_pix, m_ord, m_wave, degree=self.degree, plot=False)
@@ -732,7 +740,7 @@ class WavelengthCalibration:
             result = np.zeros(pos.shape)
             for i in np.unique(order):
                 select = order == i
-                result[select] = np.polyval(solution[i], pos[select])
+                result[select] = np.polyval(solution[int(i)], pos[select])
         elif self.dimensionality == "2D":
             result = np.polynomial.polynomial.polyval2d(pos, order, solution)
         else:
