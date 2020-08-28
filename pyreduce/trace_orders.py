@@ -64,6 +64,8 @@ def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol,
     ind_i = np.where((diff_i < mean_cluster_thickness) & (y_ji >= 0) & (y_ji < nrow))
     ind_j = np.where((diff_j < mean_cluster_thickness) & (y_ij >= 0) & (y_ij < nrow))
 
+    # TODO: There should probably be some kind of normaliztion, that scales with the size of the cluster?
+    # or possibly only use the closest pixels to determine overlap, since the polynomial is badly constrained outside of the bounds.
     overlap = len(ind_i[0]) + len(ind_j[0])
     overlap = overlap / ((i_right - i_left) + (j_right - j_left))
     if i_right < j_left:
