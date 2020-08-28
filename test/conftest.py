@@ -136,6 +136,8 @@ def mode(instrument, info):
 
     if instrument == "UVES":
         return "MIDDLE"
+    elif instrument == "XSHOOTER":
+        return "NIR"
 
     modes = info["modes"]
     if isinstance(modes, list):
