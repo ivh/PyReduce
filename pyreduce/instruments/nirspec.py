@@ -14,12 +14,12 @@ from astropy.io import fits
 from astropy.coordinates import EarthLocation
 from dateutil import parser
 
-from .common import getter, instrument, observation_date_to_night
+from .common import getter, Instrument, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 
 
-class NIRSPEC(instrument):
+class NIRSPEC(Instrument):
     @staticmethod
     def get_mode(header):
         # TODO figure out the parameters to use for this

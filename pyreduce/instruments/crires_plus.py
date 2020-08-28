@@ -14,19 +14,19 @@ import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
-from .common import getter, instrument, observation_date_to_night
+from .common import getter, Instrument, observation_date_to_night
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
 
 
-class CRIRES_PLUS(instrument):
+class CRIRES_PLUS(Instrument):
     def __init__(self):
         super().__init__()
         self.filters["lamp"] = Filter(self.info["id_lamp"])
         self.filters["band"] = Filter(self.info["id_band"])
         self.filters["decker"] = Filter(self.info["id_decker"])
-    
+
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
@@ -41,7 +41,8 @@ class CRIRES_PLUS(instrument):
 
         band, decker = mode.rsplit("_", 1)
         for key in expectations.keys():
-            if key == "bias": continue
+            if key == "bias":
+                continue
             expectations[key]["band"] = band
             expectations[key]["decker"] = decker
 

@@ -5,8 +5,18 @@
     "telescope": "VLT",
     "date": "MJD-OBS",
     "date_format": "mjd",
-    "modes": ["NIR"],
-    "extension": [0],
+    "modes": [
+        "UVB",
+        "VIS",
+        "NIR"
+    ],
+    "kw_modes": "ESO DET CHIP*NAME",
+    "id_modes": [
+        "E2V CCD44-82",
+        "MIT/LL CCID-20",
+        "Hawaii2RG"
+    ],
+    "extension": 0,
     "orientation": 0,
     "prescan_x": 0,
     "overscan_x": 0,
@@ -14,8 +24,8 @@
     "overscan_y": 0,
     "naxis_x": "NAXIS1",
     "naxis_y": "NAXIS2",
-    "gain": 1,
-    "readnoise": 4,
+    "gain": "HIERARCH ESO DET OUT1 GAIN",
+    "readnoise": "HIERARCH ESO DET OUT1 RON",
     "dark": 10,
     "exposure_time": "EXPTIME",
     "ra": "RA",
@@ -29,21 +39,18 @@
     "observation_category": "HIERARCH ESO DPR CATG",
     "target": "HIERARCH ESO OBS TARG NAME",
     "object": "OBJECT",
-
     "id_dark": "DARK",
     "id_format": "LAMP,FMTCHK",
     "id_tell": "STD,TELLURIC",
-
     "kw_mode": null,
-    "kw_bias" : "HIERARCH ESO DPR TYPE",
-    "kw_flat" : "HIERARCH ESO DPR TYPE",
+    "kw_bias": "HIERARCH ESO DPR TYPE",
+    "kw_flat": "HIERARCH ESO DPR TYPE",
     "kw_curvature": "HIERARCH ESO DPR TYPE",
     "kw_scatter": "HIERARCH ESO DPR TYPE",
-    "kw_orders" : "HIERARCH ESO DPR TYPE",
+    "kw_orders": "HIERARCH ESO DPR TYPE",
     "kw_wave": "HIERARCH ESO DPR TYPE",
     "kw_comb": null,
     "kw_spec": "HIERARCH ESO DPR TYPE",
-
     "id_mode": null,
     "id_bias": "DARK",
     "id_flat": "LAMP,FLAT",
@@ -53,5 +60,4 @@
     "id_wave": "LAMP,WAVE",
     "id_comb": null,
     "id_spec": "OBJECT"
-
 }

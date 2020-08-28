@@ -12,12 +12,12 @@ import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
-from .common import getter, instrument, observation_date_to_night
+from .common import getter, Instrument, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 
 
-class UVES(instrument):
+class UVES(Instrument):
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
@@ -29,7 +29,6 @@ class UVES(instrument):
             header["e_jd"] += header["e_exptime"] / (7200 * 24) + 0.5
 
         return header
-
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

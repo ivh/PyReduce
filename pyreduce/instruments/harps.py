@@ -10,7 +10,7 @@ from os.path import dirname, join
 
 import numpy as np
 
-from .common import instrument
+from .common import Instrument
 from .filters import Filter, InstrumentFilter, NightFilter, ObjectFilter
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class PolarizationFilter(Filter):
         return value
 
 
-class HARPS(instrument):
+class HARPS(Instrument):
     def __init__(self):
         super().__init__()
         self.filters = {

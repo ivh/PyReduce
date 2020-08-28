@@ -15,17 +15,13 @@ from astropy.io import fits
 from astropy.time import Time
 from dateutil import parser
 
-from .common import getter, instrument, observation_date_to_night
+from .common import getter, InstrumentWithModes, observation_date_to_night
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
 
 
-class MCDONALD(instrument):
-    def __init__(self):
-        super().__init__()
-        self.filters["mode"] = Filter(self.info["kw_mode"])
-
+class MCDONALD(InstrumentWithModes):
     def _convert_time_deg(self, v):
         v = [float(s) for s in v.split(":")]
         v = v[0] + v[1] / 60 + v[2] / 3600
@@ -106,22 +102,6 @@ class MCDONALD(instrument):
         header["e_obsalt"] = info["altitude"]
 
         return header
-
-    def get_expected_values(self, target, night, mode):
-        expectations = super().get_expected_values(target, night, mode)
-
-        id_mode = [self.info["id_modes"][i] for i, m in enumerate(self.info["modes"]) if m == mode][0]
-
-        expectations["bias"]["mode"] = id_mode
-        expectations["flat"]["mode"] = id_mode
-        expectations["orders"]["mode"] = id_mode
-        expectations["scatter"]["mode"] = id_mode
-        expectations["curvature"]["mode"] = id_mode
-        expectations["wavecal"]["mode"] = id_mode
-        expectations["freq_comb"]["mode"] = id_mode
-        expectations["science"]["mode"] = id_mode
-
-        return expectations
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """

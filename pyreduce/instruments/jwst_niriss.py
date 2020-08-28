@@ -16,12 +16,12 @@ from astropy import units as q
 from astropy.time import Time
 from dateutil import parser
 
-from .common import getter, instrument, observation_date_to_night
+from .common import getter, Instrument, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 
 
-class JWST_NIRISS(instrument):
+class JWST_NIRISS(Instrument):
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here

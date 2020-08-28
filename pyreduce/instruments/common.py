@@ -99,7 +99,7 @@ class getter:
         return value
 
 
-class instrument:
+class Instrument:
     """
     Abstract parent class for all instruments
     Handles the handling of instrument specific information
@@ -113,7 +113,9 @@ class instrument:
 
         self.filters = {
             "instrument": InstrumentFilter(self.info["instrument"], regex=True),
-            "night": NightFilter(self.info["date"], timeformat=self.info.get("date_format", "fits")),
+            "night": NightFilter(
+                self.info["date"], timeformat=self.info.get("date_format", "fits")
+            ),
             "target": ObjectFilter(self.info["target"], regex=True),
             "bias": Filter(self.info["kw_bias"]),
             "flat": Filter(self.info["kw_flat"]),
@@ -260,7 +262,7 @@ class instrument:
         header["e_instrument"] = get("instrument", self.__class__.__name__)
         header["e_telescope"] = get("telescope", "")
         header["e_exptime"] = get("exposure_time", 0)
-        
+
         jd = get("date")
         if jd is not None:
             jd = Time(jd, format=self.info.get("date_format", "fits"))
@@ -325,14 +327,47 @@ class instrument:
 
     def get_expected_values(self, target, night, *args, **kwargs):
         expectations = {
-            "bias": {"instrument": self.info["id_instrument"], "night": night, "bias": self.info["id_bias"]},
-            "flat": {"instrument": self.info["id_instrument"], "night": night, "flat": self.info["id_flat"]},
-            "orders": {"instrument": self.info["id_instrument"], "night": night, "orders": self.info["id_orders"]},
-            "scatter": {"instrument": self.info["id_instrument"], "night": night, "scatter": self.info["id_scatter"]},
-            "curvature": {"instrument": self.info["id_instrument"], "night": night, "curvature": self.info["id_curvature"]},
-            "wavecal": {"instrument": self.info["id_instrument"], "night": night, "wave": self.info["id_wave"]},
-            "freq_comb": {"instrument": self.info["id_instrument"], "night": night, "comb": self.info["id_comb"]},
-            "science": {"instrument": self.info["id_instrument"], "night": night, "target": target, "spec": self.info["id_spec"]},
+            "bias": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "bias": self.info["id_bias"],
+            },
+            "flat": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "flat": self.info["id_flat"],
+            },
+            "orders": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "orders": self.info["id_orders"],
+            },
+            "scatter": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "scatter": self.info["id_scatter"],
+            },
+            "curvature": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "curvature": self.info["id_curvature"],
+            },
+            "wavecal": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "wave": self.info["id_wave"],
+            },
+            "freq_comb": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "comb": self.info["id_comb"],
+            },
+            "science": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "target": target,
+                "spec": self.info["id_spec"],
+            },
         }
         return expectations
 
@@ -539,7 +574,27 @@ class instrument:
         return info["modes"]
 
 
-class COMMON(instrument):
+class InstrumentWithModes(Instrument):
+    def __init__(self):
+        super().__init__()
+        self.filters["mode"] = Filter(self.info["kw_modes"])
+
+    def get_expected_values(self, target, night, mode):
+        expectations = super().get_expected_values(target, night, mode)
+
+        id_mode = [
+            self.info["id_modes"][i]
+            for i, m in enumerate(self.info["modes"])
+            if m == mode
+        ][0]
+
+        for key in expectations.keys():
+            expectations[key]["mode"] = id_mode
+
+        return expectations
+
+
+class COMMON(Instrument):
     pass
     # def load_info(self):
     #     return {
