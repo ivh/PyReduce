@@ -67,7 +67,10 @@
                         },
                         "degree_before_merge": {
                             "description": "Polynomial degree of the first fit to the orders, before merging clusters",
-                            "type": "integer",
+                            "type": [
+                                "integer",
+                                "string"
+                            ],
                             "minimum": 0
                         },
                         "regularization": {

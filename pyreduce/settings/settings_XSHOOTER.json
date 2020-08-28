@@ -2,15 +2,15 @@
     "__instrument__": "XSHOOTER",
     "orders": {
         "degree": 5,
-        "degree_before_merge": 5,
-        "filter_size": 50,
-        "min_cluster": 500,
+        "degree_before_merge": "best",
+        "filter_size": 20,
+        "min_cluster": 100,
         "noise": 50,
-        "border_width": 20,
-        "auto_merge_threshold": 1,
-        "merge_min_threshold": 1,
+        "border_width": 50,
+        "auto_merge_threshold": 0.9,
+        "merge_min_threshold": 0.01,
         "manual": true,
-        "min_width": null
+        "min_width": 0
     },
     "scatter": {
         "extraction_width": 0.45,

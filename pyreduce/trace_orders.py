@@ -13,6 +13,7 @@ from numpy.polynomial.polynomial import Polynomial
 
 from scipy.ndimage import morphology, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
+from scipy.ndimage.morphology import grey_closing
 from scipy.signal import peak_widths, find_peaks
 
 from .util import polyfit1d
@@ -22,8 +23,25 @@ logger = logging.getLogger(__name__)
 
 def fit(x, y, deg, regularization=0):
     # order = polyfit1d(y, x, deg, regularization)
-    order = Polynomial.fit(y, x, deg=deg, domain=[]).coef[::-1]
+    if deg == "best":
+        order = best_fit(x, y)
+    else:
+        order = Polynomial.fit(y, x, deg=deg, domain=[]).coef[::-1]
     return order
+
+
+def best_fit(x, y):
+    aic = np.inf
+    for k in range(5):
+        coeff_new = fit(x, y, k)
+        chisq = np.sum((np.polyval(coeff_new, y) - x) ** 2)
+        aic_new = 2 * k + chisq
+        if aic_new > aic:
+            break
+        else:
+            coeff = coeff_new
+            aic = aic_new
+    return coeff
 
 
 def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol, deg=2):
@@ -400,8 +418,10 @@ def mark_orders(
         min_width = int(min_width * im.shape[0])
         logger.info("Minimum order width, estimated: %i", min_width)
 
+    # im[im < 0] = np.ma.masked
+    blurred = grey_closing(im, 5)
     # blur image along columns, and use the median + blurred + noise as threshold
-    blurred = gaussian_filter1d(im, filter_size, axis=0)
+    blurred = gaussian_filter1d(blurred, filter_size, axis=0)
 
     if noise is None:
         tmp = np.abs(blurred.flatten())
