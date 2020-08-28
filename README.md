@@ -18,6 +18,10 @@ The most up-to-date version can be installed using ``pip install git+https://git
 PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
 See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
 
+Output Format
+-------------
+PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``. 
+
 How To
 ------
 PyReduce is designed to be easy to use, but still be flexible.
