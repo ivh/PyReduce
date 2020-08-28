@@ -223,7 +223,9 @@ def settings(instrument):
         updated settings
     """
 
-    return configuration.get_configuration_for_instrument(instrument, plot=False)
+    settings = configuration.get_configuration_for_instrument(instrument, plot=False)
+    settings["wavecal"]["manual"] = False
+    return settings
 
 
 @pytest.fixture
