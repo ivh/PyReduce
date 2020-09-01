@@ -10,7 +10,9 @@ from pyreduce.instruments import common
 
 supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.json"))
 supported_instruments = [basename(f)[:-5] for f in supported_instruments]
-supported_instruments = [f for f in supported_instruments if f not in ["common", "instrument_schema"]]
+supported_instruments = [
+    f for f in supported_instruments if f not in ["common", "instrument_schema"]
+]
 
 
 @pytest.fixture(params=supported_instruments)
@@ -30,13 +32,13 @@ def config(supported_instrument):
 
 def test_load_common():
     instr = instrument_info.load_instrument(None)
-    assert isinstance(instr, common.instrument)
+    assert isinstance(instr, common.Instrument)
     assert isinstance(instr, common.COMMON)
 
 
 def test_load_instrument(supported_instrument):
     instr = instrument_info.load_instrument(supported_instrument)
-    assert isinstance(instr, common.instrument)
+    assert isinstance(instr, common.Instrument)
 
 
 def test_get_instrument_info(supported_instrument):

@@ -225,6 +225,7 @@ def settings(instrument):
 
     settings = configuration.get_configuration_for_instrument(instrument, plot=False)
     settings["wavecal"]["manual"] = False
+    settings["orders"]["manual"] = False
     return settings
 
 
@@ -447,6 +448,7 @@ def orders(step_args, settings, files, mask, bias):
     settings = settings[name]
     files = files[name]
     settings["plot"] = False
+    settings["manual"] = False
 
     step = OrderTracing(*step_args, **settings)
 
