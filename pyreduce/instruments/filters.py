@@ -11,7 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 class Filter:
-    def __init__(self, keyword, dtype="U20", wildcards=False, regex=False, flags=0, unique=True):
+    def __init__(
+        self,
+        keyword,
+        dtype="U20",
+        wildcards=False,
+        regex=False,
+        flags=0,
+        unique=True,
+        ignorecase=True,
+    ):
         self.keyword = keyword
         self.dtype = dtype
         self.wildcards = wildcards
@@ -19,6 +28,10 @@ class Filter:
         self.flags = flags
         self.data = []
         self.unique = unique
+        self.ignorecase = ignorecase
+
+        if self.ignorecase and not self.flags & re.IGNORECASE:
+            self.flags += re.IGNORECASE
 
     def collect(self, header):
         if self.keyword is None:
@@ -36,16 +49,22 @@ class Filter:
     def match(self, value):
         if self.keyword is None:
             result = np.full(len(self.data), False)
-        elif self.regex:
-            regex = re.compile(f"^(?:{value})$", flags=self.flags)
-            match = [regex.match(f) is not None if f is not None else False for f in self.data]
-            result = np.asarray(match, dtype=bool)
-        elif self.wildcards:
-            match = [fnmatch(f, value) for f in self.data]
-            result = np.asarray(match, dtype=bool)
         else:
-            match = np.asarray(self.data) == value
-            result = match
+            try:
+                if self.regex:
+                    regex = re.compile(f"^(?:{value})$", flags=self.flags)
+                elif self.wildcards:
+                    regex = re.compile(fnmatch.translate(value), flags=self.flags)
+                else:
+                    regex = re.compile(value, flags=self.flags)
+
+                result = [
+                    regex.match(f) is not None if f is not None else False
+                    for f in self.data
+                ]
+            except TypeError as ex:
+                result = [f == value for f in self.data]
+        result = np.asarray(result, dtype=bool)
         return result
 
     def classify(self, value):
@@ -103,7 +122,9 @@ class NightFilter(Filter):
             value = Time(value, format=self.timeformat)
             value = NightFilter.observation_date_to_night(value)
         else:
-            logger.warning("Could not determine the observation date of %s, skipping it", header)
+            logger.warning(
+                "Could not determine the observation date of %s, skipping it", header
+            )
         self.data.append(value)
         return value
 
@@ -114,3 +135,35 @@ class NightFilter(Filter):
             pass
         match = super().match(value)
         return match
+
+
+class ModeFilter(Filter):
+    def __init__(
+        self,
+        keyword,
+        dtype="U20",
+        wildcards=False,
+        regex=False,
+        flags=0,
+        unique=True,
+        ignorecase=True,
+        replacement={},
+    ):
+        super().__init__(
+            keyword,
+            dtype=dtype,
+            wildcards=wildcards,
+            regex=regex,
+            flags=flags,
+            unique=unique,
+            ignorecase=ignorecase,
+        )
+        self.replacement = replacement
+
+    def classify(self, value):
+        data = super().classify(value)
+        data = [
+            (self.replacement[d] if d in self.replacement.keys() else d, m)
+            for d, m in data
+        ]
+        return data

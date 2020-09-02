@@ -16,7 +16,7 @@ from astropy.time import Time
 from dateutil import parser
 
 from ..clipnflip import clipnflip
-from .filters import Filter, ObjectFilter, InstrumentFilter, NightFilter
+from .filters import Filter, ObjectFilter, InstrumentFilter, NightFilter, ModeFilter
 
 logger = logging.getLogger(__name__)
 
@@ -577,7 +577,14 @@ class Instrument:
 class InstrumentWithModes(Instrument):
     def __init__(self):
         super().__init__()
-        self.filters["mode"] = Filter(self.info["kw_modes"])
+
+        replacement = {
+            k: v for k, v in zip(self.info["id_modes"], self.info["modes"])
+        }
+        self.filters["mode"] = ModeFilter(
+            self.info["kw_modes"], replacement=replacement
+        )
+        self.shared += ["mode"]
 
     def get_expected_values(self, target, night, mode):
         expectations = super().get_expected_values(target, night, mode)
@@ -596,13 +603,3 @@ class InstrumentWithModes(Instrument):
 
 class COMMON(Instrument):
     pass
-    # def load_info(self):
-    #     return {
-    #         "instrument": "INSTRUME",
-    #         "date": "DATE-OBS",
-    #         "target": "OBJECT",
-    #         "naxis_x": "NAXIS1",
-    #         "naxis_y": "NAXIS2",
-    #         "modes": [""],
-    #         "modes_id": [""],
-    #     }
