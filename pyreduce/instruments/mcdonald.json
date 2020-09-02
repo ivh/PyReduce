@@ -5,12 +5,16 @@
     "telescope": "OBSERVAT",
     "date": "DATE-OBS",
     "modes": [
-        "R60",
-        "R240"
+        "CS21",
+        "CS23",
+        "TS21",
+        "TS23"
     ],
     "id_modes": [
         "cs21-e2",
-        "cs23-e2"
+        "cs23-e2",
+        "ts21-e2",
+        "ts23-e2"
     ],
     "extension": 0,
     "orientation": 0,

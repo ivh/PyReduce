@@ -12,7 +12,7 @@ from pyreduce import datasets
 instrument = "McDonald"
 target = "Vega"
 night = None
-mode = "R240"
+mode = "CS23"
 steps = (
     # "bias",
     # "flat",
