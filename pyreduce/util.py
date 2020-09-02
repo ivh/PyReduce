@@ -99,6 +99,25 @@ def vac2air(wl_vac):
     return wl_air
 
 
+def air2vac(wl_air):
+    """
+    Convert wavelengths in air to vacuum wavelength
+    Author: Nikolai Piskunov
+    """
+    wl_vac = np.copy(wl_air)
+    ii = np.where(wl_air > 1999.352)
+
+    sigma2 = (1e4 / wl_air[ii]) ** 2  # Compute wavenumbers squared
+    fact = (
+        1e0
+        + 8.336624212083e-5
+        + 2.408926869968e-2 / (1.301065924522e2 - sigma2)
+        + 1.599740894897e-4 / (3.892568793293e1 - sigma2)
+    )
+    wl_vac[ii] = wl_air[ii] * fact  # Convert to vacuum wavelength
+    return wl_vac
+
+
 def swap_extension(fname, ext, path=None):
     """ exchange the extension of the given file with a new one """
     if path is None:
