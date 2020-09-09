@@ -578,9 +578,7 @@ class InstrumentWithModes(Instrument):
     def __init__(self):
         super().__init__()
 
-        replacement = {
-            k: v for k, v in zip(self.info["id_modes"], self.info["modes"])
-        }
+        replacement = {k: v for k, v in zip(self.info["id_modes"], self.info["modes"])}
         self.filters["mode"] = ModeFilter(
             self.info["kw_modes"], replacement=replacement
         )

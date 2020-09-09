@@ -35,12 +35,12 @@
     },
     "wavecal": {
         "extraction_method": "arc",
-        "threshold": 100000000,
-        "iterations": 0,
+        "threshold": 200,
+        "iterations": 3,
         "dimensionality": "2D",
         "degree": [
-            6,
-            2
+            7,
+            8
         ],
         "manual": false,
         "shift_window": 0

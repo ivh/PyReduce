@@ -12,12 +12,16 @@
     ],
     "kw_modes": "ESO DET CHIP*NAME",
     "id_modes": [
-        "E2V CCD44-82",
+        "E2V CC44-82",
         "MIT/LL CCID-20",
         "Hawaii2RG"
     ],
     "extension": 0,
-    "orientation": 0,
+    "orientation": [
+        1,
+        0,
+        0
+    ],
     "prescan_x": 0,
     "overscan_x": 0,
     "prescan_y": 0,
@@ -42,7 +46,6 @@
     "id_dark": "DARK",
     "id_format": "LAMP,FMTCHK",
     "id_tell": "STD,TELLURIC",
-    "kw_mode": null,
     "kw_bias": "HIERARCH ESO DPR TYPE",
     "kw_flat": "HIERARCH ESO DPR TYPE",
     "kw_curvature": "HIERARCH ESO DPR TYPE",
@@ -51,7 +54,6 @@
     "kw_wave": "HIERARCH ESO DPR TYPE",
     "kw_comb": null,
     "kw_spec": "HIERARCH ESO DPR TYPE",
-    "id_mode": null,
     "id_bias": "DARK",
     "id_flat": "LAMP,FLAT",
     "id_orders": "LAMP,ORDERDEF",
