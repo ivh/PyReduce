@@ -1,6 +1,6 @@
 numpy==1.19.3
 scipy==1.5.3
-astropy==4.0.1.post1
+astropy==4.1
 matplotlib==3.3.2
 cffi==1.14.3
 scikit-image==0.17.2
