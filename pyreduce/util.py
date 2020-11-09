@@ -742,7 +742,7 @@ def bezier_interp(x_old, y_old, x_new):
     x_old, index = np.unique(x_old, return_index=True)
     y_old = y_old[index]
 
-    knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
+    knots, coef, order = scipy.interpolate.splrep(x_old, y_old, s=0)
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new
 

@@ -88,6 +88,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     tmp0 = chain(range(iord0, 0, -1), range(iord0, nord - 1))
     tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
 
+    # Looping over order pairs
     for iord0, iord1 in zip(tmp0, tmp1):
         # Get data for current order
         # Note that those are just references to parts of the original data

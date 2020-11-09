@@ -106,8 +106,8 @@ class AlignmentPlot:
                 direction = -1 if spec == "ref" else 1
                 offset_orders = int(order - self.order_first) * direction
                 offset_x = int(x - self.x_first) * direction
-                self.offset[0] += offset_orders
-                self.offset[1] += offset_x
+                self.offset[0] -= offset_orders - 1
+                self.offset[1] -= offset_x
                 self.make_ref_image()
 
 
@@ -419,6 +419,9 @@ class WavelengthCalibration:
                 np.argmax(correlation), correlation.shape
             )
 
+            if self.plot >= 2:
+                plt.imshow(correlation, aspect="auto"); plt.vlines(offset_x, -0.5, self.nord-0.5, color="red"); plt.hlines(offset_order, -0.5, self.ncol - 0.5, color="red"); plt.show()
+
             offset_order = offset_order - img.shape[0] / 2 + 1
             offset_x = offset_x - img.shape[1] / 2 + 1
             offset = [int(offset_order), int(offset_x)]
@@ -448,6 +451,28 @@ class WavelengthCalibration:
 
         return lines
 
+    def _fit_single_line(self, obs, center, width, plot=False):
+        low = int(center - width * 5)
+        low = max(low, 0)
+        high = int(center + width * 5)
+        high = min(high, len(obs))
+
+        section = obs[low:high]
+        x = np.arange(low, high, 1)
+        x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
+        coef = util.gaussfit2(x, section)
+
+        if self.plot >= 2 and plot:
+            x2 = np.linspace(x.min(), x.max(), len(x) * 100)
+            plt.plot(x, section, label="Observation")
+            plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
+            plt.title("Gaussian Fit to spectral line")
+            plt.xlabel("x [pixel]")
+            plt.ylabel("Intensity [a.u.]")
+            plt.legend()
+            plt.show()
+        return coef
+
     def fit_lines(self, obs, lines):
         """
         Determine exact position of each line on the detector based on initial guess
@@ -476,31 +501,13 @@ class WavelengthCalibration:
             if line["order"] < 0 or line["order"] >= len(obs):
                 # Line outside order range
                 continue
-            low = int(line["posm"] - line["width"] * 5)
-            low = max(low, 0)
-            high = int(line["posm"] + line["width"] * 5)
-            high = min(high, len(obs[int(line["order"])]))
-
-            section = obs[int(line["order"]), low:high]
-            x = np.arange(low, high, 1)
-            x = np.ma.masked_array(x, mask=np.ma.getmaskarray(section))
 
             try:
-                coef = util.gaussfit2(x, section)
+                coef = self._fit_single_line(obs[int(line["order"])], line["posm"], line["width"], plot=line["flag"])
                 lines[i]["posm"] = coef[1]
             except:
                 # Gaussian fit failed, dont use line
                 lines[i]["flag"] = False
-
-            if self.plot >= 2 and lines[i]["flag"]:
-                x2 = np.linspace(x.min(), x.max(), len(x) * 100)
-                plt.plot(x, section, label="Observation")
-                plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
-                plt.title("Gaussian Fit to spectral line")
-                plt.xlabel("x [pixel]")
-                plt.ylabel("Intensity [a.u.]")
-                plt.legend()
-                plt.show()
 
         return lines
 
@@ -882,7 +889,7 @@ class WavelengthCalibration:
                 continue
 
             wl = line["wll"]
-            width = line["width"] * 10
+            width = line["width"] * 5
             wave = wave_img[iord]
             order_obs = obs[iord]
             # Find where the line should be
@@ -902,15 +909,24 @@ class WavelengthCalibration:
                 continue
             # Find the best fitting peak
             # TODO use gaussian fit?
-            peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec))
+            peak_idx, _ = signal.find_peaks(vec, height=np.ma.median(vec), width=3)
             if len(peak_idx) > 0:
-                pos_wave = wave[low:high][peak_idx]
+                peak_pos = np.copy(peak_idx).astype(float)
+                for j in range(len(peak_idx)):
+                    try:
+                        coef = self._fit_single_line(vec, peak_idx[j], line["width"])
+                        peak_pos[j] = coef[1]
+                    except:
+                        peak_pos[j] = np.nan
+                        pass
+
+                pos_wave = np.interp(peak_pos, np.arange(high - low), wave[low:high])
                 residual = np.abs(wl - pos_wave) / wl * speed_of_light
                 idx = np.argmin(residual)
                 if residual[idx] < self.threshold:
                     counter += 1
                     lines["flag"][i] = True
-                    lines["posm"][i] = low + peak_idx[idx]
+                    lines["posm"][i] = low + peak_pos[idx]
 
         logger.info("AutoID identified %i new lines", counter + len(new_lines))
 
@@ -1347,7 +1363,7 @@ class WavelengthCalibration:
         lines["posc"] = np.copy(lines["posm"])
 
         # Step 2: Locate the lines on the detector, and update the pixel position
-        lines["flag"] = True
+        # lines["flag"] = True
         lines = self.fit_lines(obs, lines)
 
         for i in range(self.iterations):
@@ -1375,5 +1391,7 @@ class WavelengthCalibration:
 
         aic = self.calculate_AIC(lines, wave_solution)
         logger.info("AIC of wavelength fit: %f", aic)
+        
+        # np.savez("cs_lines.npz", cs_lines=lines.data)
 
         return wave_img, wave_solution
