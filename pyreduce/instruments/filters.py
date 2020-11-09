@@ -74,7 +74,7 @@ class Filter:
                 data = np.asarray(self.data)
                 data = np.unique(data[match])
             else:
-                data = np.unique(self.data)
+                data = set(self.data)
             data = [(d, self.match(d)) for d in data]
         else:
             if value is not None and value != "":
