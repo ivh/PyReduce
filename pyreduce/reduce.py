@@ -45,6 +45,7 @@ from .make_shear import Curvature as CurvatureModule
 from .trace_orders import mark_orders
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .estimate_background_scatter import estimate_background_scatter
+from .rectify import rectify_image
 
 # TODO Naming of functions and modules
 # TODO License
@@ -168,12 +169,12 @@ def main(
                 order_range=order_range,
                 skip_existing=config["__skip_existing__"],
             )
-            try:
-                data = reducer.run_steps(steps=steps)
-                output.append(data)
-            except Exception as e:
-                logger.error("Reduction failed with error message: %s", str(e))
-                logger.info("------------")
+            # try:
+            data = reducer.run_steps(steps=steps)
+            output.append(data)
+            # except Exception as e:
+            #     logger.error("Reduction failed with error message: %s", str(e))
+            #     logger.info("------------")
     return output
 
 
@@ -1233,6 +1234,74 @@ class SlitCurvatureDetermination(Step):
         return tilt, shear
 
 
+class RectifyImage(Step):
+    """ Create a 2D image of the rectified orders """
+
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
+        self._dependsOn += ["files", "orders", "curvature", "mask"]
+        # self._loadDependsOn += []
+
+        self.extraction_width = config["extraction_width"]
+        self.input_files = config["input_files"]
+
+    def filename(self, name):
+        return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
+
+    def run(self, files, orders, curvature, mask):
+        orders, column_range = orders
+        tilt, shear = curvature
+
+        files = files[self.input_files]
+
+        rectified = {}
+        for fname in tqdm(files, desc="Files"):
+            img, head = self.instrument.load_fits(
+                fname, self.mode, mask=mask, dtype="f8"
+            )
+
+            images = rectify_image(
+                img, orders, column_range, self.extraction_width, self.order_range, tilt, shear
+            )
+
+            self.save(fname, images, header=head)
+            rectified[fname] = images
+
+        return rectified
+
+    def save(self, fname, images, header=None):
+        # Change filename
+        fname = self.filename(fname)
+
+        # Create HDU List, one extension per order
+        hdus = [fits.PrimaryHDU(header=header)]
+        for order, img in images.items():
+            header = {"order_number": order}
+            header = fits.Header(header)
+            hdus += [fits.ImageHDU(data=img, header=header)]
+
+        # Save data to file
+        hdus = fits.HDUList(hdus)
+        hdus.writeto(fname, overwrite=True, output_verify="silentfix")
+
+    def load(self, files):
+        files = files[self.input_files]
+
+        rectified = {}
+        for orig_fname in files:
+            fname = self.filename(orig_fname)
+            data = fits.open(fname)
+
+            images = {}
+            for i in range(1, len(data)):
+                order_number = data[i].header["order_number"]
+                images[order_number] = data[i].data
+
+            rectified[orig_fname] = images
+
+        return rectified
+
+
 class ScienceExtraction(Step):
     """Extract the science spectra"""
 
@@ -1662,6 +1731,7 @@ class Reducer:
         "norm_flat": 50,
         "wavecal": 60,
         "freq_comb": 70,
+        "rectify": 75,
         "science": 80,
         "continuum": 90,
         "finalize": 100,
@@ -1680,6 +1750,7 @@ class Reducer:
         "science": ScienceExtraction,
         "continuum": ContinuumNormalization,
         "finalize": Finalize,
+        "rectify": RectifyImage,
     }
 
     def __init__(

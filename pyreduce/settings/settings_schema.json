@@ -404,6 +404,49 @@
                 }
             ]
         },
+        "rectify": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "extraction_width": {
+                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
+                        },
+                        "input_files": {
+                            "description": "Which input files to rectify. Usually 'science' for the science files, but could be any other step with input files",
+                            "type": "string",
+                            "enum": [
+                                "science",
+                                "flat",
+                                "bias",
+                                "scatter",
+                                "orders",
+                                "curvature",
+                                "wavecal",
+                                "freq_comb"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "extraction_width"
+                    ]
+                }
+            ]
+        },
         "science": {
             "allOf": [
                 {

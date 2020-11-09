@@ -97,6 +97,11 @@
         "peak_function": "gaussian",
         "plot": true
     },
+    "rectify": {
+        "extraction_width": 0.5,
+        "input_files": "science",
+        "plot": true
+    },
     "science": {
         "extraction_method": "optimal",
         "extraction_width": 0.25,
