@@ -1261,7 +1261,7 @@ class RectifyImage(Step):
                 fname, self.mode, mask=mask, dtype="f8"
             )
 
-            images, cr = rectify_image(
+            images, cr, xwd = rectify_image(
                 img,
                 orders,
                 column_range,
@@ -1270,18 +1270,22 @@ class RectifyImage(Step):
                 tilt,
                 shear,
             )
-            image = merge_images(images, wave, cr)
+            wavelength, image = merge_images(images, wave, cr, xwd)
 
-            self.save(fname, image, header=head)
-            rectified[fname] = images
+            self.save(fname, image, wavelength, header=head)
+            rectified[fname] = (wavelength, image)
 
         return rectified
 
-    def save(self, fname, image, header=None):
+    def save(self, fname, image, wavelength, header=None):
         # Change filename
         fname = self.filename(fname)
         # Create HDU List, one extension per order
-        hdus = fits.ImageHDU(header=header, data=image)
+        primary = fits.PrimaryHDU(header=header)
+        secondary = fits.ImageHDU(data=image)
+        column = fits.Column(name="wavelength", array=wavelength, format="D")
+        tertiary = fits.BinTableHDU.from_columns([column])
+        hdus = fits.HDUList([primary, secondary, tertiary])
         # Save data to file
         hdus.writeto(fname, overwrite=True, output_verify="silentfix")
 
@@ -1292,8 +1296,9 @@ class RectifyImage(Step):
         for orig_fname in files:
             fname = self.filename(orig_fname)
             data = fits.open(fname)
-
-            rectified[orig_fname] = data[0].data
+            img = data[1].data
+            wave = data[2].data["wavelength"]
+            rectified[orig_fname] = (wave, img)
 
         return rectified
 

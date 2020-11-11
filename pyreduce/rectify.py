@@ -48,10 +48,10 @@ def rectify_image(
             )
         images[i] = img_order
 
-    return images, column_range
+    return images, column_range, extraction_width
 
 
-def merge_images(images, wave, column_range):
+def merge_images(images, wave, column_range, extraction_width):
     x_total = sum([img.shape[1] for img in images.values()])
     y_max = max(*[img.shape[0] for img in images.values()])
     y_mid = y_max // 2
@@ -66,13 +66,12 @@ def merge_images(images, wave, column_range):
         img0 = images[iord0]
         img1 = images[iord1]
 
-        y0 = img0.shape[0]
-        y0_low = (y_max - y0) // 2
-        y0_high = y0 + y0_low
+        xwd0, xwd1 = extraction_width[iord0], extraction_width[iord1]
+        y0_low = y_mid - xwd0[0]
+        y0_high = y_mid + xwd0[1] + 1
 
-        y1 = img1.shape[0]
-        y1_low = (y_max - y1) // 2
-        y1_high = y1 + y1_low
+        y1_low = y_mid - xwd1[0]
+        y1_high = y_mid + xwd1[1] + 1
 
         # Calculate Overlap
         cr0, cr1 = column_range[iord0], column_range[iord1]
