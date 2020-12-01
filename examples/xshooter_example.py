@@ -5,24 +5,24 @@ Loads a sample UVES dataset, and runs the full extraction
 
 import os.path
 import pyreduce
-
+from pyreduce import datasets
 
 # define parameters
 instrument = "XShooter"
 target = "UX-Ori"
-night = ""
+night = None
 mode = "NIR"
 steps = (
-    # "bias",
-    # "flat",
-    # "orders",
-    # "scatter",
-    # "norm_flat",
+    "bias",
+    "flat",
+    "orders",
+    "scatter",
+    "norm_flat",
     "curvature",
-    # "wavecal",
+    "wavecal",
     "science",
     # "continuum",
-    # "finalize",
+    "finalize",
 )
 
 # some basic settings
@@ -30,7 +30,9 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/ESO/XShooter"
+# change the location (as set in datasets() to some folder of you choice)
+# or dont pass a path to use the local directory
+base_dir = datasets.XSHOOTER()
 input_dir = "raw"
 output_dir = "reduced"
 
