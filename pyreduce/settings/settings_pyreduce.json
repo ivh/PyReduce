@@ -12,10 +12,12 @@
         "directory": "{reduce}/masks"
     },
     "bias": {
-        "plot": true
+        "plot": true,
+        "plot_title": "Bias"
     },
     "flat": {
-        "plot": true
+        "plot": true,
+        "plot_title": "Flat"
     },
     "orders": {
         "degree": 4,
@@ -34,14 +36,16 @@
         "noise": null,
         "border_width": null,
         "manual": true,
-        "plot": true
+        "plot": true,
+        "plot_title": "Order Tracing"
     },
     "scatter": {
         "scatter_degree": 4,
         "scatter_cutoff": 2,
         "border_width": null,
         "extraction_width": 0.3,
-        "plot": true
+        "plot": true,
+        "plot_title": "Background Scatter"
     },
     "norm_flat": {
         "extraction_method": "normalize",
@@ -52,7 +56,8 @@
         "extraction_width": 0.2,
         "threshold": 0.6,
         "extraction_cutoff": 20,
-        "plot": true
+        "plot": true,
+        "plot_title": "Normalized Flat"
     },
     "wavecal": {
         "extraction_method": "arc",
@@ -68,7 +73,8 @@
         "nstep": 0,
         "shift_window": 0.01,
         "extraction_cutoff": 20,
-        "plot": true
+        "plot": true,
+        "plot_title": "Wavelength Calibration"
     },
     "freq_comb": {
         "extraction_method": "arc",
@@ -82,7 +88,8 @@
         ],
         "threshold": 100,
         "extraction_cutoff": 20,
-        "plot": true
+        "plot": true,
+        "plot_title": "Frequency Comb"
     },
     "curvature": {
         "dimensionality": "1D",
@@ -95,12 +102,14 @@
         "peak_width": 1,
         "window_width": 9,
         "peak_function": "gaussian",
-        "plot": true
+        "plot": true,
+        "plot_title": "Slit Curvature"
     },
     "rectify": {
         "extraction_width": 0.5,
         "input_files": "science",
-        "plot": true
+        "plot": true,
+        "plot_title": "Rectified Image"
     },
     "science": {
         "extraction_method": "optimal",
@@ -110,13 +119,16 @@
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 1e-7,
         "extraction_cutoff": 20,
-        "plot": true
+        "plot": true,
+        "plot_title": "Science Data"
     },
     "continuum": {
-        "plot": true
+        "plot": true,
+        "plot_title": "Continuum Normalization"
     },
     "finalize": {
         "filename": "{instrument}.{night}_{number}.final.ech",
-        "plot": true
+        "plot": true,
+        "plot_title": "Final Science Product"
     }
 }

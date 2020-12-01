@@ -35,12 +35,15 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, ncol, width):
+    def __init__(self, ncol, width, title=None):
         plt.ion()
 
         fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
 
-        fig.suptitle("Curvature in each order")
+        plot_title = "Curvature in each order"
+        if title is not None:
+            plot_title = f"{title}\n{plot_title}"
+        fig.suptitle(plot_title)
 
         (line1,) = ax1.plot(np.arange(ncol) + 1)
         (line2,) = ax1.plot(0, 0, "d")
@@ -104,6 +107,7 @@ class Curvature:
         sigma_cutoff=3,
         mode="1D",
         plot=False,
+        plot_title=None,
         peak_function="gaussian",
         curv_degree=2,
     ):
@@ -120,6 +124,7 @@ class Curvature:
         self.sigma_cutoff = sigma_cutoff
         self.mode = mode
         self.plot = plot
+        self.plot_title = plot_title
         self.curv_degree = curv_degree
         self.peak_function = peak_function
 
@@ -412,15 +417,27 @@ class Curvature:
         self, ncol, plot_peaks, plot_vec, plot_tilt, plot_shear, tilt_x, shear_x
     ):  # pragma: no cover
         fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
-        fig.suptitle("Peaks")
+
+        title = "Peaks"
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
+        fig.suptitle(title)
         fig1, axes1 = plt.subplots(
             nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False
         )
-        fig1.suptitle("1st Order Curvature")
+
+        title = "1st Order Curvature"
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
+        fig1.suptitle(title)
         fig2, axes2 = plt.subplots(
             nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False
         )
-        fig2.suptitle("2nd Order Curvature")
+
+        title = "2nd Order Curvature"
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
+        fig2.suptitle(title)
         plt.subplots_adjust(hspace=0)
 
         def trim_axs(axs, N):
@@ -524,6 +541,8 @@ class Curvature:
         locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
 
         plt.yticks(locs, range(len(locs)))
+        if self.plot_title is not None:
+            plt.title(self.plot_title)
         plt.xlabel("x [pixel]")
         plt.ylabel("order")
         plt.show()
@@ -536,7 +555,7 @@ class Curvature:
         self._fix_inputs(original)
 
         if self.plot >= 2:  # pragma: no cover
-            self.progress = ProgressPlot(ncol, self.window_width)
+            self.progress = ProgressPlot(ncol, self.window_width, title=self.plot_title)
 
         peaks, tilt, shear, vec = self._determine_curvature_all_lines(
             original, extracted

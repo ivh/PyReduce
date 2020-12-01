@@ -164,6 +164,7 @@ def merge_clusters(
     deg=2,
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
+    plot_title=None,
 ):
     """Merge clusters that belong together
 
@@ -210,7 +211,10 @@ def merge_clusters(
         if overlap >= auto_merge_threshold and auto_merge_threshold != 1:
             answer = "y"
         elif manual:
-            plot_order(i, j, x, y, img, deg, title=f"Probability: {overlap}")
+            title = f"Probability: {overlap}"
+            if plot_title is not None:
+                title = f"{plot_title}\n{title}"
+            plot_order(i, j, x, y, img, deg, title=title)
             while True:
                 if manual:
                     answer = input("Merge? [y/n]")
@@ -263,7 +267,7 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
     return orders
 
 
-def plot_orders(im, x, y, clusters, orders, order_range):
+def plot_orders(im, x, y, clusters, orders, order_range, title=None):
     """ Plot orders and image """
 
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
@@ -298,6 +302,8 @@ def plot_orders(im, x, y, clusters, orders, order_range):
             plt.plot(x, y)
 
     plt.ylim([0, im.shape[0]])
+    if title is not None:
+        plt.suptitle(title)
     plt.show()
 
 
@@ -349,6 +355,7 @@ def mark_orders(
     closing_shape=(5, 5),
     opening_shape=(2, 2),
     plot=False,
+    plot_title=None,
     manual=True,
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
@@ -527,7 +534,10 @@ def mark_orders(
                 # plt.show()
 
     if plot:  # pragma: no cover
-        plt.title("Identified clusters")
+        title = "Identified clusters"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         clusters = np.ma.zeros(im.shape, dtype=int)
@@ -548,6 +558,7 @@ def mark_orders(
         deg=degree_before_merge,
         auto_merge_threshold=auto_merge_threshold,
         merge_min_threshold=merge_min_threshold,
+        plot_title=plot_title,
     )
 
     if min_width > 0:
@@ -588,6 +599,6 @@ def mark_orders(
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
     if plot:  # pragma: no cover
-        plot_orders(im, x, y, n, orders, column_range)
+        plot_orders(im, x, y, n, orders, column_range, title=plot_title)
 
     return orders, column_range

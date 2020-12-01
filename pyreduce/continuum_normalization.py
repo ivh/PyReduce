@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # np.seterr("raise")
 
 
-def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
+def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=None):
     """
     Splice orders together so that they form a continous spectrum
     This is achieved by linearly combining the overlaping regions
@@ -70,6 +70,8 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
 
     if plot:  # pragma: no cover
         plt.subplot(411)
+        if plot_title is not None:
+            plt.suptitle(plot_title)
         plt.title("Before")
         for i in range(spec.shape[0]):
             plt.plot(wave[i], spec[i] / cont[i])
@@ -150,10 +152,14 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
 
 
 class Plot_Normalization:  # pragma: no cover
-    def __init__(self, wsort, sB, new_wave, contB, iteration=0):
+    def __init__(self, wsort, sB, new_wave, contB, iteration=0, title=None):
         plt.ion()
         self.fig = plt.figure()
-        self.fig.suptitle(f"Iteration: {iteration}")
+        self.title = title
+        suptitle = f"Iteration: {iteration}"
+        if self.title is not None:
+            suptitle = f"{self.title}\n{suptitle}"
+        self.fig.suptitle(suptitle)
 
         self.ax = self.fig.add_subplot(111)
         self.line1 = self.ax.plot(wsort, sB, label="Spectrum")[0]
@@ -163,7 +169,11 @@ class Plot_Normalization:  # pragma: no cover
         plt.show()
 
     def plot(self, wsort, sB, new_wave, contB, iteration):
-        self.fig.suptitle(f"Iteration: {iteration}")
+        suptitle = f"Iteration: {iteration}"
+        if self.title is not None:
+            suptitle = f"{self.title}\n{suptitle}"
+        self.fig.suptitle(suptitle)
+
         self.line1.set_xdata(wsort)
         self.line1.set_ydata(sB)
         self.line2.set_xdata(new_wave)
@@ -187,6 +197,7 @@ def continuum_normalize(
     smooth_final=5e6,
     scale_vert=1,
     plot=True,
+    plot_title=None,
 ):
     """ Fit a continuum to a spectrum by slowly approaching it from the top.
     We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
@@ -265,7 +276,7 @@ def continuum_normalize(
 
     contB = np.ones_like(ssB)
     if plot:  # pragma: no cover
-        p = Plot_Normalization(wsort, sB, new_wave, contB, 0)
+        p = Plot_Normalization(wsort, sB, new_wave, contB, 0, title=plot_title)
 
     try:
         for i in range(iterations):
@@ -308,6 +319,8 @@ def continuum_normalize(
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
         plt.legend(loc="best")
+        if plot_title is not None:
+            plt.title(plot_title)
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
         plt.show()

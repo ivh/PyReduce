@@ -22,6 +22,7 @@ def estimate_background_scatter(
     sigma_cutoff=2,
     border_width=10,
     plot=False,
+    plot_title=None,
 ):
     """
     Estimate the background by fitting a 2d polynomial to interorder data
@@ -99,7 +100,7 @@ def estimate_background_scatter(
     mask = z <= np.median(z) + sigma_cutoff * z.std()
     y, x, z = y[mask], x[mask], z[mask]
 
-    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
+    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot, plot_title=plot_title)
     logger.debug("Background scatter coefficients: %s", str(coeff))
 
     if plot:  # pragma: no cover
@@ -120,6 +121,9 @@ def estimate_background_scatter(
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         plt.imshow(back, vmin=0, vmax=abs(np.max(back)), aspect="equal", origin="lower")
+
+        if plot_title is not None:
+            plt.suptitle(plot_title)
         plt.show()
 
     return coeff

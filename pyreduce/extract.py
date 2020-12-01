@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, nrow, ncol, nbad=1000):
+    def __init__(self, nrow, ncol, nbad=1000, title=None):
         self.nrow = nrow
         self.ncol = ncol
 
@@ -57,6 +57,10 @@ class ProgressPlot:  # pragma: no cover
         self.ax4.set_title("Model")
         self.ax4.set_xlabel("x [pixel]")
         self.ax4.set_ylabel("y [pixel]")
+
+        self.title = title
+        if title is not None:
+            self.fig.suptitle(title)
 
         self.fig.tight_layout()
 
@@ -163,7 +167,10 @@ class ProgressPlot:  # pragma: no cover
         if not np.isnan(limit):
             self.ax3.set_ylim((0, limit))
 
-        self.fig.suptitle("Order %i, Columns %i - %i" % (ord_num, left, right))
+        title = f"Order {ord_num}, Columns {left} - {right}"
+        if self.title is not None:
+            title = f"{self.title}\n{title}"
+        self.fig.suptitle(title)
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -566,6 +573,7 @@ def extract_spectrum(
     tilt=None,
     shear=None,
     plot=False,
+    plot_title=None,
     im_norm=None,
     im_ordr=None,
     out_spec=None,
@@ -738,7 +746,9 @@ def extract_spectrum(
 
             if plot >= 2 and not np.all(np.isnan(swath_img)):  # pragma: no cover
                 if progress is None:
-                    progress = ProgressPlot(swath_img.shape[0], swath_img.shape[1])
+                    progress = ProgressPlot(
+                        swath_img.shape[0], swath_img.shape[1], title=plot_title
+                    )
                 progress.plot(
                     swath_img,
                     swath.spec[ihalf],
@@ -852,7 +862,15 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 
 
 def optimal_extraction(
-    img, orders, extraction_width, column_range, tilt, shear, plot=False, **kwargs
+    img,
+    orders,
+    extraction_width,
+    column_range,
+    tilt,
+    shear,
+    plot=False,
+    plot_title=None,
+    **kwargs,
 ):
     """ Use optimal extraction to get spectra
 
@@ -908,7 +926,7 @@ def optimal_extraction(
     if plot >= 2:  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_width, axis=1).max()
-        progress = ProgressPlot(nrow_swath, ncol_swath)
+        progress = ProgressPlot(nrow_swath, ncol_swath, title=plot_title)
     else:
         progress = None
 
@@ -939,6 +957,7 @@ def optimal_extraction(
             progress=progress,
             ord_num=i + 1,
             plot=plot,
+            plot_title=plot_title,
             **kwargs,
         )
 
@@ -947,7 +966,13 @@ def optimal_extraction(
 
     if plot:  # pragma: no cover
         plot_comparison(
-            img, orders, spectrum, slitfunction, extraction_width, column_range
+            img,
+            orders,
+            spectrum,
+            slitfunction,
+            extraction_width,
+            column_range,
+            title=plot_title,
         )
 
     return spectrum, slitfunction, uncertainties
@@ -995,6 +1020,7 @@ def arc_extraction(
     readnoise=0,
     dark=0,
     plot=False,
+    plot_title=None,
     tilt=None,
     shear=None,
     **kwargs,
@@ -1083,13 +1109,21 @@ def arc_extraction(
         )
 
     if plot:  # pragma: no cover
-        plot_comparison(img, orders, spectrum, None, extraction_width, column_range)
+        plot_comparison(
+            img,
+            orders,
+            spectrum,
+            None,
+            extraction_width,
+            column_range,
+            title=plot_title,
+        )
 
     return spectrum, uncertainties
 
 
 def plot_comparison(
-    original, orders, spectrum, slitf, extraction_width, column_range
+    original, orders, spectrum, slitf, extraction_width, column_range, title=None
 ):  # pragma: no cover
     nrow, ncol = original.shape
     nord = len(orders)
@@ -1132,7 +1166,10 @@ def plot_comparison(
     locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
     plt.yticks(locs, range(len(locs)))
 
-    plt.title("Extracted Spectrum vs. Input Image")
+    plot_title = "Extracted Spectrum vs. Rectified Image"
+    if title is not None:
+        plot_title = f"{title}\n{plot_title}"
+    plt.title(plot_title)
     plt.xlabel("x [pixel]")
     plt.ylabel("order")
     plt.show()

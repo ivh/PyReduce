@@ -21,6 +21,7 @@ from .util import gaussbroad, gaussfit, remove_bias
 
 logger = logging.getLogger(__name__)
 
+
 def running_median(arr, size):
     """Calculate the running median of a 2D sequence
 
@@ -151,7 +152,7 @@ def combine_frames(
     threshold=3.5,
     window=50,
     dtype=np.float32,
-    **kwargs
+    **kwargs,
 ):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
@@ -438,7 +439,15 @@ def combine_frames(
 
 
 def combine_flat(
-    files, instrument, mode, extension=None, bhead=None, bias=None, plot=False, **kwargs
+    files,
+    instrument,
+    mode,
+    extension=None,
+    bhead=None,
+    bias=None,
+    plot=False,
+    plot_title=None,
+    **kwargs,
 ):
     """
     Combine several flat files into one master flat
@@ -472,7 +481,10 @@ def combine_flat(
         flat -= bias * len(files)
 
     if plot:  # pragma: no cover
-        plt.title("Master Flat")
+        title = "Master Flat"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(flat, (10, 90))
@@ -488,8 +500,9 @@ def combine_bias(
     mode,
     extension=None,
     plot=False,
+    plot_title=None,
     science_observation_time=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Combine bias frames, determine read noise, reject bad pixels.
@@ -623,7 +636,10 @@ def combine_bias(
         nbad = 0
 
     if plot:  # pragma: no cover
-        plt.title("Master Bias")
+        title = "Master Bias"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(bias, (1, 99))

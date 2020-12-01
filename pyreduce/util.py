@@ -557,7 +557,7 @@ def polyshift2d(coeff, offset_x, offset_y, copy=True):
     return coeff
 
 
-def plot2d(x, y, z, coeff):
+def plot2d(x, y, z, coeff, title=None):
     # regular grid covering the domain of the data
     if x.size > 500:
         choice = np.random.choice(x.size, size=500, replace=False)
@@ -575,12 +575,16 @@ def plot2d(x, y, z, coeff):
     plt.xlabel("X")
     plt.ylabel("Y")
     ax.set_zlabel("Z")
+    if title is not None:
+        plt.title(title)
     # ax.axis("equal")
     # ax.axis("tight")
     plt.show()
 
 
-def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
+def polyfit2d(
+    x, y, z, degree=1, max_degree=None, scale=True, plot=False, plot_title=None
+):
     """A simple 2D plynomial fit to data x, y, z
     The polynomial can be evaluated with numpy.polynomial.polynomial.polyval2d
 
@@ -653,7 +657,7 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     if plot:  # pragma: no cover
         if scale:
             x, y = _unscale(x, y, norm, offset)
-        plot2d(x, y, z, coeff)
+        plot2d(x, y, z, coeff, title=plot_title)
 
     return coeff
 

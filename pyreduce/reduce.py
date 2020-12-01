@@ -198,6 +198,8 @@ class Step:
         self.order_range = order_range
         #:bool: Whether to plot the results or the progress of this step
         self.plot = config.get("plot", False)
+        #:str: Title used in the plots, if any
+        self.plot_title = config.get("plot_title", None)
         self._output_dir = output_dir
 
     def run(self, files, *args):  # pragma: no cover
@@ -376,7 +378,12 @@ class Bias(Step):
             header of the master bias
         """
         bias, bhead = combine_bias(
-            files, self.instrument, self.mode, mask=mask, plot=self.plot
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            plot=self.plot,
+            plot_title=self.plot_title,
         )
         self.save(bias.data, bhead)
 
@@ -467,6 +474,7 @@ class Flat(Step):
             bhead=bhead,
             bias=bias,
             plot=self.plot,
+            plot_title=self.plot_title,
         )
 
         self.save(flat.data, fhead)
@@ -577,6 +585,7 @@ class OrderTracing(Step):
             merge_min_threshold=self.merge_min_threshold,
             sigma=self.sigma,
             plot=self.plot,
+            plot_title=self.plot_title,
         )
 
         self.save(orders, column_range)
@@ -652,6 +661,7 @@ class BackgroundScatter(Step):
             sigma_cutoff=self.sigma_cutoff,
             border_width=self.border_width,
             plot=self.plot,
+            plot_title=self.plot_title,
         )
 
         self.save(scatter)
@@ -756,6 +766,7 @@ class NormalizeFlatField(Step):
             tilt=tilt,
             shear=shear,
             plot=self.plot,
+            plot_title=self.plot_title,
             **self.extraction_kwargs,
         )
 
@@ -894,6 +905,7 @@ class WavelengthCalibration(Step):
             extraction_type=self.extraction_method,
             order_range=self.order_range,
             plot=self.plot,
+            plot_title=self.plot_title,
             tilt=tilt,
             shear=shear,
             **self.extraction_kwargs,
@@ -908,6 +920,7 @@ class WavelengthCalibration(Step):
 
         module = WavelengthCalibrationModule(
             plot=self.plot,
+            plot_title=self.plot_title,
             manual=self.manual,
             degree=self.degree,
             threshold=self.threshold,
@@ -1044,6 +1057,7 @@ class LaserFrequencyComb(Step):
             column_range=column_range,
             order_range=self.order_range,
             plot=self.plot,
+            plot_title=self.plot_title,
             tilt=tilt,
             shear=shear,
             **self.extraction_kwargs,
@@ -1055,6 +1069,7 @@ class LaserFrequencyComb(Step):
 
         module = WavelengthCalibrationModule(
             plot=self.plot,
+            plot_title=self.plot_title,
             degree=self.degree,
             threshold=self.threshold,
             dimensionality=self.dimensionality,
@@ -1177,6 +1192,7 @@ class SlitCurvatureDetermination(Step):
             column_range=column_range,
             order_range=self.order_range,
             plot=self.plot,
+            plot_title=self.plot_title,
             extraction_width=self.extraction_width,
             sigma_cutoff=self.extraction_cutoff,
         )
@@ -1195,6 +1211,7 @@ class SlitCurvatureDetermination(Step):
             window_width=self.window_width,
             peak_function=self.peak_function,
             plot=self.plot,
+            plot_title=self.plot_title,
         )
         tilt, shear = module.execute(extracted, orig)
         self.save(tilt, shear)
@@ -1406,6 +1423,7 @@ class ScienceExtraction(Step):
                 column_range=column_range,
                 order_range=self.order_range,
                 plot=self.plot,
+                plot_title=self.plot_title,
                 **self.extraction_kwargs,
             )
 
@@ -1522,11 +1540,22 @@ class ContinuumNormalization(Step):
         for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
             logger.info("Splicing orders")
             specs[j], wave, blaze, sigmas[j] = splice_orders(
-                spec, wave, blaze, sigma, scaling=True, plot=self.plot
+                spec,
+                wave,
+                blaze,
+                sigma,
+                scaling=True,
+                plot=self.plot,
+                plot_title=self.plot_title,
             )
             logger.info("Normalizing continuum")
             conts[j] = continuum_normalize(
-                specs[j], wave, blaze, sigmas[j], plot=self.plot
+                specs[j],
+                wave,
+                blaze,
+                sigmas[j],
+                plot=self.plot,
+                plot_title=self.plot_title,
             )
 
         self.save(heads, specs, sigmas, conts, columns)
@@ -1681,6 +1710,8 @@ class Finalize(Step):
 
             if self.plot:
                 plt.plot(wave.T, (spec / blaze).T)
+                if self.plot_title is not None:
+                    plt.title(self.plot_title)
                 plt.show()
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)

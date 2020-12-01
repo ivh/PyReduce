@@ -502,10 +502,18 @@
                         "integer"
                     ],
                     "minimum": 0
+                },
+                "plot_title": {
+                    "description": "Title used in the plots, if any",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
             "required": [
-                "plot"
+                "plot",
+                "plot_title"
             ]
         },
         "extraction": {

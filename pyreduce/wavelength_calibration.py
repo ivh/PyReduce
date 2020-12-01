@@ -70,9 +70,10 @@ class AlignmentPlot:
             origin="lower",
             extent=(-0.5, self.ncol - 0.5, -0.5, self.nord - 0.5),
         )
-        self.im.figure.suptitle(
-            "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
-        )
+        title = "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
+        self.im.figure.suptitle(title)
         self.im.axes.set_xlabel("x [pixel]")
         self.im.axes.set_ylabel("Order")
 
@@ -209,6 +210,7 @@ class WavelengthCalibration:
         closing=5,
         element=None,
         plot=True,
+        plot_title=None,
     ):
         #:float: Residual threshold in m/s above which to remove lines
         self.threshold = threshold
@@ -232,6 +234,7 @@ class WavelengthCalibration:
         self.polarim = polarim
         #:int: Whether to plot the results. Set to 2 to plot during all steps.
         self.plot = plot
+        self.plot_title = plot_title
         #:str: Elements used in the wavelength calibration. Used in AutoId to find more lines from the Atlas
         self.element = element
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
@@ -420,7 +423,12 @@ class WavelengthCalibration:
             )
 
             if self.plot >= 2:
-                plt.imshow(correlation, aspect="auto"); plt.vlines(offset_x, -0.5, self.nord-0.5, color="red"); plt.hlines(offset_order, -0.5, self.ncol - 0.5, color="red"); plt.show()
+                plt.imshow(correlation, aspect="auto")
+                plt.vlines(offset_x, -0.5, self.nord - 0.5, color="red")
+                plt.hlines(offset_order, -0.5, self.ncol - 0.5, color="red")
+                if self.plot_title is not None:
+                    plt.title(self.plot_title)
+                plt.show()
 
             offset_order = offset_order - img.shape[0] / 2 + 1
             offset_x = offset_x - img.shape[1] / 2 + 1
@@ -466,7 +474,10 @@ class WavelengthCalibration:
             x2 = np.linspace(x.min(), x.max(), len(x) * 100)
             plt.plot(x, section, label="Observation")
             plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
-            plt.title("Gaussian Fit to spectral line")
+            title = "Gaussian Fit to spectral line"
+            if self.plot_title is not None:
+                title = f"{self.plot_title}\n{title}"
+            plt.title(title)
             plt.xlabel("x [pixel]")
             plt.ylabel("Intensity [a.u.]")
             plt.legend()
@@ -503,7 +514,12 @@ class WavelengthCalibration:
                 continue
 
             try:
-                coef = self._fit_single_line(obs[int(line["order"])], line["posm"], line["width"], plot=line["flag"])
+                coef = self._fit_single_line(
+                    obs[int(line["order"])],
+                    line["posm"],
+                    line["width"],
+                    plot=line["flag"],
+                )
                 lines[i]["posm"] = coef[1]
             except:
                 # Gaussian fit failed, dont use line
@@ -1073,9 +1089,10 @@ class WavelengthCalibration:
 
     def plot_results(self, wave_img, obs):
         plt.subplot(211)
-        plt.title(
-            "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
-        )
+        title = "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("Wavelength")
         plt.ylabel("Observed spectrum")
         for i in range(self.nord):
@@ -1092,9 +1109,11 @@ class WavelengthCalibration:
         cbar.set_label("Wavelength [Å]")
         plt.show()
 
-    def plot_residuals(self, lines, coef, title=""):
+    def plot_residuals(self, lines, coef, title="Residuals"):
         orders = np.unique(lines["order"])
         norders = len(orders)
+        if self.plot_title is not None:
+            title = f"{self.plot_title}\n{title}"
         plt.suptitle(title)
         nplots = int(np.ceil(norders / 2))
         for i, order in enumerate(orders):
@@ -1249,7 +1268,10 @@ class WavelengthCalibration:
             area = np.percentile(residual, (32, 50, 68))
             area = area[0] - 5 * (area[1] - area[0]), area[0] + 5 * (area[2] - area[1])
             plt.hist(residual, bins=100, range=area)
-            plt.title("ThAr - LFC")
+            title = "ThAr - LFC"
+            if self.plot_title is not None:
+                title = f"{self.plot_title}\n{title}"
+            plt.title(title)
             plt.xlabel(r"$\Delta\lambda$ [Å]")
             plt.ylabel("N")
             plt.show()
@@ -1269,9 +1291,10 @@ class WavelengthCalibration:
 
         if self.plot:
             wave_img = wave
-            plt.suptitle(
-                "Difference between GasLamp Solution and Laser Frequency Comb solution\nEach plot shows one order."
-            )
+            title = "Difference between GasLamp Solution and Laser Frequency Comb solution\nEach plot shows one order"
+            if self.plot_title is not None:
+                title = f"{self.plot_title}\n{title}"
+            plt.suptitle(title)
             for i in range(len(new_wave)):
                 plt.subplot(len(new_wave) // 4 + 1, 4, i + 1)
                 plt.plot(wave_img[i] - new_wave[i])
@@ -1391,7 +1414,7 @@ class WavelengthCalibration:
 
         aic = self.calculate_AIC(lines, wave_solution)
         logger.info("AIC of wavelength fit: %f", aic)
-        
+
         # np.savez("cs_lines.npz", cs_lines=lines.data)
 
         return wave_img, wave_solution
