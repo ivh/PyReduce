@@ -1,5 +1,6 @@
 from os.path import dirname, join
 import json
+import sys
 
 import numpy as np
 import pandas as pd
@@ -23,28 +24,27 @@ def obs_to_ech(obs, fname):
     ech = Echelle(data={"spec": obs})
     ech.save(fname)
 
+
 def make_lab_spec(wpoints):
     wmin, wmax = wpoints.min(), wpoints.max()
     n = 10_000
     ref = np.zeros(n)
-    wave = np.linspace(wmin, wmax, num = n, endpoint=True)
+    wave = np.linspace(wmin, wmax, num=n, endpoint=True)
     idx = np.digitize(wpoints, wave)
 
     for i in range(len(wpoints)):
         mid = idx[i]
         xfirst, xlast = max(mid - 25, 0), min(mid + 25, n)
-        ref[xfirst:xlast] += signal.gaussian(xlast- xfirst, 5)
+        ref[xfirst:xlast] += signal.gaussian(xlast - xfirst, 5)
 
     ref = np.clip(ref, 0, 1)
 
-    header = fits.Header({
-        "CRVAL1":wmin,
-        "CDELT1": wave[1] - wave[0]
-    })
+    header = fits.Header({"CRVAL1": wmin, "CDELT1": wave[1] - wave[0]})
     hdu = fits.PrimaryHDU(data=ref, header=header)
     hdu.writeto("labspec.fits", overwrite=True)
 
     pass
+
 
 def get_typecode(dtype):
     """ Get the IDL typecode for a given dtype """
@@ -336,9 +336,7 @@ class OrderPlot:
             idx = np.argmin(np.abs(x - self.lines["posm"]))
 
             # find closest peak
-            (line,) = plt.plot(
-                self.lines["posm"][idx], self.lines["height"][idx], "rx"
-            )
+            (line,) = plt.plot(self.lines["posm"][idx], self.lines["height"][idx], "rx")
             self.ax.figure.canvas.draw()
             self.fig.canvas.flush_events()
             self.lines["flag"][idx] = False
