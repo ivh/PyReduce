@@ -20,7 +20,9 @@ def help():
 
 
 def reduce():
-    parser = argparse.ArgumentParser(description="PyReduce script tools interface", prog="python -m pyreduce")
+    parser = argparse.ArgumentParser(
+        description="PyReduce script tools interface", prog="python -m pyreduce"
+    )
     parser.add_argument("script", help="which script to execute", choices=["reduce"])
 
     parser.add_argument("-b", "--bias", action="store_true", help="Create master bias")
@@ -59,11 +61,13 @@ def reduce():
     if len(steps_to_take) == 0:
         steps_to_take = "all"
 
-    main(instrument=instrument, target=target, steps=steps)
+    main(instrument=instrument, target=target, steps=steps_to_take)
 
 
 def combine():
-    parser = argparse.ArgumentParser(description="PyReduce script tools interface", prog="python -m pyreduce")
+    parser = argparse.ArgumentParser(
+        description="PyReduce script tools interface", prog="python -m pyreduce"
+    )
     parser.add_argument("script", help="which script to execute", choices=["combine"])
 
     parser.add_argument(
