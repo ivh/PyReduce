@@ -44,7 +44,6 @@ jobs:
       uses: mathieudutour/github-tag-action@v5
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }} 
-        custom_tag: 0.4.7
     
     - uses: actions/checkout@v2
       with:
