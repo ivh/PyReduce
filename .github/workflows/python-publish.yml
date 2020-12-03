@@ -27,7 +27,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        python install .
+        pip install .
         
     - name: Lint with flake8
       run: |
@@ -44,6 +44,7 @@ jobs:
       uses: mathieudutour/github-tag-action@v5
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }} 
+        custom_tag: 0.4.7
     
     - name: Build Wheel
       run: pip install wheel && python setup.py sdist bdist_wheel
