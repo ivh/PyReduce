@@ -51,7 +51,7 @@ jobs:
         clean: true
     
     - name: Build Wheel
-      run: pip install wheel && python setup.py sdist bdist_wheel
+      run: pip install wheel && python setup.py sdist
   
     - name: Zip data
       id: zip_data
