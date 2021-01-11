@@ -55,6 +55,11 @@ jobs:
       with:
         ref:  ${{ steps.tag_release.outputs.new_tag }}
         clean: true
+        
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
     
     - name: Build Wheel
       run: pip install wheel && python setup.py sdist
