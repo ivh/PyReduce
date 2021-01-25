@@ -30,7 +30,7 @@ class AlignmentPlot:
     Makes a plot which can be clicked to align the two spectra, reference and observed
     """
 
-    def __init__(self, ax, obs, lines, offset=(0, 0)):
+    def __init__(self, ax, obs, lines, offset=(0, 0), plot_title=None):
         self.im = ax
         self.first = True
         self.nord, self.ncol = obs.shape
@@ -38,6 +38,7 @@ class AlignmentPlot:
 
         self.obs = obs
         self.lines = lines
+        self.plot_title = plot_title
 
         self.order_first = 0
         self.spec_first = ""
@@ -356,7 +357,7 @@ class WavelengthCalibration:
             offset in order and column to be applied to each line in the linelist
         """
         _, ax = plt.subplots()
-        ap = AlignmentPlot(ax, obs, lines)
+        ap = AlignmentPlot(ax, obs, lines, plot_title=self.plot_title)
         ap.connect()
         plt.show()
         offset = ap.offset
