@@ -1141,7 +1141,7 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         raise ValueError("Input y must have 1 or 2 dimensions")
 
     if par < 1:
-        raise ValueError("Xwidth must be at least 1")
+        par = 1
 
     # 1D case
     if y.ndim == 1 or (y.ndim == 2 and (y.shape[0] == 1 or y.shape[1] == 1)):
