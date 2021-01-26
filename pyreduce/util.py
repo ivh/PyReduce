@@ -1228,7 +1228,7 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
 
         model = solve_banded((nx, nx), aij, rhs)
         model = np.reshape(model, (ny, nx))
-        return aaa
+        return model
 
 
 def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric"):
