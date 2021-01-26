@@ -1129,6 +1129,8 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         (for 2d array only) filter width in y direction (2nd index) if ywidth is missing for 2d array, it set equal to xwidth
     weight : array(float)
         an array of the same size(s) as f containing values between 0 and 1
+    lambda1: float
+        regularization parameter
     maxiter : int
         maximum number of iteration for filtering of 2d array
     """
@@ -1139,12 +1141,10 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         raise ValueError("Input y must have 1 or 2 dimensions")
 
     if par < 1:
-        par = 1
+        raise ValueError("Xwidth must be at least 1")
 
     # 1D case
     if y.ndim == 1 or (y.ndim == 2 and (y.shape[0] == 1 or y.shape[1] == 1)):
-        if par < 0:
-            return y
         y = y.ravel()
         n = y.size
 
@@ -1194,18 +1194,40 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         if par1 is None:
             par1 = par
         if par == 0 and par1 == 0:
-            raise ValueError("par and par1 can't both be 0")
+            raise ValueError("xwidth and ywidth can't both be 0")
         n = y.size
-        nc, nr = y.shape
+        nx, ny = y.shape
 
-        adiag = abs(par)
-        bdiag = abs(par1)
+        lam_x = abs(par)
+        lam_y = abs(par1)
 
-        # Main diagonal first:
-        aaa = np.full(nr - 2, 1.0 + adiag + 2.0 * bdiag)
+        n = nx * ny
+        ndiag = 2 * nx + 1
+        aij = np.zeros((n, ndiag))
+        aij[nx, 0] = weight[0, 0] + lam_x + lam_y
+        aij[nx, 1:nx] = weight[0, 1:nx] + 2 * lam_x + lam_y
+        aij[nx, nx : n - nx] = weight[1 : ny - 1] + 2 * (lam_x + lam_y)
+        aij[nx, n - nx : n - 1] = weight[ny - 1, 0 : nx - 1] + 2 * lam_x + lam_y
+        aij[nx, n - 1] = weight[ny - 1, nx - 1] + lam_x + lam_y
 
-        aa = solve(aaa, y)  # solve the linear system ax=b.
-        aa.shape = nc, nr  # restore the shape of the result.
+        aij[nx - 1, 1:n] = -lam_x
+        aij[nx + 1, 0 : n - 1] = -lam_x
+
+        ind = np.arrange(ny - 1) * nx + nx + nx * n
+        aij[ind - 1] = aij[ind - 1] - lam_x
+        aij[ind] = aij[ind] - lam_x
+
+        ind = np.arrange(ny - 1) * nx + nx
+        aij[nx + 1, ind - 1] = 0
+        aij[nx - 1, ind] = 0
+
+        aij[0, nx:n] = -lam_y
+        aij[ndiag - 1, 0 : n - nx] = -lam_y
+
+        rhs = f * weight
+
+        model = solve_banded((nx, nx), aij, rhs)
+        model = np.reshape(model, (ny, nx))
         return aaa
 
 
