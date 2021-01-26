@@ -138,17 +138,17 @@ class LineList:
         (
             np.record,
             [
-                (("wlc", "WLC"), ">f8"),
-                (("wll", "WLL"), ">f8"),
-                (("posc", "POSC"), ">f8"),
-                (("posm", "POSM"), ">f8"),
-                (("xfirst", "XFIRST"), ">i2"),
-                (("xlast", "XLAST"), ">i2"),
-                (("approx", "APPROX"), "O"),
-                (("width", "WIDTH"), ">f8"),
-                (("height", "HEIGHT"), ">f8"),
-                (("order", "ORDER"), ">i2"),
-                ("flag", "?"),
+                (("wlc", "WLC"), ">f8"), # Wavelength (before fit)
+                (("wll", "WLL"), ">f8"), # Wavelength (after fit)
+                (("posc", "POSC"), ">f8"), # Pixel Position (before fit)
+                (("posm", "POSM"), ">f8"), # Pixel Position (after fit)
+                (("xfirst", "XFIRST"), ">i2"), # first pixel of the line
+                (("xlast", "XLAST"), ">i2"), # last pixel of the line
+                (("approx", "APPROX"), "O"), # ???
+                (("width", "WIDTH"), ">f8"), # width of the line in pixels
+                (("height", "HEIGHT"), ">f8"), # relative strength of the line
+                (("order", "ORDER"), ">i2"), # echelle order the line is found in
+                ("flag", "?"), # flag that tells us if we should use the line or not
             ],
         )
     )
