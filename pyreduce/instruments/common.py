@@ -573,6 +573,14 @@ class Instrument:
         info = self.load_info()
         return info["modes"]
 
+    def get_mask_filename(self, mode, **kwargs):
+        i = self.name.lower()
+        m = mode.lower()
+        fname = f"mask_{i}_{m}.fits.gz"
+        cwd = os.path.dirname(__file__)
+        fname = os.path.join(cwd, "..", "masks", fname)
+        return fname
+
 
 class InstrumentWithModes(Instrument):
     def __init__(self):

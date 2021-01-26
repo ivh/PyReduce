@@ -8,9 +8,7 @@
         "output_dir": "reduced"
     },
     "instrument": {},
-    "mask": {
-        "directory": "{reduce}/masks"
-    },
+    "mask": {},
     "bias": {
         "plot": true,
         "plot_title": "Bias"

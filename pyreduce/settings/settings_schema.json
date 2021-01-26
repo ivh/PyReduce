@@ -35,16 +35,7 @@
             "type": "object"
         },
         "mask": {
-            "type": "object",
-            "properties": {
-                "directory": {
-                    "description": "Directory containing the instrument specific mask files. May contain {file} tag, referencing the reduce script location",
-                    "type": "string"
-                }
-            },
-            "required": [
-                "directory"
-            ]
+            "type": "object"
         },
         "bias": {
             "$ref": "#/definitions/step"

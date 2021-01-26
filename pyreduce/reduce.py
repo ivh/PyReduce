@@ -282,20 +282,6 @@ class Mask(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._mask_dir = config["directory"]
-
-    @property
-    def mask_dir(self):
-        """str: Directory containing the mask data file"""
-        this = dirname(__file__)
-        return self._mask_dir.format(reduce=this)
-
-    @property
-    def mask_file(self):
-        """str: Name of the mask data file"""
-        i = self.instrument.name.lower()
-        m = self.mode.lower()
-        return f"mask_{i}_{m}.fits.gz"
 
     def run(self):
         """Load the mask file from disk
@@ -315,7 +301,7 @@ class Mask(Step):
         mask : array of shape (nrow, ncol)
             Bad pixel mask for this setting
         """
-        mask_file = join(self.mask_dir, self.mask_file)
+        mask_file = self.instrument.get_mask_filename(self.mode)
         try:
             mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
