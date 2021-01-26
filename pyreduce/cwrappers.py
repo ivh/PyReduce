@@ -142,14 +142,19 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         input image
     ycen : array[n]
         traces the center of the order
+    tilt : array[n]
+        tilt (1st order curvature) of the order along the image, set to 0 if order straight
     shear : array[n]
-        tilt of the order along the image ???, set to 0 if order straight
-    osample : int, optional
-        Subpixel ovsersampling factor (the default is 1, which no oversampling)
-    lambda_sp : float, optional
-        smoothing factor spectrum (the default is 0, which no smoothing)
-    lambda_sl : float, optional
-        smoothing factor slitfunction (the default is 0.1, which small)
+        shear (2nd order curvature) of the order along the image, set to 0 if order straight
+    osample : int
+        Subpixel ovsersampling factor (the default is 1, no oversampling)
+    lambda_sp : float
+        smoothing factor spectrum (the default is 0, no smoothing)
+    lambda_sl : float
+        smoothing factor slitfunction (the default is 0.1, small smoothing)
+    yrange : array[2]
+        number of pixels below and above the central line that have been cut out
+
 
     Returns
     -------
@@ -201,9 +206,11 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     assert yrange.ndim == 1, "Yrange must be 1 dimensional"
     assert yrange.size == 2, "Yrange must have 2 elements"
-    assert yrange[0] + yrange[1] + 1 == img.shape[0]
-    assert yrange[0] >= 0
-    assert yrange[1] >= 0
+    assert (
+        yrange[0] + yrange[1] + 1 == img.shape[0]
+    ), "Yrange must cover the whole image"
+    assert yrange[0] >= 0, "Yrange must be positive"
+    assert yrange[1] >= 0, "Yrange must be positive"
 
     # Retrieve some derived values
     nrows, ncols = img.shape
