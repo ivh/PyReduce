@@ -1,0 +1,32 @@
+Creating your own instrument
+============================
+
+PyReduce supports a number of instruments by default, but it can be extended to support your instrument too.
+The general instrument is defined by the pyreduce.instruments.common.Instrument class, so the easiest way is to create your own class that inherits from it.
+
+There are a few functions in that class that should be adapted to fit your instrument:
+
+    - You need to implement your own version of the instrument class, that inherits from pyreduce.instruments.common.Instrument
+    - In that class there are a few important functions that may need to be adapted:
+        
+        - load_info, this loads a json file with information mostly about the FITS header (e.g. which keyword gives us the time of the observation etc.) Look at other pyreduce.instruments.instrument_schema to get some information about what is what
+        - sort_files, finds and sorts the files for the different steps of pyreduce. There is a system here that might work for your instrument as well, depending on the FITS headers. In that case you just need to set the kw_bias etc fields in load_info correctly
+        - add_header_info, this modifies the fits header information. Usually to combine fields in the header to get the correct information (e.g. to get the time in the middle of the observation, instead of at the beginning).
+        - get_wavecal_filename, should return the filename to the wavelength calibration first guess. That is a npz file containing a numpy recarray called cs_lines. The recarray should have the fields:
+
+            - (("wlc", "WLC"), ">f8"), # Wavelength (before fit)
+            - (("wll", "WLL"), ">f8"), # Wavelength (after fit)
+            - (("posc", "POSC"), ">f8"), # Pixel Position (before fit)
+            - (("posm", "POSM"), ">f8"), # Pixel Position (after fit)
+            - (("xfirst", "XFIRST"), ">i2"), # first pixel of the line
+            - (("xlast", "XLAST"), ">i2"), # last pixel of the line
+            - (("approx", "APPROX"), "O"), # ???
+            - (("width", "WIDTH"), ">f8"), # width of the line in pixels
+            - (("height", "HEIGHT"), ">f8"), # relative strength of the line
+            - (("order", "ORDER"), ">i2"), # echelle order the line is found in
+            - ("flag", "?"), # flag that tells us if we should use the line or not
+
+        - (optional) get_mask_filename, should return the filename of the bad pixel map. A fits file with the badpixel map in the main extension. With the same size as the input fits files
+    
+    - You probably also want to override the settings used by PyReduce (config in the example scripts). You can find examples for settings in pyreduce.settings. (settings_pyreduce.json has all available settings, they all need to be specified)
+    - When calling PyReduce instead of passing the name of the instrument you pass an instance of your instrument class.

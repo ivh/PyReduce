@@ -14,6 +14,7 @@ Welcome to PyReduce's documentation!
    howto
    examples
    configuration_file
+   instruments
    modules
 
 
