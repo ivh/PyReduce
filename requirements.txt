@@ -10,7 +10,7 @@ joblib==1.0.0
 pytest==6.2.2
 pytest-cov==2.11.1
 jsonschema==3.2.0
-tqdm==4.55.0
+tqdm==4.56.0
 colorlog==4.6.2
 
 # optional for tools combine
