@@ -609,3 +609,35 @@ class InstrumentWithModes(Instrument):
 
 class COMMON(Instrument):
     pass
+
+
+def create_custom_instrument(
+    name, extension=0, info=None, mask_file=None, wavecal_file=None, hasModes=False
+):
+    cls = Instrument if not hasModes else InstrumentWithModes
+
+    class CUSTOM(cls):
+        def __init__(self):
+            super().__init__()
+            self.name = name
+
+        def load_info(self):
+            if info is None:
+                return COMMON().info
+            try:
+                with open(info) as f:
+                    data = json.load(f)
+                return data
+            except:
+                return info
+
+        def get_extension(self, header, mode):
+            return extension
+
+        def get_mask_filename(self, mode, **kwargs):
+            return mask_file
+
+        def get_wavecal_filename(self, header, mode, **kwargs):
+            return wavecal_file
+
+    return CUSTOM()
