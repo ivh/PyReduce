@@ -1,10 +1,29 @@
-Creating your own instrument
-============================
+Supporting Custom instruments
+=============================
+
 
 PyReduce supports a number of instruments by default, but it can be extended to support your instrument too.
+There are two ways to implement your instrument. The first works on a script by script basis. The second is a more complete ompelementation.
+The second choice is recommended for proper use, although the first can be useful for experimentation.
+
+
+Method 1: Create your instrument as part of the script
+------------------------------------------------------
+
+There is a very simple example in the examples folder for the support of a custom instrument "custom_instrument_example.py".
+The idea is that we create a custom class on the fly and define all the necessary parameters within the script that is currently being run.
+This is in general less flexible than the second method, but can be useful since all variables are available within the script itself.
+Once a good solution has been found it is recommended to convert this to what is described below in method 2, since we can then use the same 
+instrument configuration in other scripts.
+
+
+Method 2: Create the instrument class and configuration
+-------------------------------------------------------
+
+In this method, we create a custom class and configuration as seperate files, similar to how instruments are implemented in PyReduce itself.
 The general instrument is defined by the pyreduce.instruments.common.Instrument class, so the easiest way is to create your own class that inherits from it.
 
-There are a few functions in that class that should be adapted to fit your instrument:
+Here are the general steps that need to be followed to support your instrument:
 
     - You need to implement your own version of the instrument class, that inherits from pyreduce.instruments.common.Instrument
     - In that class there are a few important functions that may need to be adapted:

@@ -23,7 +23,7 @@ instrument = create_custom_instrument(
     "custom", extension=1, mask_file=bpm_mask, wavecal_file=wavecal_file
 )
 
-# Override deafault values
+# Override default values
 # those can either be fixed values or refer to FITS header keywords
 instrument.info["readnoise"] = 1
 instrument.info["prescan_x"] = "PRESCAN X"
