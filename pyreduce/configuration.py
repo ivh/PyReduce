@@ -27,7 +27,10 @@ else:
 def get_configuration_for_instrument(instrument, plot=None):
     local = dirname(__file__)
     instrument = str(instrument)
-    fname = join(local, "settings", f"settings_{instrument.upper()}.json")
+    if instrument in ["pyreduce", None]:
+        fname = join(local, "settings", f"settings_pyreduce.json")
+    else:
+        fname = join(local, "settings", f"settings_{instrument.upper()}.json")
 
     config = load_config(fname, instrument)
 
