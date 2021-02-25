@@ -14,12 +14,14 @@
         "plot_title": "Bias"
     },
     "flat": {
+        "bias_scaling": "number_of_files",
         "plot": true,
         "plot_title": "Flat"
     },
     "orders": {
         "degree": 4,
         "degree_before_merge": 2,
+        "bias_scaling": "number_of_files",
         "regularization": 0,
         "closing_shape": [
             5,
@@ -42,6 +44,7 @@
         "scatter_cutoff": 2,
         "border_width": null,
         "extraction_width": 0.3,
+        "bias_scaling": "number_of_files",
         "plot": true,
         "plot_title": "Background Scatter"
     },
@@ -60,6 +63,7 @@
     "wavecal": {
         "extraction_method": "arc",
         "extraction_width": 0.5,
+        "bias_scaling": "number_of_files",
         "manual": false,
         "threshold": 100,
         "iterations": 3,

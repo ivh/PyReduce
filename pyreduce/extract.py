@@ -979,11 +979,18 @@ def optimal_extraction(
 
 
 def correct_for_curvature(img_order, tilt, shear, xwd):
-    img_order = np.ma.filled(img_order, 0)
+    # img_order = np.ma.filled(img_order, np.nan)
+    mask = ~np.ma.getmaskarray(img_order)
+
     xt = np.arange(img_order.shape[1])
     for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1])):
         xi = xt + yt * tilt + yt ** 2 * shear
-        img_order[y] = np.interp(xi, xt, img_order[y])
+        img_order[y] = np.interp(xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0)
+
+    xt = np.arange(img_order.shape[0])
+    for x in range(img_order.shape[1]):
+        img_order[:, x] = np.interp(xt, xt[mask[:, x]], img_order[:, x][mask[:, x]], left=0, right=0)
+    
     return img_order
 
 

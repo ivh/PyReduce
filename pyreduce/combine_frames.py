@@ -447,6 +447,7 @@ def combine_flat(
     bias=None,
     plot=False,
     plot_title=None,
+    bias_scaling="number_of_files",
     **kwargs,
 ):
     """
@@ -478,7 +479,17 @@ def combine_flat(
     # Subtract master dark
     # TODO: Why do we scale with number of files and not exposure time?
     if bias is not None:
-        flat -= bias * len(files)
+        if bias_scaling == "number_of_files":
+            flat -= bias * len(files)
+        elif bias_scaling == "exposure_time":
+            flat -= bias * fhead["exptime"] / bhead["exptime"]
+        elif bias_scaling == "mean":
+            flat -= bias * np.ma.mean(flat) / np.ma.mean(bias)
+        elif bias_scaling == "median":
+            flat -= bias * np.ma.median(flat) / np.ma.median(bias)
+        else:
+            raise ValueError("Unexpected value for 'bias_scaling', expected one of ['number_of_files', 'exposure_time'], but got %s" % bias_scaling)
+    
 
     if plot:  # pragma: no cover
         title = "Master Flat"

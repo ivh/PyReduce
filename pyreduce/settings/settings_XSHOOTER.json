@@ -1,8 +1,12 @@
 {
     "__instrument__": "XSHOOTER",
+    "flat":{
+        "bias_scaling": "exposure_time"
+    },
     "orders": {
         "degree": 5,
         "degree_before_merge": "best",
+        "bias_scaling": "exposure_time",
         "filter_size": 20,
         "min_cluster": 100,
         "noise": 50,
@@ -13,6 +17,7 @@
         "min_width": 0
     },
     "scatter": {
+        "bias_scaling": "exposure_time",
         "extraction_width": 0.45,
         "border_width": 20
     },
@@ -35,6 +40,7 @@
     },
     "wavecal": {
         "extraction_method": "arc",
+        "bias_scaling": "mean",
         "threshold": 200,
         "iterations": 3,
         "dimensionality": "2D",

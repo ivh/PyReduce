@@ -41,12 +41,22 @@
             "$ref": "#/definitions/step"
         },
         "flat": {
-            "$ref": "#/definitions/step"
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
+                }
+            ]
         },
         "orders": {
             "allOf": [
                 {
                     "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
                 },
                 {
                     "type": "object",
@@ -158,6 +168,9 @@
                     "$ref": "#/definitions/step"
                 },
                 {
+                    "$ref": "#/definitions/bias_scaling"
+                },
+                {
                     "type": "object",
                     "properties": {
                         "scatter_degree": {
@@ -244,6 +257,9 @@
                 },
                 {
                     "$ref": "#/definitions/polynomialfit"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
                 },
                 {
                     "type": "object",
@@ -650,6 +666,16 @@
                     }
                 }
             ]
+        },
+        "bias_scaling": {
+            "type": "object",
+            "properties": {
+                "bias_scaling": {
+                    "description": "determines how the bias is applied",
+                    "type": "string",
+                    "enum": ["number_of_files", "exposure_time", "mean", "median"]
+                }
+            }
         }
     }
 }

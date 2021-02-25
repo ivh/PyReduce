@@ -13,16 +13,16 @@ target = "UX-Ori"
 night = None
 mode = "NIR"
 steps = (
-    "bias",
-    "flat",
-    "orders",
-    "scatter",
-    "norm_flat",
-    "curvature",
+    # "bias",
+    # "flat",
+    # "orders",
+    # "scatter",
+    # "norm_flat",
+    # "curvature",
     "wavecal",
     "science",
     # "continuum",
-    "finalize",
+    # "finalize",
 )
 
 # some basic settings
@@ -32,11 +32,13 @@ steps = (
 # load dataset (and save the location)
 # change the location (as set in datasets() to some folder of you choice)
 # or dont pass a path to use the local directory
-base_dir = datasets.XSHOOTER()
+base_dir = datasets.XSHOOTER("/DATA/PyReduce")
 input_dir = "raw"
 output_dir = "reduced"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=0)
+# config["science"]["extraction_method"] = "arc"
+# config["science"]["extraction_cutoff"] = 0
 
 pyreduce.reduce.main(
     instrument,

@@ -408,6 +408,8 @@ class Flat(Step):
         self._dependsOn += ["mask", "bias"]
         self._loadDependsOn += ["mask"]
 
+        self.bias_scaling = config["bias_scaling"]
+
     @property
     def savefile(self):
         """str: Name of master bias fits file"""
@@ -459,6 +461,7 @@ class Flat(Step):
             mask=mask,
             bhead=bhead,
             bias=bias,
+            bias_scaling=self.bias_scaling,
             plot=self.plot,
             plot_title=self.plot_title,
         )
@@ -522,6 +525,8 @@ class OrderTracing(Step):
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
+        self.bias_scaling = config["bias_scaling"]
+
     @property
     def savefile(self):
         """str: Name of the order tracing file"""
@@ -552,6 +557,7 @@ class OrderTracing(Step):
             mask=mask,
             bhead=bias[1],
             bias=bias[0],
+            bias_scaling=self.bias_scaling,
             plot=False,
         )
 
@@ -618,6 +624,7 @@ class BackgroundScatter(Step):
         self.extraction_width = config["extraction_width"]
         self.sigma_cutoff = config["scatter_cutoff"]
         self.border_width = config["border_width"]
+        self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
@@ -635,6 +642,7 @@ class BackgroundScatter(Step):
             mask=mask,
             bhead=bhead,
             bias=bias,
+            bias_scaling=self.bias_scaling,
             plot=False,
         )
 
@@ -837,6 +845,8 @@ class WavelengthCalibration(Step):
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
 
+        self.bias_scaling = config["bias_scaling"]
+
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
@@ -877,7 +887,13 @@ class WavelengthCalibration(Step):
 
         # Load wavecal image
         orig, thead = combine_flat(
-            files, self.instrument, self.mode, mask=mask, bias=bias, bhead=bhead
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            bias=bias,
+            bhead=bhead,
+            bias_scaling=self.bias_scaling,
         )
 
         # Extract wavecal spectrum
