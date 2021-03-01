@@ -108,7 +108,7 @@ class ProgressPlot:  # pragma: no cover
 
         ny = img.shape[0]
         x_spec, y_spec = self.get_spec(img, spec, slitf, ycen)
-        x_slit, y_slit = self.get_slitf(img, spec, slitf)
+        x_slit, y_slit = self.get_slitf(img, spec, slitf, ycen)
         ycen = ycen + ny / 2
 
         new = np.linspace(0, ny - 1, ny)
@@ -195,9 +195,9 @@ class ProgressPlot:  # pragma: no cover
         y = y.ravel()
         return x, y
 
-    def get_slitf(self, img, spec, slitf):
+    def get_slitf(self, img, spec, slitf, ycen):
         """ get the slit function """
-        x = np.indices(img.shape)[0].ravel()
+        x = np.indices(img.shape)[0]
         if np.any(spec == 0):
             i = np.arange(len(spec))
             try:
@@ -208,6 +208,9 @@ class ProgressPlot:  # pragma: no cover
                 spec[spec == 0] = np.median(spec)
         y = img / spec[None, :]
         y = y.ravel()
+
+        x = x - ycen + 0.5
+        x = x.ravel()
         return x, y
 
 
