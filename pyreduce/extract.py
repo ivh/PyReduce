@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, nrow, ncol, nbad=1000, title=None):
+    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None):
         self.nrow = nrow
         self.ncol = ncol
+        self.nslitf = nslitf
 
         self.nbad = nbad
 
@@ -81,7 +82,7 @@ class ProgressPlot:  # pragma: no cover
         (self.dots_slit,) = self.ax3.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
-        (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=3)
+        (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=2)
         (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), "Pg")
 
         # self.ax1.set_zscale("log")
@@ -107,13 +108,12 @@ class ProgressPlot:  # pragma: no cover
         ycen = np.copy(ycen)
 
         ny = img.shape[0]
+        nspec = img.shape[1]
         x_spec, y_spec = self.get_spec(img, spec, slitf, ycen)
         x_slit, y_slit = self.get_slitf(img, spec, slitf, ycen)
         ycen = ycen + ny / 2
 
-        new = np.linspace(0, ny - 1, ny)
         old = np.linspace(-1, ny, len(slitf))
-        sf = np.interp(new, old, slitf)
 
         # Fix Sizes
         mask_spec_x = self.fix_linear(x_spec[mask.ravel()], self.nbad, fill=np.nan)
@@ -127,7 +127,8 @@ class ProgressPlot:  # pragma: no cover
         spec = self.fix_linear(spec, self.ncol)
         x_slit = self.fix_linear(x_slit, self.ncol * self.nrow)
         y_slit = self.fix_linear(y_slit, self.ncol * self.nrow)
-        sf = self.fix_linear(sf, self.nrow)
+        old = self.fix_linear(old, self.nslitf)
+        sf = self.fix_linear(slitf, self.nslitf)
 
         # Update Data
         model = np.clip(model, 0, np.max(model[5:-5, 5:-5]) * 1.1)
@@ -154,18 +155,22 @@ class ProgressPlot:  # pragma: no cover
 
         self.dots_slit.set_xdata(x_slit)
         self.dots_slit.set_ydata(y_slit)
+        self.line_slit.set_xdata(old)
         self.line_slit.set_ydata(sf)
 
         self.mask_slit.set_xdata(mask_slit_x)
         self.mask_slit.set_ydata(mask_slit)
 
+        self.ax2.set_xlim((0, nspec-1))
         limit = np.nanmax(spec[5:-5]) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
 
+        self.ax3.set_xlim((0, ny-1))
         limit = np.nanmax(sf) * 1.1
         if not np.isnan(limit):
             self.ax3.set_ylim((0, limit))
+
 
         title = f"Order {ord_num}, Columns {left} - {right}"
         if self.title is not None:
@@ -180,24 +185,25 @@ class ProgressPlot:  # pragma: no cover
 
     def get_spec(self, img, spec, slitf, ycen):
         """ get the spectrum corrected by the slit function """
-        x = np.indices(img.shape)[1].ravel()
+        nrow, ncol = img.shape
+        x, y = np.indices(img.shape)
         ycen = ycen - ycen.astype(int)
 
-        nsf = len(slitf)
-        nrow, ncol = img.shape
-        sf = np.zeros(img.shape)
-        new = np.linspace(0, nrow - 1, nrow)
-        for i in range(ncol):
-            old = np.linspace(-1, nrow - 1 + 1, nsf) + (ycen[i] - 0.5)
-            sf[:, i] = np.interp(new, old, slitf)
+        x = x - ycen + 0.5
+        old = np.linspace(-1, nrow - 1 + 1, len(slitf))
+        sf = np.interp(x, old, slitf)
+        
+        x = img / sf
 
-        y = img / sf
+        x = x.ravel()
         y = y.ravel()
-        return x, y
+        return y, x
 
     def get_slitf(self, img, spec, slitf, ycen):
         """ get the slit function """
         x = np.indices(img.shape)[0]
+        ycen = ycen - ycen.astype(int)
+
         if np.any(spec == 0):
             i = np.arange(len(spec))
             try:
@@ -750,7 +756,7 @@ def extract_spectrum(
             if plot >= 2 and not np.all(np.isnan(swath_img)):  # pragma: no cover
                 if progress is None:
                     progress = ProgressPlot(
-                        swath_img.shape[0], swath_img.shape[1], title=plot_title
+                        swath_img.shape[0], swath_img.shape[1], nslitf, title=plot_title
                     )
                 progress.plot(
                     swath_img,
@@ -929,7 +935,8 @@ def optimal_extraction(
     if plot >= 2:  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_width, axis=1).max()
-        progress = ProgressPlot(nrow_swath, ncol_swath, title=plot_title)
+        nslitf_swath = (nrow_swath + 2) * kwargs.get("osample", 1) + 1
+        progress = ProgressPlot(nrow_swath, ncol_swath, nslitf_swath, title=plot_title)
     else:
         progress = None
 
