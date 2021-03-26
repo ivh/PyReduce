@@ -1199,9 +1199,19 @@ class WavelengthCalibration:
 
             # fr: repeating frequency
             # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
-            res = Polynomial.fit(n, f_old, deg=1, domain=[])
-            fd, fr = res.coef
-            n = np.round((f_old - fd) / fr)
+            # res = Polynomial.fit(n, f_old, deg=1, domain=[])
+            # fd, fr = res.coef
+
+            fr = np.median(np.diff(f_old))
+            fd = np.median(f_old % fr)
+            n_raw = (f_old - fd) / fr
+            n = np.round(n_raw)
+
+            if np.any(np.abs(n_raw - n) > 0.3):
+                logger.warning("Bad peaks detected in the frequency comb")
+
+            n -= n[0]
+
             res = Polynomial.fit(n, f_old, deg=1, domain=[])
             fd, fr = res.coef
 
