@@ -234,9 +234,10 @@ class Curvature:
         x = x[None, :]
         idx = make_index(ycen_int - xwd[0], ycen_int + xwd[1], xmin, xmax)
         img = original[idx]
+        img_compressed = np.ma.compressed(img)
 
-        img -= np.percentile(img.compressed(), 1)
-        img /= np.percentile(img.compressed(), 99)
+        img -= np.percentile(img_compressed, 1)
+        img /= np.percentile(img_compressed, 99)
         img = np.ma.clip(img, 0, 1)
 
         sl = np.ma.mean(img, axis=1)
@@ -253,7 +254,7 @@ class Curvature:
             return (mod - img).ravel()
 
         def model_compressed(coef):
-            return model(coef).compressed()
+            return np.ma.compressed(model(coef))
 
         A = np.nanpercentile(img, 95)
         sig = (xmax - xmin) / 4  # TODO
