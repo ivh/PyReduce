@@ -235,10 +235,11 @@ class Curvature:
         idx = make_index(ycen_int - xwd[0], ycen_int + xwd[1], xmin, xmax)
         img = original[idx]
 
-        sl = np.ma.median(img, axis=1)
-        img -= np.ma.min(sl)
-        sl -= np.ma.min(sl)
-        sl /= np.ma.max(sl)
+        img -= np.percentile(img.compressed(), 1)
+        img /= np.percentile(img.compressed(), 99)
+        img = np.ma.clip(img, 0, 1)
+
+        sl = np.ma.mean(img, axis=1)
         sl = sl[:, None]
 
         peak_func = {"gaussian": gaussian, "lorentzian": lorentzian}
@@ -251,6 +252,9 @@ class Curvature:
             mod *= sl
             return (mod - img).ravel()
 
+        def model_compressed(coef):
+            return model(coef).compressed()
+
         A = np.nanpercentile(img, 95)
         sig = (xmax - xmin) / 4  # TODO
         if self.curv_degree == 1:
@@ -261,7 +265,7 @@ class Curvature:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
         # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
         x0 = [A, peak, sig] + [0] * self.curv_degree
-        res = least_squares(model, x0=x0, method="lm")
+        res = least_squares(model_compressed, x0=x0, method="lm")
 
         if self.curv_degree == 1:
             tilt, shear = res.x[3], 0
@@ -270,7 +274,7 @@ class Curvature:
         else:
             tilt, shear = 0, 0
 
-        # model = res.fun.reshape(img.shape) + img
+        # model = model(res.x).reshape(img.shape) + img
         # vmin = 0
         # vmax = np.max(model)
 
