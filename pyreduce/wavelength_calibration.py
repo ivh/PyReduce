@@ -1175,6 +1175,11 @@ class WavelengthCalibration:
             new_peaks[j] = coef[1] + p - width
 
         n = np.arange(len(peaks))
+        
+        # keep peaks within the range
+        mask = (new_peaks > 0) & (new_peaks < len(c))
+        n, new_peaks = n[mask], new_peaks[mask]
+
         return n, new_peaks
 
     def frequency_comb(self, comb, wave, lines=None):
@@ -1239,6 +1244,8 @@ class WavelengthCalibration:
         # Merge Data
         n_all = np.concatenate(n_all)
         f_all = np.concatenate(f_all)
+        pixel = np.concatenate(pixel)
+        order = np.concatenate(order)
 
         # Fit f0 and fr to all data
         # (fr, f0), cov = np.polyfit(n_all, f_all, deg=1, cov=True)
@@ -1250,8 +1257,7 @@ class WavelengthCalibration:
 
         # All peaks are then given by f0 + n * fr
         wavelengths = speed_of_light / (f0 + n_all * fr)
-        pixel = np.concatenate(pixel)
-        order = np.concatenate(order)
+
         flag = np.full(len(wavelengths), True)
         laser_lines = np.rec.fromarrays(
             (wavelengths, pixel, pixel, order, flag),

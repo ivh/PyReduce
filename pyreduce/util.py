@@ -346,8 +346,9 @@ def gaussfit3(x, y):
     popt : list of shape (4,)
         Parameters A, mu, sigma**2, offset
     """
-    x = np.ma.compressed(x)
-    y = np.ma.compressed(y)
+    mask = np.ma.getmaskarray(x) | np.ma.getmaskarray(y)
+    x, y = x[~mask], y[~mask]
+
     gauss = gaussval2
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1, np.min(y)]
