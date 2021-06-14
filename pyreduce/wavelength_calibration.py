@@ -24,6 +24,10 @@ from . import util
 
 logger = logging.getLogger(__name__)
 
+def polyfit(x, y, deg):
+    res = Polynomial.fit(x, y, deg, domain=[])
+    coef = res.coef[::-1]
+    return coef
 
 class AlignmentPlot:
     """
@@ -1215,31 +1219,71 @@ class WavelengthCalibration:
             if np.any(np.abs(n_raw - n) > 0.3):
                 logger.warning("Bad peaks detected in the frequency comb")
 
-            n -= n[0]
+            # res = Polynomial.fit(n, f_old, deg=1, domain=[])
+            fr, fd = polyfit(n, f_old, deg=1)
+            # f_old = np.polyval([fr, fd], n)
 
-            res = Polynomial.fit(n, f_old, deg=1, domain=[])
-            fd, fr = res.coef
+            # w_old = speed_of_light / f_old
+            # m = np.zeros_like(w_old)
+            # m[1:] = w_old[1:] / np.diff(w_old)
+            # m = np.abs(np.round(m))
+            # m[0] = 1 + m[1]
+            # n = m
 
+            n_offset = 0
             # The first order is used as the baseline for all other orders
             # The choice is arbitrary and doesn't matter
             if i == 0:
                 f0 = fd
+                n_offset = 0
+            else:
+                # n0: shift in n, relative to the absolute reference
+                # shift n to the absolute grid, so that all peaks are given by the same f0
+                n_offset = (f0 - fd) / fr
+                n_offset = int(round(n_offset))
+                n -= n_offset
+                fd += n_offset * fr
 
-            # n0: shift in n, relative to the absolute reference
-            # shift n to the absolute grid, so that all peaks are given by the same f0
-            n_offset = (f0 - fd) / fr
-            n_offset = int(round(n_offset))
-            n -= n_offset
+            n = np.abs(n)
 
             n_all += [n]
             f_all += [f_old]
             pixel += [peaks]
             order += [y_ord]
 
-            fd += n_offset * fr
             logger.debug(
                 "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd, fr, n_offset
             )
+
+        w_all = [speed_of_light / f for f in f_all]
+        mw_all = [m * w for m, w in zip(n_all, w_all)]
+        y = np.concatenate(mw_all)
+        gap = np.median(y)
+
+        for i in range(len(n_all)):
+            plt.plot(n_all[i], n_all[i] * w_all[i])
+        plt.show()
+        
+        corr = np.zeros(self.nord)
+        for i in range(self.nord):
+            corri = gap / w_all[i] - n_all[i]
+            corri = np.median(corri)
+            corr[i] = np.round(corri)
+            n_all[i] += corr[i]
+
+        for i in range(len(n_all)):
+            plt.plot(n_all[i], n_all[i] * w_all[i])
+        plt.show()
+
+        for i in range(self.nord):
+            coef = polyfit(n_all[i], n_all[i] * w_all[i], deg=5)
+            mw = np.polyval(coef, n_all[i])
+            w_all[i] = mw / n_all[i]
+            f_all[i] = speed_of_light / w_all[i]
+            
+        for i in range(len(n_all)):
+            plt.plot(n_all[i], n_all[i] * w_all[i])
+        plt.show()
 
         # Merge Data
         n_all = np.concatenate(n_all)
@@ -1249,8 +1293,7 @@ class WavelengthCalibration:
 
         # Fit f0 and fr to all data
         # (fr, f0), cov = np.polyfit(n_all, f_all, deg=1, cov=True)
-        res = Polynomial.fit(n_all, f_all, deg=1, domain=[])
-        f0, fr = res.coef
+        fr, f0 = polyfit(n_all, f_all, deg=1)
 
         logger.debug("Laser Frequency Comb Anchor Frequency: %.3f 10**10 Hz", f0)
         logger.debug("Laser Frequency Comb Repeating Frequency: %.5f 10**10 Hz", fr)
