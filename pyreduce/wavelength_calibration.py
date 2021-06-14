@@ -1255,14 +1255,19 @@ class WavelengthCalibration:
                 "LFC Order: %i, f0: %.3f, fr: %.5f, n0: %.2f", i, fd, fr, n_offset
             )
 
+        # Here we postualte that m * lambda = const
+        # where m is the peak number
+        # this is the result of the grating equation
+        # at least const is roughly constant for neighbouring peaks
+
         w_all = [speed_of_light / f for f in f_all]
         mw_all = [m * w for m, w in zip(n_all, w_all)]
         y = np.concatenate(mw_all)
         gap = np.median(y)
 
-        for i in range(len(n_all)):
-            plt.plot(n_all[i], n_all[i] * w_all[i])
-        plt.show()
+        # for i in range(len(n_all)):
+        #     plt.plot(n_all[i], n_all[i] * w_all[i])
+        # plt.show()
         
         corr = np.zeros(self.nord)
         for i in range(self.nord):
@@ -1271,9 +1276,11 @@ class WavelengthCalibration:
             corr[i] = np.round(corri)
             n_all[i] += corr[i]
 
-        for i in range(len(n_all)):
-            plt.plot(n_all[i], n_all[i] * w_all[i])
-        plt.show()
+        logger.debug("LFC order offset correction: %s", corr)
+
+        # for i in range(len(n_all)):
+        #     plt.plot(n_all[i], n_all[i] * w_all[i])
+        # plt.show()
 
         for i in range(self.nord):
             coef = polyfit(n_all[i], n_all[i] * w_all[i], deg=5)
@@ -1281,9 +1288,9 @@ class WavelengthCalibration:
             w_all[i] = mw / n_all[i]
             f_all[i] = speed_of_light / w_all[i]
             
-        for i in range(len(n_all)):
-            plt.plot(n_all[i], n_all[i] * w_all[i])
-        plt.show()
+        # for i in range(len(n_all)):
+        #     plt.plot(n_all[i], n_all[i] * w_all[i])
+        # plt.show()
 
         # Merge Data
         n_all = np.concatenate(n_all)
