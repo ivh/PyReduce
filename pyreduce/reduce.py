@@ -305,7 +305,7 @@ class Mask(Step):
         try:
             mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
-        except FileNotFoundError:
+        except (FileNotFoundError, ValueError):
             logger.error(
                 "Bad Pixel Mask datafile %s not found. Using all pixels instead.",
                 mask_file,
