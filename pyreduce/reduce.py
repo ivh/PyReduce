@@ -841,16 +841,22 @@ class WavelengthCalibration(Step):
         self.iterations = config["iterations"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.dimensionality = config["dimensionality"]
+        #:int: Number of detector offset steps, due to detector design
         self.nstep = config["nstep"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
-
+        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
         self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar.npz")
+
+    @property
+    def savefile_thar(self):
+        """str: Name of the wavelength echelle file"""
+        return join(self.output_dir, self.prefix + ".thar_only.npz")
 
     def run(self, files, orders, mask, curvature, bias, config):
         """Perform wavelength calibration
@@ -912,6 +918,10 @@ class WavelengthCalibration(Step):
             shear=shear,
             **self.extraction_kwargs,
         )
+
+        # Save the extracted wavecal spectrum only
+        # This can be useful for creating a calibration file in IDL
+        np.savez(self.savefile_thar, thar=thar)
 
         # load reference linelist
         reference = self.instrument.get_wavecal_filename(

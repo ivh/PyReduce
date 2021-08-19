@@ -148,7 +148,7 @@ class LineList:
                 (("posm", "POSM"), ">f8"), # Pixel Position (after fit)
                 (("xfirst", "XFIRST"), ">i2"), # first pixel of the line
                 (("xlast", "XLAST"), ">i2"), # last pixel of the line
-                (("approx", "APPROX"), "O"), # ???
+                (("approx", "APPROX"), "O"), # Not used. Describes the shape used to approximate the line. "G" for Gaussian
                 (("width", "WIDTH"), ">f8"), # width of the line in pixels
                 (("height", "HEIGHT"), ">f8"), # relative strength of the line
                 (("order", "ORDER"), ">i2"), # echelle order the line is found in
@@ -183,14 +183,14 @@ class LineList:
         lines = np.array(lines, dtype=self.dtype)
         self.data = np.append(self.data, lines)
 
-    @staticmethod
-    def from_list(wave, order, pos, width, height, flag):
+    @classmethod
+    def from_list(cls, wave, order, pos, width, height, flag):
         lines = [
             (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, f)
             for w, o, p, wi, h, f in zip(wave, order, pos, width, height, flag)
         ]
-        lines = np.array(lines, dtype=LineList.dtype)
-        return LineList(lines)
+        lines = np.array(lines, dtype=cls.dtype)
+        return cls(lines)
 
 
 class WavelengthCalibration:
