@@ -9,7 +9,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
+def clipnflip(image, header, xrange=None, yrange=None, orientation=None, transpose=None):
     """
     Process an image and associated FITS header already in memory as follows:
     1. Trim image to desired subregion: newimage = image(xlo:xhi,ylo:yhi)
@@ -27,6 +27,8 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
         row - range to keep in the image (default: data from header/instrument)
     orientation : int, optional
         number of counterclockwise 90 degrees rotation to apply to the image (default: data from header/instrument)
+    transpose : bool, optional
+        if True the image will be transposed before rotation (default: data from header/instrument)
 
     Returns
     -------
@@ -123,9 +125,12 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None):
         timage = image[..., ylo:yhi, xlo:xhi]  # trimmed image
 
     # Flip image (if necessary) to achieve standard image orientation.
-    orientation = orientation if orientation is not None else header.get("e_orient")
-    if orientation is not None:
-        timage = np.rot90(timage, -1 * orientation, axes=(-2, -1))
+    orientation = orientation if orientation is not None else header.get("e_orient", 0)
+    # As per the old IDL definition, transpose is true for orientations larger than 4
+    transpose = transpose if transpose is not None else header.get("e_transpose", (orientation % 8) >= 4)
+    if transpose:
+        timage = np.transpose(timage, axes=(-2, -1))
+    timage = np.rot90(timage, -1 * orientation, axes=(-2, -1))
 
     # TODO just sum up groups and stuff?
     while timage.ndim > 2:

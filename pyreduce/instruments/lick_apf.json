@@ -10,6 +10,7 @@
     "modes_id": [""],
     "extension": [0],
     "orientation": 3,
+    "transpose": false,
     "prescan_y": "TCPR1",
     "overscan_y": "TCPR2",
     "prescan_x": "PPRERD",

@@ -32,7 +32,8 @@
             2
         ]
     ],
-    "orientation": 5,
+    "orientation": 1,
+    "transpose": false,
     "prescan_x": "HIERARCH ESO DET OUT{id[0]} PRSCX",
     "overscan_x": "HIERARCH ESO DET OUT{id[0]} OVSCX",
     "prescan_y": 0,

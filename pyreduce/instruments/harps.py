@@ -49,15 +49,18 @@ class FiberFilter(Filter):
 
     def collect(self, header):
         value = header.get(self.keyword)
-        value = value.split(",")
-        if value[0] in self.lamp_values and value[1] in self.lamp_values:
-            value = "AB"
-        elif value[1] in self.lamp_values:
-            value = "B"
-        elif value[0] in self.lamp_values:
-            value = "A"
-        else:
+        if value is None:
             value = ""
+        else:
+            value = value.split(",")
+            if value[0] in self.lamp_values and value[1] in self.lamp_values:
+                value = "AB"
+            elif value[1] in self.lamp_values:
+                value = "B"
+            elif value[0] in self.lamp_values:
+                value = "A"
+            else:
+                value = ""
 
         self.data.append(value)
         return value
@@ -68,7 +71,7 @@ class PolarizationFilter(Filter):
         super().__init__(keyword, regex=True)
 
     def collect(self, header):
-        dpr_type = header.get("ESO DPR TYPE", None)
+        dpr_type = header.get("ESO DPR TYPE", "")
         match = re.match(r"^.*,(CIR|LIN)POL,.*$", dpr_type)
         if match is None:
             value = "none"

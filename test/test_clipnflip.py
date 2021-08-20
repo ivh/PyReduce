@@ -21,6 +21,7 @@ def header(image):
     header["e_xlo"], header["e_xhi"] = 0, image.shape[1]
     header["e_ylo"], header["e_yhi"] = 0, image.shape[0]
     header["e_orient"] = 0
+    header["e_transpose"] = False
     return header
 
 

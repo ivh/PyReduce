@@ -8,6 +8,7 @@
     "modes": ["NIRSPEC"],
     "extension": 0,
     "orientation": 0,
+    "transpose": false,
     "prescan_x": 5,
     "overscan_x": 5,
     "prescan_y": 0,

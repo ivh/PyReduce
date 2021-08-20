@@ -18,6 +18,7 @@
         "SCI"
     ],
     "orientation": 3,
+    "transpose": false,
     "overscan_x": 5,
     "prescan_x": 15,
     "prescan_y": 0,

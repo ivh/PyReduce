@@ -44,6 +44,10 @@
             "description": "the orientation of the input files, equal to the number of 90 degree flips necessary",
             "value": "integer"
         },
+        "transpose": {
+            "description": "If true the image is transposed before rotation, thus flipping the image",
+            "value": "bool"
+        },
         "prescan_x": {
             "description": "The horizontal prescan direction, before orientation, or the keyword that contains that value",
             "value": ["integer", "string"]

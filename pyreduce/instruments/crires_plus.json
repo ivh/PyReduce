@@ -16,6 +16,7 @@
     "chips": ["chip1", "chip2", "chip3"],
     "extension": "CHIP1.INT1", 
     "orientation": 0,
+    "transpose": false,
     "prescan_x": 0,
     "overscan_x": 0,
     "prescan_y": 0,

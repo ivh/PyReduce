@@ -11,6 +11,7 @@
     "modes_id": ["GR700XD"],
     "extension": ["SCI"],
     "orientation": 0,
+    "transpose": false,
     "prescan_y": 0,
     "overscan_y": 4,
     "prescan_x": 3,

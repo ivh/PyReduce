@@ -18,6 +18,7 @@
     ],
     "extension": 0,
     "orientation": 0,
+    "transpose": false,
     "trimsec": "TRIMSEC",
     "naxis_x": "NAXIS1",
     "naxis_y": "NAXIS2",
