@@ -129,7 +129,7 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None, transpo
     # As per the old IDL definition, transpose is true for orientations larger than 4
     transpose = transpose if transpose is not None else header.get("e_transpose", (orientation % 8) >= 4)
     if transpose:
-        timage = np.transpose(timage, axes=(-2, -1))
+        timage = np.transpose(timage, axes=(-1, -2))
     timage = np.rot90(timage, -1 * orientation, axes=(-2, -1))
 
     # TODO just sum up groups and stuff?
