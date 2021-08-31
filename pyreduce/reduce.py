@@ -273,9 +273,11 @@ class Step:
     def prefix(self):
         """str: temporary file prefix"""
         i = self.instrument.name.lower()
-        m = self.mode.lower()
-        return f"{i}_{m}"
-
+        if self.mode is not None and self.mode != "":
+            m = self.mode.lower()
+            return f"{i}_{m}"
+        else:
+            return i
 
 class Mask(Step):
     """Load the bad pixel mask for the given instrument/mode"""
