@@ -305,9 +305,10 @@ class Instrument:
         header["e_obslat"] = get("latitude")
         header["e_obsalt"] = get("altitude")
 
-        header["HIERARCH e_wavecal_element"] = get(
-            "wavecal_element", info.get("wavecal_element", None)
-        )
+        if info.get("wavecal_element", None) is not None:
+            header["HIERARCH e_wavecal_element"] = get(
+                "wavecal_element", info.get("wavecal_element", None)
+            )
         return header
 
     def find_files(self, input_dir):
