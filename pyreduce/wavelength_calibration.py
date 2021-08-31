@@ -120,7 +120,7 @@ class AlignmentPlot:
 class LineAtlas:
     def __init__(self, element):
         self.element = element
-        fname = element.lower() + ".fits"
+        fname = str(element).lower() + ".fits"
         folder = dirname(__file__)
         self.fname = join(folder, "wavecal", "atlas", fname)
         self.wave, self.data = self.load_fits(self.fname)
