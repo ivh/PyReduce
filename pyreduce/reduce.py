@@ -940,7 +940,7 @@ class WavelengthCalibration(Step):
             dimensionality=self.dimensionality,
             nstep=self.nstep,
             shift_window=self.shift_window,
-            element=thead["e_wavecal_element"],
+            element=thead.get("e_wavecal_element", None),
         )
         wave, coef = module.execute(thar, linelist)
         self.save(wave, thar, coef, linelist)

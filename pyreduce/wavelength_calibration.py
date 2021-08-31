@@ -119,7 +119,8 @@ class AlignmentPlot:
 
 class LineAtlas:
     def __init__(self, element):
-        fname = element + ".fits"
+        self.element = element
+        fname = element.lower() + ".fits"
         folder = dirname(__file__)
         self.fname = join(folder, "wavecal", "atlas", fname)
         self.wave, self.data = self.load_fits(self.fname)
@@ -1441,6 +1442,8 @@ class WavelengthCalibration:
                 self.atlas = LineAtlas(self.element)
             except FileNotFoundError:
                 logger.warning("No Atlas file found for element %s", self.element)
+                self.atlas = None
+            except:
                 self.atlas = None
         else:
             self.atlas = None
