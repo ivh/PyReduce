@@ -60,6 +60,21 @@
         "plot": true,
         "plot_title": "Normalized Flat"
     },
+    "wavecal_init": {
+        "extraction_method": "arc",
+        "extraction_width": 0.5,
+        "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
+        "degree": 2,
+        "element": "thar",
+        "medium": "vac",
+        "wave_delta": 20,
+        "nwalkers": 100,
+        "steps": 20000,
+        "resid_delta": 1000,
+        "plot": true,
+        "plot_title": "Waelength Calibration Initial"
+    },
     "wavecal": {
         "extraction_method": "arc",
         "extraction_width": 0.5,

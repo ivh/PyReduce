@@ -12,6 +12,8 @@ pytest-cov==2.12.1
 jsonschema==3.2.0
 tqdm==4.62.0
 colorlog==5.0.1
+emcee
+corner
 
 # optional for tools combine
 # git+https://github.com/cylammarco/SpectRes

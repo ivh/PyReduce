@@ -22,6 +22,9 @@
         "swath_width": 200,
         "threshold": 1000
     },
+    "wavecal_init": {
+        "extraction_width": 10
+    },
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",

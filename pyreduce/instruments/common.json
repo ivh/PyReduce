@@ -41,5 +41,6 @@
     "id_scatter": "SCATTER",
     "id_wave": "WAVE",
     "id_comb": "COMB",
-    "id_spec": "SPEC"
+    "id_spec": "SPEC",
+    "wavelength_range": null
 }

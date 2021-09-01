@@ -91,8 +91,8 @@ class getter:
         """
 
         value = self.info.get(key, key)
-        if isinstance(value, list):
-            value = value[self.index]
+        # if isinstance(value, list):
+        #     value = value[self.index]
         if isinstance(value, str):
             value = value.format(**self.info)
             value = self.header.get(value, alt)
@@ -142,6 +142,11 @@ class Instrument:
 
     def __str__(self):
         return self.name
+
+    def get(self, key, header, mode, alt=None):
+        get = getter(header, self.info, mode)
+        return get(key, alt=alt)
+
 
     def get_extension(self, header, mode):
         mode = mode.upper()
@@ -355,6 +360,11 @@ class Instrument:
                 "instrument": self.info["id_instrument"],
                 "night": night,
                 "curvature": self.info["id_curvature"],
+            },
+            "wavecal_init": {
+                "instrument": self.info["id_instrument"],
+                "night": night,
+                "wave": self.info["id_wave"],
             },
             "wavecal": {
                 "instrument": self.info["id_instrument"],
@@ -585,6 +595,8 @@ class Instrument:
         fname = os.path.join(cwd, "..", "masks", fname)
         return fname
 
+    def get_wavelength_range(self, header, mode, **kwargs):
+        return self.get("wavelength_range", header, mode)
 
 class InstrumentWithModes(Instrument):
     def __init__(self):

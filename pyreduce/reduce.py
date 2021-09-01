@@ -18,8 +18,10 @@ License
 
 """
 
+from genericpath import exists
 import logging
 import os.path
+from shutil import copy2
 import sys
 import time
 import glob
@@ -43,9 +45,10 @@ from .extract import extract
 from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
 from .trace_orders import mark_orders
-from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
+from .wavelength_calibration import LineList, WavelengthCalibration as WavelengthCalibrationModule, WavelengthCalibrationComb, WavelengthCalibrationInitialize as WavelengthCalibrationInitializeModule
 from .estimate_background_scatter import estimate_background_scatter
 from .rectify import rectify_image, merge_images
+from pyreduce import wavelength_calibration
 
 # TODO Naming of functions and modules
 # TODO License
@@ -803,13 +806,145 @@ class NormalizeFlatField(Step):
         norm = data["norm"]
         return norm, blaze
 
+class WavelengthCalibrationInitialize(Step):
+    """ Create the initial wavelength solution file """
+    
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
+        self._dependsOn += ["mask", "orders", "curvature", "bias", "config"]
+        self._loadDependsOn += ["config", "files"]
+        #:{'arc', 'optimal'}: Extraction method to use
+        self.extraction_method = config["extraction_method"]
+        if self.extraction_method == "arc":
+            #:dict: arguments for the extraction
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
+        elif self.extraction_method == "optimal":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
+        else:
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
+            )
+
+        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
+        self.bias_scaling = config["bias_scaling"]
+        #:tuple(int, int): Polynomial degree of the wavelength calibration in order, column direction
+        self.degree = config["degree"]
+        #:float: wavelength range around the initial guess to explore
+        self.wave_delta = config["wave_delta"]
+        #:int: number of walkers in the MCMC
+        self.nwalkers = config["nwalkers"]
+        #:int: number of steps in the MCMC
+        self.steps = config["steps"]
+        #:float: resiudal range to accept as match between peaks and atlas in m/s
+        self.resid_delta = config["resid_delta"]
+        #:str: element for the atlas to use
+        self.element = config["element"]
+        #:str: medium the medium of the instrument, air or vac
+        self.medium = config["medium"]
+
+    @property
+    def savefile(self):
+        """str: Name of the wavelength echelle file"""
+        return join(self.output_dir, self.prefix + ".wavecal.npz")
+
+
+    def run(self, files, orders, mask, curvature, bias, config):
+        orders, column_range = orders
+        tilt, shear = curvature
+        bias, bhead = bias
+
+        if len(files) == 0:
+            raise FileNotFoundError("No files found for wavelength calibration")
+
+        # Load wavecal image
+        orig, thead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            bias=bias,
+            bhead=bhead,
+            bias_scaling=self.bias_scaling,
+        )
+
+        # Get the initial wavelength guess from the instrument
+        wave_range = self.instrument.get_wavelength_range(thead, self.mode)
+        if wave_range is None:
+            raise ValueError("This instrument is missing an initial wavelength guess for wavecal_init")
+
+        # Extract wavecal spectrum
+        thar, _, _, _ = extract(
+            orig,
+            orders,
+            gain=thead["e_gain"],
+            readnoise=thead["e_readn"],
+            dark=thead["e_drk"],
+            column_range=column_range,
+            extraction_type=self.extraction_method,
+            order_range=self.order_range,
+            plot=self.plot,
+            plot_title=self.plot_title,
+            tilt=tilt,
+            shear=shear,
+            **self.extraction_kwargs,
+        )
+        module = WavelengthCalibrationInitializeModule(
+            plot=self.plot,
+            plot_title=self.plot_title,
+            degree=self.degree,
+            wave_delta = self.wave_delta,
+            nwalkers = self.nwalkers,
+            steps =self.steps,
+            resid_delta = self.resid_delta,
+            element=self.element,
+            medium=self.medium,
+        )
+        linelist = module.execute(thar, wave_range)
+        self.save(linelist)
+        return linelist
+
+    def save(self, linelist):
+        # Backup existing file?
+        reference = self.savefile
+        if exists(reference):
+            copy2(reference, reference + ".bck")
+        linelist.save(reference)
+
+    def load(self, config, files):
+        reference = self.savefile
+        try:
+            linelist = LineList.load(reference)
+        except FileNotFoundError:
+            file = files["wavecal"][0]
+            _, thead = self.instrument.load_fits(
+                file, self.mode
+            )
+            reference = self.instrument.get_wavecal_filename(
+                thead, self.mode, **config["instrument"]
+            )
+            # This should fail if the file is missing, 
+            # since there is no failsafe to this
+            linelist = LineList.load(reference)
+        return linelist
+
+
 
 class WavelengthCalibration(Step):
     """Perform wavelength calibration"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders", "curvature", "bias", "config"]
+        self._dependsOn += ["mask", "orders", "curvature", "bias", "config", "wavecal_init"]
 
         #:{'arc', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -860,7 +995,7 @@ class WavelengthCalibration(Step):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_only.npz")
 
-    def run(self, files, orders, mask, curvature, bias, config):
+    def run(self, files, orders, mask, curvature, bias, config, wavecal_init):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -926,11 +1061,7 @@ class WavelengthCalibration(Step):
         np.savez(self.savefile_thar, thar=thar)
 
         # load reference linelist
-        reference = self.instrument.get_wavecal_filename(
-            thead, self.mode, **config["instrument"]
-        )
-        reference = np.load(reference, allow_pickle=True)
-        linelist = reference["cs_lines"]
+        linelist = wavecal_init
 
         module = WavelengthCalibrationModule(
             plot=self.plot,
@@ -1081,7 +1212,7 @@ class LaserFrequencyComb(Step):
         #     comb[i] -= comb[i][comb[i] > 0].min()
         #     comb[i] /= blaze[i] * comb[i].max() / blaze[i].max()
 
-        module = WavelengthCalibrationModule(
+        module = WavelengthCalibrationComb(
             plot=self.plot,
             plot_title=self.plot_title,
             degree=self.degree,
@@ -1090,7 +1221,7 @@ class LaserFrequencyComb(Step):
             nstep=self.nstep,
             lfc_peak_width=self.lfc_peak_width,
         )
-        wave = module.frequency_comb(comb, wave, linelist)
+        wave = module.execute(comb, wave, linelist)
 
         self.save(wave, comb)
 
@@ -1775,6 +1906,7 @@ class Reducer:
         "curvature": 40,
         "scatter": 45,
         "norm_flat": 50,
+        "wavecal_init": 55,
         "wavecal": 60,
         "freq_comb": 70,
         "rectify": 75,
@@ -1790,6 +1922,7 @@ class Reducer:
         "orders": OrderTracing,
         "scatter": BackgroundScatter,
         "norm_flat": NormalizeFlatField,
+        "wavecal_init": WavelengthCalibrationInitialize,
         "wavecal": WavelengthCalibration,
         "freq_comb": LaserFrequencyComb,
         "curvature": SlitCurvatureDetermination,

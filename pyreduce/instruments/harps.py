@@ -205,6 +205,11 @@ class HARPS(Instrument):
                 "night": night,
                 "type": [r"(WAVE,WAVE,COMB)", r"(WAVE,WAVE,THAR)\d?"],
             },
+            "wavecal_init": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": r"(WAVE,WAVE,THAR)\d?",
+            },
             "wavecal": {
                 "instrument": "HARPS",
                 "night": night,
@@ -297,3 +302,10 @@ class HARPS(Instrument):
         fname = f"harps_{mode}{pol}_2D.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
+
+    def get_wavelength_range(self, header, mode, **kwargs):
+        wave_range = super().get_wavelength_range(header, mode, **kwargs)
+        # The wavelength orders are in inverse order in the .json file
+        # because I was to lazy to invert them in the file
+        wave_range = wave_range[::-1]
+        return wave_range
