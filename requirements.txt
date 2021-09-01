@@ -3,7 +3,7 @@ scipy==1.7.1
 astropy==4.3.1
 matplotlib==3.4.3
 cffi==1.14.6
-scikit-image==0.18.2
+scikit-image==0.18.3
 python-dateutil==2.8.2
 wget==3.2
 joblib==1.0.1
