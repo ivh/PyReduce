@@ -1535,7 +1535,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         plot_title="Wavecal Initial",
         wave_delta = 20,
         nwalkers = 100,
-        steps = 20_000,
+        steps = 50_000,
         resid_delta = 1000,
         element = "thar",
         medium = "vac",
@@ -1645,6 +1645,8 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             # Chech that w is increasing
             prior = np.zeros(w.shape[0])
             prior[np.any(w[:, 1:] < w[:, :-1], axis=1)] = -np.inf
+            prior[w[:, 0] < wave_range[0] - self.wave_delta] = -np.inf
+            prior[w[:, -1] > wave_range[1] + self.wave_delta] = -np.inf
             return prior
 
         def log_prob(p):
@@ -1662,8 +1664,11 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             y[where, :] /= np.max(y[where, :], axis=1)[:, None]
             # This is the cross correlation value squared
             cross = np.sum(y * spectrum, axis=1) ** 2
-            # chi2 = - np.sum((y - spectrum)**2)
-            return prior + cross
+            # chi2 = - np.sum((y - spectrum)**2, axis=1)
+            # chi2 = - np.sum((np.where(y > 0.01, 1, 0) - np.where(spectrum > 0.01, 1, 0))**2, axis=1)
+            # this is the same as above, but a lot faster thanks to the magic of bitwise xor
+            chi2 = - np.count_nonzero((y > 0.01) ^ (spectrum > 0.01), axis=1)
+            return prior + cross + chi2
 
         p0 = np.zeros((self.nwalkers, ndim))
         p0 += coef[None, :]

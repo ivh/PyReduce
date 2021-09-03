@@ -74,7 +74,7 @@
         "medium": "vac",
         "wave_delta": 20,
         "nwalkers": 100,
-        "steps": 20000,
+        "steps": 50000,
         "resid_delta": 1000,
         "plot": true,
         "plot_title": "Wavelength Calibration Initial"
