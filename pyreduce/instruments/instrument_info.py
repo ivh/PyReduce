@@ -4,9 +4,10 @@ The actual info is contained in the instruments/{name}.py modules/classes, which
 """
 
 import importlib
+from .common import Instrument
 
 
-def load_instrument(instrument):
+def load_instrument(instrument) -> Instrument:
     """Load an python instrument module
 
     Parameters
