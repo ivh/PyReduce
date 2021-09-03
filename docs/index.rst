@@ -16,6 +16,7 @@ Welcome to PyReduce's documentation!
    configuration_file
    instruments
    modules
+   wavecal_linelist
 
 
 Indices and tables
