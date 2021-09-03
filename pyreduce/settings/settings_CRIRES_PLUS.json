@@ -20,19 +20,23 @@
         "swath_width": 200,
         "threshold": 1000
     },
+    "wavecal_master": {
+        "extraction_width": 100
+    },
     "wavecal": {
         "threshold": 100,
         "dimensionality": "1D",
         "degree": 2,
-        "manual": false,
-        "extraction_width": 100
+        "manual": false
+    },
+    "freq_comb_master": {
+        "extraction_width": 10
     },
     "freq_comb": {
         "threshold": 100,
         "dimensionality": "1D",
         "nstep": 8,
-        "degree": 8,
-        "extraction_width": 10
+        "degree": 8
     },
     "curvature": {
         "peak_threshold": 1,

@@ -1075,7 +1075,7 @@ def arc_extraction(
         uncertainties on extracted spectrum
     """
 
-    logger.info("Using arc extraction to produce spectrum.")
+    logger.info("Using arc extraction to produce spectrum")
     _, ncol = img.shape
     nord, _ = orders.shape
 

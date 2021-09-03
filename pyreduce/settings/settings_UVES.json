@@ -21,12 +21,18 @@
         "swath_width": 200,
         "threshold": 1000
     },
+    "wavecal_master": {
+    },
+    "wavecal_init": {
+    },
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [6, 6],
         "shift_window": 0.01,
         "manual": false
+    },
+    "freq_comb_master":{
     },
     "freq_comb": {
         "dimensionality": "2D",

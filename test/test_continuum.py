@@ -7,7 +7,7 @@ from pyreduce.continuum_normalization import splice_orders, continuum_normalize
 def spliced(spec, wave, normflat):
     spec, sigma = spec
     _, blaze = normflat
-    wave, _ = wave
+    wave = wave
 
     if wave is None:
         return None, None, None, None
@@ -20,7 +20,7 @@ def spliced(spec, wave, normflat):
 def test_splice(spec, wave, normflat, order_range):
     spec, sigma = spec
     norm, blaze = normflat
-    wave, thar = wave
+    wave = wave
 
     if wave is None:
         pytest.skip("Need wavecal for splice")

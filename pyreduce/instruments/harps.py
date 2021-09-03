@@ -106,7 +106,8 @@ class HARPS(Instrument):
         self.find_closest = [
             "bias",
             "flat",
-            "wavecal",
+            "wavecal_master",
+            "freq_comb_master",
             "orders",
             "scatter",
             "curvature",
@@ -205,17 +206,12 @@ class HARPS(Instrument):
                 "night": night,
                 "type": [r"(WAVE,WAVE,COMB)", r"(WAVE,WAVE,THAR)\d?"],
             },
-            "wavecal_init": {
+            "wavecal_master": {
                 "instrument": "HARPS",
                 "night": night,
                 "type": r"(WAVE,WAVE,THAR)\d?",
             },
-            "wavecal": {
-                "instrument": "HARPS",
-                "night": night,
-                "type": r"(WAVE,WAVE,THAR)\d?",
-            },
-            "freq_comb": {
+            "freq_comb_master": {
                 "instrument": "HARPS",
                 "night": night,
                 "type": r"(WAVE,WAVE,COMB)",

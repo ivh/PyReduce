@@ -60,11 +60,15 @@
         "plot": true,
         "plot_title": "Normalized Flat"
     },
-    "wavecal_init": {
+    "wavecal_master": {
         "extraction_method": "arc",
         "extraction_width": 0.5,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
+        "plot": true,
+        "plot_title": "Wavelength Calibration Spectrum"
+    },
+    "wavecal_init": {
         "degree": 2,
         "element": "thar",
         "medium": "vac",
@@ -73,12 +77,9 @@
         "steps": 20000,
         "resid_delta": 1000,
         "plot": true,
-        "plot_title": "Waelength Calibration Initial"
+        "plot_title": "Wavelength Calibration Initial"
     },
     "wavecal": {
-        "extraction_method": "arc",
-        "extraction_width": 0.5,
-        "bias_scaling": "number_of_files",
         "manual": false,
         "threshold": 100,
         "iterations": 3,
@@ -89,13 +90,20 @@
         ],
         "nstep": 0,
         "shift_window": 0.01,
-        "extraction_cutoff": 20,
+        "element": "thar",
+        "medium": "vac",
         "plot": true,
         "plot_title": "Wavelength Calibration"
     },
-    "freq_comb": {
+    "freq_comb_master":{
         "extraction_method": "arc",
         "extraction_width": 0.5,
+        "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
+        "plot": true,
+        "plot_title": "Frequency Comb Spectrum"
+    },
+    "freq_comb": {
         "lfc_peak_width": 3,
         "dimensionality": "2D",
         "nstep": 0,
@@ -104,7 +112,6 @@
             6
         ],
         "threshold": 100,
-        "extraction_cutoff": 20,
         "plot": true,
         "plot_title": "Frequency Comb"
     },
@@ -119,6 +126,7 @@
         "peak_width": 1,
         "window_width": 9,
         "peak_function": "gaussian",
+        "bias_scaling": "number_of_files",
         "plot": true,
         "plot_title": "Slit Curvature"
     },

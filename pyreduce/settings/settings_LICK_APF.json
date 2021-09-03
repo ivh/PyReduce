@@ -27,15 +27,19 @@
         "oversampling": 12,
         "swath_width": 300
     },
+    "wavecal_master": {
+        "extraction_width": 0.25
+    },
     "wavecal": {
-        "extraction_width": 0.25,
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [2, 6],
         "manual": false
     },
+    "freq_comb_master": {
+        "extraction_width": 0.25
+    },
     "freq_comb": {
-        "extraction_width": 0.25,
         "dimensionality": "2D",
         "degree": [6, 6]
     },

@@ -247,13 +247,78 @@
                 }
             ]
         },
-        "wavecal": {
+        "wavecal_master": {
             "allOf": [
                 {
                     "$ref": "#/definitions/step"
                 },
                 {
                     "$ref": "#/definitions/extraction"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
+                }
+            ]
+        },  
+        "wavecal_init": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "degree": {
+                            "description": "Degree of the polynomial fit for the initial guess",
+                            "type": "number",
+                            "minimum": 2
+                        },
+                        "element": {
+                            "description": "Element(s) of the Gas Lamp used for calibration",
+                            "type": "string"
+                        },
+                        "medium": {
+                            "description": "Medium of the detector, either air or vaccum. This affects the wavelength scale",
+                            "type": "string",
+                            "enum": ["vac", "air"]
+                        },
+                        "wave_delta": {
+                            "description": "Wavelength uncertainty on the initial guess in Angstrom",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "nwalkers": {
+                            "description": "Number of MCMC walkers",
+                            "type": "number",
+                            "minimum": 1
+                        },
+                        "steps": {
+                            "description": "Number of MCMC steps per walker",
+                            "type": "number",
+                            "minimum": 1
+                        },
+                        "resid_delta": {
+                            "description": "Residual Uncertainty allowed to match a peak to its known wavelength in m/s",
+                            "type": "number",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "degree",
+                        "element",
+                        "medium",
+                        "wave_delta",
+                        "nwalkers",
+                        "steps",
+                        "resid_delta"
+                    ]
+                }
+            ]
+        },
+        "wavecal": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
                 },
                 {
                     "$ref": "#/definitions/polynomialfit"
@@ -283,16 +348,38 @@
                             "description": "Number of iterations in the Remove Lines, Identify Lines loop",
                             "type": "integer",
                             "minimum": 0
+                        },
+                        "element": {
+                            "description": "Element(s) of the Gas Lamp used for calibration",
+                            "type": "string"
+                        },
+                        "medium": {
+                            "description": "Medium of the detector, either air or vaccum. This affects the wavelength scale",
+                            "type": "string",
+                            "enum": ["vac", "air"]
                         }
                     },
                     "required": [
                         "manual",
                         "shift_window",
-                        "degree",
                         "threshold",
                         "iterations",
-                        "dimensionality"
+                        "element",
+                        "medium"
                     ]
+                }
+            ]
+        },
+        "freq_comb_master" : {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "$ref": "#/definitions/extraction"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
                 }
             ]
         },
@@ -300,9 +387,6 @@
             "allOf": [
                 {
                     "$ref": "#/definitions/step"
-                },
-                {
-                    "$ref": "#/definitions/extraction"
                 },
                 {
                     "$ref": "#/definitions/polynomialfit"
@@ -340,6 +424,9 @@
                 },
                 {
                     "$ref": "#/definitions/polynomialfit"
+                },
+                {
+                    "$ref": "#/definitions/bias_scaling"
                 },
                 {
                     "type": "object",
@@ -492,7 +579,10 @@
         "orders",
         "scatter",
         "norm_flat",
+        "wavecal_master",
+        "wavecal_init",
         "wavecal",
+        "freq_comb_master",
         "freq_comb",
         "curvature",
         "continuum",

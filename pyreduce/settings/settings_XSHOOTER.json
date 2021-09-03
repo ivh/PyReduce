@@ -38,9 +38,11 @@
             1
         ]
     },
-    "wavecal": {
+    "wavecal_master": {
         "extraction_method": "arc",
-        "bias_scaling": "mean",
+        "bias_scaling": "mean"
+    },
+    "wavecal": {
         "threshold": 200,
         "iterations": 3,
         "dimensionality": "2D",

@@ -133,8 +133,8 @@ class Instrument:
         self.find_closest = [
             "bias",
             "flat",
-            "wavecal",
-            "comb",
+            "wavecal_master",
+            "freq_comb_master",
             "orders",
             "scatter",
             "curvature",
@@ -361,17 +361,12 @@ class Instrument:
                 "night": night,
                 "curvature": self.info["id_curvature"],
             },
-            "wavecal_init": {
+            "wavecal_master": {
                 "instrument": self.info["id_instrument"],
                 "night": night,
                 "wave": self.info["id_wave"],
             },
-            "wavecal": {
-                "instrument": self.info["id_instrument"],
-                "night": night,
-                "wave": self.info["id_wave"],
-            },
-            "freq_comb": {
+            "freq_comb_master": {
                 "instrument": self.info["id_instrument"],
                 "night": night,
                 "comb": self.info["id_comb"],

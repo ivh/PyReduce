@@ -46,8 +46,8 @@ class CRIRES_PLUS(Instrument):
             expectations[key]["band"] = band
             expectations[key]["decker"] = decker
 
-        expectations["wavecal"]["lamp"] = self.info["id_lamp_wavecal"]
-        expectations["freq_comb"]["lamp"] = self.info["id_lamp_etalon"]
+        expectations["wavecal_master"]["lamp"] = self.info["id_lamp_wavecal"]
+        expectations["freq_comb_master"]["lamp"] = self.info["id_lamp_etalon"]
 
         return expectations
 

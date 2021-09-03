@@ -22,8 +22,12 @@
         "swath_width": 200,
         "threshold": 1000
     },
-    "wavecal_init": {
+    "wavecal_master": {
         "extraction_width": 10
+    },
+    "wavecal_init": {
+        "element": "thar",
+        "medium": "vac"
     },
     "wavecal": {
         "threshold": 100,
@@ -32,7 +36,9 @@
             3,
             6
         ],
-        "manual": false,
+        "manual": false
+    },
+    "freq_comb_master": {
         "extraction_width": 10
     },
     "freq_comb": {
@@ -42,8 +48,7 @@
         "degree": [
             9,
             7
-        ],
-        "extraction_width": 10
+        ]
     },
     "curvature": {
         "extraction_width": 10,

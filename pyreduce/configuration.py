@@ -24,7 +24,7 @@ else:
     hasJsonSchema = True
 
 
-def get_configuration_for_instrument(instrument, plot=None):
+def get_configuration_for_instrument(instrument, **kwargs):
     local = dirname(__file__)
     instrument = str(instrument)
     if instrument in ["pyreduce", None]:
@@ -34,10 +34,10 @@ def get_configuration_for_instrument(instrument, plot=None):
 
     config = load_config(fname, instrument)
 
-    if plot is not None:
+    for kwarg_key, kwarg_value in kwargs.items():
         for key, value in config.items():
-            if isinstance(config[key], dict) and "plot" in config[key].keys():
-                config[key]["plot"] = plot
+            if isinstance(config[key], dict) and kwarg_key in config[key].keys():
+                config[key][kwarg_key] = kwarg_value
 
     return config
 

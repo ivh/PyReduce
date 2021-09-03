@@ -125,6 +125,8 @@ class AlignmentPlot:
 class LineAtlas:
     def __init__(self, element, medium="vac"):
         self.element = element
+        self.medium = medium
+
         fname = element.lower() + ".fits"
         folder = dirname(__file__)
         self.fname = join(folder, "wavecal/atlas", fname)
@@ -141,7 +143,6 @@ class LineAtlas:
         )
 
         # The data files are in vaccuum, if the instrument is in air, we need to convert
-        self.medium = medium
         if medium == "air":
             self.wave = util.vac2air(self.wave)
             self.linelist["wave"] = util.vac2air(self.linelist["wave"])
@@ -246,6 +247,7 @@ class WavelengthCalibration:
         lfc_peak_width=3,
         closing=5,
         element=None,
+        medium="vac",
         plot=True,
         plot_title=None,
     ):
@@ -274,6 +276,8 @@ class WavelengthCalibration:
         self.plot_title = plot_title
         #:str: Elements used in the wavelength calibration. Used in AutoId to find more lines from the Atlas
         self.element = element
+        #:str: Medium of the detector, vac or air
+        self.medium = medium
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
         self.lfc_peak_width = lfc_peak_width
         #:int: grey closing range for the input image
@@ -872,7 +876,7 @@ class WavelengthCalibration:
                 wmin, wmax = wave_obs[0], wave_obs[-1]
                 imin, imax = np.searchsorted(self.atlas.wave, (wmin, wmax))
                 wave_atlas = self.atlas.wave[imin:imax]
-                data_atlas = self.atlas.data[imin:imax]
+                data_atlas = self.atlas.flux[imin:imax]
                 if len(data_atlas) == 0:
                     continue
                 data_atlas = data_atlas / data_atlas.max()
@@ -1284,7 +1288,7 @@ class WavelengthCalibration:
         lines = LineList(lines)
         if self.element is not None:
             try:
-                self.atlas = LineAtlas(self.element)
+                self.atlas = LineAtlas(self.element, self.medium)
             except FileNotFoundError:
                 logger.warning("No Atlas file found for element %s", self.element)
                 self.atlas = None
@@ -1539,6 +1543,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         super().__init__(
             degree=degree,
             element=element,
+            medium=medium,
             plot=plot,
             plot_title=plot_title,
             dimensionality="1D",
@@ -1547,8 +1552,6 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         self.nwalkers = nwalkers
         self.steps = steps
         self.resid_delta = resid_delta
-        self.element = element
-        self.medium = medium
 
 
     def determine_wavelength_coefficients(

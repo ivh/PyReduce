@@ -20,11 +20,13 @@ from pyreduce.reduce import (
     BackgroundScatter,
     NormalizeFlatField,
     SlitCurvatureDetermination,
-    WavelengthCalibration,
-    LaserFrequencyComb,
+    WavelengthCalibrationFinalize,
+    LaserFrequencyCombFinalize,
     ScienceExtraction,
     ContinuumNormalization,
     Finalize,
+    WavelengthCalibrationInitialize,
+    WavelengthCalibrationMaster,
 )
 from pyreduce import configuration, datasets, echelle, instruments, util
 
@@ -223,9 +225,7 @@ def settings(instrument):
         updated settings
     """
 
-    settings = configuration.get_configuration_for_instrument(instrument, plot=False)
-    settings["wavecal"]["manual"] = False
-    settings["orders"]["manual"] = False
+    settings = configuration.get_configuration_for_instrument(instrument, plot=False, manual=False)
     return settings
 
 
@@ -531,9 +531,66 @@ def curvature(step_args, settings, files, orders, mask):
         tilt, shear = step.run(files, orders, mask)
     return tilt, shear
 
+@pytest.fixture
+def wave_master(step_args, settings, files, orders, mask, curvature, bias):
+    """Load or create wavelength calibration files
+
+    Parameters
+    ----------
+    files : dict(str:str)
+        calibration file names
+    instrument : str
+        instrument name
+    mode : str
+        observing mode
+    extension : int
+        fits data extension
+    mask : array(bool)
+        Bad pixel mask
+    orders : tuple(array, array)
+        order tracing polynomials and column ranges
+    settings : dict(str:obj)
+        run settings
+    output_dir : str
+        output data directory
+
+    Returns
+    -------
+    wave : array(float) of size (norder, ncol)
+        Wavelength along the spectral orders
+    """
+    name = "wavecal_master"
+    files = files[name]
+    settings[name]["plot"] = False
+
+    step = WavelengthCalibrationMaster(*step_args, **settings[name])
+
+    try:
+        thar, thead = step.load()
+    except FileNotFoundError:
+        try:
+            thar, thead = step.run(
+                files, orders, mask, curvature, bias
+            )
+        except FileNotFoundError:
+            thar, thead = None, None
+    return thar, thead
 
 @pytest.fixture
-def wave(step_args, settings, files, orders, mask, curvature, bias):
+def wave_init(step_args, settings, wave_master):
+    name = "wavecal_init"
+    settings[name]["plot"] = False
+
+    step = WavelengthCalibrationInitialize(*step_args, **settings[name])
+
+    try:
+        linelist = step.load(settings, wave_master)
+    except:
+        linelist = None
+    return linelist
+
+@pytest.fixture
+def wave(step_args, settings, wave_master, wave_init):
     """Load or create wavelength calibration files
 
     Parameters
@@ -561,21 +618,20 @@ def wave(step_args, settings, files, orders, mask, curvature, bias):
         Wavelength along the spectral orders
     """
     name = "wavecal"
-    files = files[name]
     settings[name]["plot"] = False
 
-    step = WavelengthCalibration(*step_args, **settings[name])
+    step = WavelengthCalibrationFinalize(*step_args, **settings[name])
 
     try:
-        wave, thar, coef, linelist = step.load()
+        wave, coef, linelist = step.load()
     except FileNotFoundError:
         try:
-            wave, thar, coef, linelist = step.run(
-                files, orders, mask, curvature, bias, settings
+            wave, coef, linelist = step.run(
+                wave_master, wave_init
             )
-        except FileNotFoundError:
-            wave, thar = None, None
-    return wave, thar
+        except Exception as ex:
+            wave = None
+    return wave
 
 
 @pytest.fixture

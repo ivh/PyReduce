@@ -177,14 +177,14 @@ class NIRSPEC(Instrument):
                     "bias": caliblist[tp == "bias"],
                     "flat": caliblist[tp == "flat"],
                     "orders": caliblist[tp == "flat"],
-                    "wavecal": caliblist[tp == "wavecal"],
-                    "freq_comb": caliblist[tp == "freq_comb"],
+                    "wavecal_master": caliblist[tp == "wavecal"],
+                    "freq_comb_master": caliblist[tp == "freq_comb"],
                     "science": [file],
                 }
                 files_this_observation["curvature"] = (
-                    files_this_observation["freq_comb"]
-                    if len(files_this_observation["freq_comb"]) != 0
-                    else files_this_observation["wavecal"]
+                    files_this_observation["freq_comb_master"]
+                    if len(files_this_observation["freq_comb_master"]) != 0
+                    else files_this_observation["wavecal_master"]
                 )
                 files_this_observation["scatter"] = files_this_observation["orders"]
 
