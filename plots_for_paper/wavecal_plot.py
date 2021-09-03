@@ -117,14 +117,14 @@ files = data[0]["files"]
 mask = data[0]["mask"]
 bias, bhead = data[0]["bias"]
 orders, column_range = data[0]["orders"]
-wave, thar, coef, linelist = data[0]["wavecal"]
+wave, coef, linelist = data[0]["wavecal"]
 xwd = config["wavecal"]["extraction_width"]
 nrow, ncol = bias.shape
 nord = len(orders)
 xwd, column_range, orders = fix_parameters(xwd, column_range, orders, nrow, ncol, nord)
 
 orig, _ = combine_flat(
-    files["wavecal"], instrument, mode, extension, mask=mask, bias=bias, bhead=bhead
+    files["wavecal_master"], instrument, mode, extension, mask=mask, bias=bias, bhead=bhead
 )
 
 ref = make_reference_spectrum(linelist, nrow, ncol, nord)
