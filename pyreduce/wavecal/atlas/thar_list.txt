@@ -1,3 +1,6 @@
+# References
+# Palmer, B.A. and Engleman, R., Jr., 1983, Atlas of the Thorium Spectrum, Los Alamos National Laboratory, Los Alamos, New Mexico
+# Norlén, G., 1973, Physica Scripta, 8, 249. 
 3006.9314 ThII
 3012.7078 ThII
 3015.7252 ThII

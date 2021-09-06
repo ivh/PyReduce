@@ -43,6 +43,15 @@ and the "wavecal_init" step is only run once.
 The MCMC determines the best fit based on a combination of the cross correlation
 and the least squares match between the two spectra.
 
+References for the included spectra:
+
+ThAr
+Palmer, B.A. and Engleman, R., Jr., 1983, Atlas of the Thorium Spectrum, Los Alamos National Laboratory, Los Alamos, New Mexico
+Norlén, G., 1973, Physica Scripta, 8, 249. 
+
+UNe
+Redman S.L. et al. A High-Resolution Atlas of Uranium-Neon in the H Band 
+
 "Traditional" Gas Lamp
 ----------------------
 For an absolute wavelength reference most spectrometers rely on a gas lamp, e.g.

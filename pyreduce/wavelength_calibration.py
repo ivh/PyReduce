@@ -132,15 +132,31 @@ class LineAtlas:
         self.fname = join(folder, "wavecal/atlas", fname)
         self.wave, self.flux = self.load_fits(self.fname)
 
-        fname_list = element.lower() + "_list.txt"
-        self.fname_list = join(folder, "wavecal/atlas", fname_list)
-        linelist = np.genfromtxt(self.fname_list, dtype="f8,U8")
-        wpos, element = linelist["f0"], linelist["f1"]
-        indices = self.wave.searchsorted(wpos)
-        heights = self.flux[indices]
-        self.linelist = np.rec.fromarrays(
-            [wpos, heights, element], names=["wave", "heights", "element"]
-        )
+        try:
+            # If a specific linelist file is provided
+            fname_list = element.lower() + "_list.txt"
+            self.fname_list = join(folder, "wavecal/atlas", fname_list)
+            linelist = np.genfromtxt(self.fname_list, dtype="f8,U8")
+            wpos, element = linelist["f0"], linelist["f1"]
+            indices = self.wave.searchsorted(wpos)
+            heights = self.flux[indices]
+            self.linelist = np.rec.fromarrays(
+                [wpos, heights, element], names=["wave", "heights", "element"]
+            )
+        except (FileNotFoundError, IOError):
+            # Otherwise fit the line positions from the spectrum
+            logger.warning(
+                "No dedicated linelist found for {element}, determining peaks based on the reference spectrum instead."
+            )
+            module = WavelengthCalibration(plot=False)
+            n, peaks = module._find_peaks(self.flux)
+            wpos = np.interp(peaks, np.arange(len(self.wave)), self.wave)
+            element = np.full(len(wpos), element)
+            indices = self.wave.searchsorted(wpos)
+            heights = self.flux[indices]
+            self.linelist = np.rec.fromarrays(
+                [wpos, heights, element], names=["wave", "heights", "element"]
+            )
 
         # The data files are in vaccuum, if the instrument is in air, we need to convert
         if medium == "air":
@@ -149,15 +165,24 @@ class LineAtlas:
 
     def load_fits(self, fname):
         hdu = fits.open(fname)
-        header = hdu[0].header
-        data = hdu[0].data.ravel()
-        data /= data.max()
-        data = np.clip(data, 0, None)
+        if len(hdu) == 1:
+            # Its just the spectrum
+            # with the wavelength defined via the header keywords
+            header = hdu[0].header
+            spec = hdu[0].data.ravel()
+            wmin = header["CRVAL1"]
+            wdel = header["CDELT1"]
+            wave = np.arange(spec.size) * wdel + wmin
+        else:
+            # Its a binary Table, with two columns for the wavelength and the
+            # spectrum
+            data = hdu[1].data
+            wave = data["wave"]
+            spec = data["spec"]
 
-        wmin = header["CRVAL1"]
-        wdel = header["CDELT1"]
-        wave = np.arange(data.size) * wdel + wmin
-        return wave, data
+        spec /= np.nanmax(spec)
+        spec = np.clip(spec, 0, None)
+        return wave, spec
 
 
 class LineList:
@@ -1211,8 +1236,11 @@ class WavelengthCalibration:
         for j, p in enumerate(peaks):
             idx = p + np.arange(-width, width + 1, 1)
             idx = np.clip(idx, 0, len(c) - 1).astype(int)
-            coef = util.gaussfit3(np.arange(len(idx)), c[idx])
-            new_peaks[j] = coef[1] + p - width
+            try:
+                coef = util.gaussfit3(np.arange(len(idx)), c[idx])
+                new_peaks[j] = coef[1] + p - width
+            except RuntimeError:
+                new_peaks[j] = p
 
         n = np.arange(len(peaks))
 
@@ -1533,12 +1561,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         degree=2,
         plot=False,
         plot_title="Wavecal Initial",
-        wave_delta = 20,
-        nwalkers = 100,
-        steps = 50_000,
-        resid_delta = 1000,
-        element = "thar",
-        medium = "vac",
+        wave_delta=20,
+        nwalkers=100,
+        steps=50_000,
+        resid_delta=1000,
+        element="thar",
+        medium="vac",
     ):
         super().__init__(
             degree=degree,
@@ -1553,12 +1581,8 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         self.steps = steps
         self.resid_delta = resid_delta
 
-
     def determine_wavelength_coefficients(
-        self,
-        spectrum,
-        atlas,
-        wave_range,
+        self, spectrum, atlas, wave_range,
     ) -> np.ndarray:
         """
         Determines the wavelength polynomial coefficients of a spectrum, 
@@ -1667,12 +1691,14 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             # chi2 = - np.sum((y - spectrum)**2, axis=1)
             # chi2 = - np.sum((np.where(y > 0.01, 1, 0) - np.where(spectrum > 0.01, 1, 0))**2, axis=1)
             # this is the same as above, but a lot faster thanks to the magic of bitwise xor
-            chi2 = - np.count_nonzero((y > 0.01) ^ (spectrum > 0.01), axis=1)
+            chi2 = -np.count_nonzero((y > 0.01) ^ (spectrum > 0.01), axis=1) / 20
             return prior + cross + chi2
 
         p0 = np.zeros((self.nwalkers, ndim))
         p0 += coef[None, :]
-        p0 += np.random.uniform(low=-self.wave_delta, high=self.wave_delta, size=(self.nwalkers, ndim))
+        p0 += np.random.uniform(
+            low=-self.wave_delta, high=self.wave_delta, size=(self.nwalkers, ndim)
+        )
         sampler = emcee.EnsembleSampler(
             self.nwalkers,
             ndim,
