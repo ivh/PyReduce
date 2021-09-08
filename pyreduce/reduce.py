@@ -306,8 +306,8 @@ class CalibrationStep(Step):
         self.bias_scaling = config["bias_scaling"]
 
     def calibrate(self, files, mask, bias=None, norm_flat=None):
-        bias, bhead = bias if bias is not None else None, None
-        norm, blaze = norm_flat if norm_flat is not None else None, None
+        bias, bhead = bias if bias is not None else (None, None)
+        norm, blaze = norm_flat if norm_flat is not None else (None, None)
 
         orig, thead = combine_flat(
             files,
@@ -357,8 +357,8 @@ class ExtractionStep(Step):
             )
 
     def extract(self, img, head, orders, curvature):
-        orders, column_range = orders if orders is not None else None, None
-        tilt, shear = curvature if curvature is not None else None, None
+        orders, column_range = orders if orders is not None else (None, None)
+        tilt, shear = curvature if curvature is not None else (None, None)
 
         data, unc, blaze, cr = extract(
             img,
@@ -1408,6 +1408,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["curvature_cutoff"]
+        #:float: width of the orders in the extraction
+        self.extraction_width = config["extraction_width"]
         #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
