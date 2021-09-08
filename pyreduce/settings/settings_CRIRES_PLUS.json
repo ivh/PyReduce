@@ -2,15 +2,20 @@
     "__instrument__": "CRIRES_PLUS",
     "instrument": {},
     "orders": {
-        "degree": 4,
-        "filter_size": 250,
+        "degree": 3,
+        "degree_before_merge": 1,
+        "filter_size": 100,
         "min_cluster": 500,
         "border_width": 0,
         "noise": 0,
-        "manual": false
+        "manual": false,
+        "auto_merge_threshold": 1,
+        "merge_min_threshold": 0.9,
+        "bias_scaling": "exposure_time"
     },
     "scatter": {
-        "extraction_width": 100
+        "extraction_width": 0.45,
+        "border_width": 50
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
@@ -22,6 +27,12 @@
     },
     "wavecal_master": {
         "extraction_width": 100
+    },
+    "wavecal_init": {
+        "element": "UNe",
+        "medium": "vac",
+        "cutoff": 5,
+        "smoothing": 1
     },
     "wavecal": {
         "threshold": 100,

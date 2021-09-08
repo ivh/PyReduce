@@ -12,17 +12,19 @@ from pyreduce.configuration import get_configuration_for_instrument
 # define parameters
 instrument = "Crires_plus"
 target = None
-night = "2019-07-21"
-mode = "J/2/3_Open"
+night = "2021-08-24"
+mode = "J1228_Open_det1"
 steps = (
     # "bias",
     # "flat",
     # "orders",
     "curvature",
     # "scatter",
-    "norm_flat",
+    # "norm_flat",
+    "wavecal_master",
+    # "wavecal_init",
     "wavecal",
-    "freq_comb",
+    # "freq_comb_master",
     # "science",
     # "continuum",
     # "finalize",
@@ -33,9 +35,9 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/ESO/CRIRES+"
-input_dir = "tdata/CD13/UNCLASSIFIED"
-output_dir = "reduced/{mode}/"
+base_dir = "/DATA/ESO/CRIRES+/pCOMM/210824_mincal"
+input_dir = "J1228/"
+output_dir = "J1228_reduced/"
 
 # Path to the configuration parameters, that are to be used for this reduction
 
@@ -51,5 +53,6 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    order_range=(0, 4),
+    allow_calibration_only=True,
+    # order_range=(0, 4),
 )
