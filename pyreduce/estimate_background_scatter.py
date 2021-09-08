@@ -108,7 +108,7 @@ def estimate_background_scatter(
         yp, xp = np.indices(img.shape)
         back = np.polynomial.polynomial.polyval2d(xp, yp, coeff)
 
-        plt.subplot(211)
+        plt.subplot(121)
         plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
@@ -116,7 +116,7 @@ def estimate_background_scatter(
         plt.imshow(img - back, vmin=vmin, vmax=vmax, aspect="equal", origin="lower")
         plt.plot(x, y, ",")
 
-        plt.subplot(212)
+        plt.subplot(122)
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
