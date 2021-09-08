@@ -1,7 +1,6 @@
 {
     "$schema": "./settings_schema.json",
     "__instrument__": "DEFAULT",
-    "__skip_existing__": false,
     "reduce": {
         "base_dir": "./",
         "input_dir": "raw",
@@ -76,6 +75,8 @@
         "nwalkers": 100,
         "steps": 50000,
         "resid_delta": 1000,
+        "cutoff": 0.01,
+        "smoothing": 0,
         "plot": true,
         "plot_title": "Wavelength Calibration Initial"
     },
@@ -119,6 +120,7 @@
         "dimensionality": "1D",
         "degree": 2,
         "curv_degree": 2,
+        "extraction_method": "arc",
         "extraction_width": 0.2,
         "curvature_cutoff": 3,
         "extraction_cutoff": 20,

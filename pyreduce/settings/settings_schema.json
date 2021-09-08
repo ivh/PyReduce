@@ -301,6 +301,17 @@
                             "description": "Residual Uncertainty allowed to match a peak to its known wavelength in m/s",
                             "type": "number",
                             "minimum": 0
+                        },
+                        "smoothing": {
+                            "description": "Gaussian smoothing parameter applied to the observed spectrum in pixel scale, set to 0 to disable smoothing",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "cutoff": {
+                            "description": "Minimum height of spectral lines in the normalized spectrum, values of 1 and above are interpreted as percentiles of the spectrum, set to 0 to disable the cutoff",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
                         }
                     },
                     "required": [
@@ -310,7 +321,9 @@
                         "wave_delta",
                         "nwalkers",
                         "steps",
-                        "resid_delta"
+                        "resid_delta",
+                        "smoothing",
+                        "cutoff"
                     ]
                 }
             ]
@@ -429,6 +442,9 @@
                     "$ref": "#/definitions/bias_scaling"
                 },
                 {
+                    "$ref": "#/definitions/extraction"
+                },
+                {
                     "type": "object",
                     "properties": {
                         "curv_degree": {
@@ -436,25 +452,6 @@
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 2
-                        },
-                        "extraction_width": {
-                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
-                            "type": [
-                                "integer",
-                                "number",
-                                "array"
-                            ],
-                            "items": {
-                                "type": [
-                                    "integer",
-                                    "number"
-                                ]
-                            }
-                        },
-                        "curvature_cutoff": {
-                            "description": "The threshold for removing outliers in standard deviations of the residual",
-                            "type": "number",
-                            "exclusiveMinimum": 0
                         },
                         "peak_threshold": {
                             "description": "Peak detection noise threshold. This much times * 10% noise must be the prominence of the peaks",
@@ -492,8 +489,11 @@
                     "required": [
                         "dimensionality",
                         "degree",
-                        "extraction_width",
-                        "curvature_cutoff"
+                        "peak_function",
+                        "window_width",
+                        "peak_width",
+                        "peak_threshold",
+                        "curv_degree"
                     ]
                 }
             ]

@@ -45,7 +45,12 @@ from .extract import extract
 from .extraction_width import estimate_extraction_width
 from .make_shear import Curvature as CurvatureModule
 from .trace_orders import mark_orders
-from .wavelength_calibration import LineList, WavelengthCalibration as WavelengthCalibrationModule, WavelengthCalibrationComb, WavelengthCalibrationInitialize as WavelengthCalibrationInitializeModule
+from .wavelength_calibration import (
+    LineList,
+    WavelengthCalibration as WavelengthCalibrationModule,
+    WavelengthCalibrationComb,
+    WavelengthCalibrationInitialize as WavelengthCalibrationInitializeModule,
+)
 from .estimate_background_scatter import estimate_background_scatter
 from .rectify import rectify_image, merge_images
 from pyreduce import wavelength_calibration
@@ -68,6 +73,8 @@ def main(
     output_dir=None,
     configuration=None,
     order_range=None,
+    allow_calibration_only=False,
+    skip_existing=False,
 ):
     r"""
     Main entry point for REDUCE scripts,
@@ -144,7 +151,14 @@ def main(
         )
         util.start_logging(log_file)
         # find input files and sort them by type
-        files = instrument.sort_files(input_dir, t, n, m, **config["instrument"])
+        files = instrument.sort_files(
+            input_dir,
+            t,
+            n,
+            mode=m,
+            **config["instrument"],
+            allow_calibration_only=allow_calibration_only,
+        )
         if len(files) == 0:
             logger.warning(
                 f"No files found for instrument: %s, target: %s, night: %s, mode: %s in folder: %s",
@@ -164,13 +178,13 @@ def main(
             reducer = Reducer(
                 f,
                 output_dir,
-                k["target"],
+                k.get("target"),
                 instrument,
                 m,
-                k["night"],
+                k.get("night"),
                 config,
                 order_range=order_range,
-                skip_existing=config["__skip_existing__"],
+                skip_existing=skip_existing,
             )
             # try:
             data = reducer.run_steps(steps=steps)
@@ -255,12 +269,12 @@ class Step:
     @property
     def dependsOn(self):
         """list(str): Steps that are required before running this step"""
-        return self._dependsOn
+        return list(set(self._dependsOn))
 
     @property
     def loadDependsOn(self):
         """list(str): Steps that are required before loading data from this step"""
-        return self._loadDependsOn
+        return list(set(self._loadDependsOn))
 
     @property
     def output_dir(self):
@@ -281,6 +295,147 @@ class Step:
             return f"{i}_{m}"
         else:
             return i
+
+
+class CalibrationStep(Step):
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
+        self._dependsOn += ["mask", "bias"]
+
+        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
+        self.bias_scaling = config["bias_scaling"]
+
+    def calibrate(self, files, mask, bias=None, norm_flat=None):
+        bias, bhead = bias if bias is not None else None, None
+        norm, blaze = norm_flat if norm_flat is not None else None, None
+
+        orig, thead = combine_flat(
+            files,
+            self.instrument,
+            self.mode,
+            mask=mask,
+            bias=bias,
+            bhead=bhead,
+            bias_scaling=self.bias_scaling,
+            plot=self.plot,
+            plot_title=self.plot_title,
+        )
+
+        if norm is not None:
+            orig /= norm
+
+        return orig, thead
+
+
+class ExtractionStep(Step):
+    def __init__(self, *args, **config):
+        super().__init__(*args, **config)
+        self._dependsOn += [
+            "orders",
+        ]
+
+        #:{'arc', 'optimal'}: Extraction method to use
+        self.extraction_method = config["extraction_method"]
+        if self.extraction_method == "arc":
+            #:dict: arguments for the extraction
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
+        elif self.extraction_method == "optimal":
+            self.extraction_kwargs = {
+                "extraction_width": config["extraction_width"],
+                "lambda_sf": config["smooth_slitfunction"],
+                "lambda_sp": config["smooth_spectrum"],
+                "osample": config["oversampling"],
+                "swath_width": config["swath_width"],
+                "sigma_cutoff": config["extraction_cutoff"],
+            }
+        else:
+            raise ValueError(
+                f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
+            )
+
+    def extract(self, img, head, orders, curvature):
+        orders, column_range = orders if orders is not None else None, None
+        tilt, shear = curvature if curvature is not None else None, None
+
+        data, unc, blaze, cr = extract(
+            img,
+            orders,
+            gain=head["e_gain"],
+            readnoise=head["e_readn"],
+            dark=head["e_drk"],
+            column_range=column_range,
+            extraction_type=self.extraction_method,
+            order_range=self.order_range,
+            plot=self.plot,
+            plot_title=self.plot_title,
+            tilt=tilt,
+            shear=shear,
+            **self.extraction_kwargs,
+        )
+        return data, unc, blaze, cr
+
+
+class FitsIOStep(Step):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._loadDependsOn += ["mask"]
+        self.allow_failure = True
+
+    def save(self, data, head, dtype=None):
+        """
+        Save the data to a FITS file
+
+        Parameters
+        ----------
+        data : array of shape (nrow, ncol)
+            bias data
+        head : FITS header
+            bias header
+        """
+        if dtype is not None:
+            data = np.asarray(data, dtype=np.float32)
+
+        fits.writeto(
+            self.savefile,
+            data=data,
+            header=head,
+            overwrite=True,
+            output_verify="silentfix+ignore",
+        )
+        logger.info("Created data file: %s", self.savefile)
+
+    def load(self, mask):
+        """
+        Load the master bias from a previous run
+
+        Parameters
+        ----------
+        mask : array of shape (nrow, ncol)
+            Bad pixel mask
+
+        Returns
+        -------
+        data : masked array of shape (nrow, ncol)
+            master bias data, with the bad pixel mask applied
+        head : FITS header
+            header of the master bias
+        """
+        try:
+            data = fits.open(self.savefile)[0]
+            data, head = data.data, data.header
+            data = np.ma.masked_array(data, mask=mask)
+            logger.info("Data file: %s", self.savefile)
+        except FileNotFoundError as ex:
+            if self.allow_failure:
+                logger.warning("No data file found")
+                data, head = None, None
+            else:
+                raise ex
+        return data, head
+
 
 class Mask(Step):
     """Load the bad pixel mask for the given instrument/mode"""
@@ -408,15 +563,12 @@ class Bias(Step):
         return bias, bhead
 
 
-class Flat(Step):
+class Flat(CalibrationStep):
     """Calculates the master flat"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "bias"]
         self._loadDependsOn += ["mask"]
-
-        self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
@@ -443,7 +595,6 @@ class Flat(Step):
         )
         logger.info("Created master flat file: %s", self.savefile)
 
-
     def run(self, files, bias, mask):
         """Calculate the master flat, with the bias already subtracted
 
@@ -464,20 +615,9 @@ class Flat(Step):
             Master flat FITS header
         """
         logger.info("Flat files: %s", files)
-
-        bias, bhead = bias
-        flat, fhead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bhead=bhead,
-            bias=bias,
-            bias_scaling=self.bias_scaling,
-            plot=self.plot,
-            plot_title=self.plot_title,
-        )
-
+        # This is just the calibration of images
+        flat, fhead = self.calibrate(files, mask, bias, None)
+        # And then save it
         self.save(flat.data, fhead)
         return flat, fhead
 
@@ -509,12 +649,11 @@ class Flat(Step):
         return flat, fhead
 
 
-class OrderTracing(Step):
+class OrderTracing(CalibrationStep):
     """Determine the polynomial fits describing the pixel locations of each order"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "bias"]
 
         #:int: Minimum size of each cluster to be included in further processing
         self.min_cluster = config["min_cluster"]
@@ -537,8 +676,6 @@ class OrderTracing(Step):
         self.border_width = config["border_width"]
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
-
-        self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
@@ -565,16 +702,7 @@ class OrderTracing(Step):
 
         logger.info("Order tracing files: %s", files)
 
-        order_img, ohead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bhead=bias[1],
-            bias=bias[0],
-            bias_scaling=self.bias_scaling,
-            plot=False,
-        )
+        order_img, ohead = self.calibrate(files, mask, bias, None)
 
         orders, column_range = mark_orders(
             order_img,
@@ -612,7 +740,6 @@ class OrderTracing(Step):
         np.savez(self.savefile, orders=orders, column_range=column_range)
         logger.info("Created order tracing file: %s", self.savefile)
 
-
     def load(self):
         """Load order tracing results
 
@@ -630,19 +757,18 @@ class OrderTracing(Step):
         return orders, column_range
 
 
-class BackgroundScatter(Step):
+class BackgroundScatter(CalibrationStep):
     """Determine the background scatter"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "bias", "orders"]
+        self._dependsOn += ["orders"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
         self.extraction_width = config["extraction_width"]
         self.sigma_cutoff = config["scatter_cutoff"]
         self.border_width = config["border_width"]
-        self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
@@ -650,22 +776,11 @@ class BackgroundScatter(Step):
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
     def run(self, files, mask, bias, orders):
-        bias, bhead = bias
-        orders, column_range = orders
-
         logger.info("Background scatter files: %s", files)
 
-        scatter_img, shead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bhead=bhead,
-            bias=bias,
-            bias_scaling=self.bias_scaling,
-            plot=False,
-        )
+        scatter_img, shead = self.calibrate(files, mask, bias)
 
+        orders, column_range = orders
         scatter = estimate_background_scatter(
             scatter_img,
             orders,
@@ -803,7 +918,6 @@ class NormalizeFlatField(Step):
         np.savez(self.savefile, blaze=blaze, norm=norm)
         logger.info("Created normalized flat file: %s", self.savefile)
 
-
     def load(self):
         """Load normalized flat field results from disk
 
@@ -826,44 +940,20 @@ class NormalizeFlatField(Step):
         norm = data["norm"]
         return norm, blaze
 
-class WavelengthCalibrationMaster(Step):
+
+class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
     """Create wavelength calibration master image"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "orders", "curvature", "bias"]
-
-        #:{'arc', 'optimal'}: Extraction method to use
-        self.extraction_method = config["extraction_method"]
-        if self.extraction_method == "arc":
-            #:dict: arguments for the extraction
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        elif self.extraction_method == "optimal":
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "lambda_sf": config["smooth_slitfunction"],
-                "lambda_sp": config["smooth_spectrum"],
-                "osample": config["oversampling"],
-                "swath_width": config["swath_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        else:
-            raise ValueError(
-                f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
-            )
-
-        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
-        self.bias_scaling = config["bias_scaling"]
+        self._dependsOn += ["norm_flat", "curvature"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_master.fits")
 
-    def run(self, files, orders, mask, curvature, bias):
+    def run(self, files, orders, mask, curvature, bias, norm_flat):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -889,43 +979,13 @@ class WavelengthCalibrationMaster(Step):
         linelist : record array of shape (nlines,)
             Updated line information for all lines
         """
-        orders, column_range = orders
-        tilt, shear = curvature
-        bias, bhead = bias
-
         if len(files) == 0:
             raise FileNotFoundError("No files found for wavelength calibration")
-
         logger.info("Wavelength calibration files: %s", files)
-
         # Load wavecal image
-        orig, thead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bias=bias,
-            bhead=bhead,
-            bias_scaling=self.bias_scaling,
-        )
-
+        orig, thead = self.calibrate(files, mask, bias, norm_flat)
         # Extract wavecal spectrum
-        thar, _, _, _ = extract(
-            orig,
-            orders,
-            gain=thead["e_gain"],
-            readnoise=thead["e_readn"],
-            dark=thead["e_drk"],
-            column_range=column_range,
-            extraction_type=self.extraction_method,
-            order_range=self.order_range,
-            plot=self.plot,
-            plot_title=self.plot_title,
-            tilt=tilt,
-            shear=shear,
-            **self.extraction_kwargs,
-        )
-
+        thar, _, _, _ = self.extract(orig, thead, orders, curvature)
         self.save(thar, thead)
         return thar, thead
 
@@ -964,14 +1024,15 @@ class WavelengthCalibrationMaster(Step):
         logger.info("Wavelength calibration spectrum file: %s", self.savefile)
         return thar, thead
 
+
 class WavelengthCalibrationInitialize(Step):
     """ Create the initial wavelength solution file """
-    
+
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["wavecal_master"]
         self._loadDependsOn += ["config", "wavecal_master"]
-       
+
         #:tuple(int, int): Polynomial degree of the wavelength calibration in order, column direction
         self.degree = config["degree"]
         #:float: wavelength range around the initial guess to explore
@@ -986,12 +1047,15 @@ class WavelengthCalibrationInitialize(Step):
         self.element = config["element"]
         #:str: medium the medium of the instrument, air or vac
         self.medium = config["medium"]
+        #:float: Gaussian smoothing parameter applied to the observed spectrum in pixel scale, set to 0 to disable smoothing
+        self.smoothing = config["smoothing"]
+        #:float: Minimum height of spectral lines in the normalized spectrum, values of 1 and above are interpreted as percentiles of the spectrum, set to 0 to disable the cutoff
+        self.cutoff = config["cutoff"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".linelist.npz")
-
 
     def run(self, wavecal_master):
         thar, thead = wavecal_master
@@ -999,18 +1063,22 @@ class WavelengthCalibrationInitialize(Step):
         # Get the initial wavelength guess from the instrument
         wave_range = self.instrument.get_wavelength_range(thead, self.mode)
         if wave_range is None:
-            raise ValueError("This instrument is missing an initial wavelength guess for wavecal_init")
+            raise ValueError(
+                "This instrument is missing an initial wavelength guess for wavecal_init"
+            )
 
         module = WavelengthCalibrationInitializeModule(
             plot=self.plot,
             plot_title=self.plot_title,
             degree=self.degree,
-            wave_delta = self.wave_delta,
-            nwalkers = self.nwalkers,
-            steps =self.steps,
-            resid_delta = self.resid_delta,
+            wave_delta=self.wave_delta,
+            nwalkers=self.nwalkers,
+            steps=self.steps,
+            resid_delta=self.resid_delta,
             element=self.element,
             medium=self.medium,
+            smoothing=self.smoothing,
+            cutoff=self.cutoff,
         )
         linelist = module.execute(thar, wave_range)
         self.save(linelist)
@@ -1019,7 +1087,6 @@ class WavelengthCalibrationInitialize(Step):
     def save(self, linelist):
         linelist.save(self.savefile)
         logger.info("Created wavelength calibration linelist file: %s", self.savefile)
-
 
     def load(self, config, wavecal_master):
         thar, thead = wavecal_master
@@ -1038,6 +1105,7 @@ class WavelengthCalibrationInitialize(Step):
             linelist = LineList.load(reference)
         logger.info("Wavelength calibration linelist file: %s", reference)
         return linelist
+
 
 class WavelengthCalibrationFinalize(Step):
     """Perform wavelength calibration"""
@@ -1107,7 +1175,7 @@ class WavelengthCalibrationFinalize(Step):
             nstep=self.nstep,
             shift_window=self.shift_window,
             element=self.element,
-            medium = self.medium
+            medium=self.medium,
         )
         wave, coef = module.execute(thar, linelist)
         self.save(wave, coef, linelist)
@@ -1128,7 +1196,6 @@ class WavelengthCalibrationFinalize(Step):
         np.savez(self.savefile, wave=wave, coef=coef, linelist=linelist)
         logger.info("Created wavelength calibration file: %s", self.savefile)
 
-
     def load(self):
         """Load the results of the wavelength calibration
 
@@ -1148,44 +1215,20 @@ class WavelengthCalibrationFinalize(Step):
         linelist = data["linelist"]
         return wave, coef, linelist
 
-class LaserFrequencyCombMaster(Step):
+
+class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
     """Create a laser frequency comb (or similar) master image"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["orders", "mask", "curvature", "bias"]
-
-        #:{'arc', 'optimal'}: extraction method
-        self.extraction_method = config["extraction_method"]
-        if self.extraction_method == "arc":
-            #:dict: keywords for the extraction
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        elif self.extraction_method == "optimal":
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "lambda_sf": config["smooth_slitfunction"],
-                "lambda_sp": config["smooth_spectrum"],
-                "osample": config["oversampling"],
-                "swath_width": config["swath_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        else:
-            raise ValueError(
-                f"Extraction method {self.extraction_method} not supported for step 'freq_comb'"
-            )
-
-        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
-        self.bias_scaling = config["bias_scaling"]
+        self._dependsOn += ["norm_flat", "curvature"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".comb_master.fits")
 
-    def run(self, files, orders, mask, curvature, bias):
+    def run(self, files, orders, mask, curvature, bias, norm_flat):
         """Improve the wavelength calibration with a laser frequency comb (or similar)
 
         Parameters
@@ -1208,41 +1251,15 @@ class LaserFrequencyCombMaster(Step):
         chead : Header
             FITS header of the combined image
         """
-        orders, column_range = orders
-        tilt, shear = curvature
-        bias, bhead = bias
 
         if len(files) == 0:
             raise FileNotFoundError("No files for Laser Frequency Comb found")
-
         logger.info("Frequency comb files: %s", files)
 
-        orig, chead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bias=bias,
-            bhead=bhead,
-            bias_scaling=self.bias_scaling,
-        )
-
-        comb, _, _, _ = extract(
-            orig,
-            orders,
-            gain=chead["e_gain"],
-            readnoise=chead["e_readn"],
-            dark=chead["e_drk"],
-            extraction_type=self.extraction_method,
-            column_range=column_range,
-            order_range=self.order_range,
-            plot=self.plot,
-            plot_title=self.plot_title,
-            tilt=tilt,
-            shear=shear,
-            **self.extraction_kwargs,
-        )
-
+        # Combine the input files and calibrate
+        orig, chead = self.calibrate(files, mask, bias, norm_flat)
+        # Extract the spectrum
+        comb, _, _, _ = self.extract(orig, chead, orders, curvature)
         self.save(comb, chead)
         return comb, chead
 
@@ -1280,6 +1297,7 @@ class LaserFrequencyCombMaster(Step):
         comb, chead = comb.data, comb.header
         logger.info("Frequency comb master spectrum: %s", self.savefile)
         return comb, chead
+
 
 class LaserFrequencyCombFinalize(Step):
     """Improve the precision of the wavelength calibration with a laser frequency comb"""
@@ -1353,7 +1371,6 @@ class LaserFrequencyCombFinalize(Step):
         np.savez(self.savefile, wave=wave)
         logger.info("Created frequency comb wavecal file: %s", self.savefile)
 
-
     def load(self, wavecal):
         """Load the results of the frequency comb improvement if possible,
         otherwise just use the normal wavelength solution
@@ -1383,24 +1400,18 @@ class LaserFrequencyCombFinalize(Step):
         return wave
 
 
-class SlitCurvatureDetermination(Step):
+class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
     """Determine the curvature of the slit"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["orders", "mask"]
 
-        #:{"arc"}: Extraction method to use
-        self.extraction_method = "arc"
-        #:tuple(int, 2): Number of pixels around each order to use in an extraction
-        self.extraction_width = config["extraction_width"]
-        self.extraction_cutoff = config["extraction_cutoff"]
+        #:float: how many sigma of bad lines to cut away
+        self.sigma_cutoff = config["curvature_cutoff"]
         #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
         self.curv_degree = config["curv_degree"]
-        #:float: how many sigma of bad lines to cut away
-        self.sigma_cutoff = config["curvature_cutoff"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
         #:float: peak finding noise threshold
@@ -1411,8 +1422,6 @@ class SlitCurvatureDetermination(Step):
         self.window_width = config["window_width"]
         #:str: Function shape that is fit to individual peaks
         self.peak_function = config["peak_function"]
-        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
-        self.bias_scaling = config["bias_scaling"]
 
     @property
     def savefile(self):
@@ -1438,36 +1447,13 @@ class SlitCurvatureDetermination(Step):
         shear : array of shape (nord, ncol)
             second order slit curvature at each point
         """
-        orders, column_range = orders
-        bias, bhead = bias
 
         logger.info("Slit curvature files: %s", files)
 
-        orig, thead = combine_flat(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            bias=bias,
-            bhead=bhead,
-            bias_scaling=self.bias_scaling,
-        )
+        orig, thead = self.calibrate(files, mask, bias, None)
+        extracted, _, _, _ = self.extract(orig, thead, orders, None)
 
-        extracted, _, _, _ = extract(
-            orig,
-            orders,
-            gain=thead["e_gain"],
-            readnoise=thead["e_readn"],
-            dark=thead["e_drk"],
-            extraction_type=self.extraction_method,
-            column_range=column_range,
-            order_range=self.order_range,
-            plot=self.plot,
-            plot_title=self.plot_title,
-            extraction_width=self.extraction_width,
-            sigma_cutoff=self.extraction_cutoff,
-        )
-
+        orders, column_range = orders
         module = CurvatureModule(
             orders,
             column_range=column_range,
@@ -1486,7 +1472,6 @@ class SlitCurvatureDetermination(Step):
         )
         tilt, shear = module.execute(extracted, orig)
         self.save(tilt, shear)
-
         return tilt, shear
 
     def save(self, tilt, shear):
@@ -1501,7 +1486,6 @@ class SlitCurvatureDetermination(Step):
         """
         np.savez(self.savefile, tilt=tilt, shear=shear)
         logger.info("Created slit curvature file: %s", self.savefile)
-
 
     def load(self):
         """Load the curvature if possible, otherwise return None, None, i.e. use vertical extraction
@@ -1594,35 +1578,13 @@ class RectifyImage(Step):
         return rectified
 
 
-class ScienceExtraction(Step):
+class ScienceExtraction(CalibrationStep, ExtractionStep):
     """Extract the science spectra"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["mask", "bias", "orders", "norm_flat", "curvature"]
+        self._dependsOn += ["norm_flat", "curvature"]
         self._loadDependsOn += ["files"]
-
-        #:{'arc', 'optimal'}: Extraction method
-        self.extraction_method = config["extraction_method"]
-        if self.extraction_method == "arc":
-            #:dict: Keywords for the extraction algorithm
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        elif self.extraction_method == "optimal":
-            self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
-                "lambda_sf": config["smooth_slitfunction"],
-                "lambda_sp": config["smooth_spectrum"],
-                "osample": config["oversampling"],
-                "swath_width": config["swath_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
-            }
-        else:
-            raise ValueError(
-                f"Extraction method {self.extraction_method} not supported for step 'science'"
-            )
 
     def science_file(self, name):
         """Name of the science file in disk, based on the input file
@@ -1668,40 +1630,13 @@ class ScienceExtraction(Step):
         columns : list(array of shape (nord, 2))
             column ranges for each spectra
         """
-        bias, bhead = bias
-        norm, blaze = norm_flat
-        orders, column_range = orders
-        tilt, shear = curvature
-
         heads, specs, sigmas, columns = [], [], [], []
         for fname in tqdm(files, desc="Files"):
             logger.info("Science file: %s", fname)
-            im, head = self.instrument.load_fits(
-                fname, self.mode, mask=mask, dtype="f8"
-            )
-
-            # Correct for bias and flat field
-            if bias is not None:
-                im -= bias
-            if norm is not None:
-                im /= norm
-
+            # Calibrate the input image
+            im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
-            spec, sigma, _, cr = extract(
-                im,
-                orders,
-                tilt=tilt,
-                shear=shear,
-                gain=head["e_gain"],
-                readnoise=head["e_readn"],
-                dark=head["e_drk"],
-                extraction_type=self.extraction_method,
-                column_range=column_range,
-                order_range=self.order_range,
-                plot=self.plot,
-                plot_title=self.plot_title,
-                **self.extraction_kwargs,
-            )
+            spec, sigma, _, cr = self.extract(im, head, orders, curvature)
 
             # save spectrum to disk
             self.save(fname, head, spec, sigma, cr)
@@ -1731,7 +1666,6 @@ class ScienceExtraction(Step):
         nameout = self.science_file(fname)
         echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
         logger.info("Created science file: %s", nameout)
-
 
     def load(self, files):
         """Load all science spectra from disk
@@ -1866,7 +1800,6 @@ class ContinuumNormalization(Step):
         }
         joblib.dump(value, self.savefile)
         logger.info("Created continuum normalization file: %s", self.savefile)
-
 
     def load(self, norm_flat, science):
         """Load the results from the continuum normalization

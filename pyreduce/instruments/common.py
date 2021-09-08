@@ -405,7 +405,7 @@ class Instrument:
 
         return self.filters
 
-    def apply_filters(self, files, expected):
+    def apply_filters(self, files, expected, allow_calibration_only=False):
         """
         Determine the relevant files for a given set of expected values.
 
@@ -456,15 +456,30 @@ class Instrument:
         # Filter for only nights that have a science observation
         # files = [{setting: value}, {step: files}]
         files = []
-        for key, _ in result[self.science]:
+        if allow_calibration_only:
+            # Use all unique nights
+            settings = {}
+            for shared in self.shared:
+                keys = [k for k in set(self.filters[shared].data) if k is not None]
+                settings[shared] = keys
+        else:
+            # Or use only science nights
+            settings = {}
+            for shared in self.shared:
+                keys = [key[shared] for key, _ in result[self.science]]
+                settings[shared] = keys
+
+        values = [settings[k] for k in self.shared]
+        for setting in product(*values):
+            setting = {k:v for k,v in zip(self.shared, setting)}
+            night = setting[self.night]
             f = {}
-            night = key[self.night]
             # For each step look for files with matching settings
             for step, step_data in result.items():
                 f[step] = []
                 for step_key, step_files in step_data:
                     match = [
-                        key[shared] == step_key[shared]
+                        setting[shared] == step_key[shared]
                         for shared in self.shared
                         if shared in step_key.keys()
                     ]
@@ -478,7 +493,7 @@ class Instrument:
                         logger.warning(
                             "Could not find any files for step '%s' with settings %s, sharing parameters %s",
                             step,
-                            key,
+                            setting,
                             self.shared,
                         )
                     else:
@@ -486,7 +501,7 @@ class Instrument:
                         j = None
                         for i, (step_key, step_files) in enumerate(step_data):
                             match = [
-                                key[shared] == step_key[shared]
+                                setting[shared] == step_key[shared]
                                 for shared in self.shared
                                 if shared in step_key.keys() and shared != self.night
                             ]
@@ -500,7 +515,7 @@ class Instrument:
                             logger.warning(
                                 "Could not find any files for step '%s' in any night with settings %s, sharing parameters %s",
                                 step,
-                                key,
+                                setting,
                                 self.shared,
                             )
                         else:
@@ -514,7 +529,7 @@ class Instrument:
                             )
                             f[step] = closest_files
 
-            files.append((key, f))
+            files.append((setting, f))
         if len(files) == 0:
             logger.warning(
                 "No %s files found matching the expected values %s",
@@ -523,7 +538,7 @@ class Instrument:
             )
         return files
 
-    def sort_files(self, input_dir, target, night, *args, **kwargs):
+    def sort_files(self, input_dir, target, night, *args, allow_calibration_only=False, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -546,9 +561,10 @@ class Instrument:
         nights_out : list[datetime]
             a list of observation times, same order as files_per_night
         """
+        input_dir = input_dir.format(**kwargs, target=target, night=night, instrument=self.name)
         files = self.find_files(input_dir)
         ev = self.get_expected_values(target, night, *args, **kwargs)
-        files = self.apply_filters(files, ev)
+        files = self.apply_filters(files, ev, allow_calibration_only=allow_calibration_only)
         return files
 
     def get_wavecal_filename(self, header, mode, **kwargs):

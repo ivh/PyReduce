@@ -17,6 +17,7 @@ from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.ndimage.morphology import grey_closing
+from scipy.ndimage.filters import gaussian_filter1d
 
 from astropy.io import fits
 
@@ -146,7 +147,8 @@ class LineAtlas:
         except (FileNotFoundError, IOError):
             # Otherwise fit the line positions from the spectrum
             logger.warning(
-                "No dedicated linelist found for {element}, determining peaks based on the reference spectrum instead."
+                "No dedicated linelist found for %s, determining peaks based on the reference spectrum instead.",
+                element,
             )
             module = WavelengthCalibration(plot=False)
             n, peaks = module._find_peaks(self.flux)
@@ -1565,6 +1567,8 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         nwalkers=100,
         steps=50_000,
         resid_delta=1000,
+        cutoff=5,
+        smoothing=0,
         element="thar",
         medium="vac",
     ):
@@ -1576,10 +1580,37 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             plot_title=plot_title,
             dimensionality="1D",
         )
+        #:float: wavelength uncertainty on the initial guess in Angstrom
         self.wave_delta = wave_delta
+        #:int: number of walkers in the MCMC
         self.nwalkers = nwalkers
+        #:int: number of steps in the MCMC
         self.steps = steps
+        #:float: residual uncertainty allowed when matching observation with known lines
         self.resid_delta = resid_delta
+        #:float: gaussian smoothing applied to the wavecal spectrum before the MCMC in pixel scale, disable it by setting it to 0
+        self.smoothing = smoothing
+        #:float: minimum value in the spectrum to be considered a spectral line, if the value is above (or equal 1) it defines the percentile of the spectrum
+        self.cutoff = cutoff
+
+    def get_cutoff(self, spectrum):
+        if self.cutoff == 0:
+            cutoff = None
+        elif self.cutoff < 1:
+            cutoff = self.cutoff
+        else:
+            cutoff = np.nanpercentile(spectrum[spectrum != 0], self.cutoff)
+        return cutoff
+
+    def normalize(self, spectrum):
+        smoothing = self.smoothing
+        spectrum = np.copy(spectrum)
+        spectrum -= np.nanmedian(spectrum)
+        if smoothing != 0:
+            spectrum = gaussian_filter1d(spectrum, smoothing)
+        spectrum[spectrum < 0] = 0
+        spectrum /= np.max(spectrum)
+        return spectrum
 
     def determine_wavelength_coefficients(
         self, spectrum, atlas, wave_range,
@@ -1628,8 +1659,9 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         n_output = ndim = self.degree + 1
 
         # Normalize the spectrum, and copy it just in case
-        spectrum = spectrum / np.max(spectrum)
-
+        spectrum = self.normalize(spectrum)
+        cutoff = self.get_cutoff(spectrum)
+       
         # The pixel scale used for everything else
         x = np.arange(n_features)
         # Initial guess for the wavelength solution
@@ -1691,7 +1723,11 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             # chi2 = - np.sum((y - spectrum)**2, axis=1)
             # chi2 = - np.sum((np.where(y > 0.01, 1, 0) - np.where(spectrum > 0.01, 1, 0))**2, axis=1)
             # this is the same as above, but a lot faster thanks to the magic of bitwise xor
-            chi2 = -np.count_nonzero((y > 0.01) ^ (spectrum > 0.01), axis=1) / 20
+            if cutoff is not None:
+                chi2 = (y > cutoff) ^ (spectrum > cutoff)
+                chi2 = -np.count_nonzero(chi2, axis=1) / 20
+            else:
+                chi2 = -np.sum((y - spectrum) ** 2, axis=1) / 20
             return prior + cross + chi2
 
         p0 = np.zeros((self.nwalkers, ndim))
@@ -1773,13 +1809,16 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
         n_features = spectrum.shape[0]
         x = np.arange(n_features)
+        smoothing = self.smoothing
 
         # Normalize just in case
-        spectrum = spectrum / np.max(spectrum)
+        spectrum = self.normalize(spectrum)
+        cutoff = self.get_cutoff(spectrum)
 
         # TODO: make this use another function, and pass the hight as a parameter
         scopy = np.copy(spectrum)
-        scopy[scopy < 0.01] = 0
+        if cutoff is not None:
+            scopy[scopy < cutoff] = 0
         _, peaks = self._find_peaks(scopy)
 
         peak_wave = np.interp(peaks, x, wavelength)
