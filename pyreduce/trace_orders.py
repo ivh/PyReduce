@@ -221,7 +221,7 @@ def merge_clusters(
                 if answer in "ynrg":
                     break
         else:
-            answer = "y"
+            answer = "n"
 
         if answer == "y":
             # just merge automatically
