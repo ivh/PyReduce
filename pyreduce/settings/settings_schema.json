@@ -38,7 +38,24 @@
             "type": "object"
         },
         "bias": {
-            "$ref": "#/definitions/step"
+            "allOf": [
+                {
+                    "$ref": "#/definitions/step"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "degree": {
+                            "description": "Polynomial degree of the fit between exposure time and pixel values",
+                            "type": "number",
+                            "minimum": 0
+                        }
+                    },
+                    "required": [
+                        "degree"
+                    ]
+                }
+            ]
         },
         "flat": {
             "allOf": [
@@ -259,7 +276,7 @@
                     "$ref": "#/definitions/bias_scaling"
                 }
             ]
-        },  
+        },
         "wavecal_init": {
             "allOf": [
                 {
@@ -280,7 +297,10 @@
                         "medium": {
                             "description": "Medium of the detector, either air or vaccum. This affects the wavelength scale",
                             "type": "string",
-                            "enum": ["vac", "air"]
+                            "enum": [
+                                "vac",
+                                "air"
+                            ]
                         },
                         "wave_delta": {
                             "description": "Wavelength uncertainty on the initial guess in Angstrom",
@@ -364,12 +384,15 @@
                         },
                         "element": {
                             "description": "Element(s) of the Gas Lamp used for calibration",
-                            "type": "string"
+                            "type": ["string", "null"]
                         },
                         "medium": {
                             "description": "Medium of the detector, either air or vaccum. This affects the wavelength scale",
                             "type": "string",
-                            "enum": ["vac", "air"]
+                            "enum": [
+                                "vac",
+                                "air"
+                            ]
                         }
                     },
                     "required": [
@@ -383,7 +406,7 @@
                 }
             ]
         },
-        "freq_comb_master" : {
+        "freq_comb_master": {
             "allOf": [
                 {
                     "$ref": "#/definitions/step"
@@ -707,12 +730,22 @@
                             "description": "Number of sigma above the median of the sorounding pixels to curoff the pixel as a bad pixel. Before the main extraction!. Set to 0 to ignore.",
                             "type": "number",
                             "minimum": 0
+                        },
+                        "collapse_function": {
+                            "description": "Function used to collapse the image into a spectrum",
+                            "type": "string",
+                            "enum": [
+                                "sum",
+                                "mean",
+                                "median"
+                            ]
                         }
                     },
                     "required": [
                         "extraction_method",
                         "extraction_width",
-                        "extraction_cutoff"
+                        "extraction_cutoff",
+                        "collapse_function"
                     ]
                 }
             ]
@@ -763,7 +796,12 @@
                 "bias_scaling": {
                     "description": "determines how the bias is applied",
                     "type": "string",
-                    "enum": ["number_of_files", "exposure_time", "mean", "median"]
+                    "enum": [
+                        "number_of_files",
+                        "exposure_time",
+                        "mean",
+                        "median"
+                    ]
                 }
             }
         }

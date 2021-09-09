@@ -9,6 +9,7 @@
     "instrument": {},
     "mask": {},
     "bias": {
+        "degree": 0,
         "plot": true,
         "plot_title": "Bias"
     },
@@ -61,6 +62,7 @@
     },
     "wavecal_master": {
         "extraction_method": "arc",
+        "collapse_function": "median",
         "extraction_width": 0.5,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
@@ -98,6 +100,7 @@
     },
     "freq_comb_master":{
         "extraction_method": "arc",
+        "collapse_function": "median",
         "extraction_width": 0.5,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
@@ -121,6 +124,7 @@
         "degree": 2,
         "curv_degree": 2,
         "extraction_method": "arc",
+        "collapse_function": "median",
         "extraction_width": 0.2,
         "curvature_cutoff": 3,
         "extraction_cutoff": 20,
@@ -146,6 +150,7 @@
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 1e-7,
         "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
         "plot": true,
         "plot_title": "Science Data"
     },

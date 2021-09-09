@@ -70,7 +70,7 @@ class CRIRES_PLUS(Instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """ Get the filename of the wavelength calibration config file """
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
+        fname = "{instrument}_{mode}.npz".format(instrument=self.name, mode=mode)
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 

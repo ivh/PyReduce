@@ -358,14 +358,18 @@ class WavelengthCalibration:
             if self.closing > 0:
                 obs[i] = grey_closing(obs[i], self.closing)
             try:
-                obs[i] -= np.ma.min(obs[i][obs[i] > 0])
+                obs[i] -= np.ma.median(obs[i][obs[i] > 0])
             except ValueError:
                 logger.warning(
                     f"Could not determine the minimum value in order %i. No positive values found",
                     i,
                 )
             obs[i] /= np.ma.max(obs[i])
-        obs[obs <= 0] = np.ma.masked
+        
+        # Remove negative outliers
+        std = np.std(obs, axis=1)[:, None]
+        obs[obs <= -2 * std] = np.ma.masked
+        # obs[obs <= 0] = np.ma.masked
 
         # Normalize lines in each order
         for order in np.unique(lines["order"]):
@@ -1386,33 +1390,19 @@ class WavelengthCalibrationComb(WavelengthCalibration):
             # Use the existing absolute wavelength calibration as reference
             y_ord = np.full(len(peaks), i)
             w_old = interp1d(np.arange(len(wave[i])), wave[i], kind="cubic")(peaks)
-            # w_old = np.interp(peaks, np.arange(len(wave[i])), wave[i])
-            # w_old = self.evaluate_solution(peaks, y_ord, wave_solution)
             f_old = speed_of_light / w_old
 
             # fr: repeating frequency
             # fd: anchor frequency of this order, needs to be shifted to the absolute reference frame
-            # res = Polynomial.fit(n, f_old, deg=1, domain=[])
-            # fd, fr = res.coef
-
             fr = np.median(np.diff(f_old))
             fd = np.median(f_old % fr)
             n_raw = (f_old - fd) / fr
             n = np.round(n_raw)
 
             if np.any(np.abs(n_raw - n) > 0.3):
-                logger.warning("Bad peaks detected in the frequency comb")
+                logger.warning("Bad peaks detected in the frequency comb in order %i", i)
 
-            # res = Polynomial.fit(n, f_old, deg=1, domain=[])
             fr, fd = polyfit(n, f_old, deg=1)
-            # f_old = np.polyval([fr, fd], n)
-
-            # w_old = speed_of_light / f_old
-            # m = np.zeros_like(w_old)
-            # m[1:] = w_old[1:] / np.diff(w_old)
-            # m = np.abs(np.round(m))
-            # m[0] = 1 + m[1]
-            # n = m
 
             n_offset = 0
             # The first order is used as the baseline for all other orders

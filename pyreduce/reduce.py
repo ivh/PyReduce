@@ -38,7 +38,7 @@ from tqdm import tqdm
 # PyReduce subpackages
 from . import echelle, instruments, util, __version__
 from .instruments.instrument_info import load_instrument
-from .combine_frames import combine_bias, combine_flat, combine_frames
+from .combine_frames import combine_bias, combine_frames, combine_calibrate, combine_polynomial
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .extract import extract
@@ -308,21 +308,18 @@ class CalibrationStep(Step):
     def calibrate(self, files, mask, bias=None, norm_flat=None):
         bias, bhead = bias if bias is not None else (None, None)
         norm, blaze = norm_flat if norm_flat is not None else (None, None)
-
-        orig, thead = combine_flat(
+        orig, thead = combine_calibrate(
             files,
             self.instrument,
             self.mode,
-            mask=mask,
+            mask,
             bias=bias,
             bhead=bhead,
+            norm=norm,
             bias_scaling=self.bias_scaling,
             plot=self.plot,
-            plot_title=self.plot_title,
+            plot_title=self.plot_title
         )
-
-        if norm is not None:
-            orig /= norm
 
         return orig, thead
 
@@ -341,6 +338,7 @@ class ExtractionStep(Step):
             self.extraction_kwargs = {
                 "extraction_width": config["extraction_width"],
                 "sigma_cutoff": config["extraction_cutoff"],
+                "collapse_function": config["collapse_function"],
             }
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
@@ -483,6 +481,9 @@ class Bias(Step):
         self._dependsOn += ["mask"]
         self._loadDependsOn += ["mask"]
 
+        #:int: polynomial degree of the fit between exposure time and pixel values
+        self.degree = config["degree"]
+
     @property
     def savefile(self):
         """str: Name of master bias fits file"""
@@ -506,14 +507,33 @@ class Bias(Step):
             header of the master bias
         """
         logger.info("Bias Files: %s", files)
-        bias, bhead = combine_bias(
-            files,
-            self.instrument,
-            self.mode,
-            mask=mask,
-            plot=self.plot,
-            plot_title=self.plot_title,
-        )
+
+        if self.degree == 0:
+            # If the degree is 0, we just combine all images into a single master bias
+            # this works great if we assume there is no dark at exposure time 0
+            bias, bhead = combine_bias(
+                files,
+                self.instrument,
+                self.mode,
+                mask=mask,
+                plot=self.plot,
+                plot_title=self.plot_title,
+            )
+        else:
+            # Otherwise we fit a polynomial to each pixel in the image, with
+            # the pixel value versus the exposure time. The constant coefficients
+            # are then the bias, and the others are used to scale with the 
+            # exposure time
+            bias, bhead = combine_polynomial(
+                files, 
+                self.instrument, 
+                self.mode, 
+                mask=mask, 
+                degree=self.degree, 
+                plot=self.plot, 
+                plot_title=self.plot_title
+            )
+           
         self.save(bias.data, bhead)
         return bias, bhead
 
@@ -528,10 +548,17 @@ class Bias(Step):
             bias header
         """
         bias = np.asarray(bias, dtype=np.float32)
-        fits.writeto(
+
+        if self.degree == 0:
+            hdu = fits.PrimaryHDU(data=bias, header=bhead)
+        else:
+            hdus = [fits.PrimaryHDU(data=bias[0], header=bhead)]
+            for i in range(1, len(bias)):
+                hdus += [fits.ImageHDU(data=bias[i])]
+            hdus = fits.HDUList(hdus)
+
+        hdus.writeto(
             self.savefile,
-            data=bias,
-            header=bhead,
             overwrite=True,
             output_verify="silentfix+ignore",
         )
@@ -553,10 +580,16 @@ class Bias(Step):
             header of the master bias
         """
         try:
-            bias = fits.open(self.savefile)[0]
-            bias, bhead = bias.data, bias.header
-            bias = np.ma.masked_array(bias, mask=mask)
             logger.info("Master bias file: %s", self.savefile)
+            hdu = fits.open(self.savefile)
+            degree = len(hdu) - 1
+            if degree == 0:
+                bias, bhead = hdu[0].data, hdu[0].header
+                bias = np.ma.masked_array(bias, mask=mask)
+            else:
+                bhead = hdu[0].header
+                bias = np.array([h.data for h in hdu])
+                bias = np.ma.masked_array(bias, mask=[mask for _ in range(len(hdu))])
         except FileNotFoundError:
             logger.warning("No intermediate bias file found. Using Bias = 0 instead.")
             bias, bhead = None, None

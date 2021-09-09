@@ -1040,6 +1040,7 @@ def arc_extraction(
     plot_title=None,
     tilt=None,
     shear=None,
+    collapse_function="median",
     **kwargs,
 ):
     """ Use "simple" arc extraction to get a spectrum
@@ -1117,13 +1118,21 @@ def arc_extraction(
             )
 
         # Sum over the prepared image
-        arc = np.ma.sum(img_order, axis=0)
+        if collapse_function == "sum":
+            arc = np.ma.sum(img_order, axis=0)
+        elif collapse_function == "mean":
+            arc = np.ma.mean(img_order, axis=0) * img_order.shape[0]
+        elif collapse_function == "median":
+            arc = np.ma.median(img_order, axis=0) * img_order.shape[0]
+        else:
+            raise ValueError("Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got %s" % collapse_function)
 
         # Store results
         spectrum[i, x_left_lim:x_right_lim] = arc
         uncertainties[i, x_left_lim:x_right_lim] = (
             np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
         )
+
 
     if plot:  # pragma: no cover
         plot_comparison(

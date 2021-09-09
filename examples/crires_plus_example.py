@@ -18,13 +18,14 @@ steps = (
     # "bias",
     # "flat",
     # "orders",
-    "curvature",
+    # "curvature",
     # "scatter",
     # "norm_flat",
-    "wavecal_master",
+    # "wavecal_master",
     # "wavecal_init",
-    "wavecal",
-    # "freq_comb_master",
+    # "wavecal",
+    "freq_comb_master",
+    "freq_comb",
     # "science",
     # "continuum",
     # "finalize",
@@ -37,11 +38,11 @@ steps = (
 # load dataset (and save the location)
 base_dir = "/DATA/ESO/CRIRES+/pCOMM/210824_mincal"
 input_dir = "J1228/"
-output_dir = "J1228_reduced/"
+output_dir = "{mode}_reduced/"
 
 # Path to the configuration parameters, that are to be used for this reduction
 
-config = get_configuration_for_instrument(instrument, plot=1)
+config = get_configuration_for_instrument(instrument, plot=1, bias_scaling="exposure_time")
 
 pyreduce.reduce.main(
     instrument,

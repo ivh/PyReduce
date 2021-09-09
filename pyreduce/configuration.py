@@ -116,7 +116,7 @@ def update(dict1, dict2, check=True):
     exclude = ["instrument"]
     for key, value in dict2.items():
         if check and key not in dict1.keys():
-            raise KeyError(f"{key} is not contained in dict1")
+            logger.warning(f"{key} is not contained in dict1")
         if isinstance(value, dict):
             dict1[key] = update(dict1[key], value, check=key not in exclude)
         else:
