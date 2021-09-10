@@ -444,13 +444,14 @@ def combine_calibrate(
     files,
     instrument,
     mode,
-    mask,
+    mask=None,
     bias=None,
     bhead=None,
     norm=None,
     bias_scaling="exposure_time",
     plot=False,
     plot_title=None,
+    **kwargs,
 ):
     """
     Combine the input files and then calibrate the image with the bias 
@@ -492,7 +493,7 @@ def combine_calibrate(
         Unrecognised bias_scaling option
     """
     # Combine the images and try to remove bad pixels
-    orig, thead = combine_frames(files, instrument, mode, mask=mask,)
+    orig, thead = combine_frames(files, instrument, mode, mask=mask,**kwargs)
 
     # Subtract bias
     if bias is not None:

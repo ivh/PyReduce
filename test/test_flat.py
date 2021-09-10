@@ -5,15 +5,15 @@ import numpy as np
 from astropy.io import fits
 
 from pyreduce import instruments
-from pyreduce.combine_frames import combine_flat
+from pyreduce.combine_frames import combine_calibrate
 
 
 def test_flat(instrument, mode, files, mask):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
-    flat, fhead = combine_flat(
-        files["flat"], instrument, mode, window=50, mask=mask
+    flat, fhead = combine_calibrate(
+        files["flat"], instrument, mode, mask=mask, window=50
     )
 
     assert isinstance(flat, np.ma.masked_array)
@@ -30,7 +30,7 @@ def test_flat_with_bias(instrument, mode, files, mask, bias):
 
     window = 50
     bias, bhead = bias
-    flat, fhead = combine_flat(
+    flat, fhead = combine_calibrate(
         files["flat"],
         instrument,
         mode,
@@ -56,7 +56,7 @@ def test_simple(tempfiles):
         data = np.full((100, 100), 5, dtype=float)
         fits.writeto(files[i], data)
 
-    flat, fhead = combine_flat(files, "common", "", extension=0)
+    flat, fhead = combine_calibrate(files, "common", "", extension=0)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 100
@@ -70,7 +70,7 @@ def test_simple(tempfiles):
         data = np.full((200, 100), 5, dtype=float)
         fits.writeto(files[i], data, overwrite=True)
 
-    flat, fhead = combine_flat(files, "common", "", extension=0, window=50)
+    flat, fhead = combine_calibrate(files, "common", "", extension=0, window=50)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 200

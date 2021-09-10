@@ -550,7 +550,7 @@ class Bias(Step):
         bias = np.asarray(bias, dtype=np.float32)
 
         if self.degree == 0:
-            hdu = fits.PrimaryHDU(data=bias, header=bhead)
+            hdus = fits.PrimaryHDU(data=bias, header=bhead)
         else:
             hdus = [fits.PrimaryHDU(data=bias[0], header=bhead)]
             for i in range(1, len(bias)):
