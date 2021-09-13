@@ -79,8 +79,8 @@ class JWST_NIRISS(Instrument):
             files.append(fname_this)
         return files
 
-    def sort_files(self, input_dir, target, night, mode):
-        files = super().sort_files(input_dir, target, night, mode)
+    def sort_files(self, input_dir, target, night, mode, allow_calibration_only=False):
+        files = super().sort_files(input_dir, target, night, mode, allow_calibration_only=allow_calibration_only)
         for i, (k, file) in enumerate(files):
             files_split = []
             for f in file["science"]:

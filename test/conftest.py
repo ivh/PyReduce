@@ -532,7 +532,7 @@ def curvature(step_args, settings, files, orders, mask):
     return tilt, shear
 
 @pytest.fixture
-def wave_master(step_args, settings, files, orders, mask, curvature, bias):
+def wave_master(step_args, settings, files, orders, mask, curvature, bias, normflat):
     """Load or create wavelength calibration files
 
     Parameters
@@ -570,7 +570,7 @@ def wave_master(step_args, settings, files, orders, mask, curvature, bias):
     except FileNotFoundError:
         try:
             thar, thead = step.run(
-                files, orders, mask, curvature, bias
+                files, orders, mask, curvature, bias, normflat
             )
         except FileNotFoundError:
             thar, thead = None, None

@@ -1,6 +1,5 @@
 {
     "__instrument__": "LICK_APF",
-    "__skip_existing__": false,
     "instrument": {},
     "bias": {
     },

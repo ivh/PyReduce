@@ -1,6 +1,5 @@
 {
     "__instrument__": "NIRSPEC",
-    "__skip_existing__": false,
     "instrument": {
         "#": "The calibration dir points to the location of the calibration data, since the default data download seperates the science and the calibration into different directories. It is relative to the science directory.",
         "calibration_dir": ""

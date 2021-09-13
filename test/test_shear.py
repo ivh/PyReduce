@@ -45,21 +45,25 @@ def test_shear(original, extracted, orders, order_range, settings):
     original, chead = original
     orders, column_range = orders
     settings = settings["curvature"]
-    settings["sigma_cutoff"] = settings["curvature_cutoff"]
-    del settings["curvature_cutoff"]
-    del settings["extraction_cutoff"]
-    del settings["bias_scaling"]
 
     if extracted is None:
         pytest.skip("No curvature files")
 
-    del settings["dimensionality"]
-    del settings["degree"]
-    settings["mode"] = "1D"
-    settings["curv_degree"] = 2
-
     module = CurvatureModule(
-        orders, column_range=column_range, order_range=order_range, **settings
+        orders,
+        column_range=column_range,
+        order_range=order_range,
+        extraction_width=settings["extraction_width"],
+        window_width=settings["window_width"],
+        peak_threshold=settings["peak_threshold"],
+        peak_width=settings["peak_width"],
+        fit_degree=settings["degree"],
+        sigma_cutoff=settings["curvature_cutoff"],
+        peak_function=settings["peak_function"],
+        mode="1D",
+        curv_degree=2,
+        plot=False,
+        plot_title=None,
     )
     tilt, shear = module.execute(extracted, original)
 
@@ -73,12 +77,25 @@ def test_shear(original, extracted, orders, order_range, settings):
     assert shear.shape[0] == order_range[1] - order_range[0]
     assert shear.shape[1] == extracted.shape[1]
 
+    # Reduce the number of orders this way
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
-    settings["mode"] = "2D"
-    settings["curv_degree"] = 1
 
-    module = CurvatureModule(orders, column_range=column_range, **settings)
+    module = CurvatureModule(
+        orders,
+        column_range=column_range,
+        extraction_width=settings["extraction_width"],
+        window_width=settings["window_width"],
+        peak_threshold=settings["peak_threshold"],
+        peak_width=settings["peak_width"],
+        fit_degree=settings["degree"],
+        sigma_cutoff=settings["curvature_cutoff"],
+        peak_function=settings["peak_function"],
+        mode="2D",
+        curv_degree=1,
+        plot=False,
+        plot_title=None,
+    )
     tilt, shear = module.execute(extracted, original)
 
     assert isinstance(tilt, np.ndarray)

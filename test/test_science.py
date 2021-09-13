@@ -3,25 +3,17 @@ import numpy as np
 
 from pyreduce import util
 from pyreduce.extract import extract
+from pyreduce.combine_frames import combine_calibrate
 
 
 def test_science(
-    files,
-    instr,
-    instrument,
-    mode,
-    mask,
-    bias,
-    normflat,
-    orders,
-    settings,
-    order_range,
+    files, instr, instrument, mode, mask, bias, normflat, orders, settings, order_range,
 ):
     if len(files["science"]) == 0:
         pytest.skip(f"No science files found for instrument {instrument}")
 
     flat, blaze = normflat
-    bias, _ = bias
+    bias, bhead = bias
     orders, column_range = orders
     settings = settings["science"]
 
@@ -31,14 +23,16 @@ def test_science(
 
     f = files["science"][0]
 
-    im, head = instr.load_fits(
-        f, mode, mask=mask, dtype=np.float32
+    im, head = combine_calibrate(
+        [f],
+        instr,
+        mode,
+        mask=mask,
+        bias=bias,
+        bhead=bhead,
+        norm=flat,
+        bias_scaling=settings["bias_scaling"],
     )
-    # Correct for bias and flat field
-    if bias is not None:
-        im = im - bias
-    if flat is not None:
-        im = im / flat
 
     # Optimally extract science spectrum
     spec, sigma, _, _ = extract(

@@ -11,6 +11,8 @@ import fnmatch
 import json
 import re
 
+from itertools import product
+
 import numpy as np
 from astropy.io import fits
 from dateutil import parser
@@ -38,6 +40,13 @@ class CRIRES_PLUS(Instrument):
         info = self.load_info()
 
         return header
+
+    def get_supported_modes(self):
+        settings = self.info["settings"]
+        deckers = self.info["deckers"]
+        detectors = self.info["chips"]
+        modes = ["_".join([s, d, c]) for s, d, c in product(settings, deckers, detectors)]
+        return modes
 
     def parse_mode(self, mode):
         pattern = r"([YJHKLM]\d{4})(_(Open|pos1|pos2))?_det(\d)"

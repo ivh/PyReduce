@@ -45,13 +45,19 @@ def best_fit(x, y):
 
 
 def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol, deg=2):
+    # i and j are the indices of the 2 clusters
     i_left, i_right = yi.min(), yi.max()
     j_left, j_right = yj.min(), yj.max()
 
+    # The number of pixels in the smaller cluster
+    # this limits the accuracy of the fit
+    n_min = min(i_right - i_left, j_right - j_left)
+
+    # Fit a polynomial to each cluster
     order_i = fit(xi, yi, deg)
     order_j = fit(xj, yj, deg)
 
-    # Get polynomial points inside cluster limits for each
+    # Get polynomial points inside cluster limits for each cluster and polynomial
     y_ii = np.polyval(order_i, np.arange(i_left, i_right))
     y_ij = np.polyval(order_i, np.arange(j_left, j_right))
     y_jj = np.polyval(order_j, np.arange(j_left, j_right))
@@ -67,7 +73,8 @@ def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol,
     # TODO: There should probably be some kind of normaliztion, that scales with the size of the cluster?
     # or possibly only use the closest pixels to determine overlap, since the polynomial is badly constrained outside of the bounds.
     overlap = len(ind_i[0]) + len(ind_j[0])
-    overlap = overlap / ((i_right - i_left) + (j_right - j_left))
+    # overlap = overlap / ((i_right - i_left) + (j_right - j_left))
+    overlap /= 2 * n_min
     if i_right < j_left:
         overlap *= 1 - (i_right - j_left) / ncol
     elif j_right < i_left:
