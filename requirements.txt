@@ -13,7 +13,7 @@ jsonschema==4.0.1
 tqdm==4.62.3
 colorlog==6.4.1
 emcee==3.1.1
-corner
+corner==2.2.1
 
 # optional for tools combine
 # git+https://github.com/cylammarco/SpectRes
