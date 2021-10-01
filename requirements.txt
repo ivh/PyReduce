@@ -12,7 +12,7 @@ pytest-cov==2.12.1
 jsonschema==4.0.1
 tqdm==4.62.3
 colorlog==6.4.1
-emcee
+emcee==3.1.1
 corner
 
 # optional for tools combine
