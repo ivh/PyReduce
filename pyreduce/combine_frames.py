@@ -449,6 +449,7 @@ def combine_calibrate(
     bhead=None,
     norm=None,
     bias_scaling="exposure_time",
+    norm_scaling="divide",
     plot=False,
     plot_title=None,
     **kwargs,
@@ -496,9 +497,12 @@ def combine_calibrate(
     orig, thead = combine_frames(files, instrument, mode, mask=mask,**kwargs)
 
     # Subtract bias
-    if bias is not None:
+    if bias is not None and bias_scaling is not None and bias_scaling != "none":
         if bias.ndim == 2:
             degree = 0
+            if bhead["exptime"] == 0 and  bias_scaling == "exposure_time":
+                logger.warning("No exposure time set in bias, using number of files instead")
+                bias_scaling = "number_of_files"
             if bias_scaling == "exposure_time":
                 orig -= bias * thead["exptime"] / bhead["exptime"]
             elif bias_scaling == "number_of_files":
@@ -509,7 +513,7 @@ def combine_calibrate(
                 orig -= bias * np.ma.median(orig) / np.ma.median(bias)
             else:
                 raise ValueError(
-                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time', 'number_of_files', 'mean', 'median'], but got %s"
+                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time', 'number_of_files', 'mean', 'median', 'none'], but got %s"
                     % bias_scaling
                 )
         else:
@@ -529,8 +533,11 @@ def combine_calibrate(
                 )
 
     # Remove the Flat
-    if norm is not None:
-        orig /= norm
+    if norm is not None and norm_scaling != "none":
+        if norm_scaling == "divide":
+            orig /= norm
+        else:
+            raise ValueError("Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got %s" % norm_scaling)
 
     if plot:  # pragma: no cover
         title = "Master"
@@ -539,7 +546,7 @@ def combine_calibrate(
         plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        bot, top = np.percentile(orig, (10, 90))
+        bot, top = np.percentile(orig[orig != 0], (10, 90))
         plt.imshow(orig, vmin=bot, vmax=top, origin="lower")
         if plot != "png":
             plt.show()
