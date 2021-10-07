@@ -256,10 +256,16 @@
                                 "integer"
                             ],
                             "exclusiveMinimum": 0
+                        },
+                        "threshold_lower":{
+                            "description": "Lower background level threshold, after the extraction. Always absolute, by default 0.",
+                            "type": "number",
+                            "minimum": 0
                         }
                     },
                     "required": [
-                        "threshold"
+                        "threshold",
+                        "threshold_lower"
                     ]
                 }
             ]
@@ -355,9 +361,6 @@
                 },
                 {
                     "$ref": "#/definitions/polynomialfit"
-                },
-                {
-                    "$ref": "#/definitions/bias_scaling"
                 },
                 {
                     "type": "object",
@@ -800,10 +803,20 @@
                         "number_of_files",
                         "exposure_time",
                         "mean",
-                        "median"
+                        "median",
+                        "none"
                     ]
+                },
+                "norm_scaling":{
+                    "description": "determines how to apply the normalized flat",
+                    "type": "string",
+                    "enum": ["divide", "none"]
                 }
-            }
+            },
+            "required": [
+                "bias_scaling",
+                "norm_scaling"
+            ]
         }
     }
 }

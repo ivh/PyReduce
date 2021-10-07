@@ -302,8 +302,10 @@ class CalibrationStep(Step):
         super().__init__(*args, **config)
         self._dependsOn += ["mask", "bias"]
 
-        #:{'number_of_files', 'exposure_time', 'mean', 'median'}: how to adjust for diferences between the bias and flat field exposure times
+        #:{'number_of_files', 'exposure_time', 'mean', 'median', 'none'}: how to adjust for diferences between the bias and flat field exposure times
         self.bias_scaling = config["bias_scaling"]
+        #:{'divide', 'none'}: how to apply the normalized flat field
+        self.norm_scaling = config["norm_scaling"]
 
     def calibrate(self, files, mask, bias=None, norm_flat=None):
         bias, bhead = bias if bias is not None else (None, None)
@@ -317,6 +319,7 @@ class CalibrationStep(Step):
             bhead=bhead,
             norm=norm,
             bias_scaling=self.bias_scaling,
+            norm_scaling=self.norm_scaling,
             plot=self.plot,
             plot_title=self.plot_title
         )
@@ -348,6 +351,7 @@ class ExtractionStep(Step):
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
                 "sigma_cutoff": config["extraction_cutoff"],
+                "maxiter": config["maxiter"],
             }
         else:
             raise ValueError(
@@ -878,6 +882,7 @@ class NormalizeFlatField(Step):
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
                 "sigma_cutoff": config["extraction_cutoff"],
+                "maxiter": config["maxiter"],
             }
         else:
             raise ValueError(
@@ -885,6 +890,7 @@ class NormalizeFlatField(Step):
             )
         #:int: Threshold of the normalized flat field (values below this are just 1)
         self.threshold = config["threshold"]
+        self.threshold_lower = config["threshold_lower"]
 
     @property
     def savefile(self):
@@ -914,7 +920,9 @@ class NormalizeFlatField(Step):
 
         # if threshold is smaller than 1, assume percentage value is given
         if self.threshold <= 1:
-            self.threshold = np.percentile(flat, self.threshold * 100)
+            threshold = np.percentile(flat, self.threshold * 100)
+        else:
+            threshold = self.threshold
 
         norm, _, blaze, _ = extract(
             flat,
@@ -925,7 +933,8 @@ class NormalizeFlatField(Step):
             order_range=self.order_range,
             column_range=column_range,
             scatter=scatter,
-            threshold=self.threshold,
+            threshold=threshold,
+            threshold_lower=self.threshold_lower,
             extraction_type=self.extraction_method,
             tilt=tilt,
             shear=shear,
@@ -935,6 +944,7 @@ class NormalizeFlatField(Step):
         )
 
         blaze = np.ma.filled(blaze, 0)
+        norm = np.nan_to_num(norm, nan=1)
         self.save(norm, blaze)
         return norm, blaze
 

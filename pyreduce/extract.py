@@ -381,7 +381,7 @@ def fix_extraction_width(xwd, orders, cr, ncol):
 
                     current = np.polyval(orders[i], x[left:right])
                     below = np.polyval(orders[k], x[left:right])
-                    xwd[i, j] *= np.abs(np.mean(current - below))
+                    xwd[i, j] *= np.min(np.abs(current - below))
 
         xwd[0] = xwd[1]
         xwd[-1] = xwd[-2]
@@ -575,6 +575,7 @@ def extract_spectrum(
     lambda_sp=0,
     osample=1,
     swath_width=None,
+    maxiter=20,
     telluric=None,
     scatter=None,
     normalize=False,
@@ -737,6 +738,7 @@ def extract_spectrum(
                 lambda_sf=lambda_sf,
                 osample=osample,
                 yrange=yrange,
+                maxiter=maxiter,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -1176,15 +1178,19 @@ def plot_comparison(
     plt.imshow(output, origin="lower", aspect="auto")
 
     for i in range(nord):
-        tmp = spectrum[i, column_range[i, 0] : column_range[i, 1]]
-        vmin = np.min(tmp[tmp != 0])
-        tmp = np.copy(spectrum[i])
-        tmp[tmp != 0] -= vmin
-        np.log(tmp, out=tmp, where=tmp > 0)
-        tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
-        tmp += pos[i]
-        tmp[tmp < pos[i]] = pos[i]
-        plt.plot(x, tmp, "r")
+        try:
+            tmp = spectrum[i, column_range[i, 0] : column_range[i, 1]]
+            # if len(tmp)
+            vmin = np.min(tmp[tmp != 0])
+            tmp = np.copy(spectrum[i])
+            tmp[tmp != 0] -= vmin
+            np.log(tmp, out=tmp, where=tmp > 0)
+            tmp = tmp / np.max(tmp) * 0.9 * (pos[i + 1] - pos[i])
+            tmp += pos[i]
+            tmp[tmp < pos[i]] = pos[i]
+            plt.plot(x, tmp, "r")
+        except:
+            pass
 
     locs = np.sum(extraction_width, axis=1) + 1
     locs = np.array([0, *np.cumsum(locs)[:-1]])
@@ -1321,8 +1327,9 @@ def extract(
             im_ordr=im_ordr,
             **kwargs,
         )
-        im_norm[im_norm == 0] = 1
-        im_ordr[im_ordr == 0] = 1
+        threshold_lower = kwargs.get("threshold_lower", 0)
+        im_norm[im_norm <= threshold_lower] = 1
+        im_ordr[im_ordr <= threshold_lower] = 1
         return im_norm, im_ordr, blaze, column_range
     elif extraction_type == "arc":
         # Simpler extraction, just summing along the arc of the order

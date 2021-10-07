@@ -15,6 +15,7 @@
     },
     "flat": {
         "bias_scaling": "number_of_files",
+        "norm_scaling": "none",
         "plot": true,
         "plot_title": "Flat"
     },
@@ -22,6 +23,7 @@
         "degree": 4,
         "degree_before_merge": 2,
         "bias_scaling": "number_of_files",
+        "norm_scaling": "none",
         "regularization": 0,
         "closing_shape": [
             5,
@@ -45,6 +47,7 @@
         "border_width": null,
         "extraction_width": 0.3,
         "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
         "plot_title": "Background Scatter"
     },
@@ -53,9 +56,11 @@
         "smooth_slitfunction": 4,
         "smooth_spectrum": 1e-7,
         "oversampling": 10,
+        "maxiter": 20,
         "swath_width": 200,
         "extraction_width": 0.2,
         "threshold": 0.6,
+        "threshold_lower": 0,
         "extraction_cutoff": 20,
         "plot": true,
         "plot_title": "Normalized Flat"
@@ -66,6 +71,7 @@
         "extraction_width": 0.5,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
         "plot_title": "Wavelength Calibration Spectrum"
     },
@@ -104,6 +110,7 @@
         "extraction_width": 0.5,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
         "plot_title": "Frequency Comb Spectrum"
     },
@@ -133,6 +140,7 @@
         "window_width": 9,
         "peak_function": "gaussian",
         "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
         "plot_title": "Slit Curvature"
     },
@@ -147,10 +155,12 @@
         "extraction_width": 0.25,
         "oversampling": 10,
         "swath_width": 300,
+        "maxiter": 20,
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 1e-7,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
         "plot_title": "Science Data"
     },

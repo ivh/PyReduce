@@ -848,6 +848,7 @@ int slit_func_curved(int ncols,
                      int osample,
                      double lambda_sP,
                      double lambda_sL,
+                     int maxiter,
                      double *PSF_curve,
                      double *sP,
                      double *sL,
@@ -912,7 +913,7 @@ int slit_func_curved(int ncols,
     int x, xx, xxx, y, yy, iy, jy, n, m, nx;
     double norm, dev, lambda, diag_tot, ww, www;
     double cost_old, ftol, tmp;
-    int iter, maxiter, delta_x;
+    int iter, delta_x;
     unsigned int isum;
 
     // For the solving of the equation system
@@ -927,7 +928,7 @@ int slit_func_curved(int ncols,
     // The Optimization results
     double success, status, cost;
 
-    maxiter = 20; // Maximum number of iterations
+    // maxiter = 20; // Maximum number of iterations
     ftol = 1e-7;  // Maximum cost difference between two iterations to stop convergence
     success = 1;
     status = 0;
