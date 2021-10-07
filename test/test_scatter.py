@@ -15,6 +15,7 @@ def test_scatter(flat, orders, settings):
     settings["sigma_cutoff"] = settings["scatter_cutoff"]
     del settings["scatter_cutoff"]
     del settings["bias_scaling"]
+    del settings["norm_scaling"]
 
     if img is None:
         pytest.skip("Need flat")
