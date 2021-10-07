@@ -266,7 +266,7 @@ class Curvature:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
         # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
         x0 = [A, peak, sig] + [0] * self.curv_degree
-        res = least_squares(model_compressed, x0=x0, method="lm")
+        res = least_squares(model_compressed, x0=x0, method="trf", loss="soft_l1", f_scale=0.1)
 
         if self.curv_degree == 1:
             tilt, shear = res.x[3], 0
