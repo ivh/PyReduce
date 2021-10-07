@@ -1,0 +1,60 @@
+{
+    "$schema": "./settings_schema.json",
+    "__instrument__": "NTE",
+    "orders": {
+        "degree": 5,
+        "filter_size": 80,
+        "min_cluster": 200,
+        "noise": 8,
+        "manual": false
+    },
+    "scatter": {
+        "extraction_width": 0.5,
+        "scatter_degree": 2
+    },
+    "norm_flat": {
+        "threshold": 1000,
+        "extraction_width": 0.45,
+        "smooth_slitfunction": 10,
+        "maxiter": 100,
+        "swath_width": 512,
+        "threshold_lower": 0.001
+    },
+    "wavecal_master": {
+        "collapse_function": "sum",
+        "extraction_width": 0.5
+    },
+    "wavecal_init": {
+        "element": "sky"
+    },
+    "wavecal": {
+    },
+    "freq_comb_master":{
+        "extraction_method": "optimal",
+        "extraction_width": 0.45,
+        "oversampling": 10,
+        "swath_width": 300,
+        "maxiter": 20,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 1e-7,
+        "extraction_cutoff": 20,
+        "norm_scaling": "none"
+    },
+    "freq_comb": {
+    },
+    "curvature": {
+        "extraction_method": "arc",
+        "collapse_function": "sum",
+        "extraction_width": 0.5,
+        "peak_threshold": 0.1,
+        "peak_width": 1,
+        "window_width": 5,
+        "dimensionality": "2D",
+        "degree": [1, 1],
+        "curv_degree": 1,
+        "peak_function": "gaussian",
+        "bias_scaling": "exposure_time"
+    },
+    "science": {
+    }
+}

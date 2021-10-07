@@ -529,7 +529,8 @@ class Instrument:
                             )
                             f[step] = closest_files
 
-            files.append((setting, f))
+            if any([len(a) > 0 for a in f.values()]):
+                files.append((setting, f))
         if len(files) == 0:
             logger.warning(
                 "No %s files found matching the expected values %s",
