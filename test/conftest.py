@@ -1,6 +1,5 @@
-import json
+# -*- coding: utf-8 -*-
 import os
-import pickle
 import tempfile
 from os.path import dirname, join
 from shutil import rmtree
@@ -12,23 +11,23 @@ import numpy as np
 import pytest
 from astropy.io import fits
 
+from pyreduce import configuration, datasets, echelle, instruments, util
 from pyreduce.reduce import (
-    Mask,
-    Bias,
-    Flat,
-    OrderTracing,
     BackgroundScatter,
-    NormalizeFlatField,
-    SlitCurvatureDetermination,
-    WavelengthCalibrationFinalize,
-    LaserFrequencyCombFinalize,
-    ScienceExtraction,
+    Bias,
     ContinuumNormalization,
     Finalize,
+    Flat,
+    LaserFrequencyCombFinalize,
+    Mask,
+    NormalizeFlatField,
+    OrderTracing,
+    ScienceExtraction,
+    SlitCurvatureDetermination,
+    WavelengthCalibrationFinalize,
     WavelengthCalibrationInitialize,
     WavelengthCalibrationMaster,
 )
-from pyreduce import configuration, datasets, echelle, instruments, util
 
 
 @pytest.fixture(scope="function")
@@ -225,7 +224,9 @@ def settings(instrument):
         updated settings
     """
 
-    settings = configuration.get_configuration_for_instrument(instrument, plot=False, manual=False)
+    settings = configuration.get_configuration_for_instrument(
+        instrument, plot=False, manual=False
+    )
     return settings
 
 
@@ -336,7 +337,7 @@ def prefix(instrument, mode):
         instrument_mode
     """
 
-    prefix = "%s_%s" % (instrument.lower(), mode.lower())
+    prefix = "{}_{}".format(instrument.lower(), mode.lower())
     return prefix
 
 
@@ -531,6 +532,7 @@ def curvature(step_args, settings, files, orders, mask):
         tilt, shear = step.run(files, orders, mask)
     return tilt, shear
 
+
 @pytest.fixture
 def wave_master(step_args, settings, files, orders, mask, curvature, bias, normflat):
     """Load or create wavelength calibration files
@@ -569,12 +571,11 @@ def wave_master(step_args, settings, files, orders, mask, curvature, bias, normf
         thar, thead = step.load()
     except FileNotFoundError:
         try:
-            thar, thead = step.run(
-                files, orders, mask, curvature, bias, normflat
-            )
+            thar, thead = step.run(files, orders, mask, curvature, bias, normflat)
         except FileNotFoundError:
             thar, thead = None, None
     return thar, thead
+
 
 @pytest.fixture
 def wave_init(step_args, settings, wave_master):
@@ -588,6 +589,7 @@ def wave_init(step_args, settings, wave_master):
     except:
         linelist = None
     return linelist
+
 
 @pytest.fixture
 def wave(step_args, settings, wave_master, wave_init):
@@ -626,9 +628,7 @@ def wave(step_args, settings, wave_master, wave_init):
         wave, coef, linelist = step.load()
     except FileNotFoundError:
         try:
-            wave, coef, linelist = step.run(
-                wave_master, wave_init
-            )
+            wave, coef, linelist = step.run(wave_master, wave_init)
         except Exception as ex:
             wave = None
     return wave

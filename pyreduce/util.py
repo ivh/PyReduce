@@ -1,27 +1,29 @@
+# -*- coding: utf-8 -*-
 """
 Collection of various useful and/or reoccuring functions across PyReduce
 """
 
-import argparse
 import logging
 import os
 from itertools import product
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-from astropy.io import fits
-from astropy import time, coordinates as coord, units as u
 import scipy.constants
 import scipy.interpolate
-from scipy.linalg import solve, solve_banded, lstsq
+from astropy import coordinates as coord
+from astropy import time
+from astropy import units as u
+from astropy.io import fits
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.linalg import lstsq, solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 from scipy.special import binom
 
+from . import __version__
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
-from . import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ def in_ipynb():
 
 
 def log_version():
-    """ For Debug purposes """
+    """For Debug purposes"""
     logger.debug("----------------------")
     logger.debug("PyReduce version: %s", __version__)
 
@@ -119,7 +121,7 @@ def air2vac(wl_air):
 
 
 def swap_extension(fname, ext, path=None):
-    """ exchange the extension of the given file with a new one """
+    """exchange the extension of the given file with a new one"""
     if path is None:
         path = os.path.dirname(fname)
     nameout = os.path.basename(fname)
@@ -131,7 +133,7 @@ def swap_extension(fname, ext, path=None):
 
 
 def find_first_index(arr, value):
-    """ find the first element equal to value in the array arr """
+    """find the first element equal to value in the array arr"""
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
@@ -139,7 +141,7 @@ def find_first_index(arr, value):
 
 
 def interpolate_masked(masked):
-    """ Interpolate masked values, from non masked values
+    """Interpolate masked values, from non masked values
 
     Parameters
     ----------
@@ -187,7 +189,7 @@ def cutout_image(img, ymin, ymax, xmin, xmax):
 
 
 def make_index(ymin, ymax, xmin, xmax, zero=0):
-    """ Create an index (numpy style) that will select part of an image with changing position but fixed height
+    """Create an index (numpy style) that will select part of an image with changing position but fixed height
 
     The user is responsible for making sure the height is constant, otherwise it will still work, but the subsection will not have the desired format
 
@@ -331,7 +333,7 @@ def gaussfit2(x, y):
 
 
 def gaussfit3(x, y):
-    """ A very simple (and relatively fast) gaussian fit
+    """A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
     Parameters
@@ -361,7 +363,7 @@ def gaussfit3(x, y):
 
 
 def gaussfit4(x, y):
-    """ A very simple (and relatively fast) gaussian fit
+    """A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
     Assumes x is sorted
@@ -392,7 +394,7 @@ def gaussfit4(x, y):
 
 
 def gaussfit_linear(x, y):
-    """ Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
+    """Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
     For efficiency reasons. (roughly 10 times faster than the curve fit)
 
     Parameters

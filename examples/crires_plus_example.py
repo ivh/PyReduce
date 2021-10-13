@@ -1,13 +1,14 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
+
 import pyreduce
 from pyreduce import datasets
 from pyreduce.configuration import get_configuration_for_instrument
-
 
 # define parameters
 instrument = "Crires_plus"
@@ -42,7 +43,9 @@ output_dir = "{mode}_reduced/"
 
 # Path to the configuration parameters, that are to be used for this reduction
 
-config = get_configuration_for_instrument(instrument, plot=1, bias_scaling="exposure_time")
+config = get_configuration_for_instrument(
+    instrument, plot=1, bias_scaling="exposure_time"
+)
 
 pyreduce.reduce.main(
     instrument,

@@ -1,23 +1,21 @@
-from os.path import dirname, join
+# -*- coding: utf-8 -*-
 import json
-import sys
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from scipy import signal
-from scipy.optimize import minimize, NonlinearConstraint
-
-from astropy.io import fits
-
-import tempfile
 import os
 import subprocess
+import sys
+import tempfile
+from os.path import dirname, join
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from astropy.io import fits
+from scipy import signal
+from scipy.optimize import NonlinearConstraint, minimize
 
-from pyreduce.wavelength_calibration import WavelengthCalibration
 from pyreduce.echelle import Echelle
 from pyreduce.util import polyfit2d
+from pyreduce.wavelength_calibration import WavelengthCalibration
 
 
 def obs_to_ech(obs, fname):
@@ -47,7 +45,7 @@ def make_lab_spec(wpoints):
 
 
 def get_typecode(dtype):
-    """ Get the IDL typecode for a given dtype """
+    """Get the IDL typecode for a given dtype"""
     if dtype.name[:5] == "bytes":
         return "1"
     if dtype.name == "int16":
@@ -292,7 +290,7 @@ class OrderPlot:
         self.fig.canvas.draw()
 
     def connect(self):
-        """ connect the click event with the appropiate function """
+        """connect the click event with the appropiate function"""
         self.cidclick = self.ax.figure.canvas.mpl_connect(
             "button_press_event", self.on_click
         )
@@ -352,7 +350,13 @@ class OrderPlot:
                 # find closest peak
                 idx = np.argmin(np.abs(x - self.peaks))
                 (line,) = plt.plot(
-                    [self.peaks[idx],], [self.data[self.peaks[idx]] + 1,], "rx"
+                    [
+                        self.peaks[idx],
+                    ],
+                    [
+                        self.data[self.peaks[idx]] + 1,
+                    ],
+                    "rx",
                 )
                 self.ax.figure.canvas.draw()
                 self.fig.canvas.flush_events()

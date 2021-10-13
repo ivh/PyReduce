@@ -1,13 +1,23 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
 from pyreduce import util
-from pyreduce.extract import extract
 from pyreduce.combine_frames import combine_calibrate
+from pyreduce.extract import extract
 
 
 def test_science(
-    files, instr, instrument, mode, mask, bias, normflat, orders, settings, order_range,
+    files,
+    instr,
+    instrument,
+    mode,
+    mask,
+    bias,
+    normflat,
+    orders,
+    settings,
+    order_range,
 ):
     if len(files["science"]) == 0:
         pytest.skip(f"No science files found for instrument {instrument}")

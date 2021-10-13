@@ -1,11 +1,10 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
-from pyreduce import util
+from pyreduce import instruments, util
 from pyreduce.extract import extract
 from pyreduce.wavelength_calibration import WavelengthCalibration
-
-from pyreduce import instruments
 
 
 def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_range):

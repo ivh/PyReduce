@@ -1,10 +1,10 @@
+# -*- coding: utf-8 -*-
+import numpy as np
 import pytest
 
-import numpy as np
-
 from pyreduce import util
-from pyreduce.trace_orders import mark_orders
 from pyreduce.combine_frames import combine_frames
+from pyreduce.trace_orders import mark_orders
 
 
 def test_orders(instr, instrument, mode, files, settings, mask):

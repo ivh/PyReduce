@@ -1,6 +1,8 @@
-import pytest
-import numpy as np
+# -*- coding: utf-8 -*-
 import os
+
+import numpy as np
+import pytest
 import scipy.constants
 
 from pyreduce import echelle

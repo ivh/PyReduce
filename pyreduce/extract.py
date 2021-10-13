@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Module for extracting data from observations
 
 Authors
@@ -17,9 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
-from scipy.ndimage import median_filter, convolve
+from scipy.ndimage import convolve, median_filter
 from scipy.ndimage.morphology import binary_hit_or_miss
-
 from tqdm import tqdm
 
 from .cwrappers import slitfunc, slitfunc_curved
@@ -92,7 +92,7 @@ class ProgressPlot:  # pragma: no cover
         self.fig.canvas.flush_events()
 
     def fix_linear(self, data, limit, fill=0):
-        """ Assures the size of the 1D array data is equal to limit """
+        """Assures the size of the 1D array data is equal to limit"""
 
         if len(data) > limit:
             data = data[:limit]
@@ -161,16 +161,15 @@ class ProgressPlot:  # pragma: no cover
         self.mask_slit.set_xdata(mask_slit_x)
         self.mask_slit.set_ydata(mask_slit)
 
-        self.ax2.set_xlim((0, nspec-1))
+        self.ax2.set_xlim((0, nspec - 1))
         limit = np.nanmax(spec[5:-5]) * 1.1
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
 
-        self.ax3.set_xlim((0, ny-1))
+        self.ax3.set_xlim((0, ny - 1))
         limit = np.nanmax(sf) * 1.1
         if not np.isnan(limit):
             self.ax3.set_ylim((0, limit))
-
 
         title = f"Order {ord_num}, Columns {left} - {right}"
         if self.title is not None:
@@ -184,7 +183,7 @@ class ProgressPlot:  # pragma: no cover
         plt.close()
 
     def get_spec(self, img, spec, slitf, ycen):
-        """ get the spectrum corrected by the slit function """
+        """get the spectrum corrected by the slit function"""
         nrow, ncol = img.shape
         x, y = np.indices(img.shape)
         ycen = ycen - ycen.astype(int)
@@ -192,7 +191,7 @@ class ProgressPlot:  # pragma: no cover
         x = x - ycen + 0.5
         old = np.linspace(-1, nrow - 1 + 1, len(slitf))
         sf = np.interp(x, old, slitf)
-        
+
         x = img / sf
 
         x = x.ravel()
@@ -200,7 +199,7 @@ class ProgressPlot:  # pragma: no cover
         return y, x
 
     def get_slitf(self, img, spec, slitf, ycen):
-        """ get the slit function """
+        """get the slit function"""
         x = np.indices(img.shape)[0]
         ycen = ycen - ycen.astype(int)
 
@@ -255,7 +254,7 @@ class Swath:
 def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
     """Fix extraction width and column range, so that all pixels used are within the image.
     I.e. the column range is cut so that the everything is within the image
-    
+
     Parameters
     ----------
     xwd : float, array
@@ -272,7 +271,7 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False)
         Number of orders in the image
     ignore_column_range : bool, optional
         if true does not change the column range, however this may lead to problems with the extraction, by default False
-    
+
     Returns
     -------
     xwd : array
@@ -392,7 +391,7 @@ def fix_extraction_width(xwd, orders, cr, ncol):
 
 
 def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
-    """ Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
+    """Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
 
     Parameters
     ----------
@@ -507,7 +506,7 @@ def make_bins(swath_width, xlow, xhigh, ycen):
 
 
 def calc_telluric_correction(telluric, img):  # pragma: no cover
-    """ Calculate telluric correction
+    """Calculate telluric correction
 
     If set to specific integer larger than 1 is used as the
     offset from the order center line. The sky is then estimated by computing
@@ -524,7 +523,7 @@ def calc_telluric_correction(telluric, img):  # pragma: no cover
     Returns
     -------
     tell : array
-        telluric correction  
+        telluric correction
     """
     width, height = img.shape
 
@@ -542,7 +541,7 @@ def calc_telluric_correction(telluric, img):  # pragma: no cover
 
 
 def calc_scatter_correction(scatter, index):
-    """ Calculate scatter correction
+    """Calculate scatter correction
     by interpolating between values?
 
     Parameters
@@ -739,7 +738,7 @@ def extract_spectrum(
                 osample=osample,
                 yrange=yrange,
                 maxiter=maxiter,
-                gain=gain
+                gain=gain,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -884,7 +883,7 @@ def optimal_extraction(
     plot_title=None,
     **kwargs,
 ):
-    """ Use optimal extraction to get spectra
+    """Use optimal extraction to get spectra
 
     This functions just loops over the orders, the actual work is done in extract_spectrum
 
@@ -998,12 +997,16 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
     xt = np.arange(img_order.shape[1])
     for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1])):
         xi = xt + yt * tilt + yt ** 2 * shear
-        img_order[y] = np.interp(xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0)
+        img_order[y] = np.interp(
+            xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0
+        )
 
     xt = np.arange(img_order.shape[0])
     for x in range(img_order.shape[1]):
-        img_order[:, x] = np.interp(xt, xt[mask[:, x]], img_order[:, x][mask[:, x]], left=0, right=0)
-    
+        img_order[:, x] = np.interp(
+            xt, xt[mask[:, x]], img_order[:, x][mask[:, x]], left=0, right=0
+        )
+
     return img_order
 
 
@@ -1046,7 +1049,7 @@ def arc_extraction(
     collapse_function="median",
     **kwargs,
 ):
-    """ Use "simple" arc extraction to get a spectrum
+    """Use "simple" arc extraction to get a spectrum
     Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
 
     This extraction makes a few rough assumptions and does not provide the most accurate results,
@@ -1128,14 +1131,16 @@ def arc_extraction(
         elif collapse_function == "median":
             arc = np.ma.median(img_order, axis=0) * img_order.shape[0]
         else:
-            raise ValueError("Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got %s" % collapse_function)
+            raise ValueError(
+                "Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got %s"
+                % collapse_function
+            )
 
         # Store results
         spectrum[i, x_left_lim:x_right_lim] = arc
         uncertainties[i, x_left_lim:x_right_lim] = (
             np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
         )
-
 
     if plot:  # pragma: no cover
         plot_comparison(
@@ -1260,7 +1265,7 @@ def extract(
     im_ordr : array[nrow, ncol](float)
         image with just the orders
     blaze : array[nord, ncol](float)
-        extracted spectrum (equals blaze if img was the flat field) 
+        extracted spectrum (equals blaze if img was the flat field)
     """
 
     nrow, ncol = img.shape

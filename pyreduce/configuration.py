@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Loads configuration files
 
 This module loads json configuration files from disk,
@@ -7,9 +8,10 @@ It also checks that all parameters exists, and that
 no new parameters have been added by accident.
 """
 
-from os.path import dirname, join
-import logging
 import json
+import logging
+from os.path import dirname, join
+
 import jsonschema
 
 logger = logging.getLogger(__name__)

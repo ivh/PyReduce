@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Combine several fits files into one master frame
 
@@ -315,7 +316,7 @@ def combine_frames(
 
         gain = [c[1] for c in head["e_gain*"].cards]
         readnoise = [c[1] for c in head["e_readn*"].cards]
-        total_exposure_time = sum([h.get("exptime", 0) for h in heads])
+        total_exposure_time = sum(h.get("exptime", 0) for h in heads)
 
         # Scaling for image data
         bscale = [h.get("bscale", 1) for h in heads]
@@ -455,7 +456,7 @@ def combine_calibrate(
     **kwargs,
 ):
     """
-    Combine the input files and then calibrate the image with the bias 
+    Combine the input files and then calibrate the image with the bias
     and normalized flat field if provided
 
     Parameters
@@ -469,10 +470,10 @@ def combine_calibrate(
     mask : array
         2D Bad Pixel Mask to apply to the master image
     bias : tuple(bias, bhead), optional
-        bias correction to apply to the combiend image, if bias has 3 dimensions 
+        bias correction to apply to the combiend image, if bias has 3 dimensions
         it is used as polynomial coefficients scaling with the exposure time, by default None
     norm_flat : tuple(norm, blaze), optional
-        normalized flat to divide the combined image with after 
+        normalized flat to divide the combined image with after
         the bias subtraction, by default None
     bias_scaling : str, optional
         defines how the bias is subtracted, by default "exposure_time"
@@ -494,14 +495,16 @@ def combine_calibrate(
         Unrecognised bias_scaling option
     """
     # Combine the images and try to remove bad pixels
-    orig, thead = combine_frames(files, instrument, mode, mask=mask,**kwargs)
+    orig, thead = combine_frames(files, instrument, mode, mask=mask, **kwargs)
 
     # Subtract bias
     if bias is not None and bias_scaling is not None and bias_scaling != "none":
         if bias.ndim == 2:
             degree = 0
-            if bhead["exptime"] == 0 and  bias_scaling == "exposure_time":
-                logger.warning("No exposure time set in bias, using number of files instead")
+            if bhead["exptime"] == 0 and bias_scaling == "exposure_time":
+                logger.warning(
+                    "No exposure time set in bias, using number of files instead"
+                )
                 bias_scaling = "number_of_files"
             if bias_scaling == "exposure_time":
                 orig -= bias * thead["exptime"] / bhead["exptime"]
@@ -537,7 +540,10 @@ def combine_calibrate(
         if norm_scaling == "divide":
             orig /= norm
         else:
-            raise ValueError("Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got %s" % norm_scaling)
+            raise ValueError(
+                "Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got %s"
+                % norm_scaling
+            )
 
     if plot:  # pragma: no cover
         title = "Master"
@@ -555,7 +561,10 @@ def combine_calibrate(
 
     return orig, thead
 
-def combine_polynomial(files, instrument, mode, mask, degree=1, plot=False, plot_title=None):
+
+def combine_polynomial(
+    files, instrument, mode, mask, degree=1, plot=False, plot_title=None
+):
     """
     Combine the input files by fitting a polynomial of the pixel value versus
     the exposure time of each pixel
@@ -592,11 +601,11 @@ def combine_polynomial(files, instrument, mode, mask, degree=1, plot=False, plot
     data_flat = data.reshape((len(exptimes), -1))
     coeffs = np.polyfit(exptimes, data_flat, degree)
     # Afterwards we reshape the coefficients into the image shape
-    shape = (degree+1, data.shape[1], data.shape[2])
+    shape = (degree + 1, data.shape[1], data.shape[2])
     coeffs = coeffs.reshape(shape)
     # And apply the mask to each image of coefficients
     if mask is not None:
-        bias = np.ma.masked_array(coeffs, mask=[mask for _ in range(degree+1)])
+        bias = np.ma.masked_array(coeffs, mask=[mask for _ in range(degree + 1)])
     # We arbitralily pick the first header as the bias header
     # and change the exposure time
     bhead = hdus[0][1]
@@ -608,7 +617,7 @@ def combine_polynomial(files, instrument, mode, mask, degree=1, plot=False, plot
             title = f"{plot_title}\n{title}"
 
         for i in range(degree + 1):
-            plt.subplot(1, degree+1, i+1)
+            plt.subplot(1, degree + 1, i + 1)
             plt.title("Coefficient %i" % (degree - i))
             plt.xlabel("x [pixel]")
             plt.ylabel("y [pixel]")
@@ -622,6 +631,7 @@ def combine_polynomial(files, instrument, mode, mask, degree=1, plot=False, plot
             plt.savefig("master_bias.png")
 
     return bias, bhead
+
 
 def combine_bias(
     files,

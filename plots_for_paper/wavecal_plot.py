@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
@@ -5,16 +6,15 @@ Loads a sample UVES dataset, and runs the full extraction
 
 import os.path
 
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 from scipy.signal import gaussian
 
 import pyreduce
 from pyreduce import datasets
-from pyreduce.util import make_index
 from pyreduce.combine_frames import combine_flat
 from pyreduce.extract import fix_parameters
+from pyreduce.util import make_index
 
 
 def plot_comparison(
@@ -76,7 +76,9 @@ def make_reference_spectrum(lines, nrow, ncol, nord):
         for line in lines[lines["order"] == iord]:
             first = int(np.clip(line["xfirst"], 0, ncol))
             last = int(np.clip(line["xlast"], 0, ncol))
-            ref_image[iord, first:last] += np.log(1 + line["height"]) * gaussian(last - first, line["width"])
+            ref_image[iord, first:last] += np.log(1 + line["height"]) * gaussian(
+                last - first, line["width"]
+            )
 
     return ref_image
 
@@ -124,7 +126,13 @@ nord = len(orders)
 xwd, column_range, orders = fix_parameters(xwd, column_range, orders, nrow, ncol, nord)
 
 orig, _ = combine_flat(
-    files["wavecal_master"], instrument, mode, extension, mask=mask, bias=bias, bhead=bhead
+    files["wavecal_master"],
+    instrument,
+    mode,
+    extension,
+    mask=mask,
+    bias=bias,
+    bhead=bhead,
 )
 
 ref = make_reference_spectrum(linelist, nrow, ncol, nord)

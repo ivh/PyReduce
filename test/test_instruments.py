@@ -1,12 +1,11 @@
-from os.path import dirname, join, basename, exists
+# -*- coding: utf-8 -*-
 from glob import glob
+from os.path import basename, dirname, exists, join
 
 import pytest
 
 from pyreduce.configuration import get_configuration_for_instrument
-from pyreduce.instruments import instrument_info
-from pyreduce.instruments import common
-
+from pyreduce.instruments import common, instrument_info
 
 supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.json"))
 supported_instruments = [basename(f)[:-5] for f in supported_instruments]

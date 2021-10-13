@@ -1,28 +1,29 @@
+# -*- coding: utf-8 -*-
 """
 Abstract parent module for all other instruments
 Contains some general functionality, which may be overridden by the children of course
 """
-import os.path
 import datetime
 import glob
-import logging
 import json
+import logging
+import os.path
 from itertools import product
-from tqdm import tqdm
 
 import numpy as np
 from astropy.io import fits
 from astropy.time import Time
 from dateutil import parser
+from tqdm import tqdm
 
 from ..clipnflip import clipnflip
-from .filters import Filter, ObjectFilter, InstrumentFilter, NightFilter, ModeFilter
+from .filters import Filter, InstrumentFilter, ModeFilter, NightFilter, ObjectFilter
 
 logger = logging.getLogger(__name__)
 
 
 def find_first_index(arr, value):
-    """ find the first element equal to value in the array arr """
+    """find the first element equal to value in the array arr"""
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
@@ -146,7 +147,6 @@ class Instrument:
     def get(self, key, header, mode, alt=None):
         get = getter(header, self.info, mode)
         return get(key, alt=alt)
-
 
     def get_extension(self, header, mode):
         mode = mode.upper()
@@ -317,13 +317,13 @@ class Instrument:
         return header
 
     def find_files(self, input_dir):
-        """ Find fits files in the given folder
-        
+        """Find fits files in the given folder
+
         Parameters
         ----------
         input_dir : string
             directory to look for fits and fits.gz files in, may include bash style wildcards
-        
+
         Returns
         -------
         files: array(string)
@@ -381,13 +381,13 @@ class Instrument:
         return expectations
 
     def populate_filters(self, files):
-        """ Extract values from the fits headers and store them in self.filters
-        
+        """Extract values from the fits headers and store them in self.filters
+
         Parameters
         ----------
         files : list(str)
             list of fits files
-        
+
         Returns
         -------
         filters: list(Filter)
@@ -471,7 +471,7 @@ class Instrument:
 
         values = [settings[k] for k in self.shared]
         for setting in product(*values):
-            setting = {k:v for k,v in zip(self.shared, setting)}
+            setting = {k: v for k, v in zip(self.shared, setting)}
             night = setting[self.night]
             f = {}
             # For each step look for files with matching settings
@@ -539,7 +539,9 @@ class Instrument:
             )
         return files
 
-    def sort_files(self, input_dir, target, night, *args, allow_calibration_only=False, **kwargs):
+    def sort_files(
+        self, input_dir, target, night, *args, allow_calibration_only=False, **kwargs
+    ):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -562,10 +564,14 @@ class Instrument:
         nights_out : list[datetime]
             a list of observation times, same order as files_per_night
         """
-        input_dir = input_dir.format(**kwargs, target=target, night=night, instrument=self.name)
+        input_dir = input_dir.format(
+            **kwargs, target=target, night=night, instrument=self.name
+        )
         files = self.find_files(input_dir)
         ev = self.get_expected_values(target, night, *args, **kwargs)
-        files = self.apply_filters(files, ev, allow_calibration_only=allow_calibration_only)
+        files = self.apply_filters(
+            files, ev, allow_calibration_only=allow_calibration_only
+        )
         return files
 
     def get_wavecal_filename(self, header, mode, **kwargs):
@@ -609,6 +615,7 @@ class Instrument:
 
     def get_wavelength_range(self, header, mode, **kwargs):
         return self.get("wavelength_range", header, mode)
+
 
 class InstrumentWithModes(Instrument):
     def __init__(self):

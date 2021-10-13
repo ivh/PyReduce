@@ -1,11 +1,13 @@
-import numpy as np
-from fnmatch import fnmatch
-import re
-from datetime import datetime, date
-from dateutil import parser
+# -*- coding: utf-8 -*-
 import logging
-from astropy.time import Time
+import re
+from datetime import datetime
+from fnmatch import fnmatch
+
+import numpy as np
 from astropy import units as u
+from astropy.time import Time
+from dateutil import parser
 
 logger = logging.getLogger(__name__)
 

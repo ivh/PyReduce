@@ -215,7 +215,7 @@ int bandsol(double *a, double *r, int n, int nd)
     /*
     bandsol solves a sparse system of linear equations with band-diagonal matrix.
     Band is assumed to be symmetric relative to the main diaginal.
-    
+
     ..math:
 
         A * x = r
@@ -243,7 +243,7 @@ int bandsol(double *a, double *r, int n, int nd)
         The number of equations
     nd : int
         The width of the band (3 for tri-diagonal system). Must be an odd number.
-    
+
     Returns
     -------
     code : int
@@ -431,7 +431,7 @@ int xi_zeta_tensors(
         to detector pixel {x, y}.
     m_zeta : (out) int array of shape (ncols, nrows)
         The actual number of contributing elements in zeta for each pixel
-    
+
     Returns
     -------
     code : int
@@ -472,7 +472,7 @@ int xi_zeta_tensors(
     }
 
     /*
-    Construct the xi and zeta tensors. They contain pixel references and contribution. 
+    Construct the xi and zeta tensors. They contain pixel references and contribution.
     values going from a given subpixel to other pixels (xi) and coming from other subpixels
     to a given detector pixel (zeta).
     Note, that xi and zeta are used in the equations for sL, sP and for the model but they
@@ -495,7 +495,7 @@ int xi_zeta_tensors(
         case 1. In case 2 things are more logical: iy1=(yc-y)*osample+(y-1)*osample;
         iy2=(y+1-yc)*osample)+(y-1)*osample. ycen is yc-y making things simpler. Note also that
         the same pattern repeates for all rows: we only need to initialize iy1 and iy2 and keep
-        incrementing them by osample. 
+        incrementing them by osample.
         */
 
         iy2 = osample - floor(ycen[x] * osample);
@@ -550,7 +550,7 @@ int xi_zeta_tensors(
         Now we go detector pixels x and y incrementing subpixels looking for their controibutions
         to the current and adjacent pixels. Note that the curvature/tilt of the projected slit
         image could be so large that subpixel iy may no contribute to column x at all. On the
-        other hand, subpixels around ycen by definition must contribute to pixel x,y. 
+        other hand, subpixels around ycen by definition must contribute to pixel x,y.
         3rd index in xi refers corners of pixel xx,y: 0:LL, 1:LR, 2:UL, 3:UR.
         */
 

@@ -1,13 +1,11 @@
+# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
-import os.path
-import glob
 import logging
-from datetime import datetime
-import fnmatch
+import os.path
 import re
 
 import numpy as np
@@ -15,7 +13,7 @@ from astropy.io import fits
 from astropy.time import Time
 from dateutil import parser
 
-from .common import getter, InstrumentWithModes, observation_date_to_night
+from .common import InstrumentWithModes, getter, observation_date_to_night
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
@@ -28,7 +26,7 @@ class MCDONALD(InstrumentWithModes):
         return v
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
 
@@ -107,7 +105,7 @@ class MCDONALD(InstrumentWithModes):
         return header
 
     def get_wavecal_filename(self, header, mode, **kwargs):
-        """ Get the filename of the wavelength calibration config file """
+        """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
         fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
         fname = os.path.join(cwd, "..", "wavecal", fname)

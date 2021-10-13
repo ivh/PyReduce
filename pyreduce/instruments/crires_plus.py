@@ -1,23 +1,19 @@
+# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
-import os.path
-import glob
 import logging
-from datetime import datetime
-import fnmatch
-import json
+import os.path
 import re
-
 from itertools import product
 
 import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
-from .common import getter, Instrument, observation_date_to_night
+from .common import Instrument, getter, observation_date_to_night
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
@@ -32,7 +28,7 @@ class CRIRES_PLUS(Instrument):
         self.shared += ["band", "decker"]
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         band, decker, detector = self.parse_mode(mode)
@@ -45,7 +41,9 @@ class CRIRES_PLUS(Instrument):
         settings = self.info["settings"]
         deckers = self.info["deckers"]
         detectors = self.info["chips"]
-        modes = ["_".join([s, d, c]) for s, d, c in product(settings, deckers, detectors)]
+        modes = [
+            "_".join([s, d, c]) for s, d, c in product(settings, deckers, detectors)
+        ]
         return modes
 
     def parse_mode(self, mode):
@@ -62,7 +60,7 @@ class CRIRES_PLUS(Instrument):
     def get_expected_values(self, target, night, mode):
         expectations = super().get_expected_values(target, night)
         band, decker, detector = self.parse_mode(mode)
-    
+
         for key in expectations.keys():
             if key == "bias":
                 continue
@@ -77,7 +75,7 @@ class CRIRES_PLUS(Instrument):
         return extension
 
     def get_wavecal_filename(self, header, mode, **kwargs):
-        """ Get the filename of the wavelength calibration config file """
+        """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
         fname = "{instrument}_{mode}.npz".format(instrument=self.name, mode=mode)
         fname = os.path.join(cwd, "..", "wavecal", fname)

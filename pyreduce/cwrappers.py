@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Wrapper for REDUCE C functions
 
@@ -6,12 +7,7 @@ C libraries and sanitizes the input parameters.
 
 """
 import ctypes
-import io
 import logging
-import os
-import sys
-import tempfile
-from contextlib import contextmanager
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,9 +16,9 @@ from scipy.ndimage import median_filter
 logger = logging.getLogger(__name__)
 
 try:
-    from .clib._slitfunc_bd import lib as slitfunclib
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_bd import ffi
+    from .clib._slitfunc_bd import lib as slitfunclib
 except ImportError:  # pragma: no cover
     logger.error(
         "C libraries could not be found. Compiling them by running build_extract.py"
@@ -32,9 +28,9 @@ except ImportError:  # pragma: no cover
     build_extract.build()
     del build_extract
 
-    from .clib._slitfunc_bd import lib as slitfunclib
-    from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_2d import ffi
+    from .clib._slitfunc_2d import lib as slitfunc_2dlib
+    from .clib._slitfunc_bd import lib as slitfunclib
 
 
 c_double = ctypes.c_double
@@ -133,7 +129,9 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1):
+def slitfunc_curved(
+    img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1
+):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -189,13 +187,19 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     assert (
         img.shape[1] == ycen.size
-    ), "Image and Ycen shapes are incompatible, got %s and %s" % (img.shape, ycen.shape)
+    ), "Image and Ycen shapes are incompatible, got {} and {}".format(
+        img.shape, ycen.shape
+    )
     assert (
         img.shape[1] == tilt.size
-    ), "Image and Tilt shapes are incompatible, got %s and %s" % (img.shape, tilt.shape)
-    assert img.shape[1] == shear.size, (
-        "Image and Shear shapes are incompatible, got %s and %s"
-        % (img.shape, shear.shape)
+    ), "Image and Tilt shapes are incompatible, got {} and {}".format(
+        img.shape, tilt.shape
+    )
+    assert (
+        img.shape[1] == shear.size
+    ), "Image and Shear shapes are incompatible, got {} and {}".format(
+        img.shape,
+        shear.shape,
     )
 
     assert osample > 0, f"Oversample rate must be positive, but got {osample}"
@@ -277,7 +281,7 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
 
     col = np.sum(mask, axis=0) == 0
     if np.any(col):
-       mask[mask.shape[0] // 2, col] = 1
+        mask[mask.shape[0] // 2, col] = 1
     # assert not np.any(np.sum(mask, axis=0) == 0), "At least one mask column is all 0."
 
     # Call the C function

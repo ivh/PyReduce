@@ -1,15 +1,16 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
-import pyreduce
-from pyreduce.reduce import Reducer
-from pyreduce.instruments.common import create_custom_instrument
-from pyreduce.configuration import get_configuration_for_instrument
-from pyreduce.util import start_logging
 
+import pyreduce
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.instruments.common import create_custom_instrument
+from pyreduce.reduce import Reducer
+from pyreduce.util import start_logging
 
 # Define the path to support files if possible
 # otherwise set them to None

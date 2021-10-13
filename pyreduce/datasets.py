@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Provides example datasets for the examples
 
@@ -43,7 +44,6 @@ def get_dataset(name, local_dir=None):
     dataset_dir : str
         directory where the data was saved
     """
-
 
     if local_dir is None:
         local_dir = dirname(__file__)
@@ -91,6 +91,7 @@ def UVES(local_dir=None):  # pragma: no cover
 
     return get_dataset("UVES", local_dir)
 
+
 def HARPS(local_dir=None):  # pragma: no cover
     """Load an example dataset
     instrument: HARPS
@@ -109,6 +110,7 @@ def HARPS(local_dir=None):  # pragma: no cover
 
     return get_dataset("HARPS", local_dir)
 
+
 def LICK_APF(local_dir=None):  # pragma: no cover
     """Load an example dataset
     instrument: LICK_APF
@@ -126,6 +128,7 @@ def LICK_APF(local_dir=None):  # pragma: no cover
     """
 
     return get_dataset("APF", local_dir)
+
 
 def MCDONALD(local_dir=None):  # pragma: no cover
     """Load an example dataset
@@ -147,6 +150,7 @@ def MCDONALD(local_dir=None):  # pragma: no cover
 
     return get_dataset("MCDONALD", local_dir)
 
+
 def JWST_MIRI(local_dir=None):  # pragma: no cover
     """Load an example dataset
     instrument: JWST_MIRI
@@ -166,6 +170,7 @@ def JWST_MIRI(local_dir=None):  # pragma: no cover
     """
 
     return get_dataset("MIRI", local_dir)
+
 
 def JWST_NIRISS(local_dir=None):  # pragma: no cover
     """Load an example dataset
@@ -187,6 +192,7 @@ def JWST_NIRISS(local_dir=None):  # pragma: no cover
 
     return get_dataset("NIRISS", local_dir)
 
+
 def KECK_NIRSPEC(local_dir=None):  # pragma: no cover
     """Load an example dataset
     instrument: KECK_NIRSPEC
@@ -204,6 +210,7 @@ def KECK_NIRSPEC(local_dir=None):  # pragma: no cover
     """
 
     return get_dataset("NIRSPEC", local_dir)
+
 
 def XSHOOTER(local_dir=None):  # pragma: no cover
     """Load an example dataset

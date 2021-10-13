@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Builds the C library that contains the extraction algorithm
 
 This module prepares and builds the C libary containing the curved
@@ -18,8 +19,8 @@ ffi_builder_curved : FFI
     CFFI Builder for the curved extraction algorithm
 """
 
-import os
 import logging
+import os
 
 from cffi import FFI
 
@@ -71,5 +72,5 @@ def build():
     os.chdir(old_cwd)
 
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     build()

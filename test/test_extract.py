@@ -1,20 +1,20 @@
-import pytest
-
+# -*- coding: utf-8 -*-
 from os.path import dirname, join
+
 import astropy.io.fits as fits
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
 from scipy.signal import gaussian
+
+from pyreduce import extract, util
+from pyreduce.cwrappers import slitfunc
 
 # from skimage import transform as tf
 
 # from pyreduce.clib.build_extract import build
 
 # build()
-
-from pyreduce import extract
-from pyreduce import util
-from pyreduce.cwrappers import slitfunc
 
 
 @pytest.fixture

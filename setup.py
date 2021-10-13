@@ -1,14 +1,13 @@
+# -*- coding: utf-8 -*-
 """
 Setup Module
 Compiles the C functions
 """
-import sys
 import os.path
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 import versioneer
-
-import importlib
 
 # this = os.path.dirname(__file__)
 # that = os.path.join(this, "pyreduce")

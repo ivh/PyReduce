@@ -1,7 +1,9 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
-from pyreduce.continuum_normalization import splice_orders, continuum_normalize
+from pyreduce.continuum_normalization import continuum_normalize, splice_orders
+
 
 @pytest.fixture
 def spliced(spec, wave, normflat):
@@ -16,6 +18,7 @@ def spliced(spec, wave, normflat):
         spec, wave, blaze, sigma, scaling=True, plot=False
     )
     return spec, wave, blaze, sigma
+
 
 def test_splice(spec, wave, normflat, order_range):
     spec, sigma = spec
@@ -50,9 +53,10 @@ def test_splice(spec, wave, normflat, order_range):
         == norm.shape[1]
     )
 
+
 def test_continuum(spliced):
     spec, wave, cont, sigm = spliced
-    
+
     if wave is None:
         pytest.skip("Need wavecal for continuum")
 

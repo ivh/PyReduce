@@ -1,5 +1,6 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
 from pyreduce.estimate_background_scatter import estimate_background_scatter
 

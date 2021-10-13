@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Module that
     - Clips remove pre- and overscan regions
@@ -5,11 +6,15 @@ Module that
 """
 
 import logging
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-def clipnflip(image, header, xrange=None, yrange=None, orientation=None, transpose=None):
+
+def clipnflip(
+    image, header, xrange=None, yrange=None, orientation=None, transpose=None
+):
     """
     Process an image and associated FITS header already in memory as follows:
     1. Trim image to desired subregion: newimage = image(xlo:xhi,ylo:yhi)
@@ -45,7 +50,7 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None, transpo
     n_amp = header.get("e_ampl", 1)
     image = np.asarray(image)
 
-    if n_amp > 1: # pragma: no cover
+    if n_amp > 1:  # pragma: no cover
         raise NotImplementedError
         xlo = np.array(header["e_xlo*"].values())
         xhi = np.array(header["e_xhi*"].values())
@@ -127,7 +132,11 @@ def clipnflip(image, header, xrange=None, yrange=None, orientation=None, transpo
     # Flip image (if necessary) to achieve standard image orientation.
     orientation = orientation if orientation is not None else header.get("e_orient", 0)
     # As per the old IDL definition, transpose is true for orientations larger than 4
-    transpose = transpose if transpose is not None else header.get("e_transpose", (orientation % 8) >= 4)
+    transpose = (
+        transpose
+        if transpose is not None
+        else header.get("e_transpose", (orientation % 8) >= 4)
+    )
     if transpose:
         timage = np.transpose(timage, axes=(-1, -2))
     timage = np.rot90(timage, -1 * orientation, axes=(-2, -1))

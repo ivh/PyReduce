@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
@@ -115,7 +116,7 @@ class HARPS(Instrument):
 
     def get_expected_values(self, target, night, branch, fiber, polarimetry):
         """Determine the default expected values in the headers for a given observation configuration
-        
+
         Any parameter may be None, to indicate that all values are allowed
 
         Parameters
@@ -130,13 +131,13 @@ class HARPS(Instrument):
             Whether the instrument is used in HARPS or HARPSpol mode
             and which polarization is observed. Set to true for both kinds
             of polarisation.
-        
+
         Returns
         -------
         expectations: dict
             Dictionary of expected header values, with one entry per step.
             The entries for each step refer to the filters defined in self.filters
-        
+
         Raises
         ------
         ValueError
@@ -244,7 +245,7 @@ class HARPS(Instrument):
         return extension
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
@@ -289,7 +290,7 @@ class HARPS(Instrument):
         return header
 
     def get_wavecal_filename(self, header, mode, polarimetry, **kwargs):
-        """ Get the filename of the wavelength calibration config file """
+        """Get the filename of the wavelength calibration config file"""
         cwd = dirname(__file__)
         if polarimetry:
             pol = "_pol"

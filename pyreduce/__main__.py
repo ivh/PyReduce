@@ -1,12 +1,13 @@
+# -*- coding: utf-8 -*-
 """
 This is used when pyreduce is used as a script
 """
 
-import sys
 import argparse
+import sys
 
-from .tools.combine import combine as tools_combine
 from .reduce import main
+from .tools.combine import combine as tools_combine
 
 scripts = ["reduce", "combine"]
 

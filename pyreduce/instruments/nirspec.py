@@ -1,20 +1,21 @@
+# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
-import os.path
 import glob
 import logging
+import os.path
 from datetime import datetime
 
-from tqdm import tqdm
 import numpy as np
-from astropy.io import fits
 from astropy.coordinates import EarthLocation
+from astropy.io import fits
 from dateutil import parser
+from tqdm import tqdm
 
-from .common import getter, Instrument, observation_date_to_night
+from .common import Instrument, getter, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class NIRSPEC(Instrument):
         return setting
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
@@ -75,7 +76,7 @@ class NIRSPEC(Instrument):
             instrument mode
         Returns
         -------
-        files_per_night : list[dict{str:dict{str:list[str]}}] 
+        files_per_night : list[dict{str:dict{str:list[str]}}]
             a list of file sets, one entry per night, where each night consists of a dictionary with one entry per setting,
             each fileset has five lists of filenames: "bias", "flat", "order", "wave", "spec", organised in another dict
         nights_out : list[datetime]
@@ -195,7 +196,7 @@ class NIRSPEC(Instrument):
         return files_per_observation
 
     def get_wavecal_filename(self, header, mode, **kwargs):
-        """ Get the filename of the wavelength calibration config file """
+        """Get the filename of the wavelength calibration config file"""
         info = self.load_info()
         if header[info["id_neon"]] == 1:
             element = "neon"

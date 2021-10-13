@@ -1,5 +1,7 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
+
 from pyreduce.cwrappers import slitfunc, slitfunc_curved
 
 
@@ -96,15 +98,21 @@ def test_slitfunc_curved():
     # Then try different sizes for img and ycen
     with pytest.raises(AssertionError):
         ycen_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen_bad, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(
+            img, ycen_bad, tilt, shear, lambda_sp, lambda_sf, osample, yrange
+        )
 
     with pytest.raises(AssertionError):
         tilt_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen, tilt_bad, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(
+            img, ycen, tilt_bad, shear, lambda_sp, lambda_sf, osample, yrange
+        )
 
     with pytest.raises(AssertionError):
         shear_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(img, ycen, tilt, shear_bad, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(
+            img, ycen, tilt, shear_bad, lambda_sp, lambda_sf, osample, yrange
+        )
 
     with pytest.raises(AssertionError):
         slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, 0, yrange)
@@ -112,4 +120,3 @@ def test_slitfunc_curved():
         slitfunc_curved(img, ycen, tilt, shear, lambda_sp, -1, osample, yrange)
     with pytest.raises(AssertionError):
         slitfunc_curved(img, ycen, tilt, shear, -1, lambda_sf, osample, yrange)
-

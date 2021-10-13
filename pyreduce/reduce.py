@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 REDUCE script for spectrograph data
 
@@ -18,42 +19,44 @@ License
 
 """
 
-from genericpath import exists
+import glob
 import logging
 import os.path
-from shutil import copy2
-import sys
-import time
-import glob
-from os.path import join, dirname
-import warnings
 from itertools import product
+from os.path import dirname, join
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from genericpath import exists
 from tqdm import tqdm
 
+from pyreduce import wavelength_calibration
+
 # PyReduce subpackages
-from . import echelle, instruments, util, __version__
-from .instruments.instrument_info import load_instrument
-from .combine_frames import combine_bias, combine_frames, combine_calibrate, combine_polynomial
+from . import __version__, echelle, instruments, util
+from .combine_frames import (
+    combine_bias,
+    combine_calibrate,
+    combine_frames,
+    combine_polynomial,
+)
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
+from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract
 from .extraction_width import estimate_extraction_width
+from .instruments.instrument_info import load_instrument
 from .make_shear import Curvature as CurvatureModule
+from .rectify import merge_images, rectify_image
 from .trace_orders import mark_orders
+from .wavelength_calibration import LineList
+from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
+from .wavelength_calibration import WavelengthCalibrationComb
 from .wavelength_calibration import (
-    LineList,
-    WavelengthCalibration as WavelengthCalibrationModule,
-    WavelengthCalibrationComb,
     WavelengthCalibrationInitialize as WavelengthCalibrationInitializeModule,
 )
-from .estimate_background_scatter import estimate_background_scatter
-from .rectify import rectify_image, merge_images
-from pyreduce import wavelength_calibration
 
 # TODO Naming of functions and modules
 # TODO License
@@ -196,7 +199,7 @@ def main(
 
 
 class Step:
-    """ Parent class for all steps """
+    """Parent class for all steps"""
 
     def __init__(
         self, instrument, mode, target, night, output_dir, order_range, **config
@@ -321,7 +324,7 @@ class CalibrationStep(Step):
             bias_scaling=self.bias_scaling,
             norm_scaling=self.norm_scaling,
             plot=self.plot,
-            plot_title=self.plot_title
+            plot_title=self.plot_title,
         )
 
         return orig, thead
@@ -526,18 +529,18 @@ class Bias(Step):
         else:
             # Otherwise we fit a polynomial to each pixel in the image, with
             # the pixel value versus the exposure time. The constant coefficients
-            # are then the bias, and the others are used to scale with the 
+            # are then the bias, and the others are used to scale with the
             # exposure time
             bias, bhead = combine_polynomial(
-                files, 
-                self.instrument, 
-                self.mode, 
-                mask=mask, 
-                degree=self.degree, 
-                plot=self.plot, 
-                plot_title=self.plot_title
+                files,
+                self.instrument,
+                self.mode,
+                mask=mask,
+                degree=self.degree,
+                plot=self.plot,
+                plot_title=self.plot_title,
             )
-           
+
         self.save(bias.data, bhead)
         return bias, bhead
 
@@ -1069,7 +1072,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
 
 class WavelengthCalibrationInitialize(Step):
-    """ Create the initial wavelength solution file """
+    """Create the initial wavelength solution file"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
@@ -1555,7 +1558,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
 
 class RectifyImage(Step):
-    """ Create a 2D image of the rectified orders """
+    """Create a 2D image of the rectified orders"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)

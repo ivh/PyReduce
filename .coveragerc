@@ -1,6 +1,6 @@
 [run]
 source = pyreduce
-omit = 
+omit =
     pyreduce/_version.py
     examples/*
     versioneer.py

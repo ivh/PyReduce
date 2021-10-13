@@ -1,5 +1,6 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
 from pyreduce.clipnflip import clipnflip
 
@@ -97,6 +98,7 @@ def test_bad_clipping_range(image, header):
     # Case 4: y limits only one column
     with pytest.raises(IndexError):
         flipped = clipnflip(image, header, yrange=(1, 1))
+
 
 def test_multidimensional(image, header):
     image = image[None, None, ...]

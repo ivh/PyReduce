@@ -1,10 +1,9 @@
+# -*- coding: utf-8 -*-
 """
 with our powers combined we increase snr
 """
-import glob
-from os.path import dirname, join
 import logging
-import warnings
+from os.path import dirname, join
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,7 +48,6 @@ def combine(files, output, plot=None):
     sigms = sigms[mask]
     conts = conts[mask]
 
-
     # wmin, wmax = waves.min(axis=(0, 2)), waves.max(axis=(0, 2))
     # wnew = np.geomspace(wmin, wmax, ncol, endpoint=True).T
     # TODO something weird happens when changing the wavelength grid, that also depends on the wavelength
@@ -60,7 +58,9 @@ def combine(files, output, plot=None):
     for k in tqdm(range(specs.shape[0]), desc="File"):
         for i in tqdm(range(nord), desc="Order", leave=False):
             conts[k, i], _ = spectres(wnew[i], waves[k, i], conts[k, i], sigms[k, i])
-            specs[k, i], sigms[k, i] = spectres(wnew[i], waves[k, i], specs[k, i], sigms[k, i])
+            specs[k, i], sigms[k, i] = spectres(
+                wnew[i], waves[k, i], specs[k, i], sigms[k, i]
+            )
 
     # These are just for plotting
     if plot:
@@ -80,7 +80,7 @@ def combine(files, output, plot=None):
     conts[where] = 1
     sigms[where] = np.nan
     weights = 1 / sigms
-    weights[np.isposinf(weights)] = np.sqrt(2) #TODO Why
+    weights[np.isposinf(weights)] = np.sqrt(2)  # TODO Why
     weights[where] = 0
 
     w2 = np.sum(weights, axis=0) == 0

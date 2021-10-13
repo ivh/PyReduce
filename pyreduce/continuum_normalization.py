@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Find the continuum level
 
@@ -199,7 +200,7 @@ def continuum_normalize(
     plot=True,
     plot_title=None,
 ):
-    """ Fit a continuum to a spectrum by slowly approaching it from the top.
+    """Fit a continuum to a spectrum by slowly approaching it from the top.
     We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
 
     TODO automatically find good parameters for smooth_initial and smooth_final

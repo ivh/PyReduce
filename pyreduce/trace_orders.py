@@ -1,20 +1,20 @@
+# -*- coding: utf-8 -*-
 """
 Find clusters of pixels with signal
 And combine them into continous orders
 """
 
 import logging
-from itertools import combinations
 from functools import cmp_to_key
+from itertools import combinations
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
-
-from scipy.ndimage import morphology, label
+from scipy.ndimage import label, morphology
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.ndimage.morphology import grey_closing
-from scipy.signal import peak_widths, find_peaks
+from scipy.signal import find_peaks, peak_widths
 
 from .util import polyfit1d
 
@@ -275,7 +275,7 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
 
 
 def plot_orders(im, x, y, clusters, orders, order_range, title=None):
-    """ Plot orders and image """
+    """Plot orders and image"""
 
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
@@ -315,7 +315,7 @@ def plot_orders(im, x, y, clusters, orders, order_range, title=None):
 
 
 def plot_order(i, j, x, y, img, deg, title=""):
-    """ Plot a single order """
+    """Plot a single order"""
     _, ncol = img.shape
 
     order_i = fit(x[i], y[i], deg)
@@ -368,7 +368,7 @@ def mark_orders(
     merge_min_threshold=0.1,
     sigma=0,
 ):
-    """ Identify and trace orders
+    """Identify and trace orders
 
     Parameters
     ----------

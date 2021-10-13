@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from .extract import correct_for_curvature, fix_parameters
 from . import util
+from .extract import correct_for_curvature, fix_parameters
 
 
 def rectify_image(
@@ -52,7 +53,7 @@ def rectify_image(
 
 
 def merge_images(images, wave, column_range, extraction_width):
-    x_total = sum([img.shape[1] for img in images.values()])
+    x_total = sum(img.shape[1] for img in images.values())
     y_max = max(*[img.shape[0] for img in images.values()])
     y_mid = y_max // 2
 

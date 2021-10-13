@@ -1,28 +1,26 @@
+# -*- coding: utf-8 -*-
 """
 Wavelength Calibration
 by comparison to a reference spectrum
 Loosely bases on the IDL wavecal function
 """
 
-from os.path import dirname, join
 import logging
+from os.path import dirname, join
 
+import corner
+import emcee
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.polynomial.polynomial import polyval2d, Polynomial
-from tqdm import tqdm
-
+from astropy.io import fits
+from numpy.polynomial.polynomial import Polynomial, polyval2d
 from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
-from scipy.optimize import curve_fit
-from scipy.ndimage.morphology import grey_closing
 from scipy.ndimage.filters import gaussian_filter1d
-
-from astropy.io import fits
-
-import emcee
-import corner
+from scipy.ndimage.morphology import grey_closing
+from scipy.optimize import curve_fit
+from tqdm import tqdm
 
 from . import util
 
@@ -58,7 +56,7 @@ class AlignmentPlot:
         self.make_ref_image()
 
     def make_ref_image(self):
-        """ create and show the reference plot, with the two spectra """
+        """create and show the reference plot, with the two spectra"""
         ref_image = np.zeros((self.nord * 2, self.ncol, 3))
         for iord in range(self.nord):
             ref_image[iord * 2, :, self.RED] = 10 * np.ma.filled(self.obs[iord], 0)
@@ -91,13 +89,13 @@ class AlignmentPlot:
         self.im.figure.canvas.draw()
 
     def connect(self):
-        """ connect the click event with the appropiate function """
+        """connect the click event with the appropiate function"""
         self.cidclick = self.im.figure.canvas.mpl_connect(
             "button_press_event", self.on_click
         )
 
     def on_click(self, event):
-        """ On click offset the reference by the distance between click positions """
+        """On click offset the reference by the distance between click positions"""
         if event.ydata is None:
             return
         order = int(np.floor(event.ydata))
@@ -365,7 +363,7 @@ class WavelengthCalibration:
                     i,
                 )
             obs[i] /= np.ma.max(obs[i])
-        
+
         # Remove negative outliers
         std = np.std(obs, axis=1)[:, None]
         obs[obs <= -2 * std] = np.ma.masked
@@ -1400,7 +1398,9 @@ class WavelengthCalibrationComb(WavelengthCalibration):
             n = np.round(n_raw)
 
             if np.any(np.abs(n_raw - n) > 0.3):
-                logger.warning("Bad peaks detected in the frequency comb in order %i", i)
+                logger.warning(
+                    "Bad peaks detected in the frequency comb in order %i", i
+                )
 
             fr, fd = polyfit(n, f_old, deg=1)
 
@@ -1434,7 +1434,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
         # this is the result of the grating equation
         # at least const is roughly constant for neighbouring peaks
         correct = True
-        if correct: 
+        if correct:
             w_all = [speed_of_light / f for f in f_all]
             mw_all = [m * w for m, w in zip(n_all, w_all)]
             y = np.concatenate(mw_all)
@@ -1592,13 +1592,16 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         return spectrum
 
     def determine_wavelength_coefficients(
-        self, spectrum, atlas, wave_range,
+        self,
+        spectrum,
+        atlas,
+        wave_range,
     ) -> np.ndarray:
         """
-        Determines the wavelength polynomial coefficients of a spectrum, 
-        based on an line atlas with known spectral lines, 
-        and an initial guess for the wavelength range. 
-        The calculation uses an MCMC approach to sample the probability space and 
+        Determines the wavelength polynomial coefficients of a spectrum,
+        based on an line atlas with known spectral lines,
+        and an initial guess for the wavelength range.
+        The calculation uses an MCMC approach to sample the probability space and
         find the best cross correlation value, between observation and atlas.
 
         Parameters
@@ -1610,15 +1613,15 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         wave_range : 2-tuple
             initial wavelength guess (begin, end)
         degrees : int, optional
-            number of degrees of the wavelength polynomial, 
+            number of degrees of the wavelength polynomial,
             lower numbers yield better results, by default 2
         w_range : float, optional
             uncertainty on the initial wavelength guess in Ansgtrom, by default 20
         nwalkers : int, optional
-            number of walkers for the MCMC, more is better but increases 
+            number of walkers for the MCMC, more is better but increases
             the time, by default 100
         steps : int, optional
-            number of steps in the MCMC per walker, more is better but increases 
+            number of steps in the MCMC per walker, more is better but increases
             the time, by default 20_000
         plot : bool, optional
             whether to plot the results or not, by default False
@@ -1640,7 +1643,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         # Normalize the spectrum, and copy it just in case
         spectrum = self.normalize(spectrum)
         cutoff = self.get_cutoff(spectrum)
-       
+
         # The pixel scale used for everything else
         x = np.arange(n_features)
         # Initial guess for the wavelength solution
@@ -1745,14 +1748,18 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         return coef
 
     def create_new_linelist_from_solution(
-        self, spectrum, wavelength, atlas, order,
+        self,
+        spectrum,
+        wavelength,
+        atlas,
+        order,
     ) -> LineList:
         """
         Create a new linelist based on an existing wavelength solution for a spectrum,
         and a line atlas with known lines. The linelist is the one used by the rest of
         PyReduce wavelength calibration.
 
-        Observed lines are matched with the lines in the atlas to 
+        Observed lines are matched with the lines in the atlas to
         improve the wavelength solution.
 
         Parameters
@@ -1816,7 +1823,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             residuals[i] = resid[j] / pw * speed_of_light
             if residuals[i] < self.resid_delta:
                 linelist.add_line(
-                    atlas_linelist["wave"][j], order, peaks[i], 3, peak_height[i], True,
+                    atlas_linelist["wave"][j],
+                    order,
+                    peaks[i],
+                    3,
+                    peak_height[i],
+                    True,
                 )
 
         return linelist

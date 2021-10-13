@@ -1,6 +1,8 @@
-import numpy as np
+# -*- coding: utf-8 -*-
 import matplotlib.pyplot as plt
+import numpy as np
 from astropy.io import fits
+
 from pyreduce import cwrappers, extract
 
 input_dir = "./datasets/reduced/UVES/HD132205/2010-04-02/middle/"
@@ -34,7 +36,9 @@ np.savetxt("ycen.txt", swath_ycen)
 
 # return sp, sl, model, unc, mask
 # data1 = cwrappers.slitfunc(swath_img, swath_ycen, osample=osample)
-data2 = cwrappers.slitfunc_curved(swath_img, swath_ycen, shear, osample=osample, yrange=(ylow, yhigh))
+data2 = cwrappers.slitfunc_curved(
+    swath_img, swath_ycen, shear, osample=osample, yrange=(ylow, yhigh)
+)
 
 data = data2
 spec = data[0]

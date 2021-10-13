@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
+import datetime as dt
+from os.path import dirname, join
+
 import numpy as np
 from astroquery.eso import Eso
-import datetime as dt
-from os.path import join, dirname
-
 
 instrument = "HARPS"
 dates = [
@@ -74,7 +75,12 @@ eso = Eso()
 eso.login("awehrhahn")
 
 for d in dates:
-    filters = {"instrument": instrument, "dp_cat": "CALIB", "stime": str(d - day)[:10], "etime": str(d + day)[:10]}
+    filters = {
+        "instrument": instrument,
+        "dp_cat": "CALIB",
+        "stime": str(d - day)[:10],
+        "etime": str(d + day)[:10],
+    }
     table = eso.query_main(column_filters=filters)
     files = table["Dataset ID"]
     eso.retrieve_data(files, destination=destination, continuation=True)

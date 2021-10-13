@@ -1,7 +1,8 @@
-import pytest
+# -*- coding: utf-8 -*-
 from os.path import dirname, join
 
 import numpy as np
+import pytest
 from astropy.io import fits
 
 from pyreduce import instruments

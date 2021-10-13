@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Calculate the tilt based on a reference spectrum with high SNR, e.g. Wavelength calibration image
 
@@ -17,19 +18,18 @@ License
 """
 
 import logging
-import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.polynomial.polynomial import polyval2d
 from scipy import signal
-from scipy.ndimage import median_filter, gaussian_filter1d
+from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.optimize import least_squares
 from tqdm import tqdm
 
-from numpy.polynomial.polynomial import polyval2d
-from scipy.optimize import least_squares
-
 from .extract import fix_parameters
-from .util import make_index, polyfit2d_2 as polyfit2d
+from .util import make_index
+from .util import polyfit2d_2 as polyfit2d
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ class Curvature:
         """
         Fit the curvature of a single peak in the spectrum
 
-        This is achieved by fitting a model, that consists of gaussians 
+        This is achieved by fitting a model, that consists of gaussians
         in spectrum direction, that are shifted by the curvature in each row.
 
         Parameters
@@ -211,7 +211,7 @@ class Curvature:
             row center of the order of the peak
         xwd : 2 tuple
             extraction width above and below the order center to use
-        
+
         Returns
         -------
         tilt : float
@@ -266,7 +266,9 @@ class Curvature:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
         # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
         x0 = [A, peak, sig] + [0] * self.curv_degree
-        res = least_squares(model_compressed, x0=x0, method="trf", loss="soft_l1", f_scale=0.1)
+        res = least_squares(
+            model_compressed, x0=x0, method="trf", loss="soft_l1", f_scale=0.1
+        )
 
         if self.curv_degree == 1:
             tilt, shear = res.x[3], 0
@@ -459,11 +461,11 @@ class Curvature:
             order = np.full(len(x), j)
             t[j], s[j] = self.eval(x, order, tilt_x, shear_x)
 
-        t_lower = min([t.min() * (0.5 if t.min() > 0 else 1.5) for t in t])
-        t_upper = max([t.max() * (1.5 if t.max() > 0 else 0.5) for t in t])
+        t_lower = min(t.min() * (0.5 if t.min() > 0 else 1.5) for t in t)
+        t_upper = max(t.max() * (1.5 if t.max() > 0 else 0.5) for t in t)
 
-        s_lower = min([s.min() * (0.5 if s.min() > 0 else 1.5) for s in s])
-        s_upper = max([s.max() * (1.5 if s.max() > 0 else 0.5) for s in s])
+        s_lower = min(s.min() * (0.5 if s.min() > 0 else 1.5) for s in s)
+        s_upper = max(s.max() * (1.5 if s.max() > 0 else 0.5) for s in s)
 
         for j in range(self.n):
             cr = self.column_range[j]

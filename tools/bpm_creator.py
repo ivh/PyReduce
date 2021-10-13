@@ -1,10 +1,12 @@
-import os
+# -*- coding: utf-8 -*-
 import glob
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-import matplotlib.pyplot as plt
+from scipy.ndimage import label, morphology
 
-from scipy.ndimage import morphology, label
 
 class SelectorWindow:
     def __init__(self, data, mask=None):
@@ -63,7 +65,7 @@ class SelectorWindow:
         # self.fig.canvas.flush()
 
     def connect(self):
-        """ connect the click event with the appropiate function """
+        """connect the click event with the appropiate function"""
         self.cidclick = self.ax.figure.canvas.mpl_connect(
             "button_press_event", self.on_click
         )
@@ -79,9 +81,11 @@ class SelectorWindow:
         self.mask[y, x] = ~self.mask[y, x]
         self.plot()
 
+
 def load(fname, extension=0):
     data = fits.getdata(fname, ext=extension)
     return data
+
 
 if __name__ == "__main__":
     # Load data
@@ -90,7 +94,7 @@ if __name__ == "__main__":
     mode = ""
     # base_dir = os.path.expanduser(f"/DATA/Keck/{instrument}/GJ1214_b/")
     # fname = os.path.join(base_dir, "raw", "cal", "NS.20100805.07223.fits.gz")
-    
+
     fname = glob.glob("/DATA/Lick/APF/Dark/*.fits")
     fname_out = f"./pyreduce/masks/mask_{instrument.lower()}_{mode.lower()}.fits.gz"
     extension = 0
@@ -116,4 +120,6 @@ if __name__ == "__main__":
     mask = np.where(sw.mask, 0, 1).astype(dtype="uint8")
 
     # Save mask
-    fits.writeto(fname_out, header=header, data=mask, overwrite=True, output_verify="fix+warn")
+    fits.writeto(
+        fname_out, header=header, data=mask, overwrite=True, output_verify="fix+warn"
+    )

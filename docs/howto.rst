@@ -67,4 +67,3 @@ Start the extraction
     output_dir=output_dir,
     configuration="settings_UVES.json",
     )
-

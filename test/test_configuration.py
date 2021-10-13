@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 
 from pyreduce import configuration as conf
@@ -58,6 +59,7 @@ def test_read_config():
 
     with pytest.raises(FileNotFoundError):
         conf.read_config(fname="blablub.json")
+
 
 def test_validation():
     config = conf.get_configuration_for_instrument("UVES")

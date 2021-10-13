@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
 import os.path
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 import pyreduce
-from pyreduce import datasets, instruments, util, configuration
+from pyreduce import configuration, datasets, instruments, util
 from pyreduce.wavelength_calibration import (
     WavelengthCalibration as WavelengthCalibrationModule,
 )

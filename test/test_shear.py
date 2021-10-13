@@ -1,8 +1,9 @@
-import pytest
+# -*- coding: utf-8 -*-
 import numpy as np
+import pytest
 
-from pyreduce.extract import extract
 from pyreduce.combine_frames import combine_frames
+from pyreduce.extract import extract
 from pyreduce.make_shear import Curvature as CurvatureModule
 
 
@@ -134,6 +135,7 @@ def test_shear_exception(original, extracted, orders, order_range):
             orders, column_range=column_range, plot=False, mode="3D"
         )
         tilt, shear = module.execute(extracted, original)
+
 
 def test_shear_zero(original, extracted, orders, order_range):
     original, chead = original

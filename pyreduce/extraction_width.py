@@ -1,9 +1,12 @@
+# -*- coding: utf-8 -*-
 import logging
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from .util import gaussfit4 as gaussfit, make_index, gaussval2 as gaussval
+from .util import gaussfit4 as gaussfit
+from .util import gaussval2 as gaussval
+from .util import make_index
 
 logger = logging.getLogger(__name__)
 

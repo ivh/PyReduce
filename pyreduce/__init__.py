@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Define Version
 from ._version import get_versions
 
@@ -17,7 +18,9 @@ del plt
 
 # add logger to console
 import logging
+
 import tqdm
+
 
 # We need to use this to have logging messages handle properly with the progressbar
 class TqdmLoggingHandler(logging.Handler):
@@ -59,4 +62,4 @@ del logging
 # do not del tqdm, it is needed in the Log Handler
 
 # Load externally available modules
-from . import reduce, datasets, instruments, util, configuration
+from . import configuration, datasets, reduce, util

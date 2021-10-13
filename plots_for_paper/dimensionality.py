@@ -1,15 +1,17 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
 import os.path
-import pyreduce
-from pyreduce import datasets
+
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.constants import speed_of_light
 
+import pyreduce
+from pyreduce import datasets
 
 # define parameters
 instrument = "HARPS"
