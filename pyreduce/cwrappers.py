@@ -133,7 +133,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     return sp, sl, model, unc, mask
 
 
-def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange, maxiter=20):
+def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
     Parameters
@@ -154,7 +154,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
         smoothing factor slitfunction (the default is 0.1, small smoothing)
     yrange : array[2]
         number of pixels below and above the central line that have been cut out
-
+    maxiter : int, optional
+        maximumim number of iterations, by default 20
+    gain : float, optional
+        gain of the image, by default 1
 
     Returns
     -------
@@ -244,7 +247,10 @@ def slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrang
     sp = np.sum(img, axis=0)
 
     mask = np.where(mask, c_int(0), c_int(1))
+    # Determine the shot noise
+    # by converting electrons to photonsm via the gain
     pix_unc = np.nan_to_num(np.abs(img), copy=False)
+    pix_unc *= gain
     np.sqrt(pix_unc, out=pix_unc)
     pix_unc[pix_unc < 1] = 1
 

@@ -739,6 +739,7 @@ def extract_spectrum(
                 osample=osample,
                 yrange=yrange,
                 maxiter=maxiter,
+                gain=gain
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
