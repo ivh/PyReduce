@@ -296,7 +296,7 @@ class HARPS(Instrument):
             pol = "_pol"
         else:
             pol = ""
-        fname = f"harps_{mode}{pol}_2D.npz"
+        fname = f"harps_{mode.lower()}{pol}_2D.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
 
