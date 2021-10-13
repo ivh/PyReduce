@@ -20,7 +20,9 @@ repos:
     -   id: fix-byte-order-marker
     # General checks
     -   id: mixed-line-ending
+        exclude: ".fits"
     -   id: trailing-whitespace
+        exclude: ".fits"
     # -   id: check-executables-have-shebangs
     -   id: end-of-file-fixer
 -   repo: https://github.com/asottile/pyupgrade
