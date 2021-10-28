@@ -139,7 +139,7 @@ class NightFilter(Filter):
         value = super()._collect_value(header)
         if value is not None:
             value = Time(value, format=self.timeformat, scale=self.timezone)
-            value = NightFilter.observation_date_to_night(value)
+            value = self.observation_date_to_night(value)
         else:
             logger.warning(
                 "Could not determine the observation date of %s, skipping it", header

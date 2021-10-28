@@ -506,10 +506,13 @@ class Instrument:
                                 if shared in step_key.keys() and shared != self.night
                             ]
                             if all(match):
-                                if j is None or abs(
-                                    step_data[j][0][self.night] - night
-                                ) > abs(step_data[i][0][self.night] - night):
+                                if j is None:
                                     j = i
+                                else:
+                                    diff_old = abs(step_data[j][0][self.night] - night)
+                                    diff_new = abs(step_data[i][0][self.night] - night)
+                                    if diff_new < diff_old:
+                                        j = i
                         if j is None:
                             # We still dont find any files
                             logger.warning(
@@ -621,10 +624,8 @@ class InstrumentWithModes(Instrument):
     def __init__(self):
         super().__init__()
 
-        replacement = {k: v for k, v in zip(self.info["id_modes"], self.info["modes"])}
-        self.filters["mode"] = ModeFilter(
-            self.info["kw_modes"], replacement=replacement
-        )
+        # replacement = {k: v for k, v in zip(self.info["id_modes"], self.info["modes"])}
+        self.filters["mode"] = ModeFilter(self.info["kw_modes"])
         self.shared += ["mode"]
 
     def get_expected_values(self, target, night, mode):
