@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 class MCDONALD(InstrumentWithModes):
+    def __init__(self):
+        super().__init__()
+        # The date is a combination of the two values
+        kw = f"{{{self.info['date']}}}T{{{self.info['universal_time']}}}"
+        self.filters["night"].keyword = kw
+
     def _convert_time_deg(self, v):
         v = [float(s) for s in v.split(":")]
         v = v[0] + v[1] / 60 + v[2] / 3600
@@ -77,6 +83,9 @@ class MCDONALD(InstrumentWithModes):
 
         obs_date = get("date")
         ut = get("universal_time")
+        if obs_date is not None and ut is not None:
+            obs_date = f"{obs_date}T{ut}"
+
         dark_time = get("dark_time")
         ra = get("ra")
         dec = get("dec")
@@ -85,8 +94,8 @@ class MCDONALD(InstrumentWithModes):
             ra = self._convert_time_deg(ra)
         if dec is not None:
             dec = self._convert_time_deg(dec)
-        if ut is not None and dark_time is not None:
-            tmid = self._convert_time_deg(ut) + dark_time / 2
+        if dark_time is not None:
+            tmid = dark_time / 2
         else:
             tmid = 0
         if obs_date is not None:

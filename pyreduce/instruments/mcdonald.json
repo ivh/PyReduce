@@ -30,7 +30,7 @@
     "dark_time": "DARKTIME",
     "exposure_time": "EXPTIME",
     "observation_type": "IMAGETYP",
-    "category": "",
+    "category": "IMAGETYP",
     "ra": "RA",
     "dec": "DEC",
     "universal_time": "UT",
