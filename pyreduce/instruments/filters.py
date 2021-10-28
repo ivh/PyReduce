@@ -35,9 +35,13 @@ class Filter:
         if self.ignorecase and not self.flags & re.IGNORECASE:
             self.flags += re.IGNORECASE
 
-    def collect(self, header):
+    def _collect_value(self, header):
         if self.keyword is None:
             value = ""
+        elif "{" in self.keyword:
+            kws = re.findall(r"{([^{}]+)}", self.keyword)
+            values = {kw: header.get(kw, "") for kw in kws}
+            value = self.keyword.format(**values)
         else:
             value = header.get(self.keyword)
         if value.__class__ == header.__class__:
@@ -45,6 +49,10 @@ class Filter:
                 value = value[0]
             else:
                 value = ""
+        return value
+
+    def collect(self, header):
+        value = self._collect_value(header)
         self.data.append(value)
         return value
 
@@ -105,9 +113,18 @@ class ObjectFilter(Filter):
 
 
 class NightFilter(Filter):
-    def __init__(self, keyword="DATE-OBS", timeformat="fits", **kwargs):
+    def __init__(
+        self,
+        keyword="DATE-OBS",
+        timeformat="fits",
+        timezone="utc",
+        timezone_local=None,
+        **kwargs,
+    ):
         super().__init__(keyword, dtype=datetime, **kwargs)
         self.timeformat = timeformat
+        self.timezone = timezone
+        self.timezone_local = timezone_local
 
     @staticmethod
     def observation_date_to_night(observation_date):
@@ -119,9 +136,9 @@ class NightFilter(Filter):
         return observation_date.to_datetime().date()
 
     def collect(self, header):
-        value = header.get(self.keyword)
+        value = super()._collect_value(header)
         if value is not None:
-            value = Time(value, format=self.timeformat)
+            value = Time(value, format=self.timeformat, scale=self.timezone)
             value = NightFilter.observation_date_to_night(value)
         else:
             logger.warning(
