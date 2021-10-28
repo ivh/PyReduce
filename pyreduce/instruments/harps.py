@@ -114,7 +114,7 @@ class HARPS(Instrument):
             "curvature",
         ]
 
-    def get_expected_values(self, target, night, branch, fiber, polarimetry):
+    def get_expected_values(self, target, night, mode, fiber, polarimetry):
         """Determine the default expected values in the headers for a given observation configuration
 
         Any parameter may be None, to indicate that all values are allowed
