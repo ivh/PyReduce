@@ -8,9 +8,9 @@
         "closing_shape": [3, 10],
         "filter_size": 30,
         "min_cluster": 200,
-        "auto_merge_threshold": 0,
-        "merge_min_threshold": 0,
         "noise": 50,
+        "auto_merge_threshold": 0.9,
+        "merge_min_threshold": 0.5,
         "manual": true
     },
     "scatter":{
