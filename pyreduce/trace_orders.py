@@ -72,7 +72,7 @@ def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol,
 
     # TODO: There should probably be some kind of normaliztion, that scales with the size of the cluster?
     # or possibly only use the closest pixels to determine overlap, since the polynomial is badly constrained outside of the bounds.
-    overlap = len(ind_i[0]) + len(ind_j[0])
+    overlap = min(n_min, len(ind_i[0])) + min(n_min, len(ind_j[0]))
     # overlap = overlap / ((i_right - i_left) + (j_right - j_left))
     overlap /= 2 * n_min
     if i_right < j_left:
@@ -435,7 +435,8 @@ def mark_orders(
         logger.info("Minimum order width, estimated: %i", min_width)
 
     # im[im < 0] = np.ma.masked
-    blurred = grey_closing(im, 5)
+    blurred = np.ma.filled(im, fill_value=0)
+    blurred = grey_closing(blurred, 5)
     # blur image along columns, and use the median + blurred + noise as threshold
     blurred = gaussian_filter1d(blurred, filter_size, axis=0)
 
