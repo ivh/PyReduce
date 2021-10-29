@@ -466,7 +466,7 @@ class Mask(Step):
         mask : array of shape (nrow, ncol)
             Bad pixel mask for this setting
         """
-        mask_file = self.instrument.get_mask_filename(self.mode)
+        mask_file = self.instrument.get_mask_filename(mode=self.mode)
         try:
             mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks

@@ -40,3 +40,11 @@ class UVES(Instrument):
         )
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
+
+    def get_mask_filename(self, mode, **kwargs):
+        i = self.name.lower()
+        m = mode.lower()
+        fname = f"mask_{i}_{m}.fits.gz"
+        cwd = os.path.dirname(__file__)
+        fname = os.path.join(cwd, "..", "masks", fname)
+        return fname

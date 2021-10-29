@@ -138,8 +138,14 @@ class NightFilter(Filter):
     def collect(self, header):
         value = super()._collect_value(header)
         if value is not None:
-            value = Time(value, format=self.timeformat, scale=self.timezone)
-            value = self.observation_date_to_night(value)
+            try:
+                value = Time(value, format=self.timeformat, scale=self.timezone)
+                value = self.observation_date_to_night(value)
+            except ValueError:
+                logger.warning(
+                    "Could not determine the observation date of %s, skipping it",
+                    header,
+                )
         else:
             logger.warning(
                 "Could not determine the observation date of %s, skipping it", header

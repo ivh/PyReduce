@@ -608,9 +608,10 @@ class Instrument:
         info = self.load_info()
         return info["modes"]
 
-    def get_mask_filename(self, **kwargs):
+    def get_mask_filename(self, mode, **kwargs):
         i = self.name.lower()
-        fname = f"mask_{i}.fits.gz"
+        m = mode.lower()
+        fname = f"mask_{i}_{m}.fits.gz"
         cwd = os.path.dirname(__file__)
         fname = os.path.join(cwd, "..", "masks", fname)
         return fname
@@ -640,14 +641,6 @@ class InstrumentWithModes(Instrument):
             expectations[key]["mode"] = id_mode
 
         return expectations
-
-    def get_mask_filename(self, mode, **kwargs):
-        i = self.name.lower()
-        m = mode.lower()
-        fname = f"mask_{i}_{m}.fits.gz"
-        cwd = os.path.dirname(__file__)
-        fname = os.path.join(cwd, "..", "masks", fname)
-        return fname
 
 
 class COMMON(Instrument):
