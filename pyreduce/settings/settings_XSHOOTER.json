@@ -11,11 +11,11 @@
         "degree_before_merge": 2,
         "bias_scaling": "exposure_time",
         "filter_size": 20,
-        "min_cluster": 100,
+        "min_cluster": 500,
         "noise": 10,
         "border_width": 50,
         "auto_merge_threshold": 0.7,
-        "merge_min_threshold": 0.01,
+        "merge_min_threshold": 0.4,
         "manual": true,
         "min_width": 0
     },
