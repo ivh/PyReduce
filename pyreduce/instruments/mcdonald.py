@@ -116,6 +116,12 @@ class MCDONALD(InstrumentWithModes):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
+        fname = "{instrument}_{mode}_2D.npz".format(instrument="mcdonald", mode=mode)
         fname = os.path.join(cwd, "..", "wavecal", fname)
+        return fname
+
+    def get_mask_filename(self, mode, **kwargs):
+        fname = "mask_mcdonald.fits.gz"
+        cwd = os.path.dirname(__file__)
+        fname = os.path.join(cwd, "..", "masks", fname)
         return fname

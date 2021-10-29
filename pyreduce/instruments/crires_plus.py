@@ -13,13 +13,13 @@ import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
-from .common import Instrument, getter, observation_date_to_night
+from .common import InstrumentWithModes, getter, observation_date_to_night
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
 
 
-class CRIRES_PLUS(Instrument):
+class CRIRES_PLUS(InstrumentWithModes):
     def __init__(self):
         super().__init__()
         self.filters["lamp"] = Filter(self.info["id_lamp"])
