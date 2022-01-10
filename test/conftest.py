@@ -4,21 +4,17 @@ import tempfile
 from os.path import dirname, join
 from shutil import rmtree
 
-# This fixes a problem when using the remote debugger
-os.environ["DISPLAY"] = "localhost:10.0"
-
-import numpy as np
+# Stop matplotlib from crashing if interactive plotting does not work
+import matplotlib as mpl
 import pytest
-from astropy.io import fits
 
-from pyreduce import configuration, datasets, echelle, instruments, util
+mpl.use("agg")
+
+from pyreduce import configuration, datasets, instruments
 from pyreduce.reduce import (
     BackgroundScatter,
     Bias,
-    ContinuumNormalization,
-    Finalize,
     Flat,
-    LaserFrequencyCombFinalize,
     Mask,
     NormalizeFlatField,
     OrderTracing,
