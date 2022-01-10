@@ -256,7 +256,7 @@ class Curvature:
         def model_compressed(coef):
             return np.ma.compressed(model(coef))
 
-        A = np.nanpercentile(img, 95)
+        A = np.nanpercentile(img_compressed, 95)
         sig = (xmax - xmin) / 4  # TODO
         if self.curv_degree == 1:
             shift = lambda curv: curv[0] * y
