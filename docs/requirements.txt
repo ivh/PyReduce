@@ -12,7 +12,7 @@ pytest==6.2.5
 pytest-cov==3.0.0
 python-dateutil==2.8.2
 scikit-image==0.19.1
-scipy
+scipy==1.7.3
 sphinx
 tqdm
 wget
