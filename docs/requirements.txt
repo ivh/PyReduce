@@ -1,7 +1,7 @@
 astropy==5.0.1
 cffi==1.15.0
 colorlog==6.6.0
-corner
+corner==2.2.1
 emcee
 joblib
 jsonschema
