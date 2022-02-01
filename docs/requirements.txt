@@ -1,4 +1,4 @@
-astropy
+astropy==5.0.1
 cffi
 colorlog
 corner
