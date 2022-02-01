@@ -15,4 +15,4 @@ scikit-image==0.19.1
 scipy==1.7.3
 sphinx==4.4.0
 tqdm==4.62.3
-wget
+wget==3.2
