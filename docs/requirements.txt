@@ -5,7 +5,7 @@ corner==2.2.1
 emcee==3.1.1
 joblib==1.1.0
 jsonschema==4.4.0
-matplotlib
+matplotlib==3.5.1
 numpy
 pre-commit
 pytest
