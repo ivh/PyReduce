@@ -1562,7 +1562,7 @@ class RectifyImage(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["files", "orders", "curvature", "mask", "freq_comb_final"]
+        self._dependsOn += ["files", "orders", "curvature", "mask", "freq_comb"]
         # self._loadDependsOn += []
 
         self.extraction_width = config["extraction_width"]
@@ -1571,10 +1571,10 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(self, files, orders, curvature, mask, freq_comb_final):
+    def run(self, files, orders, curvature, mask, freq_comb):
         orders, column_range = orders
         tilt, shear = curvature
-        wave = freq_comb_final
+        wave = freq_comb
 
         files = files[self.input_files]
 
@@ -1775,8 +1775,8 @@ class ContinuumNormalization(Step):
         ----------
         science : tuple
             results from science step
-        freq_comb_final : tuple
-            results from freq_comb_final step (or wavecal if those don't exist)
+        freq_comb : tuple
+            results from freq_comb step (or wavecal if those don't exist)
         norm_flat : tuple
             results from the normalized flatfield step
 
@@ -1892,7 +1892,7 @@ class Finalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["continuum", "freq_comb_final", "config"]
+        self._dependsOn += ["continuum", "freq_comb", "config"]
         self.filename = config["filename"]
 
     def output_file(self, number, name):
@@ -1923,7 +1923,7 @@ class Finalize(Step):
                 head[f"HIERARCH {prefix} {key.upper()}"] = value
         return head
 
-    def run(self, continuum, freq_comb_final, config):
+    def run(self, continuum, freq_comb, config):
         """Create the final output files
 
         this is includes:
@@ -1934,11 +1934,11 @@ class Finalize(Step):
         ----------
         continuum : tuple
             results from the continuum normalization
-        freq_comb_final : tuple
+        freq_comb : tuple
             results from the frequency comb step (or wavelength calibration)
         """
         heads, specs, sigmas, conts, columns = continuum
-        wave = freq_comb_final
+        wave = freq_comb
 
         fnames = []
         # Combine science with wavecal and continuum
