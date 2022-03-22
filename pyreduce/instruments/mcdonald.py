@@ -116,7 +116,7 @@ class MCDONALD(InstrumentWithModes):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="mcdonald", mode=mode)
+        fname = "mcdonald.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 

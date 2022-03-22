@@ -28,10 +28,12 @@
         "extraction_width": 10
     },
     "wavecal": {
-        "threshold": 100,
-        "dimensionality": "2D",
-        "degree": [6, 6],
-        "manual": false
+        "threshold": 500,
+        "dimensionality": "1D",
+        "degree": 8,
+        "manual": false,
+        "element": "thar",
+        "medium": "vac"
     },
     "freq_comb_master": {
         "extraction_width": 10
