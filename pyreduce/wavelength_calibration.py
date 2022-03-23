@@ -626,10 +626,19 @@ class WavelengthCalibration:
         m_ord = lines["order"][mask]
 
         if self.dimensionality == "1D":
-            nord = int(m_ord.max() + 1)
+            nord = self.nord
             coef = np.zeros((nord, self.degree + 1))
             for i in range(nord):
                 select = m_ord == i
+                if np.count_nonzero(select) < 2:
+                    # Not enough lines for wavelength solution
+                    logger.warning(
+                        "Not enough valid lines found wavelength calibration in order % i",
+                        i,
+                    )
+                    coef[i] = np.nan
+                    continue
+
                 deg = max(min(self.degree, np.count_nonzero(select) - 2), 0)
                 coef[i, -(deg + 1) :] = np.polyfit(
                     m_pix[select], m_wave[select], deg=deg
