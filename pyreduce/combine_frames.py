@@ -309,13 +309,19 @@ def combine_frames(
         # section(s) of the detector to process, x_low, x_high, y_low, y_high
         # head["e_xlo*"] will find all entries with * as a wildcard
         # we also ensure that we will have one dimensional arrays (not just the value)
-        x_low = [c[1] for c in head["e_xlo*"].cards]
-        x_high = [c[1] for c in head["e_xhi*"].cards]
-        y_low = [c[1] for c in head["e_ylo*"].cards]
-        y_high = [c[1] for c in head["e_yhi*"].cards]
+        cards = sorted(head["e_xlo*"].cards, key=lambda c: c[0])
+        x_low = [c[1] for c in cards]
+        cards = sorted(head["e_xhi*"].cards, key=lambda c: c[0])
+        x_high = [c[1] for c in cards]
+        cards = sorted(head["e_ylo*"].cards, key=lambda c: c[0])
+        y_low = [c[1] for c in cards]
+        cards = sorted(head["e_yhi*"].cards, key=lambda c: c[0])
+        y_high = [c[1] for c in cards]
 
-        gain = [c[1] for c in head["e_gain*"].cards]
-        readnoise = [c[1] for c in head["e_readn*"].cards]
+        cards = sorted(head["e_gain*"].cards, key=lambda c: c[0])
+        gain = [c[1] for c in cards]
+        cards = sorted(head["e_readn*"].cards, key=lambda c: c[0])
+        readnoise = [c[1] for c in cards]
         total_exposure_time = sum(h.get("exptime", 0) for h in heads)
 
         # Scaling for image data
