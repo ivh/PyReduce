@@ -53,7 +53,7 @@ config = pyreduce.configuration.get_configuration_for_instrument(instrument, plo
 # config["curvature"]["window_width"] = 5
 # config["wavecal"]["extraction_width"] = 350
 
-#NOTE: micado.thar_master.fits (created and controlled by wavecal_master) is not overwritten if any parameter in the steps before it are changed.
+#NOTE: micado.thar_master.fits (created and controlled by wavecal_master) is NOT overwritten if any parameter in the steps in or before it are changed. Thus it has to be deleted before running PyReduce again.
 
 pyreduce.reduce.main(
     instrument,
@@ -65,5 +65,5 @@ pyreduce.reduce.main(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    order_range=(3, 4),     #for MICADO, when one order is on the detector
+    order_range=(3, 4),     #for MICADO, when one order is on the detector (currently detector 5 of the HK band)
 )
