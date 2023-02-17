@@ -32,7 +32,7 @@ All of this is then passed to pyreduce.reduce.main to start the reduction.
 
 In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations. Once you are statisified with the results you can disable them in settings_MICADO.json (with "plot":false in each step) to speed up the computation.
 
-Please note: In the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
+Please note: in the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO (HK band) files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
 
 
 Input Data
