@@ -37,7 +37,7 @@ Please note: in the micado example file it is specified to return only the order
 
 Input Data
 ------
-Input simulated MICADO 'raw' data  can be downloaded directly from this [link\(https://www.dropbox.com/sh/e3lnvtkmyjveajk/AABPHxeUdDO5AnkWCAjbM0e1a?dl=0) and placed in the input file path defined in micado_example.py. The files include:
+Input simulated MICADO 'raw' data  can be downloaded directly from this [link](https://www.dropbox.com/sh/e3lnvtkmyjveajk/AABPHxeUdDO5AnkWCAjbM0e1a?dl=0) and placed in the input file path defined in micado_example.py. The files include:
 
 FF_detector_SPEC_3000x20_Spec_HK.fits: spectroscopic flatfield
 
