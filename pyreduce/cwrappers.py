@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from .clib._slitfunc_2d import lib as slitfunc_2dlib
-    from .clib._slitfunc_bd import ffi
+    from .clib._slitfunc_2d import ffi
     from .clib._slitfunc_bd import lib as slitfunclib
 except ImportError:  # pragma: no cover
     logger.error(
@@ -327,3 +327,87 @@ def slitfunc_curved(
     mask = mask == 0
 
     return sp, sl, model, unc, mask, info
+
+
+# x, y, w
+xi_ref = [("x", c_int), ("y", c_int), ("w", c_double)]
+# x, iy, w
+zeta_ref = [("x", c_int), ("iy", c_int), ("w", c_double)]
+
+
+def xi_zeta_tensors(
+    ncols: int,
+    nrows: int,
+    ycen: np.ndarray,
+    yrange,  # (int, int)
+    osample: int,
+    tilt: np.ndarray,
+    shear: np.ndarray,
+):
+    ncols = int(ncols)
+    nrows = int(nrows)
+    osample = int(osample)
+    ny = osample * (nrows + 1) + 1
+
+    ycen_offset = ycen.astype(c_int)
+    ycen_int = ycen - ycen_offset
+    y_lower_lim = int(yrange[0])
+
+    psf_curve = np.zeros((ncols, 3), dtype=c_double)
+    psf_curve[:, 1] = tilt
+    psf_curve[:, 2] = shear
+
+    requirements = ["C", "A", "W", "O"]
+    ycen_int = np.require(ycen_int, dtype=c_double, requirements=requirements)
+    ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
+
+    xi = np.empty((ncols, ny, 4), dtype=xi_ref)
+    zeta = np.empty((ncols, nrows, 3 * (osample + 1)), dtype=zeta_ref)
+    m_zeta = np.empty((ncols, nrows), dtype=c_int)
+
+    slitfunc_2dlib.xi_zeta_tensors(
+        ffi.cast("int", ncols),
+        ffi.cast("int", nrows),
+        ffi.cast("int", ny),
+        ffi.cast("double *", ycen_int.ctypes.data),
+        ffi.cast("int *", ycen_offset.ctypes.data),
+        ffi.cast("int", y_lower_lim),
+        ffi.cast("int", osample),
+        ffi.cast("double *", psf_curve.ctypes.data),
+        ffi.cast("xi_ref *", xi.ctypes.data),
+        ffi.cast("zeta_ref *", zeta.ctypes.data),
+        ffi.cast("int *", m_zeta.ctypes.data),
+    )
+
+    return xi, zeta, m_zeta
+
+
+def create_spectral_model(
+    ncols: int,
+    nrows: int,
+    osample: int,
+    xi: "xi_ref",
+    spec: np.ndarray,
+    slitfunc: np.ndarray,
+):
+
+    ncols = int(ncols)
+    nrows = int(nrows)
+
+    requirements = ["C", "A", "W", "O"]
+    spec = np.require(spec, dtype=c_double, requirements=requirements)
+    slitfunc = np.require(slitfunc, dtype=c_double, requirements=requirements)
+    xi = np.require(xi, dtype=xi_ref, requirements=requirements)
+
+    img = np.empty((nrows + 1, ncols), dtype=c_double)
+
+    slitfunc_2dlib.create_spectral_model(
+        ffi.cast("int", ncols),
+        ffi.cast("int", nrows),
+        ffi.cast("int", osample),
+        ffi.cast("xi_ref *", xi.ctypes.data),
+        ffi.cast("double *", spec.ctypes.data),
+        ffi.cast("double *", slitfunc.ctypes.data),
+        ffi.cast("double *", img.ctypes.data),
+    )
+    return img

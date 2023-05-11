@@ -31,3 +31,25 @@ int slit_func_curved(int ncols,
                      double *model,
                      double *unc,
                      double *info);
+
+int xi_zeta_tensors(
+                    int ncols,
+                    int nrows,
+                    int ny,
+                    double *ycen,
+                    int *ycen_offset,
+                    int y_lower_lim,
+                    int osample,
+                    double *PSF_curve,
+                    xi_ref *xi,
+                    zeta_ref *zeta,
+                    int *m_zeta);
+
+int create_spectral_model(
+    int ncols, 
+    int nrows, 
+    int osample,
+    xi_ref* xi, 
+    double* spec, 
+    double* slitfunc,
+    double* img);

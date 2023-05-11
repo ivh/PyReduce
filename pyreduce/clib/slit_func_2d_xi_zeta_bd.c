@@ -1278,3 +1278,36 @@ int slit_func_curved(int ncols,
 
     return 0;
 }
+
+int create_spectral_model(int ncols, int nrows, int osample, xi_ref* xi, double* spec, double* slitfunc, double* img){
+    int ny, pix_x, pix_y, x, iy, m;
+    double pix_w;
+
+    ny = (nrows + 1) * osample + 1;
+
+    for (x = 0; x < ncols; x++)
+    {
+        for (iy = 0; iy < nrows+1; iy++)
+        {
+            img[im_index(x, iy)] = 0;
+        }
+        
+    }
+
+    for (x = 0; x < ncols; x++)
+    {   
+        for (iy = 0; iy < ny; iy++)
+        {
+            for (m = 0; m < 4; m++)
+            {
+                pix_x = xi[xi_index(x, iy, m)].x;
+                pix_y = xi[xi_index(x, iy, m)].y;
+                pix_w = xi[xi_index(x, iy, m)].w;
+                if ((pix_x != -1) && (pix_y != -1) && (pix_w != 0)){
+                    img[im_index(pix_x, pix_y)] += pix_w * spec[x] * slitfunc[iy];
+                }
+            }
+        }            
+    }
+    return 0;
+}
