@@ -361,7 +361,7 @@ class ExtractionStep(Step):
                 f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
             )
 
-    def extract(self, img, head, orders, curvature):
+    def extract(self, img, head, orders, curvature, scatter=None):
         orders, column_range = orders if orders is not None else (None, None)
         tilt, shear = curvature if curvature is not None else (None, None)
 
@@ -378,6 +378,7 @@ class ExtractionStep(Step):
             plot_title=self.plot_title,
             tilt=tilt,
             shear=shear,
+            scatter=scatter,
             **self.extraction_kwargs,
         )
         return data, unc, blaze, cr
@@ -1631,7 +1632,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature"]
+        self._dependsOn += ["norm_flat", "curvature", "scatter"]
         self._loadDependsOn += ["files"]
 
     def science_file(self, name):
@@ -1649,7 +1650,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
 
-    def run(self, files, bias, orders, norm_flat, curvature, mask):
+    def run(self, files, bias, orders, norm_flat, curvature, scatter, mask):
         """Extract Science spectra from observation
 
         Parameters
@@ -1684,7 +1685,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             # Calibrate the input image
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
-            spec, sigma, _, cr = self.extract(im, head, orders, curvature)
+            spec, sigma, _, cr = self.extract(im, head, orders, curvature, scatter=scatter)
 
             # save spectrum to disk
             self.save(fname, head, spec, sigma, cr)
