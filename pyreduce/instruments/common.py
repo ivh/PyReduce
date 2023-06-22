@@ -227,7 +227,8 @@ class Instrument:
             extension = self.get_extension(h_prime, mode)
 
         header = hdu[extension].header
-        header.extend(h_prime, strip=False)
+        if extension != 0:
+            header.extend(h_prime, strip=False)
         header = self.add_header_info(header, mode)
         header["e_input"] = (os.path.basename(fname), "Original input filename")
 
