@@ -764,6 +764,13 @@ class OrderTracing(CalibrationStep):
             plot_title=self.plot_title,
         )
 
+        # print('#NBS:here i am')
+        # print(orders.shape) #NBS
+        orders=orders[16] #NBS: METIS fix For MICADO if only 1 order on the detector, use [3::7] if 2 orders present 
+        # print(orders.shape) #NBS
+        orders = orders.reshape((1, 5))#NBS: to reshape it
+        # print(orders.shape) #NBS
+
         self.save(orders, column_range)
 
         return orders, column_range
