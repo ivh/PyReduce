@@ -1173,6 +1173,8 @@ class WavelengthCalibrationFinalize(Step):
         self.dimensionality = config["dimensionality"]
         #:int: Number of detector offset steps, due to detector design
         self.nstep = config["nstep"]
+        #:int: How many columns to use in the 2D cross correlation alignment. 0 means all pixels (slow).
+        self.correlate_cols = config['correlate_cols']
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
         #:str: elements of the spectral lamp
@@ -1220,6 +1222,7 @@ class WavelengthCalibrationFinalize(Step):
             iterations=self.iterations,
             dimensionality=self.dimensionality,
             nstep=self.nstep,
+            correlate_cols=self.correlate_cols,
             shift_window=self.shift_window,
             element=self.element,
             medium=self.medium,

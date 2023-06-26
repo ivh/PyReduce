@@ -369,6 +369,11 @@
                             "description": "Use only manual order alignment if true. When false still allow manual alignment after automatic alignment if plot is true",
                             "type": "boolean"
                         },
+                        "correlate_cols": {
+                            "description": "The number of columns used for 2D cross correlation alignment. 0 means all pixels (slow).",
+                            "type": "integer",
+                            "minimum": 0
+                        },
                         "shift_window": {
                             "description": "The fraction of the columns that each order can be shifted individually to align with the reference",
                             "type": "number",
