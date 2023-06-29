@@ -5,6 +5,7 @@ Collection of various useful and/or reoccuring functions across PyReduce
 
 import logging
 import os
+import warnings
 from itertools import product
 
 import matplotlib.pyplot as plt
@@ -317,8 +318,8 @@ def gaussfit2(x, y):
 
     i = np.argmax(y * weights)
     p0 = [y[i], x[i], 1]
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         res = least_squares(
             lambda c: gauss(x, *c, np.ma.min(y)) - y,
             p0,
@@ -355,8 +356,8 @@ def gaussfit3(x, y):
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1, np.min(y)]
 
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
@@ -386,8 +387,8 @@ def gaussfit4(x, y):
     i = np.argmax(y)
     p0 = [y[i], x[i], 1, np.min(y)]
 
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
