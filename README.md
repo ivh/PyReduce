@@ -4,15 +4,16 @@
 
 # PyREDUCE_ELT
 
-PyReduce_ELT is an adapted branch of the PyReduce package optimised to handle ScopeSim-simulated ELT data for MICADO and METIS (soon) instruments. Only the relevant information pertaining to operating PyReduce on ELT MICADO data are addressed in this README file, while all details of the original PyReduce package can be found in this [README.md](https://github.com/AWehrhahn/PyReduce/blob/master/README.md).
-
-
+PyReduce_ELT is an adapted branch of the PyReduce package optimised to handle ScopeSim-simulated ELT data for MICADO and METIS (optimized for LSS_M mode only for now) instruments. Only the relevant information pertaining to operating PyReduce on ELT MICADO and METIS data are addressed in this README file, while all details of the original PyReduce package can be found in this [README.md](https://github.com/AWehrhahn/PyReduce/blob/master/README.md).
 
 
 Installation
 ------------
 
-The most up-to-date version can be installed using ``pip install git+https://github.com/nadsabha/PyReduce_ELT``. 
+The most up-to-date version can be installed using python 3 command:
+```
+pip install git+https://github.com/nadsabha/PyReduce_ELT
+```
 
 PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
 See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
@@ -21,33 +22,70 @@ Output Format
 -------------
 PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``. 
 
+Other PyReduce outputs are ``.npz`` files. These are numpy recarrays and can be opened as in the example copied below:
+```
+file_py_wave='metis_lss_m.thar.npz'
+data_npz_py_wave = np.load(file_py_wave,  allow_pickle=True)
+#load wave_cal npz file
+lst = data_npz_py_wave.files
+print(lst)
+for item in lst:
+    print(item)
+    print(data_npz_py_wave[item])
+# or
+wave=data_npz_py_wave['wave']
+coef=data_npz_py_wave['coef']
+```
+
 How To
 ------
-PyReduce can be run using the provided example file, e.g.:
-``examples/micado_example.py``.
-In this example script, we first define the instrument and instrument mode (if applicable). Then the path to where the data are located is defined, as well as the output directory. Lastly, all the specific settings of the reduction (e.g. polynomial degrees of various fits) are defined in the json configuration file [settings_MICADO.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_MICADO.json) or alternatively directly within the script by adding, e.g. config["curvature"]["extraction_width"] = 350, config["wavecal"]["dimensionality"] = "2D", etc. 
+PyReduce can be run using the provided example files, e.g.:
+for MICADO ``examples/micado_example.py``,
+for METIS ``examples/metis_example.py``.
+
+In this example script, we first define the instrument and instrument mode (``LSS_M`` for METIS). Then the path to where the data are located is defined, as well as the output directory. Lastly, all the specific settings of the reduction (e.g. polynomial degrees of various fits) are defined in the json configuration files [settings_MICADO.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_MICADO.json), [settings_METIS.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_METIS.json), or alternatively directly within the script by adding, e.g. ``config["curvature"]["extraction_width"] = 0.77``, ``config["wavecal"]["dimensionality"] = "1D"``, etc.
+
+Explanation of the settings paratemters can be found in [settings_schema.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_schema.json).
 
 The steps of the reduction desired to be performed are then specified. Steps that are not specified, but are still required, will be loaded from previous runs if possible, or executed otherwise.
 All of this is then passed to pyreduce.reduce.main to start the reduction.
 
-In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations. Once you are statisified with the results you can disable them in settings_MICADO.json (with "plot":false in each step) to speed up the computation.
+In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations. Once you are statisified with the results you can disable them in [settings_MICADO.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_MICADO.json) or [settings_METIS.json](https://github.com/nadsabha/PyReduce_ELT/blob/master/pyreduce/settings/settings_METIS.json) (with ``plot : false`` in each step) to speed up the computation.
 
-Please note: in the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO (HK band) files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
+Relevant for MICADO:
 
+Please note that in the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO (HK band) files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
+
+Relevant for METIS:
+
+Please note that reduce.py main script is modified to return only the order trace corresponding to the center of the slit trace on METIS LSS files, i.e. fit number 17 (or 16 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
 
 Input Data
 ------
-Input simulated MICADO 'raw' data  can be downloaded directly from this [link](https://www.dropbox.com/sh/e3lnvtkmyjveajk/AABPHxeUdDO5AnkWCAjbM0e1a?dl=0) and placed in the input file path defined in micado_example.py. The files include:
 
-FF_detector_SPEC_3000x20_Spec_HK.fits: spectroscopic flatfield
+MICADO data:
 
-PINHOLE_detector_SPEC_3000x20_Spec_HK.fits: pinhole frame with the flatfiled lamp
+Input simulated MICADO 'raw' data  can be downloaded directly from this [link](https://www.dropbox.com/sh/e3lnvtkmyjveajk/AABPHxeUdDO5AnkWCAjbM0e1a?dl=0) and placed in the input file path defined in [micado_example.py](https://github.com/nadsabha/PyReduce_ELT/blob/master/examples/micado_example.py). The files include:
 
-LL_detector_SPEC_3000x20_Spec_HK.fits: linelamp spectrum full slit
+• FF_detector_SPEC_3000x20_Spec_HK.fits: spectroscopic flatfield
 
-detector_final_delta.fits: linelamp spectrum that acts as a "science" target to make pyreduce run.
+• PINHOLE_detector_SPEC_3000x20_Spec_HK.fits: pinhole frame with the flatfiled lamp
 
+• LL_detector_SPEC_3000x20_Spec_HK.fits: linelamp spectrum full slit
 
+• detector_final_delta.fits: linelamp spectrum that acts as a "science" target to make pyreduce run
+
+METIS data:
+
+Input simulated METIS 'raw' data  can be downloaded directly from this [link](https://www.dropbox.com/sh/h1dz80vsw4lwoel/AAAqJD_FGDGC-t12wgnPXVR8a?dl=0) and placed in the input file path defined in [metis_example.py](https://github.com/nadsabha/PyReduce_ELT/blob/master/examples/metis_example.py). The files include:
+
+• lss_m_thermal.fits: spectroscopic flat field
+
+• lss_m_pinholes.fits: pinhole frame with the flat field, used for order/trace detection and fit
+
+• lss_m_sky.fits: sky emission line spectrum covering the full slit, used for curvature determination and the wavelength calibration
+
+• lss_m_star.fits: sky emission line spectrum covering the full slit with a star spectrum "science" frame
 
 Reference Papers
 ------
