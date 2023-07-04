@@ -764,12 +764,25 @@ class OrderTracing(CalibrationStep):
             plot_title=self.plot_title,
         )
 
-        # print('#NBS:here i am')
-        # print(orders.shape) #NBS
-        orders=orders[16] #NBS: METIS fix For MICADO if only 1 order on the detector, use [3::7] if 2 orders present 
-        # print(orders.shape) #NBS
-        orders = orders.reshape((1, 5))#NBS: to reshape it
-        # print(orders.shape) #NBS
+        # NBS: BEGINNING of fix for MICADO and METIS pinholes
+        print('#NBS:here!!!')
+        print(orders.shape) #NBS
+
+        # if len(orders) == 7:
+        #     orders=orders[3] #NBS:  MICADO fix if only 1 order on the detector, use [3::7] if 2 orders present 
+        #     orders = orders.reshape((1, 5))#NBS: to reshape it
+        #     print(orders.shape) #NBS
+
+        # if len(orders) == 14:
+        #     orders=orders[3::7] #NBS:  MICADO fix if 2 orders on the detector 
+        #     print(orders.shape) #NBS
+
+        if len(orders) == 33:
+            orders=orders[16] #NBS: METIS fix For MICADO if only 1 order on the detector, use [3::7] if 2 orders present 
+            orders = orders.reshape((1, 5))#NBS: to reshape it
+            print(orders.shape) #NBS
+        
+        # NBS: END of fix for MICADO and METIS pinholes
 
         self.save(orders, column_range)
 
