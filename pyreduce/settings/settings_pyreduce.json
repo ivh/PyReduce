@@ -98,6 +98,7 @@
             6
         ],
         "nstep": 0,
+        "correlate_cols": 0,
         "shift_window": 0.01,
         "element": "thar",
         "medium": "vac",

@@ -266,6 +266,7 @@ class WavelengthCalibration:
         iterations=3,
         dimensionality="2D",
         nstep=0,
+        correlate_cols=0,
         shift_window=0.01,
         manual=False,
         polarim=False,
@@ -290,6 +291,8 @@ class WavelengthCalibration:
         self.dimensionality = dimensionality
         #:bool: Whether to fit for pixel steps (offsets) in the detector
         self.nstep = nstep
+        #:int: How many columns to use in the 2D cross correlation alignment. 0 means all pixels (slow).
+        self.correlate_cols = correlate_cols
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
         self.shift_window = shift_window
         #:bool: Whether to manually align the reference instead of using cross correlation
@@ -485,23 +488,32 @@ class WavelengthCalibration:
             # make image from lines
             img = self.create_image_from_lines(lines)
 
+            # Crop the image to speed up cross correlation
+            if self.correlate_cols != 0:
+                _slice = slice((self.ncol - self.correlate_cols) // 2, 
+                               (self.ncol + self.correlate_cols) // 2 + 1)
+                ccimg = img[:,_slice]
+                ccobs = obs[:,_slice]
+            else:
+                ccimg, ccobs = img, obs
+
             # Cross correlate with obs image
             # And determine overall offset
-            correlation = signal.correlate2d(obs, img, mode="same")
+            correlation = signal.correlate2d(ccobs, ccimg, mode="same")
             offset_order, offset_x = np.unravel_index(
                 np.argmax(correlation), correlation.shape
             )
 
             if self.plot >= 2:
                 plt.imshow(correlation, aspect="auto")
-                plt.vlines(offset_x, -0.5, self.nord - 0.5, color="red")
-                plt.hlines(offset_order, -0.5, self.ncol - 0.5, color="red")
+                plt.vlines(offset_x, -0.5, correlation.shape[0] - 0.5, color="red")
+                plt.hlines(offset_order, -0.5, correlation.shape[1] - 0.5, color="red")
                 if self.plot_title is not None:
                     plt.title(self.plot_title)
                 plt.show()
 
-            offset_order = offset_order - img.shape[0] / 2 + 1
-            offset_x = offset_x - img.shape[1] / 2 + 1
+            offset_order = offset_order - ccimg.shape[0] / 2 + 1
+            offset_x = offset_x - ccimg.shape[1] / 2 + 1
             offset = [int(offset_order), int(offset_x)]
 
             # apply offset
