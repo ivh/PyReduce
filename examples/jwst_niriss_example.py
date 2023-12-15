@@ -1,28 +1,29 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
+
 import pyreduce
 from pyreduce import datasets
 
-
 # define parameters
 instrument = "JWST_NIRISS"
-target = "GJ436"
-night = "????-??-??"
+target = None
+night = None
 mode = "GR700XD"
 steps = (
-    # "bias",
-    # "flat",
+    "bias",
+    "flat",
     "orders",
     "norm_flat",
     # "wavecal",
     # "curvature",
     "science",
-    # "continuum",
-    # "finalize",
+    "continuum",
+    "finalize",
 )
 
 # some basic settings
@@ -30,12 +31,12 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = os.path.expanduser("~/Documents/Visual Studio Code/PyReduce/datasets")
-input_dir = "{instrument}/raw"
-output_dir = "{instrument}/reduced"
+base_dir = datasets.JWST_NIRISS("/DATA/PyReduce")
+input_dir = "awesimsoss"
+output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_JWST_NIRISS.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=False)
 
 pyreduce.reduce.main(
     instrument,

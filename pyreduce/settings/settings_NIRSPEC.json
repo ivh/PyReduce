@@ -1,0 +1,58 @@
+{
+    "__instrument__": "NIRSPEC",
+    "instrument": {
+        "#": "The calibration dir points to the location of the calibration data, since the default data download seperates the science and the calibration into different directories. It is relative to the science directory.",
+        "calibration_dir": ""
+    },
+    "orders": {
+        "degree": 4,
+        "filter_size": 50,
+        "min_cluster": 2000,
+        "border_width": 0,
+        "noise": 40,
+        "merge_min_threshold": 0.2,
+        "manual": true
+    },
+    "scatter": {
+        "extraction_width": 35
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 35,
+        "oversampling": 12,
+        "swath_width": 300,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+        "extraction_width": 0.25
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [2, 6],
+        "manual": false
+    },
+    "freq_comb_master": {
+        "extraction_width": 0.25
+    },
+    "freq_comb": {
+        "dimensionality": "2D",
+        "degree": [6, 6]
+    },
+    "curvature": {
+        "extraction_width": 35,
+        "dimensionality": "1D",
+        "degree": 2
+    },
+    "science": {
+        "oversampling": 10,
+        "extraction_width": [35, 35],
+        "swath_width": 300,
+        "smooth_slitfunction": 0.3,
+        "smooth_spectrum": 0
+    },
+    "finalize": {
+        "filename": "{input}.ech"
+    }
+}

@@ -1,17 +1,18 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
+
 import pyreduce
 from pyreduce import datasets
 
-
 # define parameters
 instrument = "JWST_MIRI"
-target = ""
-night = "????-??-??"
+target = None
+night = None
 mode = "LRS_SLITLESS"
 steps = (
     "bias",
@@ -35,7 +36,7 @@ input_dir = "raw"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_JWST_MIRI.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,

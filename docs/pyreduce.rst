@@ -84,13 +84,6 @@ pyreduce.make\_shear module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.normalize\_flat module
--------------------------------
-
-.. automodule:: pyreduce.normalize_flat
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 pyreduce.reduce module
 ----------------------

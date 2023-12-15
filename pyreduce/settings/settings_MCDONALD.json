@@ -1,0 +1,58 @@
+{
+    "__instrument__": "MCDONALD",
+    "instrument": {},
+    "orders": {
+        "degree": 4,
+        "degree_before_merge": 2,
+        "regularization": 0,
+        "closing_shape": [3, 10],
+        "filter_size": 30,
+        "min_cluster": 200,
+        "noise": 50,
+        "auto_merge_threshold": 0.9,
+        "merge_min_threshold": 0.5,
+        "manual": true
+    },
+    "scatter":{
+        "extraction_width": 0.3
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 0.4,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+        "extraction_width": 10
+    },
+    "wavecal": {
+        "threshold": 500,
+        "dimensionality": "1D",
+        "degree": 8,
+        "manual": false,
+        "element": "thar",
+        "medium": "vac"
+    },
+    "freq_comb_master": {
+        "extraction_width": 10
+    },
+    "freq_comb": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [6, 6]
+    },
+    "curvature": {
+        "extraction_width": 10,
+        "dimensionality": "2D",
+        "degree": [3, 6]
+    },
+    "science": {
+        "oversampling": 1,
+        "extraction_width": 10,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0
+    }
+}

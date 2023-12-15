@@ -1,0 +1,54 @@
+{
+    "$schema": "./settings_schema.json",
+    "__instrument__": "UVES",
+    "orders": {
+        "degree": 5,
+        "filter_size": 80,
+        "min_cluster": 2000,
+        "noise": 8,
+        "manual": true,
+        "split_sigma": 5
+    },
+    "scatter": {
+        "extraction_width": 0.45,
+        "border_width": 20
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 0.45,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+    },
+    "wavecal_init": {
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [6, 6],
+        "shift_window": 0.01,
+        "manual": false
+    },
+    "freq_comb_master":{
+    },
+    "freq_comb": {
+        "dimensionality": "2D",
+        "degree": [6, 6]
+    },
+    "curvature": {
+        "dimensionality": "1D",
+        "degree": 1,
+        "curv_degree": 1,
+        "peak_width": 1
+    },
+    "science": {
+        "oversampling": 1,
+        "extraction_width": 0.2,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0
+    }
+}

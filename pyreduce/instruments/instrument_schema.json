@@ -1,0 +1,221 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "pyreduce.instrument_schema",
+    "title": "PyReduce Instrument Settings",
+    "description": "Keywords that need to be set for the PyReduce to sort files correctly and interpret the header",
+    "type": "object",
+    "properties": {
+        "__instrument__": {
+            "description": "Meta data, for which instrument this file is designed",
+            "value": "string"
+        },
+        "instrument": {
+            "description": "keyword for the instrument in the header",
+            "value": "string"
+        },
+        "id_instrument": {
+            "description": "Value of the instrument keyword, can be regex",
+            "value": "string"
+        },
+        "telescope": {
+            "description": "keyword for the telescope in the header",
+            "value": "string"
+        },
+        "target": {
+            "description": "keyword of the target in the header",
+            "value": "string"
+        },
+        "date": {
+            "description": "keyword of the datetime in the header",
+            "value": "string"
+        },
+        "date_format": {
+            "description": "format of the datetime in the header, e.g. fits (default), or mjd",
+            "value": "string"
+        },
+        "extension": {
+            "description": "the extension of the fits file to use to access the data",
+            "value": ["integer", "string", "array"],
+            "items": {
+                "value": ["integer", "string"]
+            }
+        },
+        "orientation": {
+            "description": "the orientation of the input files, equal to the number of 90 degree flips necessary",
+            "value": "integer"
+        },
+        "transpose": {
+            "description": "If true the image is transposed before rotation, thus flipping the image",
+            "value": "bool"
+        },
+        "prescan_x": {
+            "description": "The horizontal prescan direction, before orientation, or the keyword that contains that value",
+            "value": ["integer", "string"]
+        },
+        "overscan_x": {
+            "description": "The overscan in horizontal direction, before orientation, or the keyword that contains that value",
+            "value": ["integer", "string"]
+        },
+        "prescan_y": {
+            "description": "The vertical prescan direction, before orientation, or the keyword that contains that value",
+            "value": ["integer", "string"]
+        },
+        "overscan_y": {
+            "description": "The overscan in vertical direction, before orientation, or the keyword that contains that value",
+            "value": ["integer", "string"]
+        },
+        "naxis_x": {
+            "description": "The size of the horizontal axis",
+            "value": ["integer", "string"]
+        },
+        "naxis_y": {
+            "description": "The size of the vertical axis",
+            "value": ["integer", "string"]
+        },
+        "gain": {
+            "description": "The gain of the instrument",
+            "value": ["number", "string"]
+        },
+        "readnoise": {
+            "description": "The readnoise of the instrument",
+            "value": ["number", "string"]
+        },
+        "dark": {
+            "description": "The dark current of the instrument",
+            "value": ["number", "string"]
+        },
+        "sky": {
+            "description": "The sky background of the instrument",
+            "value": ["number", "string"]
+        },
+        "exposure_time": {
+            "description": "The keyword for the exposure time in seconds of the observation",
+            "value": "string"
+        },
+        "ra": {
+            "description": "The keyword for the right acension of the observation",
+            "value": "string"
+        },
+        "dec": {
+            "description": "The keyword for the declination of the observation",
+            "value": "string"
+        },
+        "longitude": {
+            "description": "The longitude of the telescope on earth",
+            "value": ["number", "string"]
+        },
+        "latitude": {
+            "description": "The latitude of the telescope on earth",
+            "value": ["number", "string"]
+        },
+        "altitude": {
+            "description": "The altitude of the telescope on earth",
+            "value": ["number", "string"]
+        },
+        "kw_bias": {
+            "description": "The keyword that identifies the bias files",
+            "value": "string"
+        },
+        "kw_flat": {
+            "description": "The keyword that identifies the flat files",
+            "value": "string"
+        },
+        "kw_curvature": {
+            "description": "The keyword that identifies the curvature files",
+            "value": "string"
+        },
+        "kw_scatter": {
+            "description": "The keyword that identifies the background scatter files",
+            "value": "string"
+        },
+        "kw_orders": {
+            "description": "The keyword that identifies the order definition files",
+            "value": "string"
+        },
+        "kw_wave": {
+            "description": "The keyword that identifies the wavecal files",
+            "value": "string"
+        },
+        "kw_comb": {
+            "description": "The keyword that identifies the laser frequency comb / fabry perot interferometer files",
+            "value": "string"
+        },
+        "kw_spec": {
+            "description": "The keyword that identifies the science files",
+            "value": "string"
+        },
+        "id_bias": {
+            "description": "The value that identifies the bias files",
+            "value": "string"
+        },
+        "id_flat": {
+            "description": "The value that identifies the flat files",
+            "value": "string"
+        },
+        "id_curvature": {
+            "description": "The value that identifies the curvature files",
+            "value": "string"
+        },
+        "id_scatter": {
+            "description": "The value that identifies the background scatter files",
+            "value": "string"
+        },
+        "id_orders": {
+            "description": "The value that identifies the order definition files",
+            "value": "string"
+        },
+        "id_wave": {
+            "description": "The value that identifies the wavecal files",
+            "value": "string"
+        },
+        "id_comb": {
+            "description": "The value that identifies the laser frequency comb / fabry perot interferometer files",
+            "value": "string"
+        },
+        "id_spec": {
+            "description": "The value that identifies the science files",
+            "value": "string"
+        }
+    },
+    "required": ["instrument",
+        "id_instrument",
+        "telescope",
+        "target",
+        "date",
+        "date_format",
+        "extension",
+        "orientation",
+        "prescan_x",
+        "overscan_x",
+        "prescan_y",
+        "overscan_y",
+        "naxis_x",
+        "naxis_y",
+        "gain",
+        "readnoise",
+        "dark",
+        "sky",
+        "exposure_time",
+        "ra",
+        "dec",
+        "longitude",
+        "latitude",
+        "altitude",
+        "kw_bias",
+        "kw_flat",
+        "kw_curvature",
+        "kw_scatter",
+        "kw_orders",
+        "kw_wave",
+        "kw_comb",
+        "kw_spec",
+        "id_bias",
+        "id_flat",
+        "id_orders",
+        "id_curvature",
+        "id_scatter",
+        "id_wave",
+        "id_comb",
+        "id_spec"
+    ]
+}

@@ -1,0 +1,55 @@
+{
+    "__instrument__": "JWST_NIRISS",
+    "instrument": {},
+    "orders": {
+        "degree": 4,
+        "filter_size": 50,
+        "min_cluster": 500,
+        "noise": 10,
+        "border_width": 0,
+        "auto_merge_threshold": 1,
+        "merge_min_threshold": 1,
+        "manual": false
+    },
+    "scatter": {
+        "extraction_width": 15
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 15,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+        "extraction_width": 10
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "1D",
+        "degree": 2,
+        "manual": false
+    },
+    "freq_comb_master": {
+        "extraction_width": 10
+    },
+    "freq_comb": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "nstep": 0,
+        "degree": [19, 10]
+    },
+    "curvature": {
+        "extraction_width": 10,
+        "dimensionality": "2D",
+        "degree": [3, 6]
+    },
+    "science": {
+        "oversampling": 5,
+        "extraction_width": 15,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0
+    }
+}

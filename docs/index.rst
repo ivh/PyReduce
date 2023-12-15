@@ -10,9 +10,14 @@ Welcome to PyReduce's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   installation
    howto
    examples
+   configuration_file
+   instruments
+   modules
+   wavecal_linelist
+
 
 Indices and tables
 ==================

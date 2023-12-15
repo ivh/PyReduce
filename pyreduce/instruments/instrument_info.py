@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Interface for all instrument specific information
 The actual info is contained in the instruments/{name}.py modules/classes, which are all subclasses of "common"
@@ -5,8 +6,10 @@ The actual info is contained in the instruments/{name}.py modules/classes, which
 
 import importlib
 
+from .common import Instrument
 
-def load_instrument(instrument):
+
+def load_instrument(instrument) -> Instrument:
     """Load an python instrument module
 
     Parameters
@@ -51,7 +54,7 @@ def get_instrument_info(instrument):
     """
 
     instrument = load_instrument(instrument)
-    return instrument.load_info()
+    return instrument.info
 
 
 def sort_files(input_dir, target, night, instrument, mode, **kwargs):
@@ -86,6 +89,11 @@ def sort_files(input_dir, target, night, instrument, mode, **kwargs):
 
     instrument = load_instrument(instrument)
     return instrument.sort_files(input_dir, target, night, mode, **kwargs)
+
+
+def get_supported_modes(instrument):
+    instrument = load_instrument(instrument)
+    return instrument.get_supported_modes()
 
 
 def modeinfo(header, instrument, mode, **kwargs):

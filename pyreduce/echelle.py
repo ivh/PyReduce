@@ -1,12 +1,17 @@
+# -*- coding: utf-8 -*-
 """
 Contains functions to read and modify echelle structures, just as in reduce
 
 Mostly for compatibility reasons
 """
 
-import numpy as np
+import logging
+
 import astropy.io.fits as fits
+import numpy as np
 import scipy.constants
+
+logger = logging.getLogger(__name__)
 
 
 class Echelle:
@@ -27,11 +32,80 @@ class Echelle:
             return self._data["spec"].shape[1]
         return None
 
+    @property
+    def spec(self):
+        if "spec" in self._data.keys():
+            return self._data["spec"]
+        else:
+            return None
+
+    @spec.setter
+    def spec(self, value):
+        self._data["spec"] = value
+
+    @property
+    def sig(self):
+        if "sig" in self._data.keys():
+            return self._data["sig"]
+        else:
+            return None
+
+    @sig.setter
+    def sig(self, value):
+        self._data["sig"] = value
+
+    @property
+    def wave(self):
+        if "wave" in self._data.keys():
+            return self._data["wave"]
+        else:
+            return None
+
+    @wave.setter
+    def wave(self, value):
+        self._data["wave"] = value
+
+    @property
+    def cont(self):
+        if "cont" in self._data.keys():
+            return self._data["cont"]
+        else:
+            return None
+
+    @cont.setter
+    def cont(self, value):
+        self._data["cont"] = value
+
+    @property
+    def columns(self):
+        if "columns" in self._data.keys():
+            return self._data["columns"]
+        else:
+            return None
+
+    @columns.setter
+    def columns(self, value):
+        self._data["columns"] = value
+
+    @property
+    def mask(self):
+        if "mask" in self._data.keys():
+            return self._data["mask"]
+        else:
+            return None
+
+    @mask.setter
+    def mask(self, value):
+        self._data["mask"] = value
+
     def __getitem__(self, index):
         return self._data[index]
 
     def __setitem__(self, index, value):
         self._data[index] = value
+
+    def __delitem__(self, index):
+        del self._data[index]
 
     def __contains__(self, index):
         return index in self._data.keys()
@@ -101,10 +175,10 @@ class Echelle:
                 # - : towards observer
                 velocity_correction = 0
                 if barycentric_correction:
-                    velocity_correction += header.get("barycorr", 0)
+                    velocity_correction -= header.get("barycorr", 0)
                     header["barycorr"] = 0
                 if radial_velociy_correction:
-                    velocity_correction -= header.get("radvel", 0)
+                    velocity_correction += header.get("radvel", 0)
                     header["radvel"] = 0
 
                 speed_of_light = scipy.constants.speed_of_light * 1e-3
@@ -143,7 +217,7 @@ class Echelle:
     def save(self, fname):
         """
         Save data in an Echelle fits, i.e. a fits file with a Binary Table in Extension 1
-        
+
         Parameters
         ----------
         fname : str
@@ -285,14 +359,21 @@ def save(fname, header, **kwargs):
 
     columns = []
     for key, value in kwargs.items():
+        if value is None:
+            continue
         arr = value.ravel()[None, :]
 
-        if issubclass(arr.dtype.type, np.floating):
+        if np.issubdtype(arr.dtype, np.floating):
             arr = arr.astype(np.float32)
             dtype = "E"
-        elif issubclass(arr.dtype.type, np.integer):
+        elif np.issubdtype(arr.dtype, np.integer):
             arr = arr.astype(np.int16)
             dtype = "I"
+        elif np.issubdtype(arr.dtype, np.bool_):
+            arr = arr.astype(np.bool_)
+            dtype = "B"
+        else:
+            raise TypeError(f"Could not understand dtype {arr.dtype}")
 
         form = "%i%s" % (value.size, dtype)
         dim = str(value.shape[::-1])
@@ -301,17 +382,4 @@ def save(fname, header, **kwargs):
     table = fits.BinTableHDU.from_columns(columns)
 
     hdulist = fits.HDUList(hdus=[primary, table])
-    hdulist.writeto(fname, overwrite=True, output_verify="fix+warn")
-
-
-if __name__ == "__main__":
-    import os
-    import matplotlib.pyplot as plt
-
-    folder = "./reduce/"
-    file = folder + [f for f in os.listdir(folder) if f[-5:] == "c.ech"][0]
-    ech = read(file)
-
-    for i in range(25):
-        plt.plot(ech.wave[i], ech.spec[i])
-    plt.show()
+    hdulist.writeto(fname, overwrite=True, output_verify="silentfix+ignore")

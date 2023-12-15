@@ -1,6 +1,8 @@
-[![Build Status](https://travis-ci.org/AWehrhahn/PyReduce.svg?branch=master)](https://travis-ci.org/AWehrhahn/PyReduce)
+![Python application](https://github.com/AWehrhahn/PyReduce/workflows/Python%20application/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
 [![Updates](https://pyup.io/repos/github/AWehrhahn/PyReduce/shield.svg)](https://pyup.io/repos/github/AWehrhahn/PyReduce/)
+
+# PyReduce is not currently under development and is provided as is. If you want to take over the project, please contact me.
 
 # PyREDUCE
 
@@ -12,6 +14,15 @@ Detailed documentation is available at [ReadTheDocs](https://pyreduce-astro.read
 Installation
 ------------
 PyReduce can be installed using pip using the following command: ``pip install pyreduce-astro``
+
+The most up-to-date version can be installed using ``pip install git+https://github.com/AWehrhahn/PyReduce`` instead. However this may be more buggy than the stable version.
+
+PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
+See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+
+Output Format
+-------------
+PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``.
 
 How To
 ------
@@ -27,4 +38,4 @@ Papers
 ------
 The original REDUCE paper: [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
 
-A paper describing the changes and updates of PyReduce is in preperation.
+A paper describing the changes and updates of PyReduce can be found here: [https://ui.adsabs.harvard.edu/abs/2021A%26A...646A..32P/abstract](https://ui.adsabs.harvard.edu/abs/2021A%26A...646A..32P/abstract)

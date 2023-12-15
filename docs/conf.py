@@ -21,15 +21,16 @@ sys.path.insert(0, path)
 
 
 # -- Project information -----------------------------------------------------
+from pyreduce import __version__
 
 project = "PyReduce"
 copyright = "2019, Ansgar Wehrhahn"
 author = "Ansgar Wehrhahn"
 
 # The short X.Y version
-version = ""
+version = __version__.split("+")[0]
 # The full version, including alpha/beta/rc tags
-release = "0.1"
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -82,7 +83,7 @@ pygments_style = "sphinx"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+# html_theme = "alabaster"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

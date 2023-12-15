@@ -1,0 +1,62 @@
+{
+    "__instrument__": "LICK_APF",
+    "instrument": {},
+    "bias": {
+    },
+    "flat": {
+    },
+    "orders": {
+        "degree": 4,
+        "filter_size": 15,
+        "min_cluster": 700,
+        "border_width": 0,
+        "noise": 10,
+        "merge_min_threshold": 0.01,
+        "auto_merge_threshold": 0.1,
+        "closing_shape": [3, 10],
+        "manual": true
+    },
+    "scatter": {
+        "extraction_width": [9, 9]
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": [9, 9],
+        "oversampling": 12,
+        "swath_width": 300
+    },
+    "wavecal_master": {
+        "extraction_width": 0.25
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [2, 6],
+        "manual": false
+    },
+    "freq_comb_master": {
+        "extraction_width": 0.25
+    },
+    "freq_comb": {
+        "dimensionality": "2D",
+        "degree": [6, 6]
+    },
+    "curvature": {
+        "extraction_width": 0.25,
+        "dimensionality": "1D",
+        "degree": 2
+    },
+    "science": {
+        "oversampling": 10,
+        "extraction_width": [8, 8],
+        "swath_width": 800,
+        "smooth_slitfunction": 6,
+        "smooth_spectrum": 0
+    },
+    "continuum": {
+    },
+    "finalize": {
+        "filename": "{input}.ech"
+    }
+}

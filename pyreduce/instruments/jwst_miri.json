@@ -1,15 +1,28 @@
 {
     "__instrument__": "JWST_MIRI",
     "instrument": "INSTRUME",
+    "id_instrument": "MIRI",
+    "telescope": "JWST",
     "date": "DATE-OBS",
+    "date_format": "fits",
     "time": "TIME-OBS",
+    "target": "OBJECT",
     "instrument_mode": "EXP_TYPE",
-    "modes": ["LRS_SLITLESS"],
-    "modes_id": ["MIR_LRS-SLITLESS"],
-    "extension": ["SCI"],
+    "modes": [
+        "LRS_SLITLESS"
+    ],
+    "modes_id": [
+        "MIR_LRS-SLITLESS"
+    ],
+    "extension": [
+        "SCI"
+    ],
     "orientation": 3,
-    "overscan_x" : 5,
+    "transpose": false,
+    "overscan_x": 5,
     "prescan_x": 15,
+    "prescan_y": 0,
+    "overscan_y": 0,
     "naxis_x": "SUBSIZE1",
     "naxis_y": "SUBSIZE2",
     "nints": "NINTS",
@@ -20,10 +33,21 @@
     "dec": "DEC_V1",
     "pa": "PA_V3",
     "exposure_time": "EXPTIME",
-    "observation_type": "FILETYPE",
-    "id_bias": "",
-    "id_flat": "",
-    "id_wave": "",
-    "id_spec": "ILLUMINATION",
-    "id_comb": ""
+
+    "kw_bias" : null,
+    "kw_flat" : null,
+    "kw_curvature": null,
+    "kw_scatter": null,
+    "kw_orders" : null,
+    "kw_wave": null,
+    "kw_comb": null,
+    "kw_spec": "FILETYPE",
+    "id_bias" : null,
+    "id_flat": null,
+    "id_orders": null,
+    "id_curvature": null,
+    "id_scatter": null,
+    "id_wave": null,
+    "id_comb": null,
+    "id_spec": "ILLUMINATION"
 }

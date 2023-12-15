@@ -1,43 +1,34 @@
+# -*- coding: utf-8 -*-
+import numpy as np
 import pytest
 
-import numpy as np
-
 from pyreduce import util
+from pyreduce.combine_frames import combine_frames
 from pyreduce.trace_orders import mark_orders
 
 
-def test_orders(instrument, mode, extension, files, settings, mask):
-    """
-    Test the order tracing for each test dataset
+def test_orders(instr, instrument, mode, files, settings, mask):
+    if len(files["orders"]) == 0:
+        pytest.skip(f"No order definition files found for instrument {instrument}")
 
-    Parameters
-    ----------
-    instrument : str
-        Instrument Name
-    mode : str
-        Current Mode
-    extension : int
-        fits extension for that mode
-    files : dict(str:str)
-        dict of files, sorted by type
-    settings : dict(str:obj)
-        configuration settings of this run
-    mask : array(bool) of size (n,)
-        Bad pixel mask
-    """
-
-    files = files["orders"][0]
-    order_img, _ = util.load_fits(files, instrument, mode, extension, mask=mask)
+    order_img, _ = combine_frames(files["orders"], instrument, mode, mask=mask)
     settings = settings["orders"]
 
     orders, column_range = mark_orders(
         order_img,
         min_cluster=settings["min_cluster"],
+        min_width=settings["min_width"],
         filter_size=settings["filter_size"],
         noise=settings["noise"],
         opower=settings["degree"],
+        degree_before_merge=settings["degree_before_merge"],
+        regularization=settings["regularization"],
+        closing_shape=settings["closing_shape"],
         border_width=settings["border_width"],
         manual=False,
+        auto_merge_threshold=settings["auto_merge_threshold"],
+        merge_min_threshold=settings["merge_min_threshold"],
+        sigma=settings["split_sigma"],
         plot=False,
     )
 

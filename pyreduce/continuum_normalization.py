@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 """
 Find the continuum level
 
 Currently only splices orders together
 First guess of the continuum is provided by the flat field
 """
-
+import logging
 from itertools import chain
 
 import matplotlib.pyplot as plt
@@ -12,10 +13,12 @@ import numpy as np
 
 from . import util
 
+logger = logging.getLogger(__name__)
+
 # np.seterr("raise")
 
 
-def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
+def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=None):
     """
     Splice orders together so that they form a continous spectrum
     This is achieved by linearly combining the overlaping regions
@@ -47,8 +50,15 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     """
     nord, _ = spec.shape  # Number of sp. orders, Order length in pixels
 
+    if cont is None:
+        cont = np.ones_like(spec)
+
     # Just to be extra safe that they are all the same
-    mask = np.ma.getmaskarray(spec) | (spec == 0) | (cont == 0)
+    mask = (
+        np.ma.getmaskarray(spec)
+        | (np.ma.getdata(spec) == 0)
+        | (np.ma.getdata(cont) == 0)
+    )
     spec = np.ma.masked_array(spec, mask=mask)
     wave = np.ma.masked_array(np.ma.getdata(wave), mask=mask)
     cont = np.ma.masked_array(np.ma.getdata(cont), mask=mask)
@@ -59,8 +69,10 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
         scale = np.ma.median(spec / cont, axis=1)
         cont *= scale[:, None]
 
-    if plot:
+    if plot:  # pragma: no cover
         plt.subplot(411)
+        if plot_title is not None:
+            plt.suptitle(plot_title)
         plt.title("Before")
         for i in range(spec.shape[0]):
             plt.plot(wave[i], spec[i] / cont[i])
@@ -79,6 +91,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     tmp0 = chain(range(iord0, 0, -1), range(iord0, nord - 1))
     tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
 
+    # Looping over order pairs
     for iord0, iord1 in zip(tmp0, tmp1):
         # Get data for current order
         # Note that those are just references to parts of the original data
@@ -118,27 +131,11 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
             )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
             u1[i1] = c1[i1] * utmp ** -0.5
-        else:  # Orders dont overlap
+        else:  # pragma: no cover
+            # TODO: Orders dont overlap
             continue
-            raise NotImplementedError("Orders don't overlap, please test")
-            c0 *= util.top(s0 / c0, 1, poly=True)
-            scale0 = util.top(s0 / c0, 1, poly=True)
-            scale0 = np.polyfit(w0, scale0, 1)
 
-            scale1 = util.top(s1 / c1, 1, poly=True)
-            scale1 = np.polyfit(w1, scale1, 1)
-
-            xx = np.linspace(np.min(w0), np.max(w1), 100)
-
-            # TODO test this
-            # scale = np.sum(scale0[0] * scale1[0] * xx * xx + scale0[0] * scale1[1] * xx + scale1[0] * scale0[1] * xx + scale1[1] * scale0[1])
-            scale = scale0[::-1, None] * scale1[None, ::-1]
-            scale = np.sum(np.polynomial.polynomial.polyval2d(xx, xx, scale)) / np.sum(
-                np.polyval(scale1, xx) ** 2
-            )
-            s1 *= scale
-
-    if plot:
+    if plot:  # pragma: no cover
         plt.subplot(413)
         plt.title("After")
         for i in range(nord):
@@ -155,11 +152,15 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False):
     return spec, wave, cont, sigm
 
 
-class Plot_Normalization:
-    def __init__(self, wsort, sB, new_wave, contB, iteration=0):
+class Plot_Normalization:  # pragma: no cover
+    def __init__(self, wsort, sB, new_wave, contB, iteration=0, title=None):
         plt.ion()
         self.fig = plt.figure()
-        self.fig.suptitle(f"Iteration: {iteration}")
+        self.title = title
+        suptitle = f"Iteration: {iteration}"
+        if self.title is not None:
+            suptitle = f"{self.title}\n{suptitle}"
+        self.fig.suptitle(suptitle)
 
         self.ax = self.fig.add_subplot(111)
         self.line1 = self.ax.plot(wsort, sB, label="Spectrum")[0]
@@ -169,7 +170,11 @@ class Plot_Normalization:
         plt.show()
 
     def plot(self, wsort, sB, new_wave, contB, iteration):
-        self.fig.suptitle(f"Iteration: {iteration}")
+        suptitle = f"Iteration: {iteration}"
+        if self.title is not None:
+            suptitle = f"{self.title}\n{suptitle}"
+        self.fig.suptitle(suptitle)
+
         self.line1.set_xdata(wsort)
         self.line1.set_ydata(sB)
         self.line2.set_xdata(new_wave)
@@ -193,8 +198,9 @@ def continuum_normalize(
     smooth_final=5e6,
     scale_vert=1,
     plot=True,
+    plot_title=None,
 ):
-    """ Fit a continuum to a spectrum by slowly approaching it from the top.
+    """Fit a continuum to a spectrum by slowly approaching it from the top.
     We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales
 
     TODO automatically find good parameters for smooth_initial and smooth_final
@@ -211,8 +217,8 @@ def continuum_normalize(
     sigm : masked array of shape (nord, ncol)
         Uncertainties of the spectrum
     iterations : int, optional
-        Number of iterations of the algorithm, 
-        note that runtime roughly scales with the number of iterations squared 
+        Number of iterations of the algorithm,
+        note that runtime roughly scales with the number of iterations squared
         (default: 10)
     smooth_initial : float, optional
         Smoothing parameter in the initial runs, usually smaller than smooth_final (default: 1e5)
@@ -235,21 +241,21 @@ def continuum_normalize(
     par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.ma.median(spec))))
 
     b = np.clip(cont, 1, None)
+    mask = ~np.ma.getmaskarray(b)
     for i in range(nord):
-        b[i, ~b.mask[i]] = util.middle(b[i, ~b.mask[i]], 1)
+        b[i, mask[i]] = util.middle(b[i, mask[i]], 1)
     cont = b
 
     # Create new equispaced wavelength grid
-    wmin = np.ma.min(wave)
-    wmax = np.ma.max(wave)
-    dwave = np.abs(wave[nord // 2, ncol // 2] - wave[nord // 2, ncol // 2 - 1]) * 0.5
+    tmp = wave.compressed()
+    wmin = np.min(tmp)
+    wmax = np.max(tmp)
+    dwave = np.abs(tmp[tmp.size // 2] - tmp[tmp.size // 2 - 1]) * 0.5
     nwave = np.ceil((wmax - wmin) / dwave) + 1
-    new_wave = np.linspace(wmin, wmax, nwave, endpoint=True)
+    new_wave = np.linspace(wmin, wmax, int(nwave), endpoint=True)
 
     # Combine all orders into one big spectrum, sorted by wavelength
-    wsort, j, index = np.unique(
-        wave.compressed(), return_index=True, return_inverse=True
-    )
+    wsort, j, index = np.unique(tmp, return_index=True, return_inverse=True)
     sB = (spec / cont).compressed()[j]
 
     # Get initial weights for each point
@@ -269,46 +275,53 @@ def continuum_normalize(
     # Keep the scale of the continuum
     bbb = util.middle(cont.compressed()[j], 1)
 
-    contB = 1
-    for i in range(iterations):
-        # Find new approximation of the top, smoothed by some parameter
-        c = ssB / contB
-        for _ in range(iterations):
-            _c = util.top(
-                c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
+    contB = np.ones_like(ssB)
+    if plot:  # pragma: no cover
+        p = Plot_Normalization(wsort, sB, new_wave, contB, 0, title=plot_title)
+
+    try:
+        for i in range(iterations):
+            # Find new approximation of the top, smoothed by some parameter
+            c = ssB / contB
+            for _ in range(iterations):
+                _c = util.top(
+                    c, smooth_initial, eps=par2, weight=weight, lambda2=smooth_final
+                )
+                c = np.clip(_c, c, None)
+            c = (
+                util.top(
+                    c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final
+                )
+                * contB
             )
-            c = np.clip(_c, c, None)
-        c = (
-            util.top(c, smooth_initial, eps=par4, weight=weight, lambda2=smooth_final)
-            * contB
-        )
 
-        # Scale it and update the weights of each point
-        contB = c * scale_vert
-        contB = util.middle(contB, 1)
-        weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
+            # Scale it and update the weights of each point
+            contB = c * scale_vert
+            contB = util.middle(contB, 1)
+            weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
 
-        # Plot the intermediate results
-        if plot:
-            if i == 0:
-                p = Plot_Normalization(wsort, sB, new_wave, contB, i)
-            else:
+            # Plot the intermediate results
+            if plot:  # pragma: no cover
                 p.plot(wsort, sB, new_wave, contB, i)
-
-    # Need to close the plot afterwards
-    if plot:
-        p.close()
+    except ValueError:
+        logger.error("Continuum fitting aborted")
+    finally:
+        if plot:  # pragma: no cover
+            p.close()
 
     # Calculate the new continuum from intermediate values
     # new_cont = util.safe_interpolation(new_wave, contB, wsort)
     new_cont = np.interp(wsort, new_wave, contB)
-    cont[~cont.mask] = (new_cont * bbb)[index]
+    mask = np.ma.getmaskarray(cont)
+    cont[~mask] = (new_cont * bbb)[index]
 
     # Final output plot
-    if plot:
+    if plot:  # pragma: no cover
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
         plt.legend(loc="best")
+        if plot_title is not None:
+            plt.title(plot_title)
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
         plt.show()

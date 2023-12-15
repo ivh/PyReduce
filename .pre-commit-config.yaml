@@ -1,0 +1,43 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    # Identify invalid files
+    -   id: check-ast
+    -   id: check-yaml
+    -   id: check-json
+    -   id: check-toml
+    # git checks
+    -   id: check-merge-conflict
+    -   id: check-added-large-files
+    -   id: detect-private-key
+    -   id: check-case-conflict
+    # Python checks
+    -   id: check-docstring-first
+    -   id: debug-statements
+    -   id: requirements-txt-fixer
+    -   id: fix-encoding-pragma
+    -   id: fix-byte-order-marker
+    # General checks
+    -   id: mixed-line-ending
+        exclude: ".fits"
+    -   id: trailing-whitespace
+        exclude: ".fits"
+    # -   id: check-executables-have-shebangs
+    -   id: end-of-file-fixer
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v2.29.0
+    hooks:
+    -   id: pyupgrade
+-   repo: https://github.com/pycqa/isort
+    rev: 5.9.3
+    hooks:
+      - id: isort
+-   repo: https://github.com/psf/black
+    rev: 21.9b0
+    hooks:
+    -   id: black
+-   repo: https://github.com/PyCQA/flake8
+    rev:  4.0.1
+    hooks:
+    -   id: flake8

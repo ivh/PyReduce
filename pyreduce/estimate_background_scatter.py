@@ -1,18 +1,6 @@
+# -*- coding: utf-8 -*-
 """
 Module that estimates the background scatter
-
-Authors
--------
-Ansgar Wehrhahn (ansgar.wehrhahn@physics.uu.se)
-
-Version
--------
-1.0 - 2d polynomial background scatter
-
-License
--------
-TODO
-
 """
 
 import logging
@@ -20,8 +8,10 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import extract
-from .util import polyfit2d, polyfit2d_2, make_index
+from .extract import fix_extraction_width, fix_parameters
+from .util import make_index, polyfit2d, polyfit2d_2
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_background_scatter(
@@ -33,10 +23,12 @@ def estimate_background_scatter(
     sigma_cutoff=2,
     border_width=10,
     plot=False,
-    **kwargs
+    plot_title=None,
 ):
     """
     Estimate the background by fitting a 2d polynomial to interorder data
+
+    Interorder data is all pixels minus the orders +- the extraction width
 
     Parameters
     ----------
@@ -61,56 +53,18 @@ def estimate_background_scatter(
         y positions of the interorder lines, the scatter values are taken from
     """
 
-    if not isinstance(scatter_degree, (int, np.integer, tuple)):
-        raise TypeError(
-            "Expected integer value for scatter polynomial degree, got %s"
-            % type(scatter_degree)
-        )
-    if isinstance(scatter_degree, tuple):
-        if len(scatter_degree) != 2:
-            raise ValueError(
-                "Expected tuple of length 2, but got length %i" % len(scatter_degree)
-            )
-        types = [isinstance(i, (int, np.integer)) for i in scatter_degree]
-        if not all(types):
-            raise TypeError(
-                "Expected integer value for scatter polynomial degree, got %s"
-                % type(scatter_degree)
-            )
-        values = [i < 0 for i in scatter_degree]
-        if any(values):
-            raise ValueError(
-                "Expected positive value for scatter polynomial degree, got %s"
-                % str(scatter_degree)
-            )
-    elif scatter_degree < 0:
-        raise ValueError(
-            "Expected positive value for scatter polynomial degree, got %i"
-            % scatter_degree
-        )
-
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
-    if np.isscalar(extraction_width):
-        extraction_width = np.tile([extraction_width, extraction_width], (nord, 1))
-    if column_range is None:
-        column_range = np.tile([0, ncol], (nord, 1))
-    # Extend orders above and below orders
-    orders = extract.extend_orders(orders, nrow)
-    extraction_width = np.array(
-        [extraction_width[0], *extraction_width, extraction_width[-1]]
+    extraction_width, column_range, orders = fix_parameters(
+        extraction_width,
+        column_range,
+        orders,
+        nrow,
+        ncol,
+        nord,
+        ignore_column_range=True,
     )
-    column_range = np.array([column_range[0], *column_range, column_range[-1]])
-
-    extraction_width = extract.fix_extraction_width(
-        extraction_width, orders, column_range, ncol
-    )
-
-    # column_range = extract.fix_column_range(img, orders, extraction_width, column_range)
-    column_range = column_range[1:-1]
-    orders = orders[1:-1]
-    extraction_width = extraction_width[1:-1]
 
     # Method 1: Select all pixels, but those known to be in orders
     bw = border_width
@@ -147,10 +101,10 @@ def estimate_background_scatter(
     mask = z <= np.median(z) + sigma_cutoff * z.std()
     y, x, z = y[mask], x[mask], z[mask]
 
-    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot)
-    logging.debug("Background scatter coefficients: %s", str(coeff))
+    coeff = polyfit2d(x, y, z, degree=scatter_degree, plot=plot, plot_title=plot_title)
+    logger.debug("Background scatter coefficients: %s", str(coeff))
 
-    if plot:
+    if plot:  # pragma: no cover
         # Calculate scatter at interorder positionsq
         yp, xp = np.indices(img.shape)
         back = np.polynomial.polynomial.polyval2d(xp, yp, coeff)
@@ -159,14 +113,18 @@ def estimate_background_scatter(
         plt.title("Input Image + In-between Order traces")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(img - back, aspect="equal", origin="lower")
+        vmin, vmax = np.percentile(img - back, (5, 95))
+        plt.imshow(img - back, vmin=vmin, vmax=vmax, aspect="equal", origin="lower")
         plt.plot(x, y, ",")
 
         plt.subplot(122)
         plt.title("2D fit to the scatter between orders")
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        plt.imshow(back, vmin=0, vmax=np.max(back), aspect="equal", origin="lower")
+        plt.imshow(back, vmin=0, vmax=abs(np.max(back)), aspect="equal", origin="lower")
+
+        if plot_title is not None:
+            plt.suptitle(plot_title)
         plt.show()
 
     return coeff

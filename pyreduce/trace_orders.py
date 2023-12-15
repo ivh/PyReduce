@@ -1,37 +1,63 @@
+# -*- coding: utf-8 -*-
 """
 Find clusters of pixels with signal
 And combine them into continous orders
 """
 
 import logging
-from itertools import combinations
 from functools import cmp_to_key
+from itertools import combinations
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
-
-from scipy.ndimage import morphology, label
+from scipy.ndimage import label, morphology
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
-from scipy.signal import peak_widths, find_peaks
+from scipy.ndimage.morphology import grey_closing
+from scipy.signal import find_peaks, peak_widths
 
 from .util import polyfit1d
+
+logger = logging.getLogger(__name__)
 
 
 def fit(x, y, deg, regularization=0):
     # order = polyfit1d(y, x, deg, regularization)
-    order = Polynomial.fit(y, x, deg=deg, domain=[]).coef[::-1]
+    if deg == "best":
+        order = best_fit(x, y)
+    else:
+        order = Polynomial.fit(y, x, deg=deg, domain=[]).coef[::-1]
     return order
 
 
+def best_fit(x, y):
+    aic = np.inf
+    for k in range(5):
+        coeff_new = fit(x, y, k)
+        chisq = np.sum((np.polyval(coeff_new, y) - x) ** 2)
+        aic_new = 2 * k + chisq
+        if aic_new > aic:
+            break
+        else:
+            coeff = coeff_new
+            aic = aic_new
+    return coeff
+
+
 def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol, deg=2):
+    # i and j are the indices of the 2 clusters
     i_left, i_right = yi.min(), yi.max()
     j_left, j_right = yj.min(), yj.max()
 
+    # The number of pixels in the smaller cluster
+    # this limits the accuracy of the fit
+    n_min = min(i_right - i_left, j_right - j_left)
+
+    # Fit a polynomial to each cluster
     order_i = fit(xi, yi, deg)
     order_j = fit(xj, yj, deg)
 
-    # Get polynomial points inside cluster limits for each
+    # Get polynomial points inside cluster limits for each cluster and polynomial
     y_ii = np.polyval(order_i, np.arange(i_left, i_right))
     y_ij = np.polyval(order_i, np.arange(j_left, j_right))
     y_jj = np.polyval(order_j, np.arange(j_left, j_right))
@@ -44,8 +70,11 @@ def determine_overlap_rating(xi, yi, xj, yj, mean_cluster_thickness, nrow, ncol,
     ind_i = np.where((diff_i < mean_cluster_thickness) & (y_ji >= 0) & (y_ji < nrow))
     ind_j = np.where((diff_j < mean_cluster_thickness) & (y_ij >= 0) & (y_ij < nrow))
 
-    overlap = len(ind_i[0]) + len(ind_j[0])
-    overlap = overlap / ((i_right - i_left) + (j_right - j_left))
+    # TODO: There should probably be some kind of normaliztion, that scales with the size of the cluster?
+    # or possibly only use the closest pixels to determine overlap, since the polynomial is badly constrained outside of the bounds.
+    overlap = min(n_min, len(ind_i[0])) + min(n_min, len(ind_j[0]))
+    # overlap = overlap / ((i_right - i_left) + (j_right - j_left))
+    overlap /= 2 * n_min
     if i_right < j_left:
         overlap *= 1 - (i_right - j_left) / ncol
     elif j_right < i_left:
@@ -142,6 +171,7 @@ def merge_clusters(
     deg=2,
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
+    plot_title=None,
 ):
     """Merge clusters that belong together
 
@@ -185,21 +215,24 @@ def merge_clusters(
         i, j, overlap, _, _ = merge[k]
         i, j = int(i), int(j)
 
-        if overlap >= auto_merge_threshold:
+        if overlap >= auto_merge_threshold and auto_merge_threshold != 1:
             answer = "y"
         elif manual:
-            plot_order(i, j, x, y, img, deg, title=f"Probability: {overlap}")
+            title = f"Probability: {overlap}"
+            if plot_title is not None:
+                title = f"{plot_title}\n{title}"
+            plot_order(i, j, x, y, img, deg, title=title)
             while True:
                 if manual:
                     answer = input("Merge? [y/n]")
                 if answer in "ynrg":
                     break
         else:
-            answer = "y"
+            answer = "n"
 
         if answer == "y":
             # just merge automatically
-            logging.info("Merging orders %i and %i", i, j)
+            logger.info("Merging orders %i and %i", i, j)
             x, y, merge = combine(
                 i, j, x, y, merge, mct, nrow, ncol, deg, merge_min_threshold
             )
@@ -241,8 +274,8 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
     return orders
 
 
-def plot_orders(im, x, y, clusters, orders, order_range):
-    """ Plot orders and image """
+def plot_orders(im, x, y, clusters, orders, order_range, title=None):
+    """Plot orders and image"""
 
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
@@ -276,11 +309,13 @@ def plot_orders(im, x, y, clusters, orders, order_range):
             plt.plot(x, y)
 
     plt.ylim([0, im.shape[0]])
+    if title is not None:
+        plt.suptitle(title)
     plt.show()
 
 
 def plot_order(i, j, x, y, img, deg, title=""):
-    """ Plot a single order """
+    """Plot a single order"""
     _, ncol = img.shape
 
     order_i = fit(x[i], y[i], deg)
@@ -290,44 +325,50 @@ def plot_order(i, j, x, y, img, deg, title=""):
     yi = np.polyval(order_i, xp)
     yj = np.polyval(order_j, xp)
 
+    xmin = min(np.min(x[i]), np.min(x[j])) - 50
+    xmax = max(np.max(x[i]), np.max(x[j])) + 50
+    ymin = min(np.min(y[i]), np.min(y[j])) - 50
+    ymax = max(np.max(y[i]), np.max(y[j])) + 50
+
+    yymin = min(max(0, ymin), img.shape[0] - 2)
+    yymax = min(ymax, img.shape[0] - 1)
+    xxmin = min(max(0, xmin), img.shape[1] - 2)
+    xxmax = min(xmax, img.shape[1] - 1)
+
+    vmin, vmax = np.percentile(img[yymin:yymax, xxmin:xxmax], (5, 95))
+
     plt.clf()
     plt.title(title)
-    plt.imshow(img)
+    plt.imshow(img, vmin=vmin, vmax=vmax)
     plt.plot(xp, yi, "r")
     plt.plot(xp, yj, "g")
     plt.plot(y[i], x[i], "r.")
     plt.plot(y[j], x[j], "g.")
-
-    xmin = min(np.min(x[i]), np.min(x[j])) - 50
-    xmax = max(np.max(x[i]), np.max(x[j])) + 50
-
-    ymin = min(np.min(y[i]), np.min(y[j])) - 50
-    ymax = max(np.max(y[i]), np.max(y[j])) + 50
-
     plt.xlim([ymin, ymax])
     plt.ylim([xmin, xmax])
-
     plt.show()
 
 
 def mark_orders(
     im,
-    min_cluster=500,
-    filter_size=120,
-    noise=8,
+    min_cluster=None,
+    min_width=None,
+    filter_size=None,
+    noise=None,
     opower=4,
-    border_width=5,
+    border_width=None,
     degree_before_merge=2,
     regularization=0,
     closing_shape=(5, 5),
     opening_shape=(2, 2),
     plot=False,
+    plot_title=None,
     manual=True,
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
-    sigma=2,
+    sigma=0,
 ):
-    """ Identify and trace orders
+    """Identify and trace orders
 
     Parameters
     ----------
@@ -355,7 +396,7 @@ def mark_orders(
     """
 
     # Convert to signed integer, to avoid underflow problems
-    im = np.asarray(im)
+    im = np.asanyarray(im)
     im = im.astype(int)
 
     if filter_size is None:
@@ -363,8 +404,8 @@ def mark_orders(
         col = median_filter(col, 5)
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
-        filter_size = im.shape[0] // npeaks
-        logging.info("Median filter size, estimated: %i", filter_size)
+        filter_size = im.shape[0] // (npeaks * 2)
+        logger.info("Median filter size, estimated: %i", filter_size)
     elif filter_size <= 0:
         raise ValueError(f"Expected filter size > 0, but got {filter_size}")
 
@@ -375,31 +416,42 @@ def mark_orders(
         idx = np.argmax(col)
         width = peak_widths(col, [idx])[0][0]
         border_width = int(np.ceil(width))
-        logging.info("Image border width, estimated: %i", border_width)
+        logger.info("Image border width, estimated: %i", border_width)
     elif border_width < 0:
         raise ValueError(f"Expected border width > 0, but got {border_width}")
 
     if min_cluster is None:
         min_cluster = im.shape[1] // 4
-        logging.info("Minimum cluster size, estimated: %i", min_cluster)
+        logger.info("Minimum cluster size, estimated: %i", min_cluster)
     elif not np.isscalar(min_cluster):
         raise TypeError(f"Expected scalar minimum cluster size, but got {min_cluster}")
 
+    if min_width is None:
+        min_width = 0.25
+    if min_width == 0:
+        pass
+    elif isinstance(min_width, (float, np.floating)):
+        min_width = int(min_width * im.shape[0])
+        logger.info("Minimum order width, estimated: %i", min_width)
+
+    # im[im < 0] = np.ma.masked
+    blurred = np.ma.filled(im, fill_value=0)
+    blurred = grey_closing(blurred, 5)
     # blur image along columns, and use the median + blurred + noise as threshold
-    blurred = gaussian_filter1d(im, filter_size, axis=0)
+    blurred = gaussian_filter1d(blurred, filter_size, axis=0)
 
     if noise is None:
         tmp = np.abs(blurred.flatten())
         noise = np.percentile(tmp, 5)
-        logging.info("Background noise, estimated: %f", noise)
+        logger.info("Background noise, estimated: %f", noise)
     elif not np.isscalar(noise):
         raise TypeError(f"Expected scalar noise level, but got {noise}")
 
-    threshold = np.ma.median(blurred - im, axis=0)
-    mask = im > blurred + noise + np.abs(threshold)
+    mask = im > blurred + noise
     # remove borders
     if border_width != 0:
         mask[:border_width, :] = mask[-border_width:, :] = False
+        mask[:, :border_width] = mask[:, -border_width:] = False
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
@@ -461,7 +513,8 @@ def mark_orders(
         #
 
         m = {
-            i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff for i in x.keys()
+            i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff
+            for i in x.keys()
         }
 
         k = max(x.keys()) + 1
@@ -488,8 +541,11 @@ def mark_orders(
                 # plt.imshow(clusters, origin="lower")
                 # plt.show()
 
-    if plot:
-        plt.title("Identified clusters")
+    if plot:  # pragma: no cover
+        title = "Identified clusters"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         clusters = np.ma.zeros(im.shape, dtype=int)
@@ -510,7 +566,17 @@ def mark_orders(
         deg=degree_before_merge,
         auto_merge_threshold=auto_merge_threshold,
         merge_min_threshold=merge_min_threshold,
+        plot_title=plot_title,
     )
+
+    if min_width > 0:
+        sizes = {k: v.max() - v.min() for k, v in y.items()}
+        mask_sizes = {k: v > min_width for k, v in sizes.items()}
+        for k, v in mask_sizes.items():
+            if not v:
+                del x[k]
+                del y[k]
+        n = x.keys()
 
     orders = fit_polynomials_to_clusters(x, y, n, opower)
 
@@ -540,7 +606,7 @@ def mark_orders(
 
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
-    if plot:
-        plot_orders(im, x, y, n, orders, column_range)
+    if plot:  # pragma: no cover
+        plot_orders(im, x, y, n, orders, column_range, title=plot_title)
 
     return orders, column_range

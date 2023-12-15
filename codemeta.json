@@ -1,0 +1,53 @@
+{
+    "@context": [
+        "https://doi.org/10.5063/schema/codemeta-2.0",
+        "http://schema.org",
+        {
+            "entryPoints": {
+                "@reverse": "schema:actionApplication"
+            },
+            "interfaceType": {
+                "@id": "codemeta:interfaceType"
+            },
+            "specification": {
+                "@id": "codemeta:specification",
+                "@type": "@id"
+            },
+            "mediatorApplication": {
+                "@id": "codemeta:mediatorApplication",
+                "@type": "@id"
+            }
+        }
+    ],
+    "@type": "SoftwareSourceCode",
+    "identifier": "pyreduce-astro",
+    "name": "pyreduce-astro",
+    "version": "0.4b2+0.gffea46e.dirty",
+    "description": "A data reduction package for echelle spectrographs",
+    "license": "UNKNOWN, OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "author": [{
+            "@type": "Person",
+            "givenName": "Ansgar",
+            "familyName": "Wehrhahn",
+            "email": "ansgar.wehrhahn@physics.uu.se"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Nikolai",
+            "familyName": "Piskunov",
+            "email": "nikolai.piskunov@physics.uu.se"
+        }
+    ],
+    "provider": {
+        "@id": "https://pypi.org",
+        "@type": "Organization",
+        "name": "The Python Package Index",
+        "url": "https://pypi.org"
+    },
+    "runtimePlatform": "Python 3",
+    "url": "https://github.com/AWehrhahn/PyReduce",
+    "programmingLanguage": "Python 3",
+    "operatingSystem": "POSIX :: Linux",
+    "interfaceType": "LIB",
+    "contIntegration": "https://travis-ci.org/AWehrhahn/PyReduce"
+}

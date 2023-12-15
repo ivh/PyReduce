@@ -1,117 +1,49 @@
+# -*- coding: utf-8 -*-
 """
 Collection of various useful and/or reoccuring functions across PyReduce
 """
 
-import argparse
 import logging
 import os
+import warnings
 from itertools import product
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-from astropy.io import fits
-from astropy import time, coordinates as coord, units as u
 import scipy.constants
 import scipy.interpolate
-from scipy.linalg import solve, solve_banded, lstsq
+from astropy import coordinates as coord
+from astropy import time
+from astropy import units as u
+from astropy.io import fits
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.linalg import lstsq, solve, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 from scipy.special import binom
 
-
-try:
-    import git
-
-    hasGit = True
-except ImportError:
-    hasGit = False
-
-
+from . import __version__
 from .clipnflip import clipnflip
 from .instruments.instrument_info import modeinfo
 
-
-def checkGitRepo(remote_name="origin"):
-    # TODO currently this runs everytime PyReduce is called
-    if not hasGit:
-        print("Install GitPython to check the git repository for updates")
-        return
-
-    try:
-        repo = git.Repo()
-        # branch = repo.active_branch
-        if len(repo.remotes) == 0:
-            print("No remotes found in Git repository")
-            return
-        if len(repo.remotes) == 1:
-            remote = repo.remotes[0]
-            remote_name = remote.name
-        else:
-            remote = repo.remotes[remote_name]
-        info = remote.fetch()
-        remote_commit = info[0].commit
-        current_commit = repo.commit()
-    except Exception:
-        print("Couldn't read remote Git repository %s", remote_name)
-
-    if remote_commit.authored_date > current_commit.authored_date:
-        print("A newer commit is available from remote Git %s", remote_name)
-        # while True:
-        #     install = input("Install it? [Y/n]")
-        #     if install.lower() in ["", "y", "yes", "1"]:
-        #         install = True
-        #         break
-        #     elif install.lower in ["n", "no", "0"]:
-        #         install = False
-        #         break
-
-        # if install:
-        #     print("Pulling newest commit")
-        #     remote.pull()
-        #     repo.status()
+logger = logging.getLogger(__name__)
 
 
-def parse_args():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="General REDUCE script")
-    parser.add_argument("-b", "--bias", action="store_true", help="Create master bias")
-    parser.add_argument("-f", "--flat", action="store_true", help="Create master flat")
-    parser.add_argument("-o", "--orders", action="store_true", help="Trace orders")
-    parser.add_argument("-n", "--norm_flat", action="store_true", help="Normalize flat")
-    parser.add_argument(
-        "-w", "--wavecal", action="store_true", help="Prepare wavelength calibration"
-    )
-    parser.add_argument(
-        "-s", "--science", action="store_true", help="Extract science spectrum"
-    )
-    parser.add_argument(
-        "-c", "--continuum", action="store_true", help="Normalize continuum"
-    )
+def resample(array, new_size):
+    x = np.arange(new_size)
+    xp = np.linspace(0, new_size, len(array))
+    return np.interp(x, xp, array)
 
-    parser.add_argument("instrument", type=str, help="instrument used")
-    parser.add_argument("target", type=str, help="target star")
 
-    args = parser.parse_args()
-    instrument = args.instrument.upper()
-    target = args.target.upper()
-
-    steps_to_take = {
-        "bias": args.bias,
-        "flat": args.flat,
-        "orders": args.orders,
-        "norm_flat": args.norm_flat,
-        "wavecal": args.wavecal,
-        "science": args.science,
-        "continuum": args.continuum,
-    }
-    steps_to_take = [k for k, v in steps_to_take.items() if v]
-
-    # if no steps are specified use all
-    if len(steps_to_take) == 0:
-        steps_to_take = "all"
-
-    return {"instrument": instrument, "target": target, "steps": steps_to_take}
+def remove_bias(img, ihead, bias, bhead, nfiles=1):
+    if bias is not None and bhead is not None:
+        b_exptime = bhead["EXPTIME"]
+        i_exptime = ihead["EXPTIME"]
+        if b_exptime == 0 or i_exptime == 0:
+            b_exptime = 1
+            i_exptime = nfiles
+        img = img - bias * i_exptime / b_exptime
+    return img
 
 
 def in_ipynb():
@@ -125,6 +57,12 @@ def in_ipynb():
         return False
 
 
+def log_version():
+    """For Debug purposes"""
+    logger.debug("----------------------")
+    logger.debug("PyReduce version: %s", __version__)
+
+
 def start_logging(log_file="log.log"):
     """Start logging to log file and command line
 
@@ -134,102 +72,57 @@ def start_logging(log_file="log.log"):
         name of the logging file (default: "log.log")
     """
 
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-    # Remove existing File handles
-    hasStream = False
-    for h in list(logger.handlers):
-        if isinstance(h, logging.FileHandler):
-            logger.removeHandler(h)
-        if isinstance(h, logging.StreamHandler):
-            hasStream = True
-
-    # Command Line output
-    # only if not running in notebook
-    if not hasStream:
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        ch_formatter = logging.Formatter("%(levelname)s - %(message)s")
-        ch.setFormatter(ch_formatter)
-        logger.addHandler(ch)
-
-    # Log file settings
-    if log_file is not None:
-        log_dir = os.path.dirname(log_file)
-        if log_dir != "" and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        file = logging.FileHandler(log_file)
-        file.setLevel(logging.DEBUG)
-        file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file.setFormatter(file_formatter)
-        logger.addHandler(file)
-
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format="%(asctime)-15s - %(levelname)s - %(name)-8s - %(message)s",
+    )
     logging.captureWarnings(True)
+    log_version()
 
-    logging.debug("----------------------")
 
-
-def load_fits(
-    fname, instrument, mode, extension, mask=None, header_only=False, dtype=None
-):
+def vac2air(wl_vac):
     """
-    load fits file, REDUCE style
-
-    primary and extension header are combined
-    modeinfo is applied to header
-    data is clipnflipped
-    mask is applied
-
-    Parameters
-    ----------
-    fname : str
-        filename
-    instrument : str
-        name of the instrument
-    mode : str
-        instrument mode
-    extension : int
-        data extension of the FITS file to load
-    mask : array, optional
-        mask to add to the data
-    header_only : bool, optional
-        only load the header, not the data
-    dtype : str, optional
-        numpy datatype to convert the read data to
-
-    Returns
-    --------
-    data : masked_array
-        FITS data, clipped and flipped, and with mask
-    header : fits.header
-        FITS header (Primary and Extension + Modeinfo)
-
-    ONLY the header is returned if header_only is True 
+    Convert vacuum wavelengths to wavelengths in air
+    Author: Nikolai Piskunov
     """
-    hdu = fits.open(fname)
-    header = hdu[extension].header
-    header.extend(hdu[0].header, strip=False)
-    header = modeinfo(header, instrument, mode)
-    header["e_input"] = (os.path.basename(fname), "Original input filename")
+    wl_air = wl_vac
+    ii = np.where(wl_vac > 2e3)
 
-    if header_only:
-        hdu.close()
-        return header
+    sigma2 = (1e4 / wl_vac[ii]) ** 2  # Compute wavenumbers squared
+    fact = (
+        1e0
+        + 8.34254e-5
+        + 2.406147e-2 / (130e0 - sigma2)
+        + 1.5998e-4 / (38.9e0 - sigma2)
+    )
+    wl_air[ii] = wl_vac[ii] / fact  # Convert to air wavelength
+    return wl_air
 
-    data = clipnflip(hdu[extension].data, header)
 
-    if dtype is not None:
-        data = data.astype(dtype)
+def air2vac(wl_air):
+    """
+    Convert wavelengths in air to vacuum wavelength
+    Author: Nikolai Piskunov
+    """
+    wl_vac = np.copy(wl_air)
+    ii = np.where(wl_air > 1999.352)
 
-    data = np.ma.masked_array(data, mask=mask)
-
-    hdu.close()
-    return data, header
+    sigma2 = (1e4 / wl_air[ii]) ** 2  # Compute wavenumbers squared
+    fact = (
+        1e0
+        + 8.336624212083e-5
+        + 2.408926869968e-2 / (1.301065924522e2 - sigma2)
+        + 1.599740894897e-4 / (3.892568793293e1 - sigma2)
+    )
+    wl_vac[ii] = wl_air[ii] * fact  # Convert to vacuum wavelength
+    return wl_vac
 
 
 def swap_extension(fname, ext, path=None):
-    """ exchange the extension of the given file with a new one """
+    """exchange the extension of the given file with a new one"""
     if path is None:
         path = os.path.dirname(fname)
     nameout = os.path.basename(fname)
@@ -241,7 +134,7 @@ def swap_extension(fname, ext, path=None):
 
 
 def find_first_index(arr, value):
-    """ find the first element equal to value in the array arr """
+    """find the first element equal to value in the array arr"""
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
@@ -249,7 +142,7 @@ def find_first_index(arr, value):
 
 
 def interpolate_masked(masked):
-    """ Interpolate masked values, from non masked values
+    """Interpolate masked values, from non masked values
 
     Parameters
     ----------
@@ -297,7 +190,7 @@ def cutout_image(img, ymin, ymax, xmin, xmax):
 
 
 def make_index(ymin, ymax, xmin, xmax, zero=0):
-    """ Create an index (numpy style) that will select part of an image with changing position but fixed height
+    """Create an index (numpy style) that will select part of an image with changing position but fixed height
 
     The user is responsible for making sure the height is constant, otherwise it will still work, but the subsection will not have the desired format
 
@@ -345,6 +238,7 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
 
     return index
 
+
 def gridsearch(func, grid, args=(), kwargs={}):
     matrix = np.zeros(grid.shape[:-1])
 
@@ -361,6 +255,7 @@ def gridsearch(func, grid, args=(), kwargs={}):
             matrix[idx] = result
 
     return matrix
+
 
 def gaussfit(x, y):
     """
@@ -381,7 +276,7 @@ def gaussfit(x, y):
         fitted values for x, fit paramters (a, mu, sigma)
     """
 
-    gauss = lambda x, A0, A1, A2: A0 * np.exp(-((x - A1) / A2) ** 2 / 2)
+    gauss = lambda x, A0, A1, A2: A0 * np.exp(-(((x - A1) / A2) ** 2) / 2)
     popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 
@@ -423,8 +318,8 @@ def gaussfit2(x, y):
 
     i = np.argmax(y * weights)
     p0 = [y[i], x[i], 1]
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         res = least_squares(
             lambda c: gauss(x, *c, np.ma.min(y)) - y,
             p0,
@@ -439,7 +334,7 @@ def gaussfit2(x, y):
 
 
 def gaussfit3(x, y):
-    """ A very simple (and relatively fast) gaussian fit
+    """A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
     Parameters
@@ -454,19 +349,22 @@ def gaussfit3(x, y):
     popt : list of shape (4,)
         Parameters A, mu, sigma**2, offset
     """
+    mask = np.ma.getmaskarray(x) | np.ma.getmaskarray(y)
+    x, y = x[~mask], y[~mask]
+
     gauss = gaussval2
     i = np.argmax(y[len(y) // 4 : len(y) * 3 // 4]) + len(y) // 4
     p0 = [y[i], x[i], 1, np.min(y)]
 
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
 
 
 def gaussfit4(x, y):
-    """ A very simple (and relatively fast) gaussian fit
+    """A very simple (and relatively fast) gaussian fit
     gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
 
     Assumes x is sorted
@@ -484,21 +382,21 @@ def gaussfit4(x, y):
         Parameters A, mu, sigma**2, offset
     """
     gauss = gaussval2
-    i = len(x) // 2
+    x = np.ma.compressed(x)
+    y = np.ma.compressed(y)
+    i = np.argmax(y)
     p0 = [y[i], x[i], 1, np.min(y)]
 
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
 
 
 def gaussfit_linear(x, y):
-    """ Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
+    """Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
     For efficiency reasons. (roughly 10 times faster than the curve fit)
-
-    Note, only works for positive values of y
 
     Parameters
     ----------
@@ -537,7 +435,7 @@ def gaussfit_linear(x, y):
 
 
 def gaussval2(x, a, mu, sig, const):
-    return a * np.exp(-(x - mu) ** 2 / (2 * sig)) + const
+    return a * np.exp(-((x - mu) ** 2) / (2 * sig)) + const
 
 
 def gaussbroad(x, y, hwhm):
@@ -593,7 +491,7 @@ def polyfit1d(x, y, degree=1, regularization=0):
     A = np.array([np.power(x, i) for i in idx], dtype=float).T
     b = y.ravel()
 
-    L = np.array([regularization * i**2 for i in idx])
+    L = np.array([regularization * i ** 2 for i in idx])
     I = np.linalg.inv(A.T @ A + np.diag(L))
     coeff = I @ A.T @ b
 
@@ -616,6 +514,10 @@ def _scale(x, y):
     # Mean 0, Variation 1
     offset_x, offset_y = np.mean(x), np.mean(y)
     norm_x, norm_y = np.std(x), np.std(y)
+    if norm_x == 0:
+        norm_x = 1
+    if norm_y == 0:
+        norm_y = 1
     x = (x - offset_x) / norm_x
     y = (y - offset_y) / norm_y
     return x, y, (norm_x, norm_y), (offset_x, offset_y)
@@ -659,7 +561,7 @@ def polyshift2d(coeff, offset_x, offset_y, copy=True):
     return coeff
 
 
-def plot2d(x, y, z, coeff):
+def plot2d(x, y, z, coeff, title=None):
     # regular grid covering the domain of the data
     if x.size > 500:
         choice = np.random.choice(x.size, size=500, replace=False)
@@ -677,12 +579,16 @@ def plot2d(x, y, z, coeff):
     plt.xlabel("X")
     plt.ylabel("Y")
     ax.set_zlabel("Z")
+    if title is not None:
+        plt.title(title)
     # ax.axis("equal")
     # ax.axis("tight")
     plt.show()
 
 
-def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
+def polyfit2d(
+    x, y, z, degree=1, max_degree=None, scale=True, plot=False, plot_title=None
+):
     """A simple 2D plynomial fit to data x, y, z
     The polynomial can be evaluated with numpy.polynomial.polynomial.polyval2d
 
@@ -725,6 +631,7 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
     # usually: [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ....]
     if np.isscalar(degree):
         degree = (int(degree), int(degree))
+    assert len(degree) == 2, "Only 2D polynomials can be fitted"
     degree = [int(degree[0]), int(degree[1])]
     # idx = [[i, j] for i, j in product(range(degree[0] + 1), range(degree[1] + 1))]
     coeff = np.zeros((degree[0] + 1, degree[1] + 1))
@@ -751,14 +658,19 @@ def polyfit2d(x, y, z, degree=1, max_degree=None, scale=True, plot=False):
         coeff = polyscale2d(coeff, *norm, copy=False)
         coeff = polyshift2d(coeff, *offset, copy=False)
 
-    if plot:
+    if plot:  # pragma: no cover
         if scale:
             x, y = _unscale(x, y, norm, offset)
-        plot2d(x, y, z, coeff)
+        plot2d(x, y, z, coeff, title=plot_title)
 
     return coeff
 
-def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=False):
+
+def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=False):
+
+    x = x.ravel()
+    y = y.ravel()
+    z = z.ravel()
 
     if np.isscalar(degree):
         degree_x = degree_y = degree + 1
@@ -774,15 +686,15 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, loss="linear", method="lm", plot=Fal
         return value - z
 
     if x0 is None:
-        x0 = np.random.random_sample(degree_x * degree_y) * 0.1
+        x0 = np.zeros(degree_x * degree_y)
     else:
         x0 = x0.ravel()
 
     res = least_squares(func, x0, loss=loss, method=method)
     coef = res.x
-    coef.shape = degree_x, degree_y
+    coef = coef.reshape(degree_x, degree_y)
 
-    if plot:
+    if plot:  # pragma: no cover
         # regular grid covering the domain of the data
         if x.size > 500:
             choice = np.random.choice(x.size, size=500, replace=False)
@@ -838,7 +750,7 @@ def bezier_interp(x_old, y_old, x_new):
     x_old, index = np.unique(x_old, return_index=True)
     y_old = y_old[index]
 
-    knots, coef, order = scipy.interpolate.splrep(x_old, y_old)
+    knots, coef, order = scipy.interpolate.splrep(x_old, y_old, s=0)
     y_new = scipy.interpolate.BSpline(knots, coef, order)(x_new)
     return y_new
 
@@ -1221,6 +1133,8 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         (for 2d array only) filter width in y direction (2nd index) if ywidth is missing for 2d array, it set equal to xwidth
     weight : array(float)
         an array of the same size(s) as f containing values between 0 and 1
+    lambda1: float
+        regularization parameter
     maxiter : int
         maximum number of iteration for filtering of 2d array
     """
@@ -1235,8 +1149,6 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
 
     # 1D case
     if y.ndim == 1 or (y.ndim == 2 and (y.shape[0] == 1 or y.shape[1] == 1)):
-        if par < 0:
-            return y
         y = y.ravel()
         n = y.size
 
@@ -1286,70 +1198,41 @@ def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
         if par1 is None:
             par1 = par
         if par == 0 and par1 == 0:
-            raise ValueError("par and par1 can't both be 0")
+            raise ValueError("xwidth and ywidth can't both be 0")
         n = y.size
-        nc, nr = y.shape
+        nx, ny = y.shape
 
-        adiag = abs(par)
-        bdiag = abs(par1)
+        lam_x = abs(par)
+        lam_y = abs(par1)
 
-        # Main diagonal first:
-        # aa = np.zeros((nc, nr))
-        # aa[0, 0] = 1. + adiag + bdiag
-        # aa[1:-2, 0] = np.full(nc - 2, 1. + 2. * adiag + bdiag)
-        # aa[-1, 0] = 1. + adiag + bdiag
+        n = nx * ny
+        ndiag = 2 * nx + 1
+        aij = np.zeros((n, ndiag))
+        aij[nx, 0] = weight[0, 0] + lam_x + lam_y
+        aij[nx, 1:nx] = weight[0, 1:nx] + 2 * lam_x + lam_y
+        aij[nx, nx : n - nx] = weight[1 : ny - 1] + 2 * (lam_x + lam_y)
+        aij[nx, n - nx : n - 1] = weight[ny - 1, 0 : nx - 1] + 2 * lam_x + lam_y
+        aij[nx, n - 1] = weight[ny - 1, nx - 1] + lam_x + lam_y
 
-        # aa = np.array(
-        #     (
-        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(n - 2 * nc, 1. + 2. * adiag + 2. * bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(nc - 2, 1. + 2. * adiag + bdiag),
-        #         1. + adiag + bdiag,
-        #         np.full(n - 1, -adiag),
-        #         np.full(n - 1, -adiag),
-        #         np.full(n - nc, -bdiag),
-        #         np.full(n - nc, -bdiag),
-        #     )
-        # )
+        aij[nx - 1, 1:n] = -lam_x
+        aij[nx + 1, 0 : n - 1] = -lam_x
 
-        # col = np.arange(nr - 2) * nc + nc  # special cases:
-        aaa = np.full(nr - 2, 1. + adiag + 2. * bdiag)
-        # aa[col] = aaa  # last columns
-        # aa[col + nc - 1] = aaa  # first column
-        # col = n + np.arange(nr - 1) * nc + nc - 1
-        # aa[col] = 0.
-        # aa[col + n - 1] = 0.
+        ind = np.arrange(ny - 1) * nx + nx + nx * n
+        aij[ind - 1] = aij[ind - 1] - lam_x
+        aij[ind] = aij[ind] - lam_x
 
-        # col = np.array(
-        #     (
-        #         np.arange(n),
-        #         np.arange(n - 1) + 1,
-        #         np.arange(n - 1),
-        #         np.arange(n - nc) + nc,
-        #         np.arange(n - nc),
-        #     )
-        # )  # lower sub-diagonal for y
+        ind = np.arrange(ny - 1) * nx + nx
+        aij[nx + 1, ind - 1] = 0
+        aij[nx - 1, ind] = 0
 
-        # row = np.array(
-        #     (
-        #         np.arange(n),
-        #         np.arange(n - 1),
-        #         np.arange(n - 1) + 1,
-        #         np.arange(n - nc),
-        #         np.arange(n - nc) + nc,
-        #     )
-        # )  # lower sub-diagonal for y
+        aij[0, nx:n] = -lam_y
+        aij[ndiag - 1, 0 : n - nx] = -lam_y
 
-        # aaa = sprsin(col, row, aa, n, thresh=-2. * (adiag > bdiag))
-        # col = bdiag
-        # row = adiag
-        # aa = np.reshape(y, n)  # start with an initial guess at the solution.
+        rhs = f * weight
 
-        aa = solve(aaa, y)  # solve the linear system ax=b.
-        aa.shape = nc, nr  # restore the shape of the result.
-        return aaa
+        model = solve_banded((nx, nx), aij, rhs)
+        model = np.reshape(model, (ny, nx))
+        return model
 
 
 def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric"):
@@ -1370,7 +1253,7 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
     dec2000 : float
         Declination of object for epoch 2000.0 (degrees)
     jd : float
-        Julian date for the middle of exposure
+        Julian date for the middle of exposure in MJD
     system : {"barycentric", "heliocentric"}, optional
         reference system of the result, barycentric: around earth-sun gravity center,
         heliocentric: around sun, usually barycentric is preferred (default: "barycentric)
@@ -1383,8 +1266,8 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
         Heliocentric Julian date for middle of exposure
     """
 
-    jd = 2400000. + jd
-    jd = time.Time(jd, format="jd")
+    # jd = 2400000.5 + jd
+    jd = time.Time(jd, format="mjd")
 
     ra = coord.Longitude(ra2000, unit=u.hour)
     dec = coord.Latitude(dec2000, unit=u.degree)

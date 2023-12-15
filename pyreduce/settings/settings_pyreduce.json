@@ -3,92 +3,175 @@
     "__instrument__": "DEFAULT",
     "reduce": {
         "base_dir": "./",
-        "input_dir": "{instrument}/{target}/raw/{night}",
-        "output_dir": "{instrument}/{target}/reduced/{night}/{mode}"
+        "input_dir": "raw",
+        "output_dir": "reduced"
     },
     "instrument": {},
-    "mask": {
-        "directory": "{reduce}/masks"
-    },
+    "mask": {},
     "bias": {
-        "plot": true
+        "degree": 0,
+        "plot": true,
+        "plot_title": "Bias"
     },
     "flat": {
-        "plot": true
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "none",
+        "plot": true,
+        "plot_title": "Flat"
     },
     "orders": {
         "degree": 4,
         "degree_before_merge": 2,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "none",
         "regularization": 0,
-        "closing_shape": [5, 5],
+        "closing_shape": [
+            5,
+            5
+        ],
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.1,
         "split_sigma": 0,
         "filter_size": null,
         "min_cluster": null,
+        "min_width": null,
         "noise": null,
         "border_width": null,
         "manual": true,
-        "plot": true
+        "plot": true,
+        "plot_title": "Order Tracing"
+    },
+    "scatter": {
+        "scatter_degree": 4,
+        "scatter_cutoff": 2,
+        "border_width": null,
+        "extraction_width": 0.3,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "plot": true,
+        "plot_title": "Background Scatter"
     },
     "norm_flat": {
         "extraction_method": "normalize",
         "smooth_slitfunction": 4,
-        "smooth_spectrum": 0,
+        "smooth_spectrum": 1e-7,
         "oversampling": 10,
+        "maxiter": 20,
         "swath_width": 200,
         "extraction_width": 0.2,
-        "scatter_degree": 4,
         "threshold": 0.6,
-        "sigma_cutoff": 2,
-        "border_width": null,
-        "plot": true
+        "threshold_lower": 0,
+        "extraction_cutoff": 20,
+        "plot": true,
+        "plot_title": "Normalized Flat"
+    },
+    "wavecal_master": {
+        "extraction_method": "arc",
+        "collapse_function": "median",
+        "extraction_width": 0.5,
+        "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "plot": true,
+        "plot_title": "Wavelength Calibration Spectrum"
+    },
+    "wavecal_init": {
+        "degree": 2,
+        "element": "thar",
+        "medium": "vac",
+        "wave_delta": 20,
+        "nwalkers": 100,
+        "steps": 50000,
+        "resid_delta": 1000,
+        "cutoff": 0.01,
+        "smoothing": 0,
+        "plot": true,
+        "plot_title": "Wavelength Calibration Initial"
     },
     "wavecal": {
-        "extraction_method": "arc",
-        "extraction_width": 0.5,
         "manual": false,
         "threshold": 100,
         "iterations": 3,
         "dimensionality": "2D",
-        "degree": [6, 6],
+        "degree": [
+            6,
+            6
+        ],
         "nstep": 0,
+        "correlate_cols": 0,
         "shift_window": 0.01,
-        "plot": true
+        "element": "thar",
+        "medium": "vac",
+        "plot": true,
+        "plot_title": "Wavelength Calibration"
+    },
+    "freq_comb_master":{
+        "extraction_method": "arc",
+        "collapse_function": "median",
+        "extraction_width": 0.5,
+        "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "plot": true,
+        "plot_title": "Frequency Comb Spectrum"
     },
     "freq_comb": {
-        "extraction_method": "arc",
-        "extraction_width": 0.5,
-        "peak_width": 3,
+        "lfc_peak_width": 3,
         "dimensionality": "2D",
         "nstep": 0,
-        "degree": [6, 6],
+        "degree": [
+            6,
+            6
+        ],
         "threshold": 100,
-        "plot": true
+        "plot": true,
+        "plot_title": "Frequency Comb"
     },
     "curvature": {
         "dimensionality": "1D",
         "degree": 2,
+        "curv_degree": 2,
+        "extraction_method": "arc",
+        "collapse_function": "median",
         "extraction_width": 0.2,
-        "iterations": null,
-        "sigma_cutoff": 3,
+        "curvature_cutoff": 3,
+        "extraction_cutoff": 20,
+        "peak_threshold": 10,
+        "peak_width": 1,
+        "window_width": 9,
+        "peak_function": "gaussian",
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
         "plot": true,
-        "verbose": 1
+        "plot_title": "Slit Curvature"
+    },
+    "rectify": {
+        "extraction_width": 0.5,
+        "input_files": "science",
+        "plot": true,
+        "plot_title": "Rectified Image"
     },
     "science": {
         "extraction_method": "optimal",
         "extraction_width": 0.25,
         "oversampling": 10,
         "swath_width": 300,
-        "smooth_slitfunction": 20,
-        "smooth_spectrum": 0.0,
-        "plot": true
+        "maxiter": 20,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 1e-7,
+        "extraction_cutoff": 20,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "plot": true,
+        "plot_title": "Science Data"
     },
     "continuum": {
-        "plot": true
+        "plot": true,
+        "plot_title": "Continuum Normalization"
     },
     "finalize": {
-        "filename": "{instrument}.{night}_{number}.ech",
-        "plot": true
+        "filename": "{instrument}.{night}_{number}.final.ech",
+        "plot": true,
+        "plot_title": "Final Science Product"
     }
 }

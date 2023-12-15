@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Combine several fits files into one master frame
 
@@ -13,10 +14,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dateutil import parser
 from scipy.ndimage.filters import median_filter
+from tqdm import tqdm
 
 from .clipnflip import clipnflip
-from .instruments.instrument_info import get_instrument_info
-from .util import gaussbroad, gaussfit, load_fits
+from .instruments.instrument_info import load_instrument
+from .util import gaussbroad, gaussfit, remove_bias
+
+logger = logging.getLogger(__name__)
 
 
 def running_median(arr, size):
@@ -65,7 +69,7 @@ def calculate_probability(buffer, window, method="sum"):
 
     Parameters
     ----------
-    buffer : array(float)
+    buffer : array of shape (nx, ny)
         buffer
     window : int
         size of the running window
@@ -75,9 +79,11 @@ def calculate_probability(buffer, window, method="sum"):
 
     Returns
     -------
-    array(float)
+    weights : array of shape (nx, ny - 2 * window)
         probabilities
     """
+
+    buffer = np.require(buffer, dtype=float)
 
     # Take the median/sum for each file
     if method == "median":
@@ -91,7 +97,6 @@ def calculate_probability(buffer, window, method="sum"):
 
     # norm probability
     np.divide(weights, sum_of_weights, where=sum_of_weights > 0, out=weights)
-    # weights = np.where(sum_of_weights > 0, weights / sum_of_weights, weights)
     return weights
 
 
@@ -144,11 +149,11 @@ def combine_frames(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     threshold=3.5,
     window=50,
     dtype=np.float32,
-    **kwargs
+    **kwargs,
 ):
     """
     Subroutine to correct cosmic rays blemishes, while adding otherwise
@@ -211,6 +216,8 @@ def combine_frames(
         list of fits files to combine
     instrument : str
         instrument id for modinfo
+    mode : str
+        instrument mode
     extension : int, optional
         fits extension to load (default: 1)
     threshold : float, optional
@@ -235,29 +242,31 @@ def combine_frames(
     """
 
     DEBUG_NROWS = 100  # print status update every DEBUG_NROWS rows (if debug is True)
+    if instrument is None or isinstance(instrument, str):
+        instrument = load_instrument(instrument)
 
     # summarize file info
-    logging.info("Files:")
+    logger.debug("Files:")
     for i, fname in zip(range(len(files)), files):
-        logging.info("%i\t%s", i, fname)
+        logger.debug("%i\t%s", i, fname)
 
     # Only one image
     if len(files) == 0:
-        raise ValueError("No files defined")
+        raise ValueError("No files given for combine frames")
     elif len(files) == 1:
-        result, head = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        result, head = instrument.load_fits(
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         return result, head
     # Two images
     elif len(files) == 2:
-        bias1, head1 = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        bias1, head1 = instrument.load_fits(
+            files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp1 = head1.get("exptime", 0)
 
-        bias2, head2 = load_fits(
-            files[0], instrument, mode, extension, dtype=dtype, **kwargs
+        bias2, head2 = instrument.load_fits(
+            files[1], mode, dtype=dtype, extension=extension, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -275,8 +284,8 @@ def combine_frames(
         # TODO: check if all values are the same in all the headers?
 
         heads = [
-            load_fits(
-                f, instrument, mode, extension, header_only=True, dtype=dtype, **kwargs
+            instrument.load_fits(
+                f, mode, header_only=True, dtype=dtype, extension=extension, **kwargs
             )
             for f in files
         ]
@@ -292,20 +301,28 @@ def combine_frames(
         # orient 0, 2, 5, 7: orders are horizontal
         # orient 1, 3, 4, 6: orders are vertical
         orientation = head["e_orient"]
+        transpose = head.get("e_transpose", False)
+        orientation = orientation % 8
         # check if non-linearity correction
         linear = head.get("e_linear", True)
 
         # section(s) of the detector to process, x_low, x_high, y_low, y_high
         # head["e_xlo*"] will find all entries with * as a wildcard
         # we also ensure that we will have one dimensional arrays (not just the value)
-        x_low = [c[1] for c in head["e_xlo*"].cards]
-        x_high = [c[1] for c in head["e_xhi*"].cards]
-        y_low = [c[1] for c in head["e_ylo*"].cards]
-        y_high = [c[1] for c in head["e_yhi*"].cards]
+        cards = sorted(head["e_xlo*"].cards, key=lambda c: c[0])
+        x_low = [c[1] for c in cards]
+        cards = sorted(head["e_xhi*"].cards, key=lambda c: c[0])
+        x_high = [c[1] for c in cards]
+        cards = sorted(head["e_ylo*"].cards, key=lambda c: c[0])
+        y_low = [c[1] for c in cards]
+        cards = sorted(head["e_yhi*"].cards, key=lambda c: c[0])
+        y_high = [c[1] for c in cards]
 
-        gain = [c[1] for c in head["e_gain*"].cards]
-        readnoise = [c[1] for c in head["e_readn*"].cards]
-        total_exposure_time = sum([h.get("exptime", 0) for h in heads])
+        cards = sorted(head["e_gain*"].cards, key=lambda c: c[0])
+        gain = [c[1] for c in cards]
+        cards = sorted(head["e_readn*"].cards, key=lambda c: c[0])
+        readnoise = [c[1] for c in cards]
+        total_exposure_time = sum(h.get("exptime", 0) for h in heads)
 
         # Scaling for image data
         bscale = [h.get("bscale", 1) for h in heads]
@@ -316,14 +333,19 @@ def combine_frames(
 
         # Load all image hdus, but leave the data on the disk, using memmap
         # Need to scale data later
+        if extension is None:
+            extension = [instrument.get_extension(h, mode) for h in heads]
+        else:
+            extension = [extension] * len(heads)
+
         data = [
-            fits.open(f, memmap=True, do_not_scale_image_data=True)[extension]
-            for f in files
+            fits.open(f, memmap=True, do_not_scale_image_data=True)[e]
+            for f, e in zip(files, extension)
         ]
 
         if window >= n_columns / 2:
             window = n_columns // 10
-            logging.warning("Reduce Window size to fit the image")
+            logger.warning("Reduce Window size to fit the image")
 
         # depending on the orientation the indexing changes and the borders of the image change
         if orientation in [1, 3, 4, 6]:
@@ -352,9 +374,9 @@ def combine_frames(
             probability = np.zeros((len(files), x_right - x_left))
 
             # for each row
-            for row in range(y_bottom, y_top):
+            for row in tqdm(range(y_bottom, y_top), desc="Rows"):
                 if (row) % DEBUG_NROWS == 0:
-                    logging.debug(
+                    logger.debug(
                         "%i rows processed - %i pixels fixed so far", row, n_fixed
                     )
 
@@ -383,7 +405,7 @@ def combine_frames(
                 )
                 n_fixed += n_bad
 
-        logging.info("total cosmic ray hits identified and removed: %i", n_fixed)
+        logger.debug("total cosmic ray hits identified and removed: %i", n_fixed)
 
         result = clipnflip(result, head)
         result = np.ma.masked_array(result, mask=kwargs.get("mask"))
@@ -408,7 +430,8 @@ def combine_frames(
         "images coadded by combine_frames.py on %s" % datetime.datetime.now()
     )
 
-    if not linear:  # non-linearity was fixed. mark this in the header
+    if not linear:  # pragma: no cover
+        # non-linearity was fixed. mark this in the header
         raise NotImplementedError()  # TODO Nonlinear
         # i = np.where(head["e_linear"] >= 0)
         # head[i] = np.array((head[0 : i - 1 + 1], head[i + 1 :]))
@@ -424,56 +447,207 @@ def combine_frames(
     return result, head
 
 
-def combine_flat(files, instrument, mode, extension=1, bias=0, plot=False, **kwargs):
+def combine_calibrate(
+    files,
+    instrument,
+    mode,
+    mask=None,
+    bias=None,
+    bhead=None,
+    norm=None,
+    bias_scaling="exposure_time",
+    norm_scaling="divide",
+    plot=False,
+    plot_title=None,
+    **kwargs,
+):
     """
-    Combine several flat files into one master flat
+    Combine the input files and then calibrate the image with the bias
+    and normalized flat field if provided
 
     Parameters
     ----------
-    files : list(str)
-        flat files
-    instrument : str
-        instrument mode for modinfo
-    extension: {int, str}, optional
-        fits extension to use (default: 1)
-    bias: array(int, float), optional
-        bias image to subtract from master flat (default: 0)
+    files : list
+        list of file names to load
+    instrument : Instrument
+        PyReduce instrument object with load_fits method
+    mode : str
+        descriptor of the instrument mode
+    mask : array
+        2D Bad Pixel Mask to apply to the master image
+    bias : tuple(bias, bhead), optional
+        bias correction to apply to the combiend image, if bias has 3 dimensions
+        it is used as polynomial coefficients scaling with the exposure time, by default None
+    norm_flat : tuple(norm, blaze), optional
+        normalized flat to divide the combined image with after
+        the bias subtraction, by default None
+    bias_scaling : str, optional
+        defines how the bias is subtracted, by default "exposure_time"
+    plot : bool, optional
+        whether to plot the results, by default False
+    plot_title : str, optional
+        Name to put on the plot, by default None
 
-    xr: 2-tuple(int), optional
-        x range to use (default: None, i.e. whole image)
-    yr: 2-tuple(int), optional
-        y range to use (default: None, i.e. whole image)
-    dtype : np.dtype, optional
-        datatype of the combined bias frame (default: float32) 
     Returns
     -------
-    flat, fhead
-        image and header of master flat
+    orig : array
+        combined image with calibrations applied
+    thead : Header
+        header of the combined image
+
+    Raises
+    ------
+    ValueError
+        Unrecognised bias_scaling option
     """
+    # Combine the images and try to remove bad pixels
+    orig, thead = combine_frames(files, instrument, mode, mask=mask, **kwargs)
 
-    flat, fhead = combine_frames(files, instrument, mode, extension, **kwargs)
-    # Subtract master dark. We have to scale it by the number of Flats
-    flat -= bias * len(files)  # subtract bias, if passed
+    # Subtract bias
+    if bias is not None and bias_scaling is not None and bias_scaling != "none":
+        if bias.ndim == 2:
+            degree = 0
+            if bhead["exptime"] == 0 and bias_scaling == "exposure_time":
+                logger.warning(
+                    "No exposure time set in bias, using number of files instead"
+                )
+                bias_scaling = "number_of_files"
+            if bias_scaling == "exposure_time":
+                orig -= bias * thead["exptime"] / bhead["exptime"]
+            elif bias_scaling == "number_of_files":
+                orig -= bias * len(files)
+            elif bias_scaling == "mean":
+                orig -= bias * np.ma.mean(orig) / np.ma.mean(bias)
+            elif bias_scaling == "median":
+                orig -= bias * np.ma.median(orig) / np.ma.median(bias)
+            else:
+                raise ValueError(
+                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time', 'number_of_files', 'mean', 'median', 'none'], but got %s"
+                    % bias_scaling
+                )
+        else:
+            degree = bias.shape[0]
+            if bias_scaling == "exposure_time":
+                orig -= np.polyval(bias, thead["exptime"])
+            # elif bias_scaling == "number_of_files":
+            #     flat -= bias * len(files)
+            # elif bias_scaling == "mean":
+            #     flat -= bias * np.ma.mean(flat) / np.ma.mean(bias)
+            # elif bias_scaling == "median":
+            #     flat -= bias * np.ma.median(flat) / np.ma.median(bias)
+            else:
+                raise ValueError(
+                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time'], but got %s"
+                    % bias_scaling
+                )
 
-    if plot:
-        plt.title("Master Flat - Bias")
+    # Remove the Flat
+    if norm is not None and norm_scaling != "none":
+        if norm_scaling == "divide":
+            orig /= norm
+        else:
+            raise ValueError(
+                "Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got %s"
+                % norm_scaling
+            )
+
+    if plot:  # pragma: no cover
+        title = "Master"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        top = np.percentile(flat, 90)
-        plt.imshow(flat, vmax=top, origin="lower")
-        plt.show()
+        bot, top = np.percentile(orig[orig != 0], (10, 90))
+        plt.imshow(orig, vmin=bot, vmax=top, origin="lower")
+        if plot != "png":
+            plt.show()
+        else:
+            plt.savefig("crires_master_flat.png")
 
-    return flat, fhead
+    return orig, thead
+
+
+def combine_polynomial(
+    files, instrument, mode, mask, degree=1, plot=False, plot_title=None
+):
+    """
+    Combine the input files by fitting a polynomial of the pixel value versus
+    the exposure time of each pixel
+
+    Parameters
+    ----------
+    files : list
+        list of file names
+    instrument : Instrument
+        PyReduce instrument object with load_fits method
+    mode : str
+        mode identifier for this instrument
+    mask : array
+        bad pixel mask to apply to the coefficients
+    degree : int, optional
+        polynomial degree of the fit, by default 1
+    plot : bool, optional
+        whether to plot the results, by default False
+    plot_title : str, optional
+        Title of the plot, by default None
+
+    Returns
+    -------
+    bias : array
+        3d array with the coefficients for each pixel
+    bhead : Header
+        combined FITS header of the coefficients
+    """
+    hdus = [instrument.load_fits(f, mode) for f in tqdm(files)]
+    data = np.array([h[0] for h in hdus])
+    exptimes = np.array([h[1]["EXPTIME"] for h in hdus])
+    # Numpy polyfit can fit all polynomials at the same time
+    # but we need to flatten the pixels into 1 dimension
+    data_flat = data.reshape((len(exptimes), -1))
+    coeffs = np.polyfit(exptimes, data_flat, degree)
+    # Afterwards we reshape the coefficients into the image shape
+    shape = (degree + 1, data.shape[1], data.shape[2])
+    coeffs = coeffs.reshape(shape)
+    # And apply the mask to each image of coefficients
+    if mask is not None:
+        bias = np.ma.masked_array(coeffs, mask=[mask for _ in range(degree + 1)])
+    # We arbitralily pick the first header as the bias header
+    # and change the exposure time
+    bhead = hdus[0][1]
+    bhead["EXPTIME"] = np.sum(exptimes)
+
+    if plot:
+        title = "Master"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+
+        for i in range(degree + 1):
+            plt.subplot(1, degree + 1, i + 1)
+            plt.title("Coefficient %i" % (degree - i))
+            plt.xlabel("x [pixel]")
+            plt.ylabel("y [pixel]")
+            bot, top = np.percentile(bias[i], (10, 90))
+            plt.imshow(bias[i], vmin=bot, vmax=top, origin="lower")
+
+        plt.suptitle(title)
+        if plot != "png":
+            plt.show()
+        else:
+            plt.savefig("master_bias.png")
+
+    return bias, bhead
 
 
 def combine_bias(
     files,
     instrument,
     mode,
-    extension=1,
+    extension=None,
     plot=False,
+    plot_title=None,
     science_observation_time=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Combine bias frames, determine read noise, reject bad pixels.
@@ -509,14 +683,6 @@ def combine_bias(
         list1 = list2 = files
         n = 2
     else:
-        # TODO split bias into before and after observation sets, if possible
-        try:
-            kw = get_instrument_info(instrument)["date"]
-            times = [parser.parse(fits.open(f)[0].header[kw]) for f in files]
-            files = files[np.argsort(times)]
-            # np.digitize(science_observation_time, sorted(times))
-        except KeyError:
-            logging.info("Could not sort files by observation time")
         list1, list2 = files[: n // 2], files[n // 2 :]
 
     # Lists of images.
@@ -524,7 +690,7 @@ def combine_bias(
     n2 = len(list2)
 
     # Separately images in two groups.
-    bias1, _ = combine_frames(list1, instrument, mode, extension, **kwargs)
+    bias1, head1 = combine_frames(list1, instrument, mode, extension, **kwargs)
     bias1 /= n1
 
     bias2, head = combine_frames(list2, instrument, mode, extension, **kwargs)
@@ -535,6 +701,9 @@ def combine_bias(
 
     # Construct normalized sum.
     bias = (bias1 * n1 + bias2 * n2) / n
+    exptime_1 = head1.get("exptime", 0)
+    exptime_2 = head.get("exptime", 0)
+    head["exptime"] = (exptime_1 + exptime_2) / n
 
     # Compute noise in difference image by fitting Gaussian to distribution.
     diff = 0.5 * (bias1 - bias2)
@@ -546,7 +715,7 @@ def combine_bias(
         nbins = int((hmax - hmin) / bin_size)
 
         h, _ = np.histogram(diff, range=(hmin, hmax), bins=nbins)
-        xh = hmin + bin_size * (np.arange(0., nbins) + 0.5)
+        xh = hmin + bin_size * (np.arange(0.0, nbins) + 0.5)
 
         hfit, par = gaussfit(xh, h)
         noise = abs(par[2])  # noise in diff, bias
@@ -572,12 +741,12 @@ def combine_bias(
         bgnoise = biasnoise * np.sqrt(n)
 
         # Print diagnostics.
-        logging.info("change in bias between image sets= %f electrons", gain * par[1])
-        logging.info("measured background noise per image= %f", bgnoise)
-        logging.info("background noise in combined image= %f", biasnoise)
-        logging.info("fixing %i bad pixels", nbad)
+        logger.debug("change in bias between image sets= %f electrons", gain * par[1])
+        logger.debug("measured background noise per image= %f", bgnoise)
+        logger.debug("background noise in combined image= %f", biasnoise)
+        logger.debug("fixing %i bad pixels", nbad)
 
-        if debug:
+        if debug:  # pragma: no cover
             # Plot noise distribution.
             plt.subplot(211)
             plt.plot(xh, h)
@@ -597,24 +766,20 @@ def combine_bias(
             plt.show()
     else:
         diff = 0
-        biasnoise = 1.
+        biasnoise = 1.0
         nbad = 0
 
-    if plot:
-        plt.title("Master Bias")
+    if plot:  # pragma: no cover
+        title = "Master Bias"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(bias, (1, 99))
         plt.imshow(bias, vmin=bot, vmax=top, origin="lower")
         plt.show()
 
-    try:
-        del head["tapelist"]
-    except KeyError:
-        pass
-
-    head["bzero"] = 0.0
-    head["bscale"] = 1.0
     head["obslist"] = " ".join([os.path.basename(f) for f in files])
     head["nimages"] = (n, "number of images summed")
     head["npixfix"] = (nbad, "pixels corrected for cosmic rays")

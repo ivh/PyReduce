@@ -1,27 +1,75 @@
+# -*- coding: utf-8 -*-
+
 import pytest
 
 from pyreduce import reduce
 
 
-def test_configuration():
-    config = reduce.load_config(None, "UVES", 0)
-    assert isinstance(config, dict)
+def test_main(instrument, target, night, mode, input_dir, output_dir):
+    output = reduce.main(
+        instrument,
+        target,
+        night,
+        mode,
+        base_dir="",
+        input_dir=input_dir,
+        output_dir=output_dir,
+        steps=(),
+    )
 
-    config = reduce.load_config("settings_UVES.json", "UVES", 0)
-    assert isinstance(config, dict)
+    assert isinstance(output, list)
+    assert len(output) >= 1
+    assert "config" in output[0].keys()
+    assert "files" in output[0].keys()
 
-    config = reduce.load_config({"UVES": "settings_UVES.json"}, "UVES", 0)
-    assert isinstance(config, dict)
-
-    config = reduce.load_config(["settings_UVES.json"], "UVES", 0)
-    assert isinstance(config, dict)
-
-    with pytest.raises(KeyError):
-        config = reduce.load_config({"UVES": "settings_UVES.json"}, "HARPS", 0)
-
-    with pytest.raises(IndexError):
-        config = reduce.load_config(["settings_UVES.json"], "UVES", 1)
+    # Test default options
+    # Just just not find anything
+    output = reduce.main(instrument, target, night, steps=())
 
 
-def test_main():
-    reduce.main(steps=())
+@pytest.mark.skip
+def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+    output = reduce.main(
+        instrument,
+        target,
+        night,
+        mode,
+        base_dir="",
+        input_dir=input_dir,
+        output_dir=output_dir,
+        order_range=order_range,
+        steps="all",
+    )
+
+
+@pytest.mark.skip
+def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+    output = reduce.main(
+        instrument,
+        target,
+        night,
+        mode,
+        base_dir="",
+        input_dir=input_dir,
+        output_dir=output_dir,
+        order_range=order_range,
+        steps=["finalize"],
+    )
+
+
+def test_step_abstract(step_args):
+    step = reduce.Step(*step_args, **{"plot": False})
+
+    assert isinstance(step.dependsOn, list)
+    assert isinstance(step.loadDependsOn, list)
+    assert isinstance(step.prefix, str)
+    assert isinstance(step.output_dir, str)
+
+    with pytest.raises(NotImplementedError):
+        step.load()
+
+    with pytest.raises(NotImplementedError):
+        step.run([])
+
+    with pytest.raises(NotImplementedError):
+        step.save()

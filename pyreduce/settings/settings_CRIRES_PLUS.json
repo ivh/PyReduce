@@ -1,0 +1,88 @@
+{
+    "__instrument__": "CRIRES_PLUS",
+    "instrument": {},
+    "bias": {
+        "degree": 1
+    },
+    "flat": {
+        "bias_scaling": "exposure_time"
+    },
+    "orders": {
+        "degree": 3,
+        "degree_before_merge": 1,
+        "filter_size": 100,
+        "min_cluster": 500,
+        "border_width": 0,
+        "noise": 0,
+        "manual": false,
+        "auto_merge_threshold": 1,
+        "merge_min_threshold": 0.9,
+        "bias_scaling": "exposure_time"
+    },
+    "scatter": {
+        "extraction_width": 0.45,
+        "border_width": 50
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0,
+        "extraction_width": 100,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+        "extraction_method": "optimal",
+        "extraction_width": 100,
+        "oversampling": 5,
+        "swath_width": 2000,
+        "smooth_slitfunction": 1,
+        "smooth_spectrum": 1e-7,
+        "extraction_cutoff": 20,
+        "bias_scaling": "exposure_time"
+    },
+    "wavecal_init": {
+        "element": "UNe",
+        "medium": "vac",
+        "cutoff": 5,
+        "smoothing": 1
+    },
+    "wavecal": {
+        "threshold": 100,
+        "closing": 0,
+        "dimensionality": "2D",
+        "element": null,
+        "degree": [5,5],
+        "manual": false
+    },
+    "freq_comb_master": {
+        "extraction_width": 10,
+        "bias_scaling": "exposure_time"
+    },
+    "freq_comb": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [8, 8]
+    },
+    "curvature": {
+        "peak_threshold": 1,
+        "window_width": 15,
+        "extraction_width": 100,
+        "dimensionality": "2D",
+        "degree": [
+            1,
+            1
+        ],
+        "curv_degree": 1,
+        "peak_function": "lorentzian",
+        "bias_scaling": "exposure_time"
+    },
+    "science": {
+        "oversampling": 1,
+        "extraction_width": 10,
+        "swath_width": 300,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 0,
+        "bias_scaling": "exposure_time"
+    }
+}

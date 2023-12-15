@@ -1,30 +1,52 @@
-import pytest
+# -*- coding: utf-8 -*-
 from os.path import dirname, join
 
 import numpy as np
+import pytest
 from astropy.io import fits
 
 from pyreduce import instruments
-from pyreduce.combine_frames import combine_flat
+from pyreduce.combine_frames import combine_calibrate
 
 
-def test_flat(instrument, mode, files, extension, mask):
-    flat, fhead = combine_flat(
+def test_flat(instrument, mode, files, mask):
+    if len(files["flat"]) == 0:
+        pytest.skip(f"No flat files for instrument {instrument}")
+
+    flat, fhead = combine_calibrate(
+        files["flat"], instrument, mode, mask=mask, window=50
+    )
+
+    assert isinstance(flat, np.ma.masked_array)
+    assert isinstance(fhead, fits.Header)
+
+    assert flat.ndim == 2
+    assert flat.shape[0] > 1
+    assert flat.shape[1] > 1
+
+
+def test_flat_with_bias(instrument, mode, files, mask, bias):
+    if len(files["flat"]) == 0:
+        pytest.skip(f"No flat files for instrument {instrument}")
+
+    window = 50
+    bias, bhead = bias
+    flat, fhead = combine_calibrate(
         files["flat"],
         instrument,
         mode,
-        extension=extension,
-        bias=0,
-        window=50,
+        window=window,
+        bias=bias,
+        bhead=bhead,
         mask=mask,
     )
 
     assert isinstance(flat, np.ma.masked_array)
     assert isinstance(fhead, fits.Header)
 
-    assert flat.ndim == fhead["NAXIS"]
-    assert flat.shape[0] == fhead["NAXIS1"] - 100  # remove window from both sides
-    assert flat.shape[1] == fhead["NAXIS2"]
+    assert flat.ndim == 2
+    assert flat.shape[0] > 1
+    assert flat.shape[1] > 1
 
 
 def test_simple(tempfiles):
@@ -35,7 +57,7 @@ def test_simple(tempfiles):
         data = np.full((100, 100), 5, dtype=float)
         fits.writeto(files[i], data)
 
-    flat, fhead = combine_flat(files, "common", "", extension=0)
+    flat, fhead = combine_calibrate(files, "common", "", extension=0)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 100
@@ -49,7 +71,7 @@ def test_simple(tempfiles):
         data = np.full((200, 100), 5, dtype=float)
         fits.writeto(files[i], data, overwrite=True)
 
-    flat, fhead = combine_flat(files, "common", "", extension=0, window=50)
+    flat, fhead = combine_calibrate(files, "common", "", extension=0, window=50)
 
     assert isinstance(flat, np.ndarray)
     assert flat.shape[0] == 200

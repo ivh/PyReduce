@@ -1,21 +1,33 @@
+# -*- coding: utf-8 -*-
 """
 Setup Module
 Compiles the C functions
 """
-import sys
 import os.path
-from setuptools import setup, find_packages
 
-this = os.path.dirname(__file__)
-that = os.path.join(this, "pyreduce")
-sys.path.append(that)
+from setuptools import find_packages, setup
+
+import versioneer
+
+# this = os.path.dirname(__file__)
+# that = os.path.join(this, "pyreduce")
+# sys.path.append(that)
+# try:
+#     from clib import build_extract
+# except ModuleNotFoundError:
+#     # Wait for pip to install CFFI first
+#     print("Install CFFI")
+#     pass
+
+
+cmdclass = versioneer.get_cmdclass()
+
 try:
-    from clib import build_extract
-except ModuleNotFoundError:
-    # Wait for pip to install CFFI first
-    print("Install CFFI")
-    pass
+    from codemeta.codemeta import CodeMetaCommand
 
+    cmdclass["codemeta"] = CodeMetaCommand
+except ImportError:
+    pass
 
 # from pyreduce.clib import build_cluster
 # build_cluster.build()
@@ -29,7 +41,8 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyreduce-astro",
-    version="0.02",
+    version=versioneer.get_version(),
+    cmdclass=cmdclass,
     author="Ansgar Wehrhahn",
     author_email="ansgar.wehrhahn@physics.uu.se",
     description="A data reduction package for echelle spectrographs",
@@ -41,7 +54,6 @@ setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-        "Operating System :: POSIX :: Linux",
     ],
     # setup_requires=["cffi>=1.0.0"],
     cffi_modules=[
@@ -59,5 +71,6 @@ setup(
         "wget",
         "joblib",
         "jsonschema>=3.0.1",
+        "tqdm",
     ],
 )

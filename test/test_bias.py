@@ -1,36 +1,41 @@
-import pytest
+# -*- coding: utf-8 -*-
 from os.path import dirname, join
 
 import numpy as np
+import pytest
 from astropy.io import fits
 
 from pyreduce import instruments
 from pyreduce.combine_frames import combine_bias
 
 
-def test_bias(instrument, mode, files, extension, mask):
-    bias, bhead = combine_bias(
-        files["bias"], instrument, mode, extension=extension, window=50, mask=mask
-    )
+def test_bias(instrument, mode, files, mask):
+    if len(files["bias"]) == 0:
+        pytest.skip(f"No bias files for instrument {instrument}")
+
+    bias, bhead = combine_bias(files["bias"], instrument, mode, window=50, mask=mask)
 
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)
 
-    assert bias.ndim == bhead["NAXIS"]
-    assert bias.shape[0] == bhead["NAXIS1"] - 100  # remove window from both sides
-    assert bias.shape[1] == bhead["NAXIS2"]
+    assert bias.ndim == 2
+    assert bias.shape[0] == mask.shape[0]
+    assert bias.shape[1] == mask.shape[1]
 
 
-def test_only_one_file(instrument, mode, files, extension):
+def test_only_one_file(instrument, mode, files, mask):
+    if len(files["bias"]) == 0:
+        pytest.skip(f"No bias files for instrument {instrument}")
+
     files = [files["bias"][0]]
-    bias, bhead = combine_bias(files, instrument, mode, extension=extension, window=50)
+    bias, bhead = combine_bias(files, instrument, mode, window=50, mask=mask)
 
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)
 
-    assert bias.ndim == bhead["NAXIS"]
-    assert bias.shape[0] == bhead["NAXIS1"] - 100  # remove window from both sides
-    assert bias.shape[1] == bhead["NAXIS2"]
+    assert bias.ndim == 2
+    assert bias.shape[0] == mask.shape[0]
+    assert bias.shape[1] == mask.shape[1]
 
 
 def test_no_data_files():
@@ -40,10 +45,10 @@ def test_no_data_files():
 
 def test_wrong_data_type():
     with pytest.raises(TypeError):
-        combine_bias(None, "", "")
+        combine_bias(None, None, "")
 
     with pytest.raises(ValueError):
-        combine_bias([None], "", "")
+        combine_bias([None], None, "")
 
 
 def test_simple_input(tempfiles):

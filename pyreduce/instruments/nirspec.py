@@ -1,24 +1,26 @@
+# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
-import os.path
 import glob
 import logging
+import os.path
 from datetime import datetime
 
-from tqdm import tqdm
 import numpy as np
-from astropy.io import fits
 from astropy.coordinates import EarthLocation
+from astropy.io import fits
 from dateutil import parser
+from tqdm import tqdm
 
-from .common import getter, instrument, observation_date_to_night
+from .common import Instrument, getter, observation_date_to_night
+
+logger = logging.getLogger(__name__)
 
 
-class NIRSPEC(instrument):
-
+class NIRSPEC(Instrument):
     @staticmethod
     def get_mode(header):
         # TODO figure out the parameters to use for this
@@ -49,12 +51,12 @@ class NIRSPEC(instrument):
         return setting
 
     def add_header_info(self, header, mode, **kwargs):
-        """ read data from header and add it as REDUCE keyword back to the header """
+        """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
         # header["e_setting"] = NIRSPEC.get_mode(header)
-        header["EXPTIME"] = header["ITIME"] * header["COADDS"]
+        header["EXPTIME"] = header.get("ITIME", 0) * header.get("COADDS", 0)
         return header
 
     def sort_files(self, input_dir, target, night, mode, calibration_dir, **kwargs):
@@ -74,7 +76,7 @@ class NIRSPEC(instrument):
             instrument mode
         Returns
         -------
-        files_per_night : list[dict{str:dict{str:list[str]}}] 
+        files_per_night : list[dict{str:dict{str:list[str]}}]
             a list of file sets, one entry per night, where each night consists of a dictionary with one entry per setting,
             each fileset has five lists of filenames: "bias", "flat", "order", "wave", "spec", organised in another dict
         nights_out : list[datetime]
@@ -104,7 +106,6 @@ class NIRSPEC(instrument):
         files += glob.glob(input_dir + "/*.fits.gz")
         files = np.array(files)
 
-
         # Initialize arrays
         # observed object
         ob = np.zeros(len(files), dtype="U20")
@@ -125,7 +126,7 @@ class NIRSPEC(instrument):
 
         if isinstance(individual_nights, str) and individual_nights == "all":
             individual_nights = np.unique(ni)
-            logging.info(
+            logger.info(
                 "Can't parse night %s, use all %i individual nights instead",
                 night,
                 len(individual_nights),
@@ -137,18 +138,21 @@ class NIRSPEC(instrument):
 
         for ind_night in tqdm(individual_nights):
             # Select files for this night, this instrument, this instrument mode
-            selection = (
-                (ni == ind_night)
-                & (it == instrument)
-                & (ob == target)
-                )
+            selection = (ni == ind_night) & (it == instrument) & (ob == target)
 
             for file in files[selection]:
 
                 # Read caliblist
                 caliblist = file[:-8] + ".caliblist"
-                caliblist = np.genfromtxt(caliblist, skip_header=8, dtype=str, delimiter=" ", usecols=(0))
-                caliblist = np.array([os.path.join(input_dir, calibration_dir, c) + ".gz" for c in caliblist])
+                caliblist = np.genfromtxt(
+                    caliblist, skip_header=8, dtype=str, delimiter=" ", usecols=(0)
+                )
+                caliblist = np.array(
+                    [
+                        os.path.join(input_dir, calibration_dir, c) + ".gz"
+                        for c in caliblist
+                    ]
+                )
 
                 tp = np.zeros(len(caliblist), dtype="U20")
                 for i, c in enumerate(caliblist):
@@ -158,31 +162,41 @@ class NIRSPEC(instrument):
                         h = fits.open(c)[0].header
                         if h[info["id_flat"]] == 1:
                             tp[i] = "flat"
-                        elif h[info["id_neon"]] == 1 or h[info["id_argon"]] == 1 or h[info["id_krypton"]] == 1 or h[info["id_xenon"]] == 1:
+                        elif (
+                            h[info["id_neon"]] == 1
+                            or h[info["id_argon"]] == 1
+                            or h[info["id_krypton"]] == 1
+                            or h[info["id_xenon"]] == 1
+                        ):
                             tp[i] = "wavecal"
                         elif h[info["id_etalon"]] == 1:
                             tp[i] = "freq_comb"
                         else:
                             tp[i] = "bias"
                         cache[c] = tp[i]
-                files_this_observation = {}
-                files_this_observation["NIRSPEC"] = {
+                files_this_observation = {
                     "bias": caliblist[tp == "bias"],
                     "flat": caliblist[tp == "flat"],
                     "orders": caliblist[tp == "flat"],
-                    "wavecal": caliblist[tp == "wavecal"],
-                    "freq_comb": caliblist[tp == "freq_comb"],
-                    "science": [file,]
+                    "wavecal_master": caliblist[tp == "wavecal"],
+                    "freq_comb_master": caliblist[tp == "freq_comb"],
+                    "science": [file],
                 }
-                files_this_observation["NIRSPEC"]["curvature"] = files_this_observation["NIRSPEC"]["freq_comb"] if len(files_this_observation["NIRSPEC"]["freq_comb"]) != 0 else files_this_observation["NIRSPEC"]["wavecal"]
+                files_this_observation["curvature"] = (
+                    files_this_observation["freq_comb_master"]
+                    if len(files_this_observation["freq_comb_master"]) != 0
+                    else files_this_observation["wavecal_master"]
+                )
+                files_this_observation["scatter"] = files_this_observation["orders"]
 
-                files_per_observation.append(files_this_observation)
-                nights_out.append(ind_night)
+                files_per_observation.append(
+                    ({"night": ind_night, "target": target}, files_this_observation)
+                )
 
-        return files_per_observation, nights_out
+        return files_per_observation
 
     def get_wavecal_filename(self, header, mode, **kwargs):
-        """ Get the filename of the wavelength calibration config file """
+        """Get the filename of the wavelength calibration config file"""
         info = self.load_info()
         if header[info["id_neon"]] == 1:
             element = "neon"

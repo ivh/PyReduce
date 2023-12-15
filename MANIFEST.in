@@ -7,9 +7,14 @@ include pyreduce/clib/slit_func_2d_xi_zeta_bd.h
 
 include pyreduce/instruments/*.json
 include pyreduce/settings/*.json
-include examples/*.json
 include test/settings/*.json
 
 include pyreduce/masks/*.gz
 
 include pyreduce/wavecal/*npz
+
+include setup.cfg
+include versioneer.py
+include pyreduce/_version.py
+
+include codemeta.json

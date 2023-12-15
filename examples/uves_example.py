@@ -1,28 +1,29 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
+
 import pyreduce
 from pyreduce import datasets
 
-
 # define parameters
 instrument = "UVES"
-target = "HD132205"
+target = "HD[- ]?132205"
 night = "2010-04-01"
 mode = "middle"
 steps = (
     # "bias",
     # "flat",
     # "orders",
-    "norm_flat",
-    "wavecal",
+    # "norm_flat",
+    # "wavecal",
     "curvature",
-    "science",
-    "continuum",
-    "finalize",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
@@ -30,11 +31,11 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.UVES_HD132205()
-input_dir = "{target}/"
-output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
+base_dir = datasets.UVES("/DATA/PyReduce")
+input_dir = "raw/"
+output_dir = "reduced/{night}/{mode}"
 
-config = os.path.join(os.path.dirname(__file__), "settings_UVES.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 pyreduce.reduce.main(
     instrument,

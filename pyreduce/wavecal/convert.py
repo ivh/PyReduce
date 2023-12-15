@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Simple script that converts IDL savefiles into numpy savefiles
 """
@@ -6,7 +7,6 @@ import os
 
 import numpy as np
 from numpy.lib.recfunctions import append_fields
-
 from scipy.io import readsav
 
 

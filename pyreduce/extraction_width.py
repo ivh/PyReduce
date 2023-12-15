@@ -1,13 +1,20 @@
+# -*- coding: utf-8 -*-
 import logging
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from .util import gaussfit4 as gaussfit, make_index, gaussval2 as gaussval
-from .extract import fix_column_range
+from .util import gaussfit4 as gaussfit
+from .util import gaussval2 as gaussval
+from .util import make_index
+
+logger = logging.getLogger(__name__)
 
 
-def estimate_extraction_width(img, orders, column_range, plot=False):
+def estimate_extraction_width(
+    img, orders, column_range, plot=False
+):  # pragma: no cover
+    raise NotImplemented
     nrow, ncol = img.shape
     nord, _ = orders.shape
     extraction_width = np.zeros((nord, 2), dtype=int)
@@ -68,7 +75,7 @@ def estimate_extraction_width(img, orders, column_range, plot=False):
 
         # plt.imshow(np.log(img[index]), aspect="auto", origin="lower")
         # plt.show()
-
+        width = 0.5
         extraction_width[i] = [width, width]
 
     return extraction_width

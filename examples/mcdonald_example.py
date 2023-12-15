@@ -1,26 +1,28 @@
+# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
 import os.path
+
 import pyreduce
 from pyreduce import datasets
-
 
 # define parameters
 instrument = "McDonald"
 target = "Vega"
-night = "all"
-mode = "R240"
+night = None
+mode = "CS23"
 steps = (
     # "bias",
     # "flat",
     # "orders",
-    "norm_flat",
+    # "curvature",
+    "scatter",
+    # "norm_flat",
     # "wavecal",
     # "freq_comb",
-    # "curvature",
     # "science",
     # "continuum",
     # "finalize",
@@ -31,12 +33,12 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = "/DATA/PyReduce/"
-input_dir = "BackgroundScatter/raw"
-output_dir = "BackgroundScatter/reduced"
+base_dir = datasets.MCDONALD("/DATA/PyReduce")
+input_dir = "raw"
+output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = os.path.join(os.path.dirname(__file__), "settings_MCDONALD.json")
+config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=2)
 
 pyreduce.reduce.main(
     instrument,

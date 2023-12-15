@@ -1,0 +1,13 @@
+[run]
+source = pyreduce
+omit =
+    pyreduce/_version.py
+    examples/*
+    versioneer.py
+    setup.py
+
+[report]
+show_missing = True
+
+[xml]
+output = cov.xml
