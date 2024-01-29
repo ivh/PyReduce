@@ -1,0 +1,10 @@
+__pycache__
+*.swp
+*.swo
+datasets
+.coverage
+cov.xml
+*.so
+*.o
+pyreduce/clib/_slitfunc_2d.c
+pyreduce/clib/_slitfunc_bd.c
