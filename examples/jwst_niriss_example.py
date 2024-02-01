@@ -31,7 +31,7 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.JWST_NIRISS("/DATA/PyReduce")
+base_dir = datasets.JWST_NIRISS(os.path.expanduser("~")+"/PyReduce/DATA")
 input_dir = "awesimsoss"
 output_dir = "reduced"
 
