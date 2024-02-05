@@ -103,7 +103,7 @@ class getter:
 class Instrument:
     """
     Abstract parent class for all instruments
-    Handles the handling of instrument specific information
+    Handles the instrument specific information
     """
 
     def __init__(self):

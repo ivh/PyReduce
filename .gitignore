@@ -1,3 +1,4 @@
+DATA
 __pycache__
 *.swp
 *.swo
@@ -8,3 +9,4 @@ cov.xml
 *.o
 pyreduce/clib/_slitfunc_2d.c
 pyreduce/clib/_slitfunc_bd.c
+pyreduce_astro.egg*
