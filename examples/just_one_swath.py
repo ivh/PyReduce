@@ -5,8 +5,8 @@ from astropy.io import fits
 
 from pyreduce import cwrappers, extract
 
-input_dir = "./datasets/reduced/UVES/HD132205/2010-04-02/middle/"
-raw_dir = "./datasets/HD132205/"
+input_dir = "../DATA/datasets/UVES/reduced/2010-04-01/middle/"
+raw_dir = "../DATA/datasets/UVES/raw/"
 
 hdu = fits.open(input_dir + "uves_middle.flat.fits")
 img = hdu[0].data
@@ -28,7 +28,6 @@ ycen_int = ycen.astype(int)
 index = extract.make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
 swath_img = img[index]
 swath_ycen = ycen[ibeg:iend] - ycen_int[ibeg:iend]
-shear = 0
 osample = 10
 
 np.savetxt("image.txt", swath_img)
@@ -37,7 +36,7 @@ np.savetxt("ycen.txt", swath_ycen)
 # return sp, sl, model, unc, mask
 # data1 = cwrappers.slitfunc(swath_img, swath_ycen, osample=osample)
 data2 = cwrappers.slitfunc_curved(
-    swath_img, swath_ycen, shear, osample=osample, yrange=(ylow, yhigh)
+    swath_img, swath_ycen, 0, 0, 0.0, 0.5,  osample=osample, yrange=(ylow, yhigh)
 )
 
 data = data2
