@@ -1,0 +1,77 @@
+{
+    "__instrument__": "METIS_IFU",
+    "flat":{
+        "bias_scaling": "number_of_files",
+        "plot": false
+    },
+    "orders": {
+        "degree": 4,
+        "degree_before_merge": "best",
+        "bias_scaling": "number_of_files",
+        "filter_size": 20,
+        "min_cluster": 100,
+        "noise": 120,
+        "border_width": 6,
+        "auto_merge_threshold": 0.9,
+        "merge_min_threshold": 0.01,
+        "manual": false,
+        "min_width": 0,
+        "plot": false
+    },
+    "scatter": {
+        "bias_scaling": "number_of_files",
+        "extraction_width": 0.45,
+        "border_width": 20
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 1e3,
+        "smooth_spectrum": 1e-7,
+        "extraction_width": 0.14,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "curvature": {
+        "extraction_method": "arc",
+        "dimensionality": "1D",
+        "curv_degree": 2,
+        "collapse_function": "mean",
+        "extraction_width": 0.77,
+        "extraction_cutoff": 20,
+        "curvature_cutoff": 3,
+        "peak_threshold": 0.9725,
+        "peak_width": 1,
+        "window_width": 1,
+        "peak_function": "lorentzian",
+        "bias_scaling": "exposure_time",
+        "degree": 2
+    },
+    "wavecal_master": {
+        "extraction_method": "arc",
+        "collapse_function": "median",
+        "extraction_width": 0.7825,
+        "extraction_cutoff": 10,
+        "bias_scaling": "exposure_time"
+    },
+     "wavecal": {
+        "extraction_method": "optimal",
+        "bias_scaling": "exposure_time",
+        "threshold": 70,
+        "iterations": 3,
+        "dimensionality": "2D",
+        "extraction_width": 0.7825,
+        "degree": [
+            4,
+            4
+        ],
+        "manual": true,
+        "shift_window": 0.1
+    },
+    "science": {
+        "oversampling": 10,
+        "extraction_width": 0.14235,
+        "swath_width": 400,
+        "smooth_slitfunction": 2,
+        "smooth_spectrum": 0.5e-5
+    }
+}

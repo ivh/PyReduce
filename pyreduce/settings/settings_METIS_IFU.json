@@ -1,5 +1,5 @@
 {
-    "__instrument__": "METIS",
+    "__instrument__": "METIS_IFU",
     "flat":{
         "bias_scaling": "number_of_files",
         "plot": false
