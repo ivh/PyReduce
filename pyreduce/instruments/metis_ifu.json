@@ -1,20 +1,18 @@
 {
-    "__instrument__": "METIS",
+    "__instrument__": "METIS_IFU",
     "instrument": "INSTRUME",
-    "id_instrument": "METIS",
+    "id_instrument": "METIS_IFU",
     "telescope": "ELT",
     "date": "MJD-OBS",
     "date_format": "mjd",
     "modes": [
-	"LSS_L", 
-	"LSS_M", 
-	"LSS_N"
+	"IFU_NOMINAL",
+	"IFU_EXTENDED" 
     ],
     "kw_modes": "INSTMODE",
     "id_modes": [
-	"lss_l",
-	"lss_m", 
-	"lss_n"
+	"ifu_nom",
+	"ifu_ext"
     ],
     "extension": 0,
     "orientation": [

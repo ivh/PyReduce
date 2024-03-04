@@ -1,5 +1,5 @@
 """
-Handles instrument specific info for the METIS LSS spectrograph
+Handles instrument specific info for the METIS_LSS LSS spectrograph
 
 Mostly reading data from the header
 """
@@ -17,7 +17,7 @@ from .common import getter, InstrumentWithModes, Instrument, observation_date_to
 logger = logging.getLogger(__name__)
 
 
-class METIS(InstrumentWithModes):
+class METIS_LSS(InstrumentWithModes):
     def add_header_info(self, header, mode, **kwargs):
         """ read data from header and add it as REDUCE keyword back to the header """
         # "Normal" stuff is handled by the general version, specific changes to values happen here
@@ -43,8 +43,8 @@ class METIS(InstrumentWithModes):
         """ Get the filename of the wavelength calibration config file """
         # info = self.load_info()
         cwd = os.path.dirname(__file__)
-        fname = f"metis_{mode.lower()}_2D.npz"
-        # fname = f"metis_LSS_L_2D.npz" ## f"micado_IJ_2D_det1.npz"
+        fname = f"metis_lss_{mode.lower()}_2D.npz"
+        # fname = f"metis_lss_LSS_L_2D.npz" ## f"micado_IJ_2D_det1.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
 
 
