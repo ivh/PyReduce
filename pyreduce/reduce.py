@@ -365,7 +365,7 @@ class ExtractionStep(Step):
         orders, column_range = orders if orders is not None else (None, None)
         tilt, shear = curvature if curvature is not None else (None, None)
 
-        data, unc, blaze, cr = extract(
+        data, unc, slitfu, cr = extract(
             img,
             orders,
             gain=head["e_gain"],
@@ -381,7 +381,7 @@ class ExtractionStep(Step):
             scatter=scatter,
             **self.extraction_kwargs,
         )
-        return data, unc, blaze, cr
+        return data, unc, slitfu, cr
 
 
 class FitsIOStep(Step):
@@ -1679,27 +1679,32 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             extracted spectra
         sigmas : list(array of shape (nord, ncol))
             uncertainties of the extracted spectra
+        slitfu: list(array of shape (nord, (extr_height*oversample+1)+1)
+            slit illumination function
         columns : list(array of shape (nord, 2))
             column ranges for each spectra
         """
-        heads, specs, sigmas, columns = [], [], [], []
+        heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in tqdm(files, desc="Files"):
             logger.info("Science file: %s", fname)
             # Calibrate the input image
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
-            spec, sigma, _, cr = self.extract(im, head, orders, curvature, scatter=scatter)
+            spec, sigma, slitfu, cr = self.extract(im, head, orders, curvature, scatter=scatter)
 
+            # make slitfus from swaths into one
+            slitfu = np.array(slitfu)
             # save spectrum to disk
-            self.save(fname, head, spec, sigma, cr)
+            self.save(fname, head, spec, sigma, slitfu, cr)
             heads.append(head)
             specs.append(spec)
             sigmas.append(sigma)
+            slitfus.append(slitfu)
             columns.append(cr)
 
-        return heads, specs, sigmas, columns
+        return heads, specs, sigmas, slitfus, columns
 
-    def save(self, fname, head, spec, sigma, column_range):
+    def save(self, fname, head, spec, sigma, slitfu, column_range):
         """Save the results of one extraction
 
         Parameters
@@ -1712,11 +1717,14 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             extracted spectrum
         sigma : array of shape (nord, ncol)
             uncertainties of the extracted spectrum
+        slitfu: list(array of shape (nord, (extr_height*oversample+1)+1)
+            slit illumination function
         column_range : array of shape (nord, 2)
             range of columns that have spectrum
         """
         nameout = self.science_file(fname)
-        echelle.save(nameout, head, spec=spec, sig=sigma, columns=column_range)
+        echelle.save(nameout, head, spec=spec, sig=sigma, 
+                     slitfu=slitfu, columns=column_range)
         logger.info("Created science file: %s", nameout)
 
     def load(self, files):
