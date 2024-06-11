@@ -11,9 +11,8 @@ from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
-from scipy.ndimage import label, morphology
+from scipy.ndimage import label, grey_closing, binary_closing, binary_opening
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
-from scipy.ndimage.morphology import grey_closing
 from scipy.signal import find_peaks, peak_widths
 
 from .util import polyfit1d
@@ -126,22 +125,57 @@ def update_merge_array(
 
 
 def calculate_mean_cluster_thickness(x, y):
-    # Calculate mean cluster thickness
-    # TODO optimize
-    n_clusters = list(x.keys())
-    mean_cluster_thickness = 10
-    for cluster in n_clusters:
-        # individual columns of this cluster
-        columns = np.unique(y[cluster])
-        delta = 0
-        for col in columns:
-            # thickness of the cluster in each column
-            tmp = x[cluster][y[cluster] == col]
-            delta += np.max(tmp) - np.min(tmp)
-        mean_cluster_thickness += delta / len(columns)
+    mean_cluster_thickness = 10  # Default thickness if no clusters found
+    cluster_thicknesses = []
 
-    mean_cluster_thickness *= 1.5 / len(n_clusters)
+    for cluster in x.keys():
+        if cluster == 0:
+            continue  # Skip the background cluster if present
+
+        # Get all y-coordinates and corresponding x-coordinates for this cluster
+        y_coords = y[cluster]
+        x_coords = x[cluster]
+
+        # Find unique columns and precompute the x-coordinates for each column
+        unique_columns = np.unique(y_coords)
+        column_thicknesses = []
+
+        for col in unique_columns:
+            # Select x-coordinates that correspond to the current column
+            col_indices = (y_coords == col)
+            if np.any(col_indices):
+                x_in_col = x_coords[col_indices]
+                thickness = x_in_col.max() - x_in_col.min()
+                column_thicknesses.append(thickness)
+
+        # Average thickness per cluster, if any columns were processed
+        if column_thicknesses:
+            cluster_thicknesses.append(np.mean(column_thicknesses))
+
+    # Compute the final mean thickness adjusted by the number of clusters
+    if cluster_thicknesses:
+        mean_cluster_thickness = 1.5 * np.mean(cluster_thicknesses) / len(cluster_thicknesses)
+
     return mean_cluster_thickness
+
+# origianl version
+# def calculate_mean_cluster_thickness(x, y):
+#     # Calculate mean cluster thickness
+#     # TODO optimize
+#     n_clusters = list(x.keys())
+#     mean_cluster_thickness = 10
+#     for cluster in n_clusters:
+#         # individual columns of this cluster
+#         columns = np.unique(y[cluster])
+#         delta = 0
+#         for col in columns:
+#             # thickness of the cluster in each column
+#             tmp = x[cluster][y[cluster] == col]
+#             delta += np.max(tmp) - np.min(tmp)
+#         mean_cluster_thickness += delta / len(columns)
+
+#     mean_cluster_thickness *= 1.5 / len(n_clusters)
+#     return mean_cluster_thickness
 
 
 def delete(i, x, y, merge):
@@ -456,11 +490,11 @@ def mark_orders(
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
     struct = np.full(closing_shape, 1)
-    mask = morphology.binary_closing(mask, struct, border_value=1)
+    mask = binary_closing(mask, struct, border_value=1)
     # remove small lonely clusters
     struct = np.full(opening_shape, 1)
-    # struct = morphology.generate_binary_structure(2, 1)
-    mask = morphology.binary_opening(mask, struct)
+    # struct = generate_binary_structure(2, 1)
+    mask = binary_opening(mask, struct)
 
     # label clusters
     clusters, _ = label(mask)
@@ -469,9 +503,8 @@ def mark_orders(
     sizes = np.bincount(clusters.ravel())
     mask_sizes = sizes > min_cluster
     mask_sizes[0] = True  # This is the background, which we don't need to remove
-    for i in np.arange(len(sizes))[~mask_sizes]:
-        clusters[clusters == i] = 0
-
+    clusters[~mask_sizes[clusters]] = 0
+    
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
     # # x, y become dictionaries, with an entry for each order
     # # n is just a list of all orders (ignore cluster == 0)
