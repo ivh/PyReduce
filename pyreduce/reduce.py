@@ -1693,7 +1693,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             spec, sigma, slitfu, cr = self.extract(im, head, orders, curvature, scatter=scatter)
 
             # make slitfus from swaths into one
-            slitfu = np.array(slitfu)
+            slitfu = np.array(slitfu[0])
             # save spectrum to disk
             self.save(fname, head, spec, sigma, slitfu, cr)
             heads.append(head)
@@ -1806,7 +1806,7 @@ class ContinuumNormalization(Step):
             column ranges for each spectra
         """
         wave = freq_comb
-        heads, specs, sigmas, columns = science
+        heads, specs, sigmas, _, columns = science
         norm, blaze = norm_flat
 
         logger.info("Continuum normalization")
