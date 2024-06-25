@@ -361,23 +361,42 @@ def save(fname, header, **kwargs):
     for key, value in kwargs.items():
         if value is None:
             continue
-        arr = value.ravel()[None, :]
 
-        if np.issubdtype(arr.dtype, np.floating):
-            arr = arr.astype(np.float32)
-            dtype = "E"
-        elif np.issubdtype(arr.dtype, np.integer):
-            arr = arr.astype(np.int16)
-            dtype = "I"
-        elif np.issubdtype(arr.dtype, np.bool_):
-            arr = arr.astype(np.bool_)
-            dtype = "B"
+        if type(value) == list:
+            for i, arr in enumerate(value):
+                if np.issubdtype(arr.dtype, np.floating):
+                    arr = arr.astype(np.float32)
+                    format_code = 'E'
+                elif np.issubdtype(arr.dtype, np.integer):
+                    arr = arr.astype(np.int16)
+                    format_code = 'I'
+                else:
+                    raise ValueError(f"Unsupported data type for array {i}: {arr.dtype}")
+        
+                # Create a column with the appropriate format
+                col = fits.Column(name=f'slitfu{i}', 
+                                format=f'{len(arr)}{format_code}', 
+                                array=[arr])
+                columns.append(col)
+
         else:
-            raise TypeError(f"Could not understand dtype {arr.dtype}")
+            arr = value.ravel()[None, :]
 
-        form = "%i%s" % (value.size, dtype)
-        dim = str(value.shape[::-1])
-        columns += [fits.Column(name=key.upper(), array=arr, format=form, dim=dim)]
+            if np.issubdtype(arr.dtype, np.floating):
+                arr = arr.astype(np.float32)
+                dtype = "E"
+            elif np.issubdtype(arr.dtype, np.integer):
+                arr = arr.astype(np.int16)
+                dtype = "I"
+            elif np.issubdtype(arr.dtype, np.bool_):
+                arr = arr.astype(np.bool_)
+                dtype = "B"
+            else:
+                raise TypeError(f"Could not understand dtype {arr.dtype}")
+
+            form = "%i%s" % (value.size, dtype)
+            dim = str(value.shape[::-1])
+            columns += [fits.Column(name=key.upper(), array=arr, format=form, dim=dim)]
 
     table = fits.BinTableHDU.from_columns(columns)
 
