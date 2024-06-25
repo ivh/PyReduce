@@ -11,10 +11,11 @@ include test/settings/*.json
 
 include pyreduce/masks/*.gz
 
-include pyreduce/wavecal/*npz
+include pyreduce/wavecal/*.npz
+include pyreduce/wavecal/atlas/*.fits
+
+include examples/*.py
 
 include setup.cfg
-include versioneer.py
-include pyreduce/_version.py
 
 include codemeta.json

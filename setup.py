@@ -7,8 +7,6 @@ import os.path
 
 from setuptools import find_packages, setup
 
-import versioneer
-
 # this = os.path.dirname(__file__)
 # that = os.path.join(this, "pyreduce")
 # sys.path.append(that)
@@ -19,15 +17,6 @@ import versioneer
 #     print("Install CFFI")
 #     pass
 
-
-cmdclass = versioneer.get_cmdclass()
-
-try:
-    from codemeta.codemeta import CodeMetaCommand
-
-    cmdclass["codemeta"] = CodeMetaCommand
-except ImportError:
-    pass
 
 # from pyreduce.clib import build_cluster
 # build_cluster.build()
@@ -41,14 +30,13 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyreduce-astro",
-    version=versioneer.get_version(),
-    cmdclass=cmdclass,
-    author="Ansgar Wehrhahn",
-    author_email="ansgar.wehrhahn@physics.uu.se",
+    version="0.6-dev",
+    author="Ansgar Wehrhahn, Thomas Marquart, Nikolai Piskunov",
+    author_email="thomas.marquart@astro.uu.se",
     description="A data reduction package for echelle spectrographs",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/AWehrhahn/PyReduce",
+    url="https://github.com/ivh/PyReduce",
     packages=find_packages(),
     include_package_data=True,
     classifiers=[

@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
-# Define Version
-from ._version import get_versions
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:  # for Python<3.8
+    from importlib_metadata import version, PackageNotFoundError
 
-__version__ = get_versions()["version"]
-del get_versions
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    __version__ = "unknown"
+
 
 # add logger to console
 import logging
