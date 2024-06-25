@@ -1693,7 +1693,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             spec, sigma, slitfu, cr = self.extract(im, head, orders, curvature, scatter=scatter)
 
             # make slitfus from swaths into one
-            slitfu = np.array(slitfu[0])
+            #print(len(slitfu),[len(sf) for sf in slitfu])
+            #slitfu = np.median(np.array(slitfu),axis=0)
             # save spectrum to disk
             self.save(fname, head, spec, sigma, slitfu, cr)
             heads.append(head)
