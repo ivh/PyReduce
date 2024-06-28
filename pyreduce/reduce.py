@@ -993,7 +993,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature"]
+        self._dependsOn += ["norm_flat", "curvature", "bias"]
 
     @property
     def savefile(self):
@@ -1764,7 +1764,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             sigmas.append(science["sig"])
             columns.append(science["columns"])
 
-        return heads, specs, sigmas, columns
+        return heads, specs, sigmas, None, columns
 
 
 class ContinuumNormalization(Step):
