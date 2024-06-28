@@ -262,7 +262,7 @@ class Instrument:
             header with added information
         """
 
-        info = self.load_info()
+        info = self.info
         get = getter(header, info, mode)
 
         header["e_instrument"] = get("instrument", self.__class__.__name__)
