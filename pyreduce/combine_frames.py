@@ -145,6 +145,53 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
     return corrected_signal, nbad
 
 
+def combine_frames_simple(files, instrument, mode, extension=None, dtype=np.float32, **kwargs):
+    """
+    Simple addition of similar images.
+
+    Parameters
+    ----------
+    files : list(str)
+        list of fits files to combine
+    instrument : str
+        instrument id for modinfo
+    mode : str
+        instrument mode
+    extension : int, optional
+        fits extension to load (default: 1)
+    dtype : np.dtype, optional
+        datatype of the combined image (default float32)
+
+    Returns
+    -------
+    combined_data, header
+        combined image data, header
+    """
+
+    if len(files) == 0:
+        raise ValueError("No files given for combine frames")
+
+    # Load the first file to get the shape and header
+    result, head = instrument.load_fits(files[0], mode, dtype=dtype, extension=extension, **kwargs)
+    
+    # Sum the remaining files
+    for fname in files[1:]:
+        data, _ = instrument.load_fits(fname, mode, dtype=dtype, extension=extension, **kwargs)
+        result += data
+
+    # Update the header
+    head['NIMAGES'] = (len(files), 'number of images summed')
+    head['EXPTIME'] = (head['EXPTIME'] * len(files), 'total exposure time')
+    head['DARKTIME'] = (head.get('DARKTIME', head['EXPTIME']) * len(files), 'total dark time')
+    
+    # Update the readout noise
+    if 'RDNOISE' in head:
+        head['RDNOISE'] = (head['RDNOISE'] * np.sqrt(len(files)), 'readout noise in combined image')
+
+    head.add_history(f'Combined {len(files)} images by simple addition')
+
+    return result, head
+
 def combine_frames(
     files,
     instrument,
