@@ -2,7 +2,7 @@
 [![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
 [![Updates](https://pyup.io/repos/github/ivh/PyReduce/shield.svg)](https://pyup.io/repos/github/ivh/PyReduce/)
 
-# PyREDUCE
+# PyReduce
 
 PyReduce is a port of the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package to Python.
 It is a complete data reduction pipeline for the echelle spectrographs, e.g. HARPS or UVES.
@@ -18,7 +18,20 @@ Installation
 
 The latest version can be installed using ``pip install git+https://github.com/ivh/PyReduce``.
 
-A somewhat outdated version is available from PyPI: ``pip install pyreduce-astro``
+The version that is available from PyPI is slightly outdated, but functional and installable via ``pip install pyreduce-astro``.
+
+If you foresee making changes to PyReduce itself, feel free to (fork and) clone
+this repository, and install the requirements and your local copy into a fresh
+environment, e.g.
+
+```
+conda create -n pyreduce
+conda activate pyreduce
+git clone <your fork url>
+cd PyReduce/
+pip install -r requirements.txt
+pip install -e .
+```
 
 PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
 See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
