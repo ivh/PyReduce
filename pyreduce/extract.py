@@ -306,8 +306,8 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False)
 
     xwd = fix_extraction_width(xwd, orders, cr, ncol)
     if not ignore_column_range:
-        cr = fix_column_range(cr, orders, xwd, nrow, ncol)
-
+        cr, orders = fix_column_range(cr, orders, xwd, nrow, ncol)
+    
     orders = orders[1:-1]
     xwd = xwd[1:-1]
     cr = cr[1:-1]
@@ -413,6 +413,7 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     """
 
     ix = np.arange(ncol)
+    to_remove=[]
     # Loop over non extension orders
     for i, order in zip(range(1, len(orders) - 1), orders[1:-1]):
         # Shift order trace up/down by extraction_width
@@ -429,9 +430,11 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
         points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
 
         if len(points_in_image) == 0:
-            raise ValueError(
-                f"No pixels are completely within the extraction width for order {i}"
-            )
+            #print(y_bot, y_top,nrow, ncol, points_in_image)
+            logger.warn(f"No pixels are completely within the extraction width for order {i}, removing it.")
+            to_remove += [i]
+            continue
+            
 
         regions = np.where(np.diff(points_in_image) != 1)[0]
         regions = [(r, r + 1) for r in regions]
@@ -453,7 +456,12 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     column_range[0] = column_range[1]
     column_range[-1] = column_range[-2]
 
-    return column_range
+    for i in to_remove:
+        np.delete(column_range,i,axis=0)
+        np.delete(orders,i,axis=0)
+            
+
+    return column_range, orders
 
 
 def make_bins(swath_width, xlow, xhigh, ycen):
