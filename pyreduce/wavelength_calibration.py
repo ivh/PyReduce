@@ -68,7 +68,7 @@ class AlignmentPlot:
                     ref_image[order, first:last, self.GREEN] = (
                         10
                         * line["height"]
-                        * signal.gaussian(last - first, line["width"])
+                        * signal.windows.gaussian(last - first, line["width"])
                     )
         ref_image = np.clip(ref_image, 0, 1)
         ref_image[ref_image < 0.1] = 0
@@ -409,7 +409,7 @@ class WavelengthCalibration:
             last = int(min(line["xlast"], self.ncol))
             img[int(line["order"]) - min_order, first:last] = line[
                 "height"
-            ] * signal.gaussian(last - first, line["width"])
+            ] * signal.windows.gaussian(last - first, line["width"])
         return img
 
     def align_manual(self, obs, lines):
@@ -490,7 +490,7 @@ class WavelengthCalibration:
 
             # Crop the image to speed up cross correlation
             if self.correlate_cols != 0:
-                _slice = slice((self.ncol - self.correlate_cols) // 2, 
+                _slice = slice((self.ncol - self.correlate_cols) // 2,
                                (self.ncol + self.correlate_cols) // 2 + 1)
                 ccimg = img[:,_slice]
                 ccobs = obs[:,_slice]
