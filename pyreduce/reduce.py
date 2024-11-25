@@ -32,8 +32,6 @@ from astropy.io import fits
 from genericpath import exists
 from tqdm import tqdm
 
-from pyreduce import wavelength_calibration
-
 # PyReduce subpackages
 from . import __version__, echelle, instruments, util
 from .combine_frames import (
