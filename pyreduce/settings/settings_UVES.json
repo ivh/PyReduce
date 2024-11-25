@@ -17,7 +17,7 @@
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
         "extraction_width": 0.45,
-        "oversampling": 12,
+        "oversampling": 8,
         "swath_width": 200,
         "threshold": 1000
     },
@@ -45,7 +45,7 @@
         "peak_width": 1
     },
     "science": {
-        "oversampling": 1,
+        "oversampling": 8,
         "extraction_width": 0.2,
         "swath_width": 300,
         "smooth_slitfunction": 0.1,
