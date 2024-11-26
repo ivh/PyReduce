@@ -72,6 +72,7 @@
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
+        "maxiter": 20,
         "plot": true,
         "plot_title": "Wavelength Calibration Spectrum"
     },
