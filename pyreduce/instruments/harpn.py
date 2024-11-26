@@ -184,7 +184,7 @@ class HARPN(Instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = dirname(__file__)
-        fname = f"harpn_{mode.lower()}{pol}_2D.npz"
+        fname = f"harpn_{mode.lower()}_2D.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
 
