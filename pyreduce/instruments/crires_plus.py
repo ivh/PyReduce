@@ -49,7 +49,10 @@ class CRIRES_PLUS(Instrument):
     def parse_mode(self, mode):
         pattern = r"([YJHKLM]\d{4})(_(Open|pos1|pos2))?_det(\d)"
         match = re.match(pattern, mode, flags=re.IGNORECASE)
-        band = match.group(1).upper()
+        if not match:
+            logger.error("no mode match")
+        else:
+            band = match.group(1).upper()
         if match.group(3) is not None:
             decker = match.group(3).lower().capitalize()
         else:
