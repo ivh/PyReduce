@@ -11,7 +11,7 @@
         "degree": 3,
         "degree_before_merge": 1,
         "filter_size": 100,
-        "min_cluster": 500,
+        "min_cluster": 200000,
         "border_width": 0,
         "noise": 0,
         "manual": false,
@@ -21,7 +21,8 @@
     },
     "scatter": {
         "extraction_width": 0.45,
-        "border_width": 50
+        "border_width": 50,
+        "bias_scaling": "exposure_time"
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
