@@ -10,3 +10,4 @@ cov.xml
 pyreduce/clib/_slitfunc_2d.c
 pyreduce/clib/_slitfunc_bd.c
 pyreduce_astro.egg*
+.vscode
