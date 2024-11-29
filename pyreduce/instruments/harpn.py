@@ -96,7 +96,7 @@ class HARPN(Instrument):
             target = ".*"
 
         
-        id_orddef = "LAMP,LAMP,TUN"
+        id_orddef = "LAMP,DARK,TUN"
         id_spec = "STAR,WAVE"
         
         expectations = {

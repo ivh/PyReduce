@@ -15,8 +15,8 @@
             2
         ]
     ],
-    "orientation": 1,
-    "transpose": false,
+    "orientation": 2,
+    "transpose": true,
     "prescan_x": "HIERARCH TNG DET OUT{id[0]} PRSCX",
     "overscan_x": "HIERARCH TNG DET OUT{id[0]} OVSCX",
     "prescan_y": 0,

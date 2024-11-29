@@ -22,7 +22,9 @@
         "threshold": 1000
     },
     "wavecal_master": {
-        "extraction_width": 10
+        "extraction_width": 5,
+        "collapse_function" : "median",
+        "bias_scaling" : "number_of_files"
     },
     "wavecal_init": {
         "element": "thar",
@@ -32,10 +34,13 @@
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [
-            3,
+            6,
             6
         ],
-        "manual": false
+        "manual": false,
+        "element": "thar",
+        "medium": "vac",
+        "correlate_cols": 1
     },
     "freq_comb_master": {
         "extraction_width": 10

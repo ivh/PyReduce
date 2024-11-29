@@ -20,13 +20,12 @@ steps = (
     "bias",
     "flat",
     "orders",
-#    "scatter",
     "norm_flat",
+    "wavecal_master",
     "wavecal",
-    "freq_comb",
-    "science",
-    "continuum",
-    "finalize",
+#    "science",
+#    "continuum",
+#    "finalize",
 )
 
 # some basic settings
