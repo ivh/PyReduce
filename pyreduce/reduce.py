@@ -28,7 +28,12 @@ from os.path import dirname, join
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
+
 from astropy.io import fits
+from astropy.io.fits.verify import VerifyWarning
+import warnings
+warnings.simplefilter('ignore', category=VerifyWarning)
+
 from genericpath import exists
 from tqdm import tqdm
 
@@ -556,17 +561,18 @@ class Bias(Step):
         bias = np.asarray(bias, dtype=np.float32)
 
         if self.degree == 0:
-            hdus = fits.PrimaryHDU(data=bias, header=bhead)
+            hdus = [fits.PrimaryHDU(data=bias, header=bhead, scale_back=False)]
         else:
-            hdus = [fits.PrimaryHDU(data=bias[0], header=bhead)]
+            hdus = [fits.PrimaryHDU(data=bias[0], header=bhead, scale_back=False)]
             for i in range(1, len(bias)):
                 hdus += [fits.ImageHDU(data=bias[i])]
-            hdus = fits.HDUList(hdus)
+        hdus = fits.HDUList(hdus)
 
+        hdus[0].header['BZERO'] = 0
         hdus.writeto(
             self.savefile,
             overwrite=True,
-            output_verify="silentfix+ignore",
+            output_verify="fix", #"silentfix+ignore",
         )
         logger.info("Created master bias file: %s", self.savefile)
 
