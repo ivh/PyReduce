@@ -17,11 +17,11 @@ target = ""
 night = ""
 mode = "HARPN"
 steps = (
-    "bias",
-    "flat",
-    "orders",
-    "norm_flat",
-    "wavecal_master",
+  #  "bias",
+   # "flat",
+    #"orders",
+    #"norm_flat",
+    #"wavecal_master",
     "wavecal",
 #    "science",
 #    "continuum",

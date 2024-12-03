@@ -34,13 +34,13 @@
         "threshold": 100,
         "dimensionality": "2D",
         "degree": [
-            6,
-            6
+            5,
+            5
         ],
         "manual": false,
         "element": "thar",
         "medium": "vac",
-        "correlate_cols": 1
+        "correlate_cols": 0
     },
     "freq_comb_master": {
         "extraction_width": 10
