@@ -682,8 +682,8 @@ class Flat(CalibrationStep):
             Master flat FITS header
         """
         try:
-            flat = fits.open(self.savefile)[0]
-            flat, fhead = flat.data, flat.header
+            with fits.open(self.savefile, memmap=False) as hdu:
+                flat, fhead = hdu[0].data, hdu[0].header
             flat = np.ma.masked_array(flat, mask=mask)
             logger.info("Master flat file: %s", self.savefile)
         except FileNotFoundError:
