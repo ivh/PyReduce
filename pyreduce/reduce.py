@@ -952,6 +952,7 @@ class NormalizeFlatField(Step):
         )
 
         blaze = np.ma.filled(blaze, 0)
+        norm = np.ma.filled(norm, 1)
         norm = np.nan_to_num(norm, nan=1)
         self.save(norm, blaze)
         return norm, blaze
