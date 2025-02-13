@@ -433,8 +433,8 @@ class FitsIOStep(Step):
             header of the master bias
         """
         try:
-            data = fits.open(self.savefile)[0]
-            data, head = data.data, data.header
+            with fits.open(self.savefile, memmap=False) as hdu:
+                data, head = hdu[0].data, hdu[0].head
             data = np.ma.masked_array(data, mask=mask)
             logger.info("Data file: %s", self.savefile)
         except FileNotFoundError as ex:
@@ -593,15 +593,15 @@ class Bias(Step):
         """
         try:
             logger.info("Master bias file: %s", self.savefile)
-            hdu = fits.open(self.savefile)
-            degree = len(hdu) - 1
-            if degree == 0:
-                bias, bhead = hdu[0].data, hdu[0].header
-                bias = np.ma.masked_array(bias, mask=mask)
-            else:
-                bhead = hdu[0].header
-                bias = np.array([h.data for h in hdu])
-                bias = np.ma.masked_array(bias, mask=[mask for _ in range(len(hdu))])
+            with fits.open(self.savefile, memmap=False) as hdu:
+                degree = len(hdu) - 1
+                if degree == 0:
+                    bias, bhead = hdu[0].data, hdu[0].header
+                    bias = np.ma.masked_array(bias, mask=mask)
+                else:
+                    bhead = hdu[0].header
+                    bias = np.array([h.data for h in hdu])
+                    bias = np.ma.masked_array(bias, mask=[mask for _ in range(len(hdu))])
         except FileNotFoundError:
             logger.warning("No intermediate bias file found. Using Bias = 0 instead.")
             bias, bhead = None, None
@@ -1070,8 +1070,8 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         thead : FITS header
             Master wavecal FITS header
         """
-        thar = fits.open(self.savefile)[0]
-        thar, thead = thar.data, thar.header
+        with fits.open(self.savefile, memmap=False) as hdu:
+            thar, thead = hdu[0].data, hdu[0].header
         logger.info("Wavelength calibration spectrum file: %s", self.savefile)
         return thar, thead
 
@@ -1347,8 +1347,8 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         chead : FITS header
             Master comb FITS header
         """
-        comb = fits.open(self.savefile)[0]
-        comb, chead = comb.data, comb.header
+        with fits.open(self.savefile, memmap=False) as hdu:
+            comb, chead = hdu[0].data, hdu[0].header
         logger.info("Frequency comb master spectrum: %s", self.savefile)
         return comb, chead
 
@@ -1626,9 +1626,9 @@ class RectifyImage(Step):
         rectified = {}
         for orig_fname in files:
             fname = self.filename(orig_fname)
-            data = fits.open(fname)
-            img = data[1].data
-            wave = data[2].data["wavelength"]
+            with fits.open(fname, memmap=False) as hdu:
+                img = hdu[1].data
+                wave = hdu[2].data["wavelength"]
             rectified[orig_fname] = (wave, img)
 
         return rectified

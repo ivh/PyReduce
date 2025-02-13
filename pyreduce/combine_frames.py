@@ -458,6 +458,9 @@ def combine_frames(
         result = clipnflip(result, head)
         result = np.ma.masked_array(result, mask=kwargs.get("mask"))
 
+        for d in data:
+            d._file.close()  # Close open FITS files
+
     # Add info to header.
     head["bzero"] = 0.0
     head["bscale"] = 1.0

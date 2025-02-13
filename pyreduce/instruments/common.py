@@ -399,10 +399,10 @@ class Instrument:
             fil.clear()
 
         for f in tqdm(files):
-            h = fits.open(f)[0].header
-
-            for _, fil in self.filters.items():
-                fil.collect(h)
+            with fits.open(f) as hdu:
+                h = hdu[0].header
+                for _, fil in self.filters.items():
+                    fil.collect(h)
 
         return self.filters
 
