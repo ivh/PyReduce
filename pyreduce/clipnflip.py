@@ -135,7 +135,7 @@ def clipnflip(
     transpose = (
         transpose
         if transpose is not None
-        else header.get("e_transpose", (orientation % 8) >= 4)
+        else header.get("e_transp", (orientation % 8) >= 4)
     )
     if transpose:
         timage = np.transpose(timage, axes=(-1, -2))

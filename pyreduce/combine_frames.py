@@ -348,7 +348,7 @@ def combine_frames(
         # orient 0, 2, 5, 7: orders are horizontal
         # orient 1, 3, 4, 6: orders are vertical
         orientation = head["e_orient"]
-        transpose = head.get("e_transpose", False)
+        transpose = head.get("e_transp", False)
         orientation = orientation % 8
         # check if non-linearity correction
         linear = head.get("e_linear", True)

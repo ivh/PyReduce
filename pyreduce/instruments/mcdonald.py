@@ -43,7 +43,7 @@ class MCDONALD(InstrumentWithModes):
         header["e_orient"] = get("orientation", 0)
         # As per IDL rotate if orient is 4 or larger and transpose is undefined
         # the image is transposed
-        header["e_transpose"] = get("transpose", (header["e_orient"] % 8 >= 4))
+        header["e_transp"] = get("transpose", (header["e_orient"] % 8 >= 4))
 
         trimsec = get("trimsec")
 
