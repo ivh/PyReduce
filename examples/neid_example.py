@@ -8,14 +8,14 @@ import os.path
 
 import pyreduce
 from pyreduce import datasets
-from pyreduce.instruments.harpn import HARPN
+from pyreduce.instruments.harpn import NEID
 
 # define parameters
-instrument = "HARPN"
+instrument = "NEID"
 #target = "HD 152843"
 target = ""
 night = ""
-mode = "HARPN"
+mode = "NEID"
 steps = (
   #  "bias",
    # "flat",
@@ -34,7 +34,7 @@ steps = (
 
 # load dataset (and save the location)
 #base_dir = datasets.HARPS("/DATA/PyReduce")
-base_dir = "/home/tom/pipes/HARPN"
+base_dir = "/home/tom/pipes/neid_data"
 input_dir = "raw"
 output_dir = "reduced_{mode}"
 
