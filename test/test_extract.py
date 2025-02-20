@@ -5,7 +5,7 @@ import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from scipy.signal import gaussian
+from scipy.signal.windows import gaussian
 
 from pyreduce import extract, util
 from pyreduce.cwrappers import slitfunc
