@@ -594,8 +594,7 @@ class Instrument:
             name of the wavelength solution file
         """
 
-        info = self.load_info()
-        specifier = header.get(info.get("wavecal_specifier", ""), "")
+        specifier = header.get(self.info.get("wavecal_specifier", ""), "")
         instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
@@ -606,8 +605,7 @@ class Instrument:
         return fname
 
     def get_supported_modes(self):
-        info = self.load_info()
-        return info["modes"]
+        return self.info["modes"]
 
     def get_mask_filename(self, mode, **kwargs):
         i = self.name.lower()
