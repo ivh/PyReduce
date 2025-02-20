@@ -304,7 +304,11 @@ def combine_frames(
         result, head = instrument.load_fits(
             files[0], mode, dtype=dtype, extension=extension, **kwargs
         )
-        return result, head
+        readnoise = np.atleast_1d(head.get("e_readn", 0))
+        total_exposure_time = head.get("exptime", 0)
+        n_fixed = 0
+        linear = head.get("e_linear", True)
+
     # Two images
     elif len(files) == 2:
         bias1, head1 = instrument.load_fits(
@@ -325,8 +329,8 @@ def combine_frames(
         readnoise = np.atleast_1d(readnoise)
         n_fixed = 0
         linear = head.get("e_linear", True)
-    # More than two images
-    else:
+
+    else:     # More than two images
         # Get information from headers
         # TODO: check if all values are the same in all the headers?
 
@@ -432,7 +436,7 @@ def combine_frames(
                 for i in range(len(files)):
                     # If the following causes int16 overflow, add .astype('float64')
                     # to the first term. The receiving buffer is f64 anyway.
-                    buffer[i, :] = data[i].data[idx] * bscale[i] + bzero[i]
+                    buffer[i, :] = data[i].data[idx].astype('float64') * bscale[i] + bzero[i]
 
                 # Calculate probabilities
                 probability[:, window:-window] = calculate_probability(buffer, window)
