@@ -153,9 +153,9 @@ class Echelle:
             Echelle structure, with data contained in attributes
         """
 
-        hdu = fits.open(fname)
-        header = hdu[0].header
-        data = hdu[extension].data
+        with fits.open(fname, memmap=False) as hdu:
+            header = hdu[0].header
+            data = hdu[extension].data
 
         _data = {column.lower(): data[column][0] for column in data.dtype.names}
         ech = Echelle(filename=fname, head=header, data=_data)
