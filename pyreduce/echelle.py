@@ -383,8 +383,12 @@ def save(fname, header, **kwargs):
             arr = value.ravel()[None, :]
 
             if np.issubdtype(arr.dtype, np.floating):
-                arr = arr.astype(np.float32)
-                dtype = "E"
+                if key == 'wave':
+                    arr = arr.astype(np.float64)
+                    dtype = "D"
+                else:
+                    arr = arr.astype(np.float32)
+                    dtype = "E"
             elif np.issubdtype(arr.dtype, np.integer):
                 arr = arr.astype(np.int16)
                 dtype = "I"
