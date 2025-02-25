@@ -1389,7 +1389,7 @@ class WavelengthCalibration:
 
         # np.savez("cs_lines.npz", cs_lines=lines.data)
 
-        return wave_img, wave_solution
+        return wave_img, wave_solution, lines
 
 
 class WavelengthCalibrationComb(WavelengthCalibration):

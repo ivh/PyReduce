@@ -1231,7 +1231,7 @@ class WavelengthCalibrationFinalize(Step):
             element=self.element,
             medium=self.medium,
         )
-        wave, coef = module.execute(thar, linelist)
+        wave, coef, linelist = module.execute(thar, linelist)
         self.save(wave, coef, linelist)
         return wave, coef, linelist
 
