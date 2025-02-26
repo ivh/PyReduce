@@ -164,21 +164,21 @@ class LineAtlas:
             self.linelist["wave"] = util.vac2air(self.linelist["wave"])
 
     def load_fits(self, fname):
-        hdu = fits.open(fname)
-        if len(hdu) == 1:
-            # Its just the spectrum
-            # with the wavelength defined via the header keywords
-            header = hdu[0].header
-            spec = hdu[0].data.ravel()
-            wmin = header["CRVAL1"]
-            wdel = header["CDELT1"]
-            wave = np.arange(spec.size) * wdel + wmin
-        else:
-            # Its a binary Table, with two columns for the wavelength and the
-            # spectrum
-            data = hdu[1].data
-            wave = data["wave"]
-            spec = data["spec"]
+        with fits.open(fname, memmap=False) as hdu:
+            if len(hdu) == 1:
+                # Its just the spectrum
+                # with the wavelength defined via the header keywords
+                header = hdu[0].header
+                spec = hdu[0].data.ravel()
+                wmin = header["CRVAL1"]
+                wdel = header["CDELT1"]
+                wave = np.arange(spec.size) * wdel + wmin
+            else:
+                # Its a binary Table, with two columns for the wavelength and the
+                # spectrum
+                data = hdu[1].data
+                wave = data["wave"]
+                spec = data["spec"]
 
         spec /= np.nanmax(spec)
         spec = np.clip(spec, 0, None)
@@ -1389,7 +1389,7 @@ class WavelengthCalibration:
 
         # np.savez("cs_lines.npz", cs_lines=lines.data)
 
-        return wave_img, wave_solution
+        return wave_img, wave_solution, lines
 
 
 class WavelengthCalibrationComb(WavelengthCalibration):

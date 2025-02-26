@@ -74,6 +74,7 @@ class JWST_NIRISS(Instrument):
             hdu_this = fits.HDUList([primary, secondary])
             hdu_this.writeto(fname_this, overwrite=True)
             files.append(fname_this)
+        hdu.close()
         return files
 
     def sort_files(self, input_dir, target, night, mode, allow_calibration_only=False):
