@@ -47,7 +47,7 @@ def test_get_instrument_info(supported_instrument):
 
 def test_modeinfo(supported_instrument, supported_modes):
     # Standard FITS header keywords
-    required_keywords = ["e_instrument", "e_telescope", "e_exptime", "e_jd"]
+    required_keywords = ["e_instru", "e_telesc", "e_exptim", "e_jd"]
     # PyReduce keywords
     required_keywords += [
         "e_xlo",
