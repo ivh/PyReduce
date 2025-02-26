@@ -115,10 +115,11 @@ class NIRSPEC(Instrument):
         it = np.zeros(len(files), dtype="U20")
 
         for i, f in enumerate(files):
-            h = fits.open(f)[0].header
-            ob[i] = h.get(info["target"], "")
-            ni_tmp = h.get(info["date"], "")
-            it[i] = h.get(info["instrument"], "")
+            with fits.open(f) as hdu:
+                h = hdu[0].header
+                ob[i] = h.get(info["target"], "")
+                ni_tmp = h.get(info["date"], "")
+                it[i] = h.get(info["instrument"], "")
 
             # Sanitize input
             ni[i] = observation_date_to_night(ni_tmp)
