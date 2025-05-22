@@ -28,7 +28,7 @@ Here are the general steps that need to be followed to support your instrument:
     - You need to implement your own version of the instrument class, that inherits from pyreduce.instruments.common.Instrument
     - In that class there are a few important functions that may need to be adapted:
 
-        - load_info, this loads a json file with information mostly about the FITS header (e.g. which keyword gives us the time of the observation etc.) Look at other pyreduce.instruments.instrument_schema to get some information about what is what
+        - load_info, this loads a json file with information mostly about the FITS header (e.g. which keyword gives us the time of the observation etc.). Look at other pyreduce.instruments.instrument_schema to get some information about what is what. This JSON file is also where you would define the multi-fiber layout for your instrument, if applicable. For details on configuring multi-fiber setups, see :ref:`config-multi-fiber-layouts` in the :doc:`configuration_file` documentation.
         - sort_files, finds and sorts the files for the different steps of pyreduce. There is a system here that might work for your instrument as well, depending on the FITS headers. In that case you just need to set the kw_bias etc fields in load_info correctly
         - add_header_info, this modifies the fits header information. Usually to combine fields in the header to get the correct information (e.g. to get the time in the middle of the observation, instead of at the beginning).
         - get_wavecal_filename, should return the filename to the wavelength calibration first guess. See the Wavelength Calibration section on how to create this file.

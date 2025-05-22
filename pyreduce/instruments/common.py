@@ -618,6 +618,18 @@ class Instrument:
     def get_wavelength_range(self, header, mode, **kwargs):
         return self.get("wavelength_range", header, mode)
 
+    def get_fiber_layout(self):
+        """
+        Retrieves the fiber_layout configuration from the instrument information.
+
+        Returns
+        -------
+        dict or None
+            The fiber_layout object if defined in the instrument's JSON configuration,
+            otherwise None.
+        """
+        return self.info.get("fiber_layout", None)
+
 
 class InstrumentWithModes(Instrument):
     def __init__(self):

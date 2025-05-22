@@ -32,7 +32,12 @@
             ]
         },
         "instrument": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "fiber_layout": {
+                    "$ref": "#/definitions/fiber_layout_definition"
+                }
+            }
         },
         "mask": {
             "type": "object"
@@ -599,6 +604,8 @@
                     }
                 }
             ]
+        },
+        "fiber_layout": {
         }
     },
     "required": [
@@ -821,6 +828,49 @@
             "required": [
                 "bias_scaling",
                 "norm_scaling"
+            ]
+        },
+        "fiber_layout_definition": {
+            "type": "object",
+            "properties": {
+                "physical_order_groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "fibers": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "Identifier for the fiber"
+                                        },
+                                        "spatial_offset": {
+                                            "type": "number",
+                                            "description": "Offset in the spatial direction (e.g., pixels)"
+                                        },
+                                        "spectral_offset": {
+                                            "type": "number",
+                                            "description": "Offset in the spectral direction (e.g., pixels)"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "spatial_offset"
+                                    ]
+                                }
+                            }
+                        },
+                        "required": [
+                            "fibers"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "physical_order_groups"
             ]
         }
     }

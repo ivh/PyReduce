@@ -889,6 +889,7 @@ def optimal_extraction(
     shear,
     plot=False,
     plot_title=None,
+    fiber_trace_mapping=None, # Added fiber_trace_mapping
     **kwargs,
 ):
     """Use optimal extraction to get spectra
@@ -951,7 +952,11 @@ def optimal_extraction(
         progress = None
 
     for i in tqdm(range(nord), desc="Order"):
-        logger.debug("Extracting relative order %i out of %i", i + 1, nord)
+        current_fiber_info = fiber_trace_mapping[i] if fiber_trace_mapping and i < len(fiber_trace_mapping) else None
+        if current_fiber_info:
+            logger.debug(f"Processing order index {i}, Fiber ID: {current_fiber_info.get('fiber_id', 'N/A')}")
+        else:
+            logger.debug("Extracting relative order %i out of %i", i + 1, nord)
 
         # Define a fixed height area containing one spectral order
         ycen = np.polyval(orders[i], ix)
@@ -1055,6 +1060,7 @@ def arc_extraction(
     tilt=None,
     shear=None,
     collapse_function="median",
+    fiber_trace_mapping=None, # Added fiber_trace_mapping
     **kwargs,
 ):
     """Use "simple" arc extraction to get a spectrum
@@ -1107,7 +1113,11 @@ def arc_extraction(
     x = np.arange(ncol)
 
     for i in tqdm(range(nord), desc="Order"):
-        logger.debug("Calculating order %i out of %i", i + 1, nord)
+        current_fiber_info = fiber_trace_mapping[i] if fiber_trace_mapping and i < len(fiber_trace_mapping) else None
+        if current_fiber_info:
+            logger.debug(f"Processing order index {i}, Fiber ID: {current_fiber_info.get('fiber_id', 'N/A')}")
+        else:
+            logger.debug("Calculating order %i out of %i", i + 1, nord)
 
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
@@ -1231,6 +1241,7 @@ def extract(
     tilt=None,
     shear=None,
     sigma_cutoff=0,
+    fiber_trace_mapping=None, # Added fiber_trace_mapping
     **kwargs,
 ):
     """
@@ -1319,6 +1330,7 @@ def extract(
             column_range,
             tilt=tilt,
             shear=shear,
+            fiber_trace_mapping=fiber_trace_mapping, # Pass fiber_trace_mapping
             **kwargs,
         )
     elif extraction_type == "normalize":
@@ -1339,6 +1351,7 @@ def extract(
             normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,
+            fiber_trace_mapping=fiber_trace_mapping, # Pass fiber_trace_mapping
             **kwargs,
         )
         threshold_lower = kwargs.get("threshold_lower", 0)
@@ -1354,6 +1367,7 @@ def extract(
             column_range,
             tilt=tilt,
             shear=shear,
+            fiber_trace_mapping=fiber_trace_mapping, # Pass fiber_trace_mapping
             **kwargs,
         )
         slitfunction = None

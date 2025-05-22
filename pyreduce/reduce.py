@@ -39,6 +39,7 @@ from tqdm import tqdm
 
 # PyReduce subpackages
 from . import __version__, echelle, instruments, util
+from .fiber_processing import generate_fiber_traces # Added import
 from .combine_frames import (
     combine_bias,
     combine_calibrate,
@@ -364,13 +365,34 @@ class ExtractionStep(Step):
                 f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
             )
 
-    def extract(self, img, head, orders, curvature, scatter=None):
-        orders, column_range = orders if orders is not None else (None, None)
+    def extract(self, img, head, orders_data, curvature, scatter=None): # orders -> orders_data
+        # Unpack orders_data which might now include fiber_trace_mapping
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+             orders_coeffs, column_range, _ = orders_data # mapping not used in extract itself
+        elif isinstance(orders_data, tuple) and len(orders_data) == 2: # Backwards compatibility if no mapping
+            orders_coeffs, column_range = orders_data
+        elif orders_data is None: # Handle case where orders_data might be None
+            orders_coeffs, column_range = None, None
+        else: # Should not happen if loaded/run correctly
+            logger.error(f"Unexpected format for orders_data in ExtractionStep.extract: {type(orders_data)}")
+            orders_coeffs, column_range = None, None
+            # Potentially raise an error or handle more gracefully
+            if orders_data is not None and len(orders_data) > 0: # Check if it has content
+                 orders_coeffs = orders_data[0] # Try to get first element as orders_coeffs
+                 if len(orders_data) > 1:
+                     column_range = orders_data[1] # Try to get second element as column_range
+
+
         tilt, shear = curvature if curvature is not None else (None, None)
+
+        # Get fiber_trace_mapping from orders_data if available
+        fiber_trace_mapping_to_pass = None
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+            fiber_trace_mapping_to_pass = orders_data[2]
 
         data, unc, slitfu, cr = extract(
             img,
-            orders,
+            orders_coeffs, # Use unpacked coefficients
             gain=head["e_gain"],
             readnoise=head["e_readn"],
             dark=head["e_drk"],
@@ -382,6 +404,7 @@ class ExtractionStep(Step):
             tilt=tilt,
             shear=shear,
             scatter=scatter,
+            fiber_trace_mapping=fiber_trace_mapping_to_pass, # Pass it here
             **self.extraction_kwargs,
         )
         return data, unc, slitfu, cr
@@ -768,11 +791,37 @@ class OrderTracing(CalibrationStep):
             plot_title=self.plot_title,
         )
 
-        self.save(orders, column_range)
+        # ---BEGIN FIBER PROCESSING INTEGRATION---
+        fiber_layout_config = self.instrument.get_fiber_layout()
+        fiber_trace_mapping = None # Initialize to None
 
-        return orders, column_range
+        if fiber_layout_config and fiber_layout_config.get('physical_order_groups'):
+            logger.info("Fiber layout configuration found, generating individual fiber traces.")
+            detector_num_cols = order_img.shape[1]
+            try:
+                orders, column_range, fiber_trace_mapping = generate_fiber_traces(
+                    primary_traces=orders,
+                    primary_column_ranges=column_range,
+                    fiber_layout_config=fiber_layout_config,
+                    detector_num_cols=detector_num_cols
+                )
+                logger.info(f"Generated {len(orders)} total fiber traces.")
+            except Exception as e:
+                logger.error(f"Error during fiber trace generation: {e}. Proceeding with primary traces only.")
+                # Fallback: ensure fiber_trace_mapping is None if an error occurs
+                # and original orders/column_range are used.
+                # The initial orders and column_range from mark_orders are still available.
+                fiber_trace_mapping = None 
+        else:
+            logger.info("No fiber layout configuration found or it's empty/malformed. Using primary traces directly.")
+        # ---END FIBER PROCESSING INTEGRATION---
 
-    def save(self, orders, column_range):
+        self.save(orders, column_range, fiber_trace_mapping) # Modified save call
+
+        # Return mapping as well, it will be stored in self.data['orders']
+        return orders, column_range, fiber_trace_mapping
+
+    def save(self, orders, column_range, fiber_trace_mapping=None): # Added fiber_trace_mapping
         """Save order tracing results to disk
 
         Parameters
@@ -781,8 +830,18 @@ class OrderTracing(CalibrationStep):
             polynomial coefficients
         column_range : array of shape (nord, 2)
             first and last(+1) column that carry signal in each order
+        fiber_trace_mapping : list, optional
+            Mapping information for each generated trace.
         """
-        np.savez(self.savefile, orders=orders, column_range=column_range)
+        save_dict = {'orders': orders, 'column_range': column_range}
+        if fiber_trace_mapping is not None:
+            # Ensure fiber_trace_mapping is saved in a way that's easily recoverable
+            save_dict['fiber_trace_mapping'] = np.array(fiber_trace_mapping, dtype=object)
+            logger.info(f"Saving fiber_trace_mapping with {len(fiber_trace_mapping)} entries.")
+        else:
+            logger.info("No fiber_trace_mapping to save.")
+            
+        np.savez(self.savefile, **save_dict) # Use **save_dict to pass arguments
         logger.info("Created order tracing file: %s", self.savefile)
 
     def load(self):
@@ -794,12 +853,27 @@ class OrderTracing(CalibrationStep):
             polynomial coefficients for each order
         column_range : array of shape (nord, 2)
             first and last(+1) column that carries signal in each order
+        fiber_trace_mapping : list or None
+            Mapping information for each generated trace, or None if not saved.
         """
         logger.info("Order tracing file: %s", self.savefile)
         data = np.load(self.savefile, allow_pickle=True)
         orders = data["orders"]
         column_range = data["column_range"]
-        return orders, column_range
+        
+        if "fiber_trace_mapping" in data:
+            fiber_trace_mapping_loaded = data["fiber_trace_mapping"]
+            # Ensure it's a list of dicts, as saved (np.load might return an array of objects)
+            if isinstance(fiber_trace_mapping_loaded, np.ndarray):
+                fiber_trace_mapping = list(fiber_trace_mapping_loaded) 
+            else: # Should already be a list if saved correctly and not a single item array
+                fiber_trace_mapping = fiber_trace_mapping_loaded
+            logger.info(f"Loaded fiber_trace_mapping with {len(fiber_trace_mapping)} entries.")
+        else:
+            fiber_trace_mapping = None
+            logger.info("No fiber_trace_mapping found in saved file.")
+            
+        return orders, column_range, fiber_trace_mapping # Return mapping as well
 
 
 class BackgroundScatter(CalibrationStep):
@@ -820,15 +894,20 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, files, mask, bias, orders):
+    def run(self, files, mask, bias, orders_data): # orders -> orders_data
         logger.info("Background scatter files: %s", files)
 
         scatter_img, shead = self.calibrate(files, mask, bias)
 
-        orders, column_range = orders
+        # Unpack orders_data
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+            orders_coeffs, column_range, _ = orders_data # mapping not used here
+        else: # Backwards compatibility
+            orders_coeffs, column_range = orders_data
+
         scatter = estimate_background_scatter(
             scatter_img,
-            orders,
+            orders_coeffs, # Use unpacked coefficients
             column_range=column_range,
             extraction_width=self.extraction_width,
             scatter_degree=self.scatter_degree,
@@ -923,7 +1002,12 @@ class NormalizeFlatField(Step):
             Continuum level as determined from the flat field for each order
         """
         flat, fhead = flat
-        orders, column_range = orders
+        # Unpack orders_data
+        if isinstance(orders, tuple) and len(orders) == 3:
+            orders_coeffs, column_range, _ = orders # fiber_trace_mapping not directly used here
+        else: # Backwards compatibility
+            orders_coeffs, column_range = orders
+            
         tilt, shear = curvature
 
         # if threshold is smaller than 1, assume percentage value is given
@@ -934,7 +1018,7 @@ class NormalizeFlatField(Step):
 
         norm, _, blaze, _ = extract(
             flat,
-            orders,
+            orders_coeffs, # Use unpacked coefficients
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
@@ -1004,7 +1088,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_master.fits")
 
-    def run(self, files, orders, mask, curvature, bias, norm_flat):
+    def run(self, files, orders_data, mask, curvature, bias, norm_flat): # orders -> orders_data
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -1036,7 +1120,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
         # Extract wavecal spectrum
-        thar, _, _, _ = self.extract(orig, thead, orders, curvature)
+        thar, _, _, _ = self.extract(orig, thead, orders_data, curvature) # Pass orders_data
         self.save(thar, thead)
         return thar, thead
 
@@ -1484,7 +1568,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         """str: Name of the tilt/shear save file"""
         return join(self.output_dir, self.prefix + ".shear.npz")
 
-    def run(self, files, orders, mask, bias):
+    def run(self, files, orders_data, mask, bias): # orders -> orders_data
         """Determine the curvature of the slit
 
         Parameters
@@ -1507,11 +1591,17 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         logger.info("Slit curvature files: %s", files)
 
         orig, thead = self.calibrate(files, mask, bias, None)
-        extracted, _, _, _ = self.extract(orig, thead, orders, None)
+        # Pass orders_data to extract
+        extracted, _, _, _ = self.extract(orig, thead, orders_data, None) 
 
-        orders, column_range = orders
+        # Unpack orders_data for CurvatureModule
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+            orders_coeffs, column_range, _ = orders_data # fiber_trace_mapping not directly used here
+        else: # Backwards compatibility
+            orders_coeffs, column_range = orders_data
+            
         module = CurvatureModule(
-            orders,
+            orders_coeffs, # Use unpacked coefficients
             column_range=column_range,
             extraction_width=self.extraction_width,
             order_range=self.order_range,
@@ -1579,8 +1669,16 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(self, files, orders, curvature, mask, freq_comb):
-        orders, column_range = orders
+    def run(self, files, orders_data, curvature, mask, freq_comb): # orders -> orders_data
+        # Unpack orders_data
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+            orders_coeffs, column_range, fiber_trace_mapping = orders_data
+            # Potentially pass fiber_trace_mapping to rectify_image if needed later for naming/grouping
+            # For now, fiber_trace_mapping is not explicitly used in rectify_image or merge_images directly
+        else: # Backwards compatibility
+            orders_coeffs, column_range = orders_data
+            # fiber_trace_mapping = None # Not available
+
         tilt, shear = curvature
         wave = freq_comb
 
@@ -1594,7 +1692,7 @@ class RectifyImage(Step):
 
             images, cr, xwd = rectify_image(
                 img,
-                orders,
+                orders_coeffs, # Use unpacked coefficients
                 column_range,
                 self.extraction_width,
                 self.order_range,
@@ -1657,7 +1755,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.ech", path=self.output_dir)
 
-    def run(self, files, bias, orders, norm_flat, curvature, scatter, mask):
+    def run(self, files, bias, orders_data, norm_flat, curvature, scatter, mask): # orders -> orders_data
         """Extract Science spectra from observation
 
         Parameters
@@ -1694,13 +1792,18 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             # Calibrate the input image
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
-            spec, sigma, slitfu, cr = self.extract(im, head, orders, curvature, scatter=scatter)
+            # Pass orders_data to extract. It will unpack it.
+            spec, sigma, slitfu, cr = self.extract(im, head, orders_data, curvature, scatter=scatter) 
 
             # make slitfus from swaths into one
             #print(len(slitfu),[len(sf) for sf in slitfu])
             #slitfu = np.median(np.array(slitfu),axis=0)
             # save spectrum to disk
-            self.save(fname, head, spec, sigma, slitfu, cr)
+            # The 'orders_data' contains the fiber_trace_mapping, which could be passed to save if needed.
+            # For now, self.save is not modified to use it directly, but it's available here.
+            # If self.save were to use it, it would need access to the fiber_trace_mapping from orders_data.
+            # current_fiber_trace_mapping = orders_data[2] if isinstance(orders_data, tuple) and len(orders_data) == 3 else None
+            self.save(fname, head, spec, sigma, slitfu, cr) # Pass only what save currently accepts
             heads.append(head)
             specs.append(spec)
             sigmas.append(sigma)
@@ -1909,19 +2012,35 @@ class Finalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["continuum", "freq_comb", "config"]
+        self._dependsOn += ["continuum", "freq_comb", "config", "orders"] # Added 'orders' dependency
         self.filename = config["filename"]
 
-    def output_file(self, number, name):
+    def output_file(self, number, name, fiber_id=None): # Added fiber_id
         """str: output file name"""
-        out = self.filename.format(
+        # If fiber_id is provided, incorporate it into the filename
+        # Example: {input}_{fiber_id}.type or {input}.{fiber_id}.type
+        # This is just one way; the actual format might need more thought.
+        base_name = self.filename.format(
             instrument=self.instrument.name,
             night=self.night,
             mode=self.mode,
-            number=number,
-            input=name,
+            number=number, # Number might represent the original file index
+            input=name, # Original input name part
         )
-        return join(self.output_dir, out)
+        if fiber_id:
+            # Insert fiber_id before the final extension part handled by format_
+            # e.g., if self.filename was "out/{input}.{number}.fits"
+            # base_name becomes "out/original_input.0.fits"
+            # we want "out/original_input.0.FIBER1.fits"
+            # This requires careful construction of self.filename template or post-processing base_name
+            # For simplicity, let's assume self.filename might look like:
+            # "{input}.{instrument}.{night}.{mode}.{number}" and we append fiber_id and then .ech
+            # Or, more robustly, split base_name and insert fiber_id
+            root, ext = os.path.splitext(base_name)
+            out = f"{root}_{fiber_id}{ext}" # Example: input.0_FIBERID.ech
+        else:
+            out = base_name
+        return join(self.output_dir, out) # output_dir already applied by self.filename format in Reducer
 
     def save_config_to_header(self, head, config, prefix="PR"):
         for key, value in config.items():
@@ -1940,7 +2059,7 @@ class Finalize(Step):
                 head[f"HIERARCH {prefix} {key.upper()}"] = value
         return head
 
-    def run(self, continuum, freq_comb, config):
+    def run(self, continuum, freq_comb, config, orders_data): # Added orders_data
         """Create the final output files
 
         this is includes:
@@ -1954,8 +2073,146 @@ class Finalize(Step):
         freq_comb : tuple
             results from the frequency comb step (or wavelength calibration)
         """
-        heads, specs, sigmas, conts, columns = continuum
-        wave = freq_comb
+        heads, specs, sigmas, conts, columns = continuum # These are lists, one per original science file
+        wave = freq_comb # This is a single wave solution (or per-LFC if that was run)
+
+        # Unpack orders_data to get fiber_trace_mapping
+        if isinstance(orders_data, tuple) and len(orders_data) == 3:
+            _, _, fiber_trace_mapping = orders_data
+        else: # No mapping available
+            fiber_trace_mapping = None
+
+        fnames = []
+        # The crucial part: specs, sigmas, conts, columns from the 'continuum' step
+        # are now lists of arrays, where each array corresponds to an *original* science file,
+        # but each of *those* arrays (e.g., specs[i]) can have multiple rows if fibers were split.
+        # The number of rows in specs[i] should match the number of entries in fiber_trace_mapping
+        # if the 'orders' step generated multiple traces.
+
+        # If no fiber_trace_mapping, behave as before (1 output file per input science file)
+        if fiber_trace_mapping is None:
+            logger.info("No fiber trace mapping available for Finalize. Processing as single traces per input file.")
+            for i, (head, current_spec_array, current_sigma_array, current_blaze_array, current_column_array) in enumerate(
+                zip(heads, specs, sigmas, conts, columns)
+            ):
+                # Here, current_spec_array is (num_orders_for_this_file, num_cols)
+                # This assumes num_orders_for_this_file is 1 if no fiber splitting, or
+                # it's the number of primary traces if fiber_layout wasn't used.
+                head_copy = head.copy()
+                head_copy["e_erscle"] = ("absolute", "error scale")
+                # ... (heliocentric correction etc.) ...
+                try:
+                    rv_corr, bjd = util.helcorr(head_copy["e_obslon"], head_copy["e_obslat"], head_copy["e_obsalt"], head_copy["e_ra"], head_copy["e_dec"], head_copy["e_jd"])
+                    head_copy["barycorr"] = rv_corr
+                    head_copy["e_jd"] = bjd
+                except KeyError:
+                    logger.warning("Could not calculate heliocentric correction for file %d", i)
+                    rv_corr = 0; bjd = head_copy.get("e_jd", 0) # Keep original JD if present
+                head_copy["HIERARCH PR_version"] = __version__
+                head_copy = self.save_config_to_header(head_copy, config)
+
+                if self.plot :
+                    plt.plot(wave.T, (current_spec_array / current_blaze_array).T)
+                    if self.plot_title is not None: plt.title(self.plot_title)
+                    plt.show()
+                
+                # 'i' here is the original science file index
+                fname_out = self.save(i, head_copy, current_spec_array, current_sigma_array, current_blaze_array, wave, current_column_array, fiber_id=None)
+                fnames.append(fname_out)
+        else:
+            logger.info(f"Using fiber trace mapping for Finalize. {len(fiber_trace_mapping)} total fiber traces defined.")
+            # Iterate through each original science observation
+            for i, (head, original_file_spec_array, original_file_sigma_array, original_file_blaze_array, original_file_column_array) in enumerate(
+                zip(heads, specs, sigmas, conts, columns)
+            ):
+                # original_file_spec_array dimensions: (num_generated_traces, num_detector_columns)
+                # We need to save one file per fiber_id associated with this original science file 'i'.
+                # The fiber_trace_mapping links generated traces back to original primary traces.
+                # All fibers from one original_primary_trace_index will be processed for this science file 'i'.
+
+                # This logic assumes that if fiber_trace_mapping is present, then
+                # specs[i], sigmas[i] etc. from the 'continuum' step already have multiple rows,
+                # one for each *generated* fiber trace.
+                # The number of rows in original_file_spec_array should match len(fiber_trace_mapping).
+
+                if original_file_spec_array.shape[0] != len(fiber_trace_mapping):
+                    logger.warning(f"Mismatch for science file {i}: number of spectral rows ({original_file_spec_array.shape[0]}) "
+                                   f"does not match number of fiber mappings ({len(fiber_trace_mapping)}). "
+                                   "This indicates an issue in how multi-fiber data was propagated. Saving all rows to default filename.")
+                    # Fallback to save all rows under the old naming scheme or a modified one
+                    head_copy = head.copy()
+                    head_copy["e_erscle"] = ("absolute", "error scale")
+                    try:
+                        rv_corr, bjd = util.helcorr(head_copy["e_obslon"], head_copy["e_obslat"], head_copy["e_obsalt"], head_copy["e_ra"], head_copy["e_dec"], head_copy["e_jd"])
+                        head_copy["barycorr"] = rv_corr; head_copy["e_jd"] = bjd
+                    except KeyError: rv_corr = 0; bjd = head_copy.get("e_jd", 0)
+                    head_copy["HIERARCH PR_version"] = __version__
+                    head_copy = self.save_config_to_header(head_copy, config)
+                    fname_out = self.save(i, head_copy, original_file_spec_array, original_file_sigma_array, original_file_blaze_array, wave, original_file_column_array, fiber_id="ALL_FIBERS_COMBINED")
+                    fnames.append(fname_out)
+                    continue
+
+
+                # Save one output file per generated fiber trace
+                for generated_idx, fiber_map_entry in enumerate(fiber_trace_mapping):
+                    # We assume original_primary_trace_index in mapping is not strictly needed here if
+                    # the science files (heads list) are iterated one by one.
+                    # All generated traces are processed for *each* science file.
+                    # This might need refinement if a science file corresponds to only *one* physical_order_group.
+                    # For now, this interpretation means if `orders` produced N fiber traces,
+                    # then `science` will have N rows, and we save N files for *each* input science image.
+                    # This is likely correct if the input science image contains all those fibers.
+
+                    fiber_id = fiber_map_entry['fiber_id']
+                    
+                    # Select the specific row for this fiber
+                    # spec_for_fiber is (1, num_cols), echelle.save expects (num_orders, num_cols)
+                    # so we need to keep it as a 2D array, e.g., by slicing with [generated_idx:generated_idx+1]
+                    spec_for_fiber = original_file_spec_array[generated_idx:generated_idx+1, :]
+                    sigma_for_fiber = original_file_sigma_array[generated_idx:generated_idx+1, :]
+                    blaze_for_fiber = original_file_blaze_array[generated_idx:generated_idx+1, :] 
+                    # column_range for this specific fiber trace. This should also be an array (1,2)
+                    # The `columns` from continuum step should be a list of arrays,
+                    # each array (num_generated_traces, 2)
+                    column_for_fiber = original_file_column_array[generated_idx:generated_idx+1, :]
+                    
+                    # The wave solution might also be per-fiber if spectral offsets were significant
+                    # and wavelength calibration was done per fiber.
+                    # For now, assume `wave` is (num_generated_traces, num_cols)
+                    # or can be broadcasted/indexed appropriately.
+                    # If `wave` from freq_comb is (total_orders, N), it should match.
+                    wave_for_fiber = wave[generated_idx:generated_idx+1, :] if wave.ndim == 2 and wave.shape[0] == len(fiber_trace_mapping) else wave
+
+
+                    head_copy = head.copy() # Copy original science file header
+                    head_copy["e_erscle"] = ("absolute", "error scale")
+                    head_copy["HIERARCH PR FIBER_ID"] = fiber_id
+                    head_copy["HIERARCH PR POG_IDX"] = fiber_map_entry['physical_order_group_index']
+                    head_copy["HIERARCH PR OGT_IDX"] = fiber_map_entry['original_primary_trace_index'] # Original Gang Trace Index
+                    head_copy["HIERARCH PR GFT_IDX"] = fiber_map_entry['generated_trace_index'] # Generated Fiber Trace Index
+
+
+                    try:
+                        rv_corr, bjd = util.helcorr(head_copy["e_obslon"], head_copy["e_obslat"], head_copy["e_obsalt"], head_copy["e_ra"], head_copy["e_dec"], head_copy["e_jd"])
+                        head_copy["barycorr"] = rv_corr
+                        head_copy["e_jd"] = bjd
+                    except KeyError:
+                        logger.warning(f"Could not calculate heliocentric correction for fiber {fiber_id} from file {i}")
+                        rv_corr = 0; bjd = head_copy.get("e_jd", 0)
+                    
+                    head_copy["HIERARCH PR_version"] = __version__
+                    head_copy = self.save_config_to_header(head_copy, config)
+
+                    if self.plot:
+                        plt.plot(wave_for_fiber.T, (spec_for_fiber / blaze_for_fiber).T, label=f"Fiber {fiber_id}")
+                        if self.plot_title is not None: plt.title(f"{self.plot_title} - Fiber {fiber_id}")
+                        # Consider showing plots individually or collecting and then showing
+                    
+                    # 'i' is original science file index, generated_idx is the fiber trace index for that file
+                    fname_out = self.save(i, head_copy, spec_for_fiber, sigma_for_fiber, blaze_for_fiber, wave_for_fiber, column_for_fiber, fiber_id=fiber_id)
+                    fnames.append(fname_out)
+                if self.plot and fiber_trace_mapping : plt.legend(); plt.show()
+
 
         fnames = []
         # Combine science with wavecal and continuum
@@ -1965,41 +2222,42 @@ class Finalize(Step):
             head["e_erscle"] = ("absolute", "error scale")
 
             # Add heliocentric correction
-            try:
-                rv_corr, bjd = util.helcorr(
-                    head["e_obslon"],
+            # This block is now inside the loops above
+            # try:
+            #     rv_corr, bjd = util.helcorr(
+            #         head["e_obslon"],
                     head["e_obslat"],
                     head["e_obsalt"],
                     head["e_ra"],
                     head["e_dec"],
-                    head["e_jd"],
-                )
+            #         head["e_jd"],
+            #     )
 
-                logger.debug("Heliocentric correction: %f km/s", rv_corr)
-                logger.debug("Heliocentric Julian Date: %s", str(bjd))
-            except KeyError:
-                logger.warning("Could not calculate heliocentric correction")
-                # logger.warning("Telescope is in space?")
-                rv_corr = 0
-                bjd = head["e_jd"]
+            #     logger.debug("Heliocentric correction: %f km/s", rv_corr)
+            #     logger.debug("Heliocentric Julian Date: %s", str(bjd))
+            # except KeyError:
+            #     logger.warning("Could not calculate heliocentric correction")
+            #     # logger.warning("Telescope is in space?")
+            #     rv_corr = 0
+            #     bjd = head["e_jd"]
 
-            head["barycorr"] = rv_corr
-            head["e_jd"] = bjd
-            head["HIERARCH PR_version"] = __version__
+            # head["barycorr"] = rv_corr
+            # head["e_jd"] = bjd
+            # head["HIERARCH PR_version"] = __version__
 
-            head = self.save_config_to_header(head, config)
+            # head = self.save_config_to_header(head, config)
 
-            if self.plot:
-                plt.plot(wave.T, (spec / blaze).T)
-                if self.plot_title is not None:
-                    plt.title(self.plot_title)
-                plt.show()
+            # if self.plot:
+            #     plt.plot(wave.T, (spec / blaze).T)
+            #     if self.plot_title is not None:
+            #         plt.title(self.plot_title)
+            #     plt.show()
 
-            fname = self.save(i, head, spec, sigma, blaze, wave, column)
-            fnames.append(fname)
+            # fname = self.save(i, head, spec, sigma, blaze, wave, column) # This call is now inside the loops
+            # fnames.append(fname)
         return fnames
 
-    def save(self, i, head, spec, sigma, cont, wave, columns):
+    def save(self, i, head, spec, sigma, cont, wave, columns, fiber_id=None): # Added fiber_id
         """Save one output spectrum to disk
 
         Parameters
@@ -2024,8 +2282,13 @@ class Finalize(Step):
         out_file : str
             name of the output file
         """
-        original_name = os.path.splitext(head["e_input"])[0]
-        out_file = self.output_file(i, original_name)
+        original_name = os.path.splitext(head.get("e_input", f"unknown_input_{i}"))[0]
+        out_file = self.output_file(i, original_name, fiber_id=fiber_id) # Pass fiber_id
+        # echelle.save expects spec, sig, cont, wave to be (num_orders, num_cols)
+        # If we are saving a single fiber's data, these should be (1, num_cols)
+        # or (actual_num_orders_for_this_fiber, num_cols) if a fiber can span multiple echelle orders
+        # (which is not the case here, a fiber is one trace).
+        # The slicing [idx:idx+1] in the run method ensures this.
         echelle.save(
             out_file, head, spec=spec, sig=sigma, cont=cont, wave=wave, columns=columns
         )
