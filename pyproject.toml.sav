@@ -1,0 +1,77 @@
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[build-system]
+requires = ["setuptools>=68.2.2", "wheel>=0.43.0", "cffi>=1.17.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.cffi_modules]
+extract_vertical = "pyreduce/clib/build_extract.py:ffibuilder_vertical"
+extract_curved = "pyreduce/clib/build_extract.py:ffibuilder_curved"
+slitfunc_2d = "pyreduce/clib/build_slitfunc.py:ffibuilder_slitfunc_2d"
+
+[project]
+name = "pyreduce-astro"
+version = "0.6-dev"
+requires-python = "<=3.11, >=3.8"
+description = "A data reduction package for echelle spectrographs"
+readme = "README.md"
+authors = [
+    {name = "Ansgar Wehrhahn"},
+    {name = "Thomas Marquart", email = "thomas.marquart@astro.uu.se"},
+    {name = "Nikolai Piskunov"}
+]
+license = {text = "GPL-3.0"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+]
+dependencies = [
+    "cffi",
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "astropy",
+    "colorlog",
+    "corner",
+    "emcee",
+    "joblib",
+    "jsonschema",
+    "spectres",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "python-dateutil",
+    "scikit-image",
+    "sphinx",
+    "tqdm",
+    "wget",
+    "Pillow",
+]
+
+[project.urls]
+Homepage = "https://github.com/ivh/PyReduce"
