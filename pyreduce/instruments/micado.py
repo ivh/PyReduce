@@ -3,16 +3,16 @@ Handles instrument specific info for the MICADO spectrograph
 
 Mostly reading data from the header
 """
-import os.path
 import glob
 import logging
+import os.path
 from datetime import datetime
 
 import numpy as np
 from astropy.io import fits
 from dateutil import parser
 
-from .common import getter, InstrumentWithModes, Instrument, observation_date_to_night
+from .common import Instrument, InstrumentWithModes, getter, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 

@@ -22,19 +22,20 @@ License
 import glob
 import logging
 import os.path
+import warnings
 from itertools import product
 from os.path import dirname, join
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
-
 from astropy.io import fits
 from astropy.io.fits.verify import VerifyWarning
-import warnings
+
 warnings.simplefilter('ignore', category=VerifyWarning)
 
 from genericpath import exists
+
 from tqdm import tqdm
 
 # PyReduce subpackages
@@ -54,9 +55,8 @@ from .instruments.instrument_info import load_instrument
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
 from .trace_orders import mark_orders
-from .wavelength_calibration import LineList
+from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
-from .wavelength_calibration import WavelengthCalibrationComb
 from .wavelength_calibration import (
     WavelengthCalibrationInitialize as WavelengthCalibrationInitializeModule,
 )

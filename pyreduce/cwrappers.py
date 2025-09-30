@@ -16,8 +16,8 @@ from scipy.ndimage import median_filter
 logger = logging.getLogger(__name__)
 
 try:
-    from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_2d import ffi
+    from .clib._slitfunc_2d import lib as slitfunc_2dlib
     from .clib._slitfunc_bd import lib as slitfunclib
 except ImportError:  # pragma: no cover
     logger.error(
