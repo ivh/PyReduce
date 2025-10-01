@@ -11,7 +11,7 @@ from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
-from scipy.ndimage import label, grey_closing, binary_closing, binary_opening
+from scipy.ndimage import binary_closing, binary_opening, grey_closing, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import find_peaks, peak_widths
 

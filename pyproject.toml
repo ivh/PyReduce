@@ -1,42 +1,11 @@
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-
-[tool.black]
-line-length = 88
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
 [build-system]
-requires = ["setuptools>=68.2.2", "wheel>=0.43.0", "cffi>=1.17.1"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-package-dir = { "" = "." }
-
-[tool.setuptools.packages.find]
-where = ["."]
-
-[tool.cffi_modules]
-extract_vertical = "pyreduce/clib/build_extract.py:ffibuilder_vertical"
-extract_curved = "pyreduce/clib/build_extract.py:ffibuilder_curved"
+requires = ["hatchling>=1.25.0", "cffi>=1.17.1", "setuptools"]
+build-backend = "hatchling.build"
 
 [project]
 name = "pyreduce-astro"
 version = "0.6-dev"
-requires-python = "<=3.11, >=3.8"
+requires-python = ">=3.13"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"
 authors = [
@@ -44,33 +13,156 @@ authors = [
     {name = "Thomas Marquart", email = "thomas.marquart@astro.uu.se"},
     {name = "Nikolai Piskunov"}
 ]
-license = {text = "GPL-3.0"}
+license = {text = "GPL-3.0-or-later"}
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: C",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
 ]
+
 dependencies = [
-    "cffi",
-    "numpy",
-    "matplotlib",
-    "scipy",
-    "astropy",
-    "colorlog",
-    "corner",
-    "emcee",
-    "joblib",
-    "jsonschema",
-    "spectres",
-    "pre-commit",
-    "pytest",
-    "pytest-cov",
-    "python-dateutil",
-    "scikit-image",
-    "sphinx",
-    "tqdm",
-    "wget",
-    "Pillow",
+    "cffi>=1.17.1",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "scipy>=1.11.0",
+    "astropy>=5.3.0",
+    "colorlog>=6.8.0",
+    "corner>=2.2.0",
+    "emcee>=3.1.0",
+    "joblib>=1.3.0",
+    "jsonschema>=4.20.0",
+    "spectres>=2.2.0",
+    "python-dateutil>=2.8.0",
+    "scikit-image>=0.22.0",
+    "tqdm>=4.66.0",
+    "wget>=3.2",
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "pre-commit>=3.5.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "sphinx>=7.2.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/ivh/PyReduce"
+Documentation = "https://pyreduce.readthedocs.io"
+Repository = "https://github.com/ivh/PyReduce"
+Issues = "https://github.com/ivh/PyReduce/issues"
+
+# Hatch build configuration
+[tool.hatch.build]
+packages = ["pyreduce"]
+exclude = [
+    "/.git",
+    "/.github",
+    "/docs",
+    "/tests",
+    "*.pyc",
+    "__pycache__",
+]
+
+# Include C source files and headers in the package
+[tool.hatch.build.targets.wheel]
+packages = ["pyreduce"]
+include = [
+    "pyreduce/**/*.py",
+    "pyreduce/**/*.c",
+    "pyreduce/**/*.h",
+    "pyreduce/**/*.so",
+    "pyreduce/**/*.json",
+    "pyreduce/**/*.npz",
+    "pyreduce/**/*.sav",
+]
+artifacts = [
+    "pyreduce/clib/*.so",
+]
+
+# Build CFFI extensions via build hook
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+# Ruff - Modern Python linter and formatter
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = [
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    ".eggs",
+    "__pycache__",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pyreduce"]
+
+# pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["pyreduce"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# uv-specific configuration
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.8.0",
+    "pre-commit>=3.5.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "sphinx>=7.2.0",
+]
