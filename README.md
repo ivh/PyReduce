@@ -16,25 +16,40 @@ Some documentation on how to use PyReduce is available at [ReadTheDocs](https://
 Installation
 ------------
 
-The latest version can be installed using ``pip install git+https://github.com/ivh/PyReduce``.
+### For Users
 
-The version that is available from PyPI is slightly outdated, but functional and installable via ``pip install pyreduce-astro``.
+The latest version can be installed with pip:
 
-If you foresee making changes to PyReduce itself, feel free to (fork and) clone
-this repository, and install the requirements and your local copy into a fresh
-environment, e.g.
-
+```bash
+pip install git+https://github.com/ivh/PyReduce
 ```
-conda create -n pyreduce
-conda activate pyreduce
+
+The version available from PyPI is slightly outdated, but functional: ``pip install pyreduce-astro``.
+
+### For Development
+
+If you foresee making changes to PyReduce itself, clone the repository and use [uv](https://docs.astral.sh/uv/) for fast, modern package management:
+
+```bash
 git clone <your fork url>
 cd PyReduce/
-pip install -r requirements.txt
-pip install -e .
+uv sync
 ```
 
-PyReduce uses CFFI to link to the C code, on non-linux platforms you might have to install libffi.
-See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+This will automatically:
+- Create a virtual environment
+- Install all dependencies
+- Build the CFFI C extensions
+- Install PyReduce in editable mode
+
+To run commands, use `uv run`:
+```bash
+uv run pytest                    # Run tests
+uv run python examples/uves_example.py  # Run example
+```
+
+**Note:** PyReduce uses CFFI to link to C code. On non-Linux platforms you might need to install libffi.
+See https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
 
 Output Format
 -------------

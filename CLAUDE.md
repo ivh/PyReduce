@@ -1,0 +1,200 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+PyReduce is a Python port of the REDUCE echelle spectrograph data reduction pipeline. It processes raw astronomical observations from instruments like HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS and others into calibrated 1D spectra.
+
+The pipeline performs sequential steps: bias correction, flat fielding, order tracing, wavelength calibration, spectrum extraction, and continuum normalization. Each step can be run independently or as part of a complete reduction.
+
+## Development Setup
+
+This project uses **uv** for fast, modern Python package management. All Python commands should use `uv run` instead of direct Python invocation.
+
+```bash
+# Install dependencies (use uv, not pip)
+uv sync
+
+# Install with development dependencies
+uv sync --all-extras
+```
+
+## Common Commands
+
+### Using uv
+**IMPORTANT: Always use `uv run` to execute Python commands.** This ensures the correct environment and dependencies.
+
+```bash
+# Run tests
+uv run pytest
+
+# Run specific test file
+uv run pytest test/test_extract.py
+
+# Run tests with coverage
+uv run pytest --cov=pyreduce --cov-report=html
+
+# Run example script
+uv run python examples/uves_example.py
+
+# Run PyReduce as module
+uv run python -m pyreduce
+```
+
+### Building
+```bash
+# Build source distribution and wheel (uses Hatchling)
+uv build
+
+# The build will:
+# 1. Compile two CFFI C extensions via hatch_build.py:
+#    - _slitfunc_bd (vertical extraction)
+#    - _slitfunc_2d (curved extraction)
+# 2. Create .tar.gz and .whl in dist/
+
+# Note: setuptools is required in build-system even though we use Hatchling
+# because CFFI requires it on Python 3.12+
+```
+
+### Code Quality
+```bash
+# Format and lint with Ruff (replaces black, isort, flake8)
+uv run ruff format pyreduce/
+uv run ruff check pyreduce/
+uv run ruff check --fix pyreduce/
+
+# Run pre-commit hooks
+uv run pre-commit run --all-files
+
+# Note: pre-commit config still references legacy tools (black, isort, flake8)
+# but pyproject.toml uses Ruff for new development
+```
+
+## Build System
+
+### Modern Tooling Stack (2025)
+- **Package manager**: uv (fast, modern alternative to pip/poetry)
+- **Build backend**: Hatchling (PEP 517 compliant, replaces setuptools)
+- **Linter/formatter**: Ruff (replaces black, isort, flake8, pyupgrade)
+- **Python version**: 3.13+ (specified in pyproject.toml)
+
+### Build Configuration
+```toml
+[build-system]
+requires = ["hatchling>=1.25.0", "cffi>=1.17.1", "setuptools"]
+build-backend = "hatchling.build"
+```
+
+**Why setuptools is still required**: CFFI internally uses setuptools for building C extensions on Python 3.12+. This is a CFFI requirement, not a PyReduce build system requirement.
+
+### CFFI Extension Build Process
+The `hatch_build.py` file implements a Hatchling build hook that:
+1. Reads C source files from `pyreduce/clib/`
+2. Uses CFFI's `FFI()` to generate wrapper code
+3. Compiles two extensions:
+   - `_slitfunc_bd.so` - Vertical slit function extraction
+   - `_slitfunc_2d.so` - Curved slit function extraction (2D)
+4. Places compiled `.so` files in `pyreduce/clib/`
+
+The hook runs automatically during `uv build` or `uv sync` when installing in editable mode.
+
+## Architecture
+
+### Pipeline Flow
+
+The main entry point is `pyreduce.reduce.main()`, which orchestrates these steps:
+
+1. **bias** - Combines bias frames and fits polynomial vs exposure time
+2. **flat** - Combines flat field frames
+3. **orders** - Traces echelle orders on the detector using `trace_orders.py`
+4. **norm_flat** - Normalizes flat field, creates blaze function
+5. **curvature** - Determines slit curvature using `make_shear.py`
+6. **wavecal** - Wavelength calibration from ThAr/etalon spectra (`wavelength_calibration.py`)
+7. **science** - Extracts 1D spectrum from 2D image using `extract.py`
+8. **continuum** - Continuum normalization via `continuum_normalization.py`
+9. **finalize** - Writes final .ech FITS files
+
+### Key Modules
+
+**pyreduce/reduce.py** - Main reduction orchestrator with step classes (Bias, Flat, OrderTracing, etc.)
+
+**pyreduce/extract.py** - Optimal spectrum extraction using the slit function decomposition method. Calls C code via `cwrappers.py`.
+
+**pyreduce/wavelength_calibration.py** - Three-stage wavelength solution:
+- Initialize: Creates initial wavelength guess from atlas lines
+- Master: Refines solution across all orders
+- Finalize: Applies final wavelength solution
+
+**pyreduce/trace_orders.py** - Automatic order detection and tracing using polynomial fits
+
+**pyreduce/instruments/** - Instrument-specific configuration. Each instrument has:
+- `.py` file with class inheriting from `instruments.common.Instrument`
+- `.json` file with instrument parameters (detector size, orientation, etc.)
+
+**pyreduce/settings/** - JSON configuration files controlling reduction parameters for each step (polynomial degrees, iteration counts, plotting options)
+
+**pyreduce/clib/** - C extensions for performance-critical extraction code:
+- `slit_func_bd.c` / `slit_func_bd.h` - Vertical slit function decomposition
+- `slit_func_2d_xi_zeta_bd.c` / `slit_func_2d_xi_zeta_bd.h` - Curved 2D extraction
+- Compiled `.so` files for each Python version
+
+**pyreduce/wavecal/** - Wavelength calibration reference data:
+- `atlas/` - Spectral line atlases (ThAr, etalon)
+- Pre-computed wavelength solutions as `.npz` files
+
+### Configuration System
+
+Configuration uses a two-tier approach:
+
+1. **Instrument files** (`pyreduce/instruments/*.json`) - Hardware parameters
+2. **Settings files** (`pyreduce/settings/settings_*.json`) - Reduction parameters
+
+Both are validated against JSON schemas (`instrument_schema.json`, `settings_schema.json`).
+
+Settings can be loaded via `pyreduce.configuration.get_configuration_for_instrument()`.
+
+### Data Flow
+
+Input: Raw FITS files organized as `base_dir/input_dir/{night}/`
+
+Output:
+- Intermediate products saved as `.npz` files in `output_dir/`
+- Final 1D spectra as `.ech` files (FITS format with table extension)
+- Header keywords from input preserved, PyReduce keywords prefixed with `e_`
+
+### C Integration
+
+Performance-critical extraction uses C code wrapped via CFFI:
+- `pyreduce/cwrappers.py` provides Python interface to `slitfunc()` and `slitfunc_curved()`
+- C source in `pyreduce/clib/*.c`
+- Build happens automatically during `uv build` or `uv sync` via `hatch_build.py`
+- CFFI requires setuptools on Python 3.12+ (not used for build system, only CFFI internals)
+
+## Testing
+
+Tests use pytest with fixtures defined in `test/conftest.py`:
+- `instrument` fixture provides dataset instances for UVES, XSHOOTER, NIRSPEC, JWST_NIRISS
+- Each reduction step has a corresponding class fixture (e.g., `bias_step`, `flat_step`)
+- Tests download small sample datasets automatically via `pyreduce.datasets`
+
+Run with: `uv run pytest`
+
+## Instrument Support
+
+To add a new instrument:
+1. Create `pyreduce/instruments/instrument_name.py` inheriting from `Instrument`
+2. Create `pyreduce/instruments/instrument_name.json` with detector parameters
+3. Create `pyreduce/settings/settings_INSTRUMENT_NAME.json` for reduction defaults
+4. Add example script to `examples/instrument_name_example.py`
+
+See `examples/custom_instrument_example.py` for template.
+
+## Important Notes
+
+- Always use `uv run` for Python commands to ensure correct environment
+- Pre-commit hooks enforce code quality but still reference legacy tools (being migrated)
+- Interactive plotting can be disabled in settings JSON files with `"plot": false`
+- All reduction steps are resumable - intermediate products are cached
+- The C extensions must compile successfully for extraction to work
+- Output `.ech` files are standard FITS files despite the extension name
