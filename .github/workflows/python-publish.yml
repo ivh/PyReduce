@@ -1,8 +1,7 @@
 name: PyReduce CI/CD
 
 on:
-  push:
-    branches: [ master ]
+  workflow_dispatch:  # Manual trigger only
   pull_request:
     branches: [ master ]
 

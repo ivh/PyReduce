@@ -200,10 +200,15 @@ See `examples/custom_instrument_example.py` for template.
 ### GitHub Actions Workflow
 The repository uses GitHub Actions (`.github/workflows/python-publish.yml`) for CI/CD:
 
-**On every push/PR to master:**
+**On pull requests to master:**
 - Runs pre-commit hooks (Ruff linting/formatting, file checks)
 - Runs pytest test suite with coverage reporting
 - Builds distribution packages to verify build works
+
+**On regular pushes to master:**
+- Tests do NOT run automatically (saves CI time since pre-commit hooks run locally)
+- Manually trigger tests when needed: `gh workflow run "PyReduce CI/CD"`
+- Or trigger from GitHub UI: Actions tab → "PyReduce CI/CD" → "Run workflow"
 
 **Manual publishing to PyPI:**
 - Use `uv build` locally to create wheel and sdist
