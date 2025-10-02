@@ -130,20 +130,22 @@ def test_fix_column_range():
     ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
     cr = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
 
-    fixed = extract.fix_column_range(cr, orders, ew, nrow, ncol)
+    fixed_cr, fixed_orders = extract.fix_column_range(cr, orders, ew, nrow, ncol)
 
-    assert np.array_equal(fixed[1], [25, 175])
-    assert np.array_equal(fixed[2], [15, 165])
-    assert np.array_equal(fixed[0], fixed[1])
-    assert np.array_equal(fixed[-1], fixed[-1])
+    assert np.array_equal(fixed_cr[1], [25, 175])
+    assert np.array_equal(fixed_cr[2], [15, 165])
+    assert np.array_equal(fixed_cr[0], fixed_cr[1])
+    assert np.array_equal(fixed_cr[-1], fixed_cr[-1])
+    assert fixed_orders.shape == orders.shape  # Orders unchanged in this case
 
     # Nothing should change here
     orders = np.array([[20], [20], [20]])
     ew = np.array([[10, 10], [10, 10], [10, 10]])
     cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
 
-    fixed = extract.fix_column_range(np.copy(cr), orders, ew, nrow, ncol)
-    assert np.array_equal(fixed, cr)
+    fixed_cr, fixed_orders = extract.fix_column_range(np.copy(cr), orders, ew, nrow, ncol)
+    assert np.array_equal(fixed_cr, cr)
+    assert np.array_equal(fixed_orders, orders)
 
 
 def test_make_bins(width):
@@ -199,8 +201,11 @@ def test_fix_parameters():
             assert orders.shape[0] == nord
             assert orders.shape[1] == 3
 
-    with pytest.raises(ValueError):
-        extract.fix_parameters(100, None, orders, ncol, nrow, nord)
+    # Test that extraction_width=100 results in no valid pixels,
+    # which now logs a warning and removes the order instead of raising ValueError
+    xwd, cr, orders_out = extract.fix_parameters(100, None, orders, ncol, nrow, nord)
+    # The order should be removed, resulting in an empty array
+    assert len(orders_out) == 0
 
 
 def test_arc_extraction(sample_data, orders, width, oversample):

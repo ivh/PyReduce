@@ -405,6 +405,8 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     -------
     column_range : array[nord, 2]
         updated column range
+    orders : array[nord, degree]
+        order tracing coefficients (may have rows removed if no valid pixels)
     """
 
     ix = np.arange(ncol)
@@ -426,7 +428,7 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
 
         if len(points_in_image) == 0:
             # print(y_bot, y_top,nrow, ncol, points_in_image)
-            logger.warn(
+            logger.warning(
                 f"No pixels are completely within the extraction width for order {i}, removing it."
             )
             to_remove += [i]
@@ -452,9 +454,9 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     column_range[0] = column_range[1]
     column_range[-1] = column_range[-2]
 
-    for i in to_remove:
-        np.delete(column_range, i, axis=0)
-        np.delete(orders, i, axis=0)
+    if to_remove:
+        column_range = np.delete(column_range, to_remove, axis=0)
+        orders = np.delete(orders, to_remove, axis=0)
 
     return column_range, orders
 
