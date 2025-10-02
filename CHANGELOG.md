@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Test organization with pytest markers (unit, instrument, slow, downloads)
+- ANDES instrument configuration and settings
+
+### Changed
+- CI now runs fast tests (~7s) on every push to master
+- Test suite optimized with slow marker for tests >3s
+
+### Fixed
+- ANDES instrument configuration errors (missing decker fields, regex pattern)
+- NIRSPEC FITS header errors with illegal keywords containing dots
+- Pre-commit hooks now documented and working correctly
+
 ## [0.6.0b2] - 2025-10-02
 
 ### Changed
