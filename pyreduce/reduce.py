@@ -1890,7 +1890,11 @@ class ContinuumNormalization(Step):
             norm, blaze = norm_flat
             conts = [blaze for _ in specs]
             data = {
-                "heads": heads, "specs": specs, "sigmas": sigmas, "conts": conts, "columns": columns
+                "heads": heads,
+                "specs": specs,
+                "sigmas": sigmas,
+                "conts": conts,
+                "columns": columns,
             }
         heads = data["heads"]
         specs = data["specs"]

@@ -100,6 +100,7 @@ wave1D = wave1D["wave"]
 def gauss(x, A, mu, sig):
     return A * np.exp(-((x - mu) ** 2) / (2 * sig**2))
 
+
 xlim = (-200, 200)
 ylim = (0, 1500)
 bins = 400

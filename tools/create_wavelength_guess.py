@@ -303,6 +303,7 @@ class OrderPlot:
         deg = min(self.degree, len(pos))
 
         x = np.arange(self.ncol)
+
         def fun(p):
             return np.where(np.gradient(np.polyval(p, x)) >= 0, 1, 0)
 

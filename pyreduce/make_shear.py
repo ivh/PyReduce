@@ -257,9 +257,11 @@ class Curvature:
         A = np.nanpercentile(img_compressed, 95)
         sig = (xmax - xmin) / 4  # TODO
         if self.curv_degree == 1:
+
             def shift(curv):
                 return curv[0] * y
         elif self.curv_degree == 2:
+
             def shift(curv):
                 return (curv[0] + curv[1] * y) * y
         else:

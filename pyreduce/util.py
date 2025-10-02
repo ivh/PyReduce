@@ -274,6 +274,7 @@ def gaussfit(x, y):
 
     def gauss(x, A0, A1, A2):
         return A0 * np.exp(-(((x - A1) / A2) ** 2) / 2)
+
     popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 

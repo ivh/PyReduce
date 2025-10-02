@@ -415,9 +415,11 @@ def combine_frames(
             # We could just rotate the whole image, but that requires reading the whole image at once
             def index(row, x_left, x_right):
                 return (slice(x_left, x_right), row)
+
             # Exchange the borders of the image
             x_low, x_high, y_low, y_high = y_low, y_high, x_low, x_high
         else:
+
             def index(row, x_left, x_right):
                 return (row, slice(x_left, x_right))
 
