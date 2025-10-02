@@ -1,19 +1,17 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
+
 import logging
 import os.path
 import re
 from itertools import product
 
 import numpy as np
-from astropy.io import fits
-from dateutil import parser
 
-from .common import Instrument, getter, observation_date_to_night
+from .common import Instrument
 from .filters import Filter
 
 logger = logging.getLogger(__name__)
@@ -80,7 +78,7 @@ class CRIRES_PLUS(Instrument):
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}.npz".format(instrument=self.name, mode=mode)
+        fname = f"{self.name}_{mode}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 

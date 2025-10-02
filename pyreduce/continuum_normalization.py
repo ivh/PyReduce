@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Find the continuum level
 
 Currently only splices orders together
 First guess of the continuum is provided by the flat field
 """
+
 import logging
 from itertools import chain
 
@@ -92,7 +92,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
     tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
 
     # Looping over order pairs
-    for iord0, iord1 in zip(tmp0, tmp1):
+    for iord0, iord1 in zip(tmp0, tmp1, strict=False):
         # Get data for current order
         # Note that those are just references to parts of the original data
         # any changes will also affect spec, wave, cont, and sigm
@@ -124,13 +124,13 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
                 np.ma.vstack([s0[i0], tmpS0]), axis=0, weights=wgt0, returned=True
             )
             c0[i0] = np.ma.average([c0[i0], tmpB0], axis=0, weights=wgt0)
-            u0[i0] = c0[i0] * utmp ** -0.5
+            u0[i0] = c0[i0] * utmp**-0.5
 
             s1[i1], utmp = np.ma.average(
                 np.ma.vstack([s1[i1], tmpS1]), axis=0, weights=wgt1, returned=True
             )
             c1[i1] = np.ma.average([c1[i1], tmpB1], axis=0, weights=wgt1)
-            u1[i1] = c1[i1] * utmp ** -0.5
+            u1[i1] = c1[i1] * utmp**-0.5
         else:  # pragma: no cover
             # TODO: Orders dont overlap
             continue

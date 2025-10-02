@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Calculate the tilt based on a reference spectrum with high SNR, e.g. Wavelength calibration image
 
@@ -23,7 +22,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from scipy import signal
-from scipy.ndimage import gaussian_filter1d, median_filter
 from scipy.optimize import least_squares
 from tqdm import tqdm
 
@@ -538,7 +536,7 @@ class Curvature:
                 x = np.zeros(ew[0] + ew[1] + 1)
                 y = np.arange(-ew[0], ew[1] + 1)
                 for j, yt in enumerate(y):
-                    x[j] = p + yt * tilt[i, p] + yt ** 2 * shear[i, p]
+                    x[j] = p + yt * tilt[i, p] + yt**2 * shear[i, p]
                 y += pos[i] + ew[0]
                 plt.plot(x, y, "r")
 
@@ -601,4 +599,4 @@ def lorentzian(x, A, x0, mu):
     x0: offset from central line
     mu: width of lorentzian
     """
-    return A * mu / ((x - x0) ** 2 + 0.25 * mu ** 2)
+    return A * mu / ((x - x0) ** 2 + 0.25 * mu**2)

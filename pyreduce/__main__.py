@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This is used when pyreduce is used as a script
 """

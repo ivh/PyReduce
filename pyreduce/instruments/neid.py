@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the NEID spectrograph
 """
+
 import logging
 import re
-from itertools import product
 from os.path import dirname, join
-
-import numpy as np
 
 from .common import Instrument
 from .filters import Filter, InstrumentFilter, NightFilter, ObjectFilter
@@ -30,7 +27,11 @@ class NEID(Instrument):
         }
         self.night = "night"
         self.science = "science"
-        self.shared = ["instrument", "night", "mode",]
+        self.shared = [
+            "instrument",
+            "night",
+            "mode",
+        ]
         self.find_closest = [
             "bias",
             "flat",
@@ -67,10 +68,9 @@ class NEID(Instrument):
         else:
             target = ".*"
 
-        
         id_orddef = "LAMP,DARK,TUN"
         id_spec = "STAR,WAVE"
-        
+
         expectations = {
             "flat": {"instrument": "NEID", "night": night, "type": r"LAMP,LAMP,TUN"},
             "orders": {
@@ -105,7 +105,6 @@ class NEID(Instrument):
 
     def get_extension(self, header, mode):
         extension = super().get_extension(header, mode)
-
 
         return extension
 

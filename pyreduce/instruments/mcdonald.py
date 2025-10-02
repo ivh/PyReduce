@@ -1,20 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
+
 import logging
 import os.path
 import re
 
-import numpy as np
-from astropy.io import fits
 from astropy.time import Time
-from dateutil import parser
 
-from .common import InstrumentWithModes, getter, observation_date_to_night
-from .filters import Filter
+from .common import InstrumentWithModes, getter
 
 logger = logging.getLogger(__name__)
 

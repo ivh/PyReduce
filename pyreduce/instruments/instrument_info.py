@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Interface for all instrument specific information
 The actual info is contained in the instruments/{name}.py modules/classes, which are all subclasses of "common"

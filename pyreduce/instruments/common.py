@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Abstract parent module for all other instruments
 Contains some general functionality, which may be overridden by the children of course
 """
+
 import datetime
 import glob
 import json
@@ -450,7 +450,7 @@ class Instrument:
                     mask &= thingy[i][1]
                 if np.count_nonzero(mask) == 0:
                     continue
-                d = {k: v[0] for k, v in zip(values.keys(), thingy)}
+                d = {k: v[0] for k, v in zip(values.keys(), thingy, strict=False)}
                 f = files[mask]
                 result[step].append((d, f))
 
@@ -472,7 +472,7 @@ class Instrument:
 
         values = [settings[k] for k in self.shared]
         for setting in product(*values):
-            setting = {k: v for k, v in zip(self.shared, setting)}
+            setting = {k: v for k, v in zip(self.shared, setting, strict=False)}
             night = setting[self.night]
             f = {}
             # For each step look for files with matching settings
@@ -598,9 +598,7 @@ class Instrument:
         instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_{specifier}.npz".format(
-            instrument=instrument.lower(), mode=mode, specifier=specifier
-        )
+        fname = f"{instrument.lower()}_{mode}_{specifier}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 

@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 
-from .util import gaussfit4 as gaussfit
-from .util import gaussval2 as gaussval
 from .util import make_index
 
 logger = logging.getLogger(__name__)
@@ -14,7 +10,7 @@ logger = logging.getLogger(__name__)
 def estimate_extraction_width(
     img, orders, column_range, plot=False
 ):  # pragma: no cover
-    raise NotImplemented
+    raise NotImplementedError
     nrow, ncol = img.shape
     nord, _ = orders.shape
     extraction_width = np.zeros((nord, 2), dtype=int)

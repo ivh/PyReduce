@@ -1,21 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
+
 import glob
 import logging
 import os.path
 from datetime import datetime
 
 import numpy as np
-from astropy.coordinates import EarthLocation
 from astropy.io import fits
 from dateutil import parser
 from tqdm import tqdm
 
-from .common import Instrument, getter, observation_date_to_night
+from .common import Instrument, observation_date_to_night
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +141,6 @@ class NIRSPEC(Instrument):
             selection = (ni == ind_night) & (it == instrument) & (ob == target)
 
             for file in files[selection]:
-
                 # Read caliblist
                 caliblist = file[:-8] + ".caliblist"
                 caliblist = np.genfromtxt(

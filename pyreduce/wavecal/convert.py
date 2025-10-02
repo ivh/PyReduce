@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Simple script that converts IDL savefiles into numpy savefiles
 """

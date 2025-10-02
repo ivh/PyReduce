@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Module for extracting data from observations
 
 Authors
@@ -13,17 +12,13 @@ License
 
 import logging
 
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import interp1d
-from scipy.ndimage import convolve, median_filter
-from scipy.ndimage.morphology import binary_hit_or_miss
 from tqdm import tqdm
 
-from .cwrappers import slitfunc, slitfunc_curved
-from .util import make_index, resample
+from .cwrappers import slitfunc_curved
+from .util import make_index
 
 logger = logging.getLogger(__name__)
 
@@ -307,7 +302,7 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False)
     xwd = fix_extraction_width(xwd, orders, cr, ncol)
     if not ignore_column_range:
         cr, orders = fix_column_range(cr, orders, xwd, nrow, ncol)
-    
+
     orders = orders[1:-1]
     xwd = xwd[1:-1]
     cr = cr[1:-1]
@@ -413,9 +408,9 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     """
 
     ix = np.arange(ncol)
-    to_remove=[]
+    to_remove = []
     # Loop over non extension orders
-    for i, order in zip(range(1, len(orders) - 1), orders[1:-1]):
+    for i, order in zip(range(1, len(orders) - 1), orders[1:-1], strict=False):
         # Shift order trace up/down by extraction_width
         coeff_bot, coeff_top = np.copy(order), np.copy(order)
         coeff_bot[-1] -= extraction_width[i, 0]
@@ -430,11 +425,12 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
         points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
 
         if len(points_in_image) == 0:
-            #print(y_bot, y_top,nrow, ncol, points_in_image)
-            logger.warn(f"No pixels are completely within the extraction width for order {i}, removing it.")
+            # print(y_bot, y_top,nrow, ncol, points_in_image)
+            logger.warn(
+                f"No pixels are completely within the extraction width for order {i}, removing it."
+            )
             to_remove += [i]
             continue
-            
 
         regions = np.where(np.diff(points_in_image) != 1)[0]
         regions = [(r, r + 1) for r in regions]
@@ -457,9 +453,8 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     column_range[-1] = column_range[-2]
 
     for i in to_remove:
-        np.delete(column_range,i,axis=0)
-        np.delete(orders,i,axis=0)
-            
+        np.delete(column_range, i, axis=0)
+        np.delete(orders, i, axis=0)
 
     return column_range, orders
 
@@ -706,7 +701,7 @@ def extract_spectrum(
     # Perform slit decomposition within each swath stepping through the order with
     # half swath width. Spectra for each decomposition are combined with linear weights.
     with tqdm(
-        enumerate(zip(bins_start, bins_end)),
+        enumerate(zip(bins_start, bins_end, strict=False)),
         total=len(bins_start),
         leave=False,
         desc="Swath",
@@ -789,7 +784,7 @@ def extract_spectrum(
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
     weight[0][: margin[0, 0]] = 0
     weight[-1][len(weight[-1]) - margin[-1, 1] :] = 0
-    for i, j in zip(range(0, nswath - 1), range(1, nswath)):
+    for i, j in zip(range(0, nswath - 1), range(1, nswath), strict=False):
         width = bins_end[i] - bins_start[i]
         overlap = bins_end[i] - bins_start[j]
 
@@ -820,18 +815,18 @@ def extract_spectrum(
     mask[xrange[1] :] = True
 
     # Apply weights
-    for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+    for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end, strict=False)):
         spec[ibeg:iend] += swath.spec[i] * weight[i]
         sunc[ibeg:iend] += swath.unc[i] * weight[i]
 
     if normalize:
-        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end)):
+        for i, (ibeg, iend) in enumerate(zip(bins_start, bins_end, strict=False)):
             index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
             im_norm[index] += norm_img[i] * weight[i]
             im_ordr[index] += norm_model[i] * weight[i]
 
     slitf[:] = np.mean(swath.slitf, axis=0)
-    sunc[:] = np.sqrt(sunc ** 2 + (readnoise / gain) ** 2)
+    sunc[:] = np.sqrt(sunc**2 + (readnoise / gain) ** 2)
     return spec, slitf, mask, sunc
 
 
@@ -1003,8 +998,8 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
     mask = ~np.ma.getmaskarray(img_order)
 
     xt = np.arange(img_order.shape[1])
-    for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1])):
-        xi = xt + yt * tilt + yt ** 2 * shear
+    for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1]), strict=False):
+        xi = xt + yt * tilt + yt**2 * shear
         img_order[y] = np.interp(
             xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0
         )
@@ -1147,7 +1142,7 @@ def arc_extraction(
         # Store results
         spectrum[i, x_left_lim:x_right_lim] = arc
         uncertainties[i, x_left_lim:x_right_lim] = (
-            np.sqrt(np.abs(arc * gain + dark + readnoise ** 2)) / gain
+            np.sqrt(np.abs(arc * gain + dark + readnoise**2)) / gain
         )
 
     if plot:  # pragma: no cover

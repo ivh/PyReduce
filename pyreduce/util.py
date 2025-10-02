@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Collection of various useful and/or reoccuring functions across PyReduce
 """
@@ -6,7 +5,6 @@ Collection of various useful and/or reoccuring functions across PyReduce
 import logging
 import os
 import warnings
-from itertools import product
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,16 +13,12 @@ import scipy.interpolate
 from astropy import coordinates as coord
 from astropy import time
 from astropy import units as u
-from astropy.io import fits
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.linalg import lstsq, solve, solve_banded
+from scipy.linalg import lstsq, solve_banded
 from scipy.ndimage.filters import median_filter
 from scipy.optimize import curve_fit, least_squares
 from scipy.special import binom
 
 from . import __version__
-from .clipnflip import clipnflip
-from .instruments.instrument_info import modeinfo
 
 logger = logging.getLogger(__name__)
 
@@ -420,12 +414,10 @@ def gaussfit_linear(x, y):
 
     d = np.log(y)
     G = np.ones((x.size, 3), dtype=np.float)
-    G[:, 0] = x ** 2
+    G[:, 0] = x**2
     G[:, 1] = x
 
-    beta, _, _, _ = np.linalg.lstsq(
-        (G.T * weights ** 2).T, d * weights ** 2, rcond=None
-    )
+    beta, _, _, _ = np.linalg.lstsq((G.T * weights**2).T, d * weights**2, rcond=None)
 
     a = np.exp(beta[2] - beta[1] ** 2 / (4 * beta[0]))
     sig = -1 / (2 * beta[0])
@@ -491,7 +483,7 @@ def polyfit1d(x, y, degree=1, regularization=0):
     A = np.array([np.power(x, i) for i in idx], dtype=float).T
     b = y.ravel()
 
-    L = np.array([regularization * i ** 2 for i in idx])
+    L = np.array([regularization * i**2 for i in idx])
     I = np.linalg.inv(A.T @ A + np.diag(L))
     coeff = I @ A.T @ b
 
@@ -540,7 +532,7 @@ def polyscale2d(coeff, scale_x, scale_y, copy=True):
         coeff = np.copy(coeff)
     idx = _get_coeff_idx(coeff)
     for k, (i, j) in enumerate(idx):
-        coeff[i, j] /= scale_x ** i * scale_y ** j
+        coeff[i, j] /= scale_x**i * scale_y**j
     return coeff
 
 
@@ -667,7 +659,6 @@ def polyfit2d(
 
 
 def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=False):
-
     x = x.ravel()
     y = y.ravel()
     z = z.ravel()
@@ -880,7 +871,6 @@ def bottom(f, order=1, iterations=40, eps=0.001, poly=False, weight=1, **kwargs)
 
     for _ in range(iterations):
         if poly:
-
             if order > 0:  # this is a bug in rsi poly routine
                 t = median_filter(np.polyval(np.polyfit(xx, ff, order), xx), 3)
                 t = np.clip(t - ff, 0, None) ** 2

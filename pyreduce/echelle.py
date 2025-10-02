@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Contains functions to read and modify echelle structures, just as in reduce
 
@@ -366,24 +365,26 @@ def save(fname, header, **kwargs):
             for i, arr in enumerate(value):
                 if np.issubdtype(arr.dtype, np.floating):
                     arr = arr.astype(np.float32)
-                    format_code = 'E'
+                    format_code = "E"
                 elif np.issubdtype(arr.dtype, np.integer):
                     arr = arr.astype(np.int16)
-                    format_code = 'I'
+                    format_code = "I"
                 else:
-                    raise ValueError(f"Unsupported data type for array {i}: {arr.dtype}")
-        
+                    raise ValueError(
+                        f"Unsupported data type for array {i}: {arr.dtype}"
+                    )
+
                 # Create a column with the appropriate format
-                col = fits.Column(name=f'slitfu{i}', 
-                                format=f'{len(arr)}{format_code}', 
-                                array=[arr])
+                col = fits.Column(
+                    name=f"slitfu{i}", format=f"{len(arr)}{format_code}", array=[arr]
+                )
                 columns.append(col)
 
         else:
             arr = value.ravel()[None, :]
 
             if np.issubdtype(arr.dtype, np.floating):
-                if key == 'wave':
+                if key == "wave":
                     arr = arr.astype(np.float64)
                     dtype = "D"
                 else:

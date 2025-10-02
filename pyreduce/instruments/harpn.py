@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPN spectrograph
 
 Mostly reading data from the header
 """
+
 import logging
 import re
-from itertools import product
 from os.path import dirname, join
 
 import numpy as np
@@ -31,7 +30,10 @@ class TypeFilter(Filter):
                 keys = [regex.match(f) for f in data]
                 keys = [[g for g in d.groups() if g is not None][0] for d in keys]
                 unique = np.unique(keys)
-                assign = {u: [d for k, d in zip(keys, data) if k == u] for u in unique}
+                assign = {
+                    u: [d for k, d in zip(keys, data, strict=False) if k == u]
+                    for u in unique
+                }
                 data = [(u, self.match("|".join(a))) for u, a in assign.items()]
             except IndexError:
                 data = np.asarray(self.data)
@@ -58,7 +60,11 @@ class HARPN(Instrument):
         }
         self.night = "night"
         self.science = "science"
-        self.shared = ["instrument", "night", "mode",]
+        self.shared = [
+            "instrument",
+            "night",
+            "mode",
+        ]
         self.find_closest = [
             "bias",
             "flat",
@@ -95,10 +101,9 @@ class HARPN(Instrument):
         else:
             target = ".*"
 
-        
         id_orddef = "LAMP,DARK,TUN"
         id_spec = "STAR,WAVE"
-        
+
         expectations = {
             "bias": {"instrument": "HARPN", "night": night, "type": r"BIAS,BIAS"},
             "flat": {"instrument": "HARPN", "night": night, "type": r"LAMP,LAMP,TUN"},

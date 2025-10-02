@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Combine several fits files into one master frame
 
@@ -12,13 +11,12 @@ import os
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
-from dateutil import parser
 from scipy.ndimage.filters import median_filter
 from tqdm import tqdm
 
 from .clipnflip import clipnflip
 from .instruments.instrument_info import load_instrument
-from .util import gaussbroad, gaussfit, remove_bias
+from .util import gaussbroad, gaussfit
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +130,7 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
 
     fitted_signal = np.where(probability > 0, amplitude[None, :] * probability, 0)
     predicted_noise = np.zeros_like(fitted_signal)
-    tmp = readnoise ** 2 + (fitted_signal / gain)
+    tmp = readnoise**2 + (fitted_signal / gain)
     np.sqrt(tmp, where=tmp >= 0, out=predicted_noise)
 
     # Identify outliers
@@ -145,7 +143,9 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
     return corrected_signal, nbad
 
 
-def combine_frames_simple(files, instrument, mode, extension=None, dtype=np.float32, **kwargs):
+def combine_frames_simple(
+    files, instrument, mode, extension=None, dtype=np.float32, **kwargs
+):
     """
     Simple addition of similar images.
 
@@ -172,25 +172,36 @@ def combine_frames_simple(files, instrument, mode, extension=None, dtype=np.floa
         raise ValueError("No files given for combine frames")
 
     # Load the first file to get the shape and header
-    result, head = instrument.load_fits(files[0], mode, dtype=dtype, extension=extension, **kwargs)
-    
+    result, head = instrument.load_fits(
+        files[0], mode, dtype=dtype, extension=extension, **kwargs
+    )
+
     # Sum the remaining files
     for fname in files[1:]:
-        data, _ = instrument.load_fits(fname, mode, dtype=dtype, extension=extension, **kwargs)
+        data, _ = instrument.load_fits(
+            fname, mode, dtype=dtype, extension=extension, **kwargs
+        )
         result += data
 
     # Update the header
-    head['NIMAGES'] = (len(files), 'number of images summed')
-    head['EXPTIME'] = (head['EXPTIME'] * len(files), 'total exposure time')
-    head['DARKTIME'] = (head.get('DARKTIME', head['EXPTIME']) * len(files), 'total dark time')
-    
-    # Update the readout noise
-    if 'RDNOISE' in head:
-        head['RDNOISE'] = (head['RDNOISE'] * np.sqrt(len(files)), 'readout noise in combined image')
+    head["NIMAGES"] = (len(files), "number of images summed")
+    head["EXPTIME"] = (head["EXPTIME"] * len(files), "total exposure time")
+    head["DARKTIME"] = (
+        head.get("DARKTIME", head["EXPTIME"]) * len(files),
+        "total dark time",
+    )
 
-    head.add_history(f'Combined {len(files)} images by simple addition')
+    # Update the readout noise
+    if "RDNOISE" in head:
+        head["RDNOISE"] = (
+            head["RDNOISE"] * np.sqrt(len(files)),
+            "readout noise in combined image",
+        )
+
+    head.add_history(f"Combined {len(files)} images by simple addition")
 
     return result, head
+
 
 def combine_frames(
     files,
@@ -294,7 +305,7 @@ def combine_frames(
 
     # summarize file info
     logger.debug("Files:")
-    for i, fname in zip(range(len(files)), files):
+    for i, fname in zip(range(len(files)), files, strict=False):
         logger.debug("%i\t%s", i, fname)
 
     # Only one image
@@ -330,7 +341,7 @@ def combine_frames(
         n_fixed = 0
         linear = head.get("e_linear", True)
 
-    else:     # More than two images
+    else:  # More than two images
         # Get information from headers
         # TODO: check if all values are the same in all the headers?
 
@@ -391,7 +402,7 @@ def combine_frames(
 
         data = [
             fits.open(f, memmap=True, do_not_scale_image_data=True)[e]
-            for f, e in zip(files, extension)
+            for f, e in zip(files, extension, strict=False)
         ]
 
         if window >= n_columns / 2:
@@ -436,7 +447,9 @@ def combine_frames(
                 for i in range(len(files)):
                     # If the following causes int16 overflow, add .astype('float64')
                     # to the first term. The receiving buffer is f64 anyway.
-                    buffer[i, :] = data[i].data[idx].astype('float64') * bscale[i] + bzero[i]
+                    buffer[i, :] = (
+                        data[i].data[idx].astype("float64") * bscale[i] + bzero[i]
+                    )
 
                 # Calculate probabilities
                 probability[:, window:-window] = calculate_probability(buffer, window)
@@ -474,7 +487,7 @@ def combine_frames(
     # read-out noise goes up by the square root of the number of files
 
     for n_amp, rdn in enumerate(readnoise):
-        head["rdnoise{:0>1}".format(n_amp + 1)] = (
+        head[f"rdnoise{n_amp + 1:0>1}"] = (
             rdn * np.sqrt(len(files)),
             " noise in combined image, electrons",
         )

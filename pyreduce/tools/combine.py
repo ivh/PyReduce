@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 with our powers combined we increase snr
 """
+
 import logging
-from os.path import dirname, join
 
 import matplotlib.pyplot as plt
 import numpy as np

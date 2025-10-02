@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from tqdm import tqdm
@@ -62,8 +60,7 @@ def merge_images(images, wave, column_range, extraction_width):
 
     idx = 0
     x_low = 0
-    for iord0, iord1 in zip(range(len(wave) - 1), range(1, len(wave))):
-
+    for iord0, iord1 in zip(range(len(wave) - 1), range(1, len(wave)), strict=False):
         img0 = images[iord0]
         img1 = images[iord1]
 

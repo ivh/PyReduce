@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Wavelength Calibration
 by comparison to a reference spectrum
@@ -142,7 +141,7 @@ class LineAtlas:
             self.linelist = np.rec.fromarrays(
                 [wpos, heights, element], names=["wave", "heights", "element"]
             )
-        except (FileNotFoundError, IOError):
+        except (OSError, FileNotFoundError):
             # Otherwise fit the line positions from the spectrum
             logger.warning(
                 "No dedicated linelist found for %s, determining peaks based on the reference spectrum instead.",
@@ -245,7 +244,9 @@ class LineList:
     def from_list(cls, wave, order, pos, width, height, flag):
         lines = [
             (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, f)
-            for w, o, p, wi, h, f in zip(wave, order, pos, width, height, flag)
+            for w, o, p, wi, h, f in zip(
+                wave, order, pos, width, height, flag, strict=False
+            )
         ]
         lines = np.array(lines, dtype=cls.dtype)
         return cls(lines)
@@ -362,7 +363,7 @@ class WavelengthCalibration:
                 obs[i] -= np.ma.median(obs[i][obs[i] > 0])
             except ValueError:
                 logger.warning(
-                    f"Could not determine the minimum value in order %i. No positive values found",
+                    "Could not determine the minimum value in order %i. No positive values found",
                     i,
                 )
             obs[i] /= np.ma.max(obs[i])
@@ -490,10 +491,12 @@ class WavelengthCalibration:
 
             # Crop the image to speed up cross correlation
             if self.correlate_cols != 0:
-                _slice = slice((self.ncol - self.correlate_cols) // 2,
-                               (self.ncol + self.correlate_cols) // 2 + 1)
-                ccimg = img[:,_slice]
-                ccobs = obs[:,_slice]
+                _slice = slice(
+                    (self.ncol - self.correlate_cols) // 2,
+                    (self.ncol + self.correlate_cols) // 2 + 1,
+                )
+                ccimg = img[:, _slice]
+                ccobs = obs[:, _slice]
             else:
                 ccimg, ccobs = img, obs
 
@@ -672,7 +675,7 @@ class WavelengthCalibration:
         try:
             bins = step_coef_pos
             digits = np.digitize(x, bins) - 1
-        except ValueError as e:
+        except ValueError:
             return np.inf
 
         cumsum = np.cumsum(step_coef_diff)
@@ -771,7 +774,7 @@ class WavelengthCalibration:
                     )
 
                 resid = polyval2d(x, m_ord, poly_coef) - m_wave
-                resid = np.sum(resid ** 2)
+                resid = np.sum(resid**2)
                 improvement = resid_old - resid
                 resid_old = resid
                 logger.info(
@@ -1302,13 +1305,13 @@ class WavelengthCalibration:
         # rss = self.calculate_residual(wave_solution, lines)
         # rss /= speed_of_light
         n = rss.size
-        rss = np.ma.sum(rss ** 2)
+        rss = np.ma.sum(rss**2)
 
         # As per Wikipedia https://en.wikipedia.org/wiki/Akaike_information_criterion
         logl = np.log(rss)
         aic = 2 * k + n * logl
         self.logl = logl
-        self.aicc = aic + (2 * k ** 2 + 2 * k) / (n - k - 1)
+        self.aicc = aic + (2 * k**2 + 2 * k) / (n - k - 1)
         self.aic = aic
         return aic
 
@@ -1457,7 +1460,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
         correct = True
         if correct:
             w_all = [speed_of_light / f for f in f_all]
-            mw_all = [m * w for m, w in zip(n_all, w_all)]
+            mw_all = [m * w for m, w in zip(n_all, w_all, strict=False)]
             y = np.concatenate(mw_all)
             gap = np.median(y)
 
@@ -1810,9 +1813,9 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         assert self.resid_delta > 0, "Residuals Delta must be positive"
         assert spectrum.ndim == 1, "Spectrum must have only 1 dimension"
         assert wavelength.ndim == 1, "Wavelength must have only 1 dimension"
-        assert (
-            spectrum.size == wavelength.size
-        ), "Spectrum and Wavelength must have the same size"
+        assert spectrum.size == wavelength.size, (
+            "Spectrum and Wavelength must have the same size"
+        )
 
         n_features = spectrum.shape[0]
         x = np.arange(n_features)

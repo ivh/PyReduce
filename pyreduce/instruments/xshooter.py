@@ -1,17 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the UVES spectrograph
 
 Mostly reading data from the header
 """
+
 import logging
 import os.path
 
-import numpy as np
-from astropy.io import fits
-from dateutil import parser
-
-from .common import InstrumentWithModes, getter, observation_date_to_night
+from .common import InstrumentWithModes
 
 logger = logging.getLogger(__name__)
 

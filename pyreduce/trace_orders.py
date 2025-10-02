@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Find clusters of pixels with signal
 And combine them into continous orders
@@ -14,8 +13,6 @@ from numpy.polynomial.polynomial import Polynomial
 from scipy.ndimage import binary_closing, binary_opening, grey_closing, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import find_peaks, peak_widths
-
-from .util import polyfit1d
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +139,7 @@ def calculate_mean_cluster_thickness(x, y):
 
         for col in unique_columns:
             # Select x-coordinates that correspond to the current column
-            col_indices = (y_coords == col)
+            col_indices = y_coords == col
             if np.any(col_indices):
                 x_in_col = x_coords[col_indices]
                 thickness = x_in_col.max() - x_in_col.min()
@@ -154,9 +151,12 @@ def calculate_mean_cluster_thickness(x, y):
 
     # Compute the final mean thickness adjusted by the number of clusters
     if cluster_thicknesses:
-        mean_cluster_thickness = 1.5 * np.mean(cluster_thicknesses) / len(cluster_thicknesses)
+        mean_cluster_thickness = (
+            1.5 * np.mean(cluster_thicknesses) / len(cluster_thicknesses)
+        )
 
     return mean_cluster_thickness
+
 
 # origianl version
 # def calculate_mean_cluster_thickness(x, y):
@@ -504,7 +504,7 @@ def mark_orders(
     mask_sizes = sizes > min_cluster
     mask_sizes[0] = True  # This is the background, which we don't need to remove
     clusters[~mask_sizes[clusters]] = 0
-    
+
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
     # # x, y become dictionaries, with an entry for each order
     # # n is just a list of all orders (ignore cluster == 0)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Loads configuration files
 
 This module loads json configuration files from disk,
@@ -30,7 +29,7 @@ def get_configuration_for_instrument(instrument, **kwargs):
     local = dirname(__file__)
     instrument = str(instrument)
     if instrument in ["pyreduce", None]:
-        fname = join(local, "settings", f"settings_pyreduce.json")
+        fname = join(local, "settings", "settings_pyreduce.json")
     else:
         fname = join(local, "settings", f"settings_{instrument.upper()}.json")
 

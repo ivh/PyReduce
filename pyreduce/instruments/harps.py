@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Handles instrument specific info for the HARPS spectrograph
 
 Mostly reading data from the header
 """
+
 import logging
 import re
-from itertools import product
 from os.path import dirname, join
 
 import numpy as np
@@ -31,7 +30,10 @@ class TypeFilter(Filter):
                 keys = [regex.match(f) for f in data]
                 keys = [[g for g in d.groups() if g is not None][0] for d in keys]
                 unique = np.unique(keys)
-                assign = {u: [d for k, d in zip(keys, data) if k == u] for u in unique}
+                assign = {
+                    u: [d for k, d in zip(keys, data, strict=False) if k == u]
+                    for u in unique
+                }
                 data = [(u, self.match("|".join(a))) for u, a in assign.items()]
             except IndexError:
                 data = np.asarray(self.data)

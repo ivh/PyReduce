@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module that
     - Clips remove pre- and overscan regions

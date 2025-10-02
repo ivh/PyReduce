@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module that estimates the background scatter
 """
@@ -8,8 +7,8 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .extract import fix_extraction_width, fix_parameters
-from .util import make_index, polyfit2d, polyfit2d_2
+from .extract import fix_parameters
+from .util import make_index, polyfit2d
 
 logger = logging.getLogger(__name__)
 

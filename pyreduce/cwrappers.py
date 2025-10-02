@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Wrapper for REDUCE C functions
 
@@ -6,10 +5,10 @@ This module provides access to the extraction algorithms in the
 C libraries and sanitizes the input parameters.
 
 """
+
 import ctypes
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import median_filter
 
@@ -72,14 +71,14 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
     assert img.ndim == 2, "Image must be 2 dimensional"
     assert ycen.ndim == 1, "Ycen must be 1 dimensional"
 
-    assert (
-        img.shape[1] == ycen.size
-    ), f"Image and Ycen shapes are incompatible, got {img.shape} and {ycen.shape}"
+    assert img.shape[1] == ycen.size, (
+        f"Image and Ycen shapes are incompatible, got {img.shape} and {ycen.shape}"
+    )
 
     assert osample > 0, f"Oversample rate must be positive, but got {osample}"
-    assert (
-        lambda_sf >= 0
-    ), f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    assert lambda_sf >= 0, (
+        f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    )
     assert lambda_sp >= 0, f"Spectrum smoothing must be positive, but got {lambda_sp}"
 
     # Get some derived values
@@ -185,27 +184,20 @@ def slitfunc_curved(
     else:
         shear = np.asarray(shear, dtype=c_double)
 
-    assert (
-        img.shape[1] == ycen.size
-    ), "Image and Ycen shapes are incompatible, got {} and {}".format(
-        img.shape, ycen.shape
+    assert img.shape[1] == ycen.size, (
+        f"Image and Ycen shapes are incompatible, got {img.shape} and {ycen.shape}"
     )
-    assert (
-        img.shape[1] == tilt.size
-    ), "Image and Tilt shapes are incompatible, got {} and {}".format(
-        img.shape, tilt.shape
+    assert img.shape[1] == tilt.size, (
+        f"Image and Tilt shapes are incompatible, got {img.shape} and {tilt.shape}"
     )
-    assert (
-        img.shape[1] == shear.size
-    ), "Image and Shear shapes are incompatible, got {} and {}".format(
-        img.shape,
-        shear.shape,
+    assert img.shape[1] == shear.size, (
+        f"Image and Shear shapes are incompatible, got {img.shape} and {shear.shape}"
     )
 
     assert osample > 0, f"Oversample rate must be positive, but got {osample}"
-    assert (
-        lambda_sf >= 0
-    ), f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    assert lambda_sf >= 0, (
+        f"Slitfunction smoothing must be positive, but got {lambda_sf}"
+    )
     assert lambda_sp >= 0, f"Spectrum smoothing must be positive, but got {lambda_sp}"
 
     # assert np.ma.all(np.isfinite(img)), "All values in the image must be finite"
@@ -215,9 +207,9 @@ def slitfunc_curved(
 
     assert yrange.ndim == 1, "Yrange must be 1 dimensional"
     assert yrange.size == 2, "Yrange must have 2 elements"
-    assert (
-        yrange[0] + yrange[1] + 1 == img.shape[0]
-    ), "Yrange must cover the whole image"
+    assert yrange[0] + yrange[1] + 1 == img.shape[0], (
+        "Yrange must cover the whole image"
+    )
     assert yrange[0] >= 0, "Yrange must be positive"
     assert yrange[1] >= 0, "Yrange must be positive"
 
@@ -390,7 +382,6 @@ def create_spectral_model(
     spec: np.ndarray,
     slitfunc: np.ndarray,
 ):
-
     ncols = int(ncols)
     nrows = int(nrows)
 

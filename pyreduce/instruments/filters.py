@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 import re
 from datetime import datetime
@@ -72,7 +71,7 @@ class Filter:
                     regex.match(f) is not None if f is not None else False
                     for f in self.data
                 ]
-            except TypeError as ex:
+            except TypeError:
                 result = [f == value for f in self.data]
         result = np.asarray(result, dtype=bool)
         return result

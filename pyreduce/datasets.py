@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Provides example datasets for the examples
 
 This requires the server to be up and running,
 if data needs to be downloaded
 """
+
 import logging
 import os
 import tarfile

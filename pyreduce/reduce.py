@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 REDUCE script for spectrograph data
 
@@ -24,7 +23,7 @@ import logging
 import os.path
 import warnings
 from itertools import product
-from os.path import dirname, join
+from os.path import join
 
 import joblib
 import matplotlib.pyplot as plt
@@ -32,9 +31,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.io.fits.verify import VerifyWarning
 
-warnings.simplefilter('ignore', category=VerifyWarning)
+warnings.simplefilter("ignore", category=VerifyWarning)
 
-from genericpath import exists
 
 from tqdm import tqdm
 
@@ -43,14 +41,12 @@ from . import __version__, echelle, instruments, util
 from .combine_frames import (
     combine_bias,
     combine_calibrate,
-    combine_frames,
     combine_polynomial,
 )
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract
-from .extraction_width import estimate_extraction_width
 from .instruments.instrument_info import load_instrument
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
@@ -167,7 +163,7 @@ def main(
         )
         if len(files) == 0:
             logger.warning(
-                f"No files found for instrument: %s, target: %s, night: %s, mode: %s in folder: %s",
+                "No files found for instrument: %s, target: %s, night: %s, mode: %s in folder: %s",
                 instrument,
                 t,
                 n,
@@ -568,11 +564,11 @@ class Bias(Step):
                 hdus += [fits.ImageHDU(data=bias[i])]
         hdus = fits.HDUList(hdus)
 
-        hdus[0].header['BZERO'] = 0
+        hdus[0].header["BZERO"] = 0
         hdus.writeto(
             self.savefile,
             overwrite=True,
-            output_verify="fix", #"silentfix+ignore",
+            output_verify="fix",  # "silentfix+ignore",
         )
         logger.info("Created master bias file: %s", self.savefile)
 
@@ -601,7 +597,9 @@ class Bias(Step):
                 else:
                     bhead = hdu[0].header
                     bias = np.array([h.data for h in hdu])
-                    bias = np.ma.masked_array(bias, mask=[mask for _ in range(len(hdu))])
+                    bias = np.ma.masked_array(
+                        bias, mask=[mask for _ in range(len(hdu))]
+                    )
         except FileNotFoundError:
             logger.warning("No intermediate bias file found. Using Bias = 0 instead.")
             bias, bhead = None, None
@@ -1179,7 +1177,7 @@ class WavelengthCalibrationFinalize(Step):
         #:int: Number of detector offset steps, due to detector design
         self.nstep = config["nstep"]
         #:int: How many columns to use in the 2D cross correlation alignment. 0 means all pixels (slow).
-        self.correlate_cols = config['correlate_cols']
+        self.correlate_cols = config["correlate_cols"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
         #:str: elements of the spectral lamp
@@ -1695,11 +1693,13 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             # Calibrate the input image
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
-            spec, sigma, slitfu, cr = self.extract(im, head, orders, curvature, scatter=scatter)
+            spec, sigma, slitfu, cr = self.extract(
+                im, head, orders, curvature, scatter=scatter
+            )
 
             # make slitfus from swaths into one
-            #print(len(slitfu),[len(sf) for sf in slitfu])
-            #slitfu = np.median(np.array(slitfu),axis=0)
+            # print(len(slitfu),[len(sf) for sf in slitfu])
+            # slitfu = np.median(np.array(slitfu),axis=0)
             # save spectrum to disk
             self.save(fname, head, spec, sigma, slitfu, cr)
             heads.append(head)
@@ -1729,8 +1729,9 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             range of columns that have spectrum
         """
         nameout = self.science_file(fname)
-        echelle.save(nameout, head, spec=spec, sig=sigma, 
-                     slitfu=slitfu, columns=column_range)
+        echelle.save(
+            nameout, head, spec=spec, sig=sigma, slitfu=slitfu, columns=column_range
+        )
         logger.info("Created science file: %s", nameout)
 
     def load(self, files):
@@ -1817,7 +1818,7 @@ class ContinuumNormalization(Step):
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]
-        for j, (spec, sigma) in enumerate(zip(specs, sigmas)):
+        for j, (spec, sigma) in enumerate(zip(specs, sigmas, strict=False)):
             logger.info("Splicing orders")
             specs[j], wave, blaze, sigmas[j] = splice_orders(
                 spec,
@@ -1961,7 +1962,7 @@ class Finalize(Step):
         fnames = []
         # Combine science with wavecal and continuum
         for i, (head, spec, sigma, blaze, column) in enumerate(
-            zip(heads, specs, sigmas, conts, columns)
+            zip(heads, specs, sigmas, conts, columns, strict=False)
         ):
             head["e_erscle"] = ("absolute", "error scale")
 
@@ -2035,7 +2036,6 @@ class Finalize(Step):
 
 
 class Reducer:
-
     step_order = {
         "bias": 10,
         "flat": 20,

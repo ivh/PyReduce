@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:  # for Python<3.8
