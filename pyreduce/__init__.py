@@ -54,5 +54,13 @@ logger.addHandler(console)
 del logging
 # do not del tqdm, it is needed in the Log Handler
 
-# Load externally available modules
-from . import configuration, datasets, reduce, util
+
+# Lazy loading for faster imports
+def __getattr__(name):
+    """Lazy load submodules on first access."""
+    if name in ("configuration", "datasets", "reduce", "util"):
+        import importlib
+        module = importlib.import_module(f".{name}", __name__)
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
