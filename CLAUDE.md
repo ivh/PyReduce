@@ -42,7 +42,7 @@ uv run python examples/uves_example.py
 uv run python -m pyreduce
 ```
 
-### Building
+### Building and Publishing
 ```bash
 # Build source distribution and wheel (uses Hatchling)
 uv build
@@ -55,6 +55,9 @@ uv build
 
 # Note: setuptools is required in build-system even though we use Hatchling
 # because CFFI requires it on Python 3.12+
+
+# Publish to PyPI (manual with twine, API keys in ~/.pypirc)
+uv run twine upload dist/*
 ```
 
 ### Code Quality
