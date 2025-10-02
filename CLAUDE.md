@@ -210,10 +210,31 @@ The repository uses GitHub Actions (`.github/workflows/python-publish.yml`) for 
 - Manually trigger tests when needed: `gh workflow run "PyReduce CI/CD"`
 - Or trigger from GitHub UI: Actions tab → "PyReduce CI/CD" → "Run workflow"
 
-**Manual publishing to PyPI:**
-- Use `uv build` locally to create wheel and sdist
-- Use `uv run twine upload dist/*` to publish (requires API keys in `~/.pypirc`)
-- CI does NOT auto-publish (manual control for releases)
+### Release Process
+
+To publish a new release to PyPI:
+
+1. **Edit CHANGELOG.md** - Document changes in the new version
+2. **Update version** - Edit version number in `pyproject.toml`
+3. **Commit and tag**:
+   ```bash
+   git commit -am "Release vX.Y.Z"
+   git tag vX.Y.Z
+   git push
+   git push --tags
+   ```
+4. **Clean and build**:
+   ```bash
+   rm -rf dist/ build/ *.egg-info
+   uv build
+   ```
+5. **Upload to PyPI**:
+   ```bash
+   uvx twine upload dist/*
+   ```
+   (Requires API keys in `~/.pypirc`)
+
+CI does NOT auto-publish (manual control for releases)
 
 ### Using the `gh` CLI Tool
 
