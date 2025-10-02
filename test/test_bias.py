@@ -5,6 +5,8 @@ from astropy.io import fits
 from pyreduce.combine_frames import combine_bias
 
 
+@pytest.mark.instrument
+@pytest.mark.downloads
 def test_bias(instrument, mode, files, mask):
     if len(files["bias"]) == 0:
         pytest.skip(f"No bias files for instrument {instrument}")
@@ -19,6 +21,8 @@ def test_bias(instrument, mode, files, mask):
     assert bias.shape[1] == mask.shape[1]
 
 
+@pytest.mark.instrument
+@pytest.mark.downloads
 def test_only_one_file(instrument, mode, files, mask):
     if len(files["bias"]) == 0:
         pytest.skip(f"No bias files for instrument {instrument}")
@@ -34,11 +38,13 @@ def test_only_one_file(instrument, mode, files, mask):
     assert bias.shape[1] == mask.shape[1]
 
 
+@pytest.mark.unit
 def test_no_data_files():
     with pytest.raises(FileNotFoundError):
         combine_bias([], "", "")
 
 
+@pytest.mark.unit
 def test_wrong_data_type():
     with pytest.raises(TypeError):
         combine_bias(None, None, "")
@@ -47,6 +53,7 @@ def test_wrong_data_type():
         combine_bias([None], None, "")
 
 
+@pytest.mark.unit
 def test_simple_input(tempfiles):
     n = 2
     files = tempfiles[:n]

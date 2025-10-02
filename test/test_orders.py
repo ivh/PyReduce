@@ -4,6 +4,8 @@ import pytest
 from pyreduce.combine_frames import combine_frames
 from pyreduce.trace_orders import mark_orders
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 def test_orders(instr, instrument, mode, files, settings, mask):
     if len(files["orders"]) == 0:

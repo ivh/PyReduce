@@ -3,6 +3,8 @@ import os
 import numpy as np
 import pytest
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 @pytest.fixture
 def mask_dir():

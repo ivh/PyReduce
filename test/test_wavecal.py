@@ -4,6 +4,8 @@ import pytest
 from pyreduce.extract import extract
 from pyreduce.wavelength_calibration import WavelengthCalibration
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads, pytest.mark.slow]
+
 
 def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_range):
     name = "wavecal_master"

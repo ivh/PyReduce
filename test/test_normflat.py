@@ -3,6 +3,8 @@ import pytest
 
 from pyreduce.extract import extract
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 def test_normflat(flat, orders, settings, order_range, scatter, instrument):
     flat, fhead = flat

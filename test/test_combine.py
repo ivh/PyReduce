@@ -4,6 +4,8 @@ import pytest
 
 from pyreduce import combine_frames
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def buffer():

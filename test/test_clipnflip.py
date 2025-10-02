@@ -3,6 +3,8 @@ import pytest
 
 from pyreduce.clipnflip import clipnflip
 
+pytestmark = pytest.mark.unit
+
 # clipnflip(image, header, xrange=None, yrange=None, orientation=None)
 
 

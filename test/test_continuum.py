@@ -3,6 +3,8 @@ import pytest
 
 from pyreduce.continuum_normalization import continuum_normalize, splice_orders
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads, pytest.mark.slow]
+
 
 @pytest.fixture
 def spliced(spec, wave, normflat):

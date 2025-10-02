@@ -5,6 +5,8 @@ from pyreduce.combine_frames import combine_frames
 from pyreduce.extract import extract
 from pyreduce.make_shear import Curvature as CurvatureModule
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 @pytest.fixture
 def original(files, instrument, mode, mask):

@@ -35,6 +35,12 @@ uv run pytest test/test_extract.py
 # Run tests with coverage
 uv run pytest --cov=pyreduce --cov-report=html
 
+# Run tests by marker (see Test Organization section below)
+uv run pytest -m unit                    # Fast unit tests only (~40 tests, <10s)
+uv run pytest -m instrument              # Integration tests with datasets (~70 tests)
+uv run pytest -m "instrument and not slow"  # Skip slow integration tests
+uv run pytest -m "not downloads"         # Offline mode (no dataset downloads)
+
 # Run example script
 uv run python examples/uves_example.py
 
@@ -178,12 +184,62 @@ Performance-critical extraction uses C code wrapped via CFFI:
 
 ## Testing
 
-Tests use pytest with fixtures defined in `test/conftest.py`:
+### Test Organization
+
+Tests are organized using pytest markers for efficient test selection:
+
+**Markers:**
+- `@pytest.mark.unit` - Fast unit tests with synthetic data (~40 tests, <10s)
+- `@pytest.mark.instrument` - Integration tests using real instrument datasets (~70 tests)
+- `@pytest.mark.slow` - Long-running tests (>5 seconds, typically wavecal/continuum)
+- `@pytest.mark.downloads` - Tests that download sample datasets from the web
+
+**Running Tests:**
+```bash
+# Run all tests
+uv run pytest
+
+# Fast unit tests only (development workflow)
+uv run pytest -m unit
+
+# Integration tests with instruments
+uv run pytest -m instrument
+
+# Skip slow tests
+uv run pytest -m "not slow"
+
+# Offline mode (no downloads, unit tests only)
+uv run pytest -m "not downloads"
+
+# Debug specific instrument failures
+uv run pytest -m instrument -k NIRSPEC
+
+# Combine markers
+uv run pytest -m "instrument and not slow"
+```
+
+**Test Structure:**
+- Tests use pytest with fixtures defined in `test/conftest.py`
 - `instrument` fixture provides dataset instances for UVES, XSHOOTER, NIRSPEC, JWST_NIRISS
 - Each reduction step has a corresponding class fixture (e.g., `bias_step`, `flat_step`)
-- Tests download small sample datasets automatically via `pyreduce.datasets`
+- Integration tests download small sample datasets automatically via `pyreduce.datasets`
 
-Run with: `uv run pytest`
+**Unit Tests** (no instrument fixtures):
+- `test_extract.py` - Extraction algorithm with synthetic data
+- `test_cwrappers.py` - C wrapper tests
+- `test_clipnflip.py`, `test_combine.py`, `test_echelle.py` - Utility function tests
+- `test_configuration.py` - Config parsing
+- `test_instruments.py` - Instrument loading from JSON
+- Selected tests in `test_bias.py` - Error handling tests
+
+**Integration Tests** (use instrument datasets):
+- `test_flat.py`, `test_normflat.py` - Flat field processing
+- `test_orders.py`, `test_mask.py` - Order tracing and masking
+- `test_scatter.py`, `test_shear.py` - Background and curvature
+- `test_science.py` - Science spectrum extraction
+- `test_wavecal.py` - Wavelength calibration (slow)
+- `test_continuum.py` - Continuum normalization (slow)
+- `test_reduce.py` - Full pipeline integration (slow)
 
 ## Instrument Support
 

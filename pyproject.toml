@@ -148,10 +148,16 @@ known-first-party = ["pyreduce"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers"
-testpaths = ["tests"]
+testpaths = ["test"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "unit: Fast unit tests with synthetic data (no downloads)",
+    "instrument: Integration tests using real instrument datasets",
+    "slow: Tests taking >5 seconds",
+    "downloads: Tests that download sample datasets",
+]
 
 # Coverage configuration
 [tool.coverage.run]

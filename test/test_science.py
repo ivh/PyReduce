@@ -4,6 +4,8 @@ import pytest
 from pyreduce.combine_frames import combine_calibrate
 from pyreduce.extract import extract
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 def test_science(
     files,

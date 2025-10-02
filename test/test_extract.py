@@ -4,6 +4,9 @@ from scipy.signal.windows import gaussian
 
 from pyreduce import extract
 
+# All tests in this file are unit tests using synthetic data
+pytestmark = pytest.mark.unit
+
 # from skimage import transform as tf
 
 # from pyreduce.clib.build_extract import build

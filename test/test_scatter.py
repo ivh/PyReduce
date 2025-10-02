@@ -3,6 +3,8 @@ import pytest
 
 from pyreduce.estimate_background_scatter import estimate_background_scatter
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 def test_scatter(flat, orders, settings):
     # The background scatter step in reduce possibly uses a

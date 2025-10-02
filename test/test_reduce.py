@@ -3,6 +3,8 @@ import pytest
 from pyreduce import reduce
 
 
+@pytest.mark.instrument
+@pytest.mark.downloads
 def test_main(instrument, target, night, mode, input_dir, output_dir):
     output = reduce.main(
         instrument,
@@ -26,6 +28,9 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
 
 
 @pytest.mark.skip
+@pytest.mark.instrument
+@pytest.mark.downloads
+@pytest.mark.slow
 def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
@@ -41,6 +46,9 @@ def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_r
 
 
 @pytest.mark.skip
+@pytest.mark.instrument
+@pytest.mark.downloads
+@pytest.mark.slow
 def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
@@ -55,6 +63,8 @@ def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_
     )
 
 
+@pytest.mark.instrument
+@pytest.mark.downloads
 def test_step_abstract(step_args):
     step = reduce.Step(*step_args, **{"plot": False})
 

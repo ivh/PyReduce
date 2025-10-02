@@ -3,6 +3,8 @@ import pytest
 
 from pyreduce.cwrappers import slitfunc, slitfunc_curved
 
+pytestmark = pytest.mark.unit
+
 
 def test_slitfunc_vert():
     img = np.full((100, 100), 1, dtype=float)

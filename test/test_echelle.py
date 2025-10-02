@@ -6,6 +6,8 @@ import scipy.constants
 
 from pyreduce import echelle
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def fname():

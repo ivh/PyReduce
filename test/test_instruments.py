@@ -28,22 +28,26 @@ def config(supported_instrument):
     return get_configuration_for_instrument(supported_instrument)
 
 
+@pytest.mark.unit
 def test_load_common():
     instr = instrument_info.load_instrument(None)
     assert isinstance(instr, common.Instrument)
     assert isinstance(instr, common.COMMON)
 
 
+@pytest.mark.unit
 def test_load_instrument(supported_instrument):
     instr = instrument_info.load_instrument(supported_instrument)
     assert isinstance(instr, common.Instrument)
 
 
+@pytest.mark.unit
 def test_get_instrument_info(supported_instrument):
     info = instrument_info.get_instrument_info(supported_instrument)
     assert isinstance(info, dict)
 
 
+@pytest.mark.unit
 def test_modeinfo(supported_instrument, supported_modes):
     # Standard FITS header keywords
     required_keywords = ["e_instrument", "e_telescope", "e_exptime", "e_jd"]
@@ -73,6 +77,7 @@ def test_modeinfo(supported_instrument, supported_modes):
             assert key in header.keys()
 
 
+@pytest.mark.unit
 def test_sort_files(supported_instrument, supported_modes, config):
     for mode in supported_modes:
         files = instrument_info.sort_files(
@@ -97,6 +102,7 @@ def test_sort_files(supported_instrument, supported_modes, config):
 @pytest.mark.skip(
     reason="No wavelength calibration files for most instruments present at the moment"
 )
+@pytest.mark.unit
 def test_get_wavecal_name(supported_instrument, supported_modes):
     for mode in supported_modes:
         wname = instrument_info.get_wavecal_filename({}, supported_instrument, mode)

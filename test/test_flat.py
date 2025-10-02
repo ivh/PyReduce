@@ -4,6 +4,8 @@ from astropy.io import fits
 
 from pyreduce.combine_frames import combine_calibrate
 
+pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
+
 
 def test_flat(instrument, mode, files, mask):
     if len(files["flat"]) == 0:

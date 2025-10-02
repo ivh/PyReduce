@@ -2,6 +2,8 @@ import pytest
 
 from pyreduce import configuration as conf
 
+pytestmark = pytest.mark.unit
+
 
 def test_configuration():
     config = conf.load_config(None, "UVES", 0)
