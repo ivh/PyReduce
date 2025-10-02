@@ -146,7 +146,9 @@ def test_fix_column_range():
     ew = np.array([[10, 10], [10, 10], [10, 10]])
     cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
 
-    fixed_cr, fixed_orders = extract.fix_column_range(np.copy(cr), orders, ew, nrow, ncol)
+    fixed_cr, fixed_orders = extract.fix_column_range(
+        np.copy(cr), orders, ew, nrow, ncol
+    )
     assert np.array_equal(fixed_cr, cr)
     assert np.array_equal(fixed_orders, orders)
 
