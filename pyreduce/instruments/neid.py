@@ -22,7 +22,7 @@ class NEID(Instrument):
             "mode": Filter(
                 self.info["instrument_mode"], regex=True, flags=re.IGNORECASE
             ),
-            "type": TypeFilter(self.info["observation_type"]),
+            "type": Filter(self.info["observation_type"]),
             "target": ObjectFilter(self.info["target"], regex=True),
         }
         self.night = "night"
