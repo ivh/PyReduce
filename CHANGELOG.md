@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.6.0b3] - 2025-10-02
 
 ### Added
 - Test organization with pytest markers (unit, instrument, slow, downloads)
