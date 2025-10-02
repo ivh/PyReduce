@@ -18,6 +18,9 @@ uv sync
 
 # Install with development dependencies
 uv sync --all-extras
+
+# Install pre-commit hooks (IMPORTANT: run this once after cloning)
+uv run pre-commit install
 ```
 
 ## Common Commands
