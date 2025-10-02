@@ -233,6 +233,10 @@ To publish a new release to PyPI:
    uvx twine upload dist/*
    ```
    (Requires API keys in `~/.pypirc`)
+6. **GitHub Release (optional)**
+   ```bash
+   gh release create vX.Y.Z --notes-file CHANGELOG.md
+   ```
 
 CI does NOT auto-publish (manual control for releases)
 
