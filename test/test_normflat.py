@@ -6,6 +6,7 @@ from pyreduce.extract import extract
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
+@pytest.mark.slow
 def test_normflat(flat, orders, settings, order_range, scatter, instrument):
     flat, fhead = flat
     orders, column_range = orders

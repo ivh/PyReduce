@@ -562,7 +562,7 @@ class Bias(Step):
         hdus.writeto(
             self.savefile,
             overwrite=True,
-            output_verify="fix",  # "silentfix+ignore",
+            output_verify="silentfix+ignore",
         )
         logger.info("Created master bias file: %s", self.savefile)
 

@@ -7,6 +7,7 @@ from pyreduce.combine_frames import combine_calibrate
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
+@pytest.mark.slow
 def test_flat(instrument, mode, files, mask):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
@@ -23,6 +24,7 @@ def test_flat(instrument, mode, files, mask):
     assert flat.shape[1] > 1
 
 
+@pytest.mark.slow
 def test_flat_with_bias(instrument, mode, files, mask, bias):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")

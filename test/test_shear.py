@@ -43,6 +43,7 @@ def extracted(original, orders, order_range, settings):
     return extracted
 
 
+@pytest.mark.slow
 def test_shear(original, extracted, orders, order_range, settings):
     original, chead = original
     orders, column_range = orders
@@ -111,6 +112,7 @@ def test_shear(original, extracted, orders, order_range, settings):
     assert shear.shape[1] == extracted.shape[1]
 
 
+@pytest.mark.slow
 def test_shear_exception(original, extracted, orders, order_range):
     original, chead = original
     orders, column_range = orders
@@ -138,6 +140,7 @@ def test_shear_exception(original, extracted, orders, order_range):
         tilt, shear = module.execute(extracted, original)
 
 
+@pytest.mark.slow
 def test_shear_zero(original, extracted, orders, order_range):
     original, chead = original
     orders, column_range = orders

@@ -7,6 +7,7 @@ from pyreduce.extract import extract
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
+@pytest.mark.slow
 def test_science(
     files,
     instr,

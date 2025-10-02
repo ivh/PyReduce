@@ -7,6 +7,7 @@ from pyreduce.trace_orders import mark_orders
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
+@pytest.mark.slow
 def test_orders(instr, instrument, mode, files, settings, mask):
     if len(files["orders"]) == 0:
         pytest.skip(f"No order definition files found for instrument {instrument}")
