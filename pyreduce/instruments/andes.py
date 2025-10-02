@@ -45,8 +45,10 @@ class ANDES(Instrument):
         return modes
 
     def parse_mode(self, mode):
-        pattern = r"([YJHKLM]\d{4})(_(Open|pos1|pos2))?_det(\d)"
+        pattern = r"([A-Z]+)(_(Open|pos1|pos2))?_det(\d)"
         match = re.match(pattern, mode, flags=re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Invalid mode format: {mode}")
         band = match.group(1).upper()
         if match.group(3) is not None:
             decker = match.group(3).lower().capitalize()
