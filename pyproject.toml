@@ -126,7 +126,17 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "E402",  # module import not at top (legitimate cases in __init__.py, conf.py)
+    "E722",  # bare except (many legacy cases, would require significant refactoring)
+    "UP031", # printf-style formatting (many cases in tools/ and examples/, low priority)
 ]
+
+# Per-file ignores for specific cases
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports are intentional for re-exports
+"docs/conf.py" = ["E402"]  # imports after sys.path modification
+"tools/**" = ["UP031", "B904"]  # legacy tools, lower priority
+"examples/**" = ["UP031"]  # examples can use simpler syntax
 
 [tool.ruff.lint.isort]
 known-first-party = ["pyreduce"]
