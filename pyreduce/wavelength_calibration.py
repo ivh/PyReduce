@@ -730,9 +730,9 @@ class WavelengthCalibration:
                 step_coef[:, 0] = np.linspace(ncol / (nstep + 1), ncol, nstep + 1)[:-1]
 
                 def func(x, *param):
-                    return self.f(x, poly_coef, step_coef[:, 0], param)
+                    return self.f(x, poly_coef, step_coef[:, 0], param)  # noqa: B023
 
-                for i in range(5):
+                for _ in range(5):
                     poly_coef = np.polyfit(xl, y, self.degree)
                     res, _ = curve_fit(func, x, y, p0=step_coef[:, 1], bounds=[-1, 1])
                     step_coef[:, 1] = res
@@ -947,7 +947,7 @@ class WavelengthCalibration:
                     data_obs, height=0.01, width=0
                 )
 
-                for i, p in enumerate(peaks_atlas):
+                for _, p in enumerate(peaks_atlas):
                     # Look for an existing line in the vicinityq
                     wpeak = wave_atlas[p]
                     diff = np.abs(line["wll"] - wpeak) / wpeak * speed_of_light

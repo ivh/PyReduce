@@ -26,8 +26,8 @@ def find_first_index(arr, value):
     """find the first element equal to value in the array arr"""
     try:
         return next(i for i, v in enumerate(arr) if v == value)
-    except StopIteration:
-        raise KeyError(f"Value {value} not found")
+    except StopIteration as e:
+        raise KeyError(f"Value {value} not found") from e
 
 
 def observation_date_to_night(observation_date):
@@ -499,7 +499,7 @@ class Instrument:
                     else:
                         # Or find the closest night instead
                         j = None
-                        for i, (step_key, step_files) in enumerate(step_data):
+                        for i, (step_key, _) in enumerate(step_data):
                             match = [
                                 setting[shared] == step_key[shared]
                                 for shared in self.shared

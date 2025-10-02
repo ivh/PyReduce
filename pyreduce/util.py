@@ -131,8 +131,8 @@ def find_first_index(arr, value):
     """find the first element equal to value in the array arr"""
     try:
         return next(i for i, v in enumerate(arr) if v == value)
-    except StopIteration:
-        raise Exception(f"Value {value} not found")
+    except StopIteration as e:
+        raise Exception(f"Value {value} not found") from e
 
 
 def interpolate_masked(masked):
@@ -487,8 +487,8 @@ def polyfit1d(x, y, degree=1, regularization=0):
     b = y.ravel()
 
     L = np.array([regularization * i**2 for i in idx])
-    I = np.linalg.inv(A.T @ A + np.diag(L))
-    coeff = I @ A.T @ b
+    inv_matrix = np.linalg.inv(A.T @ A + np.diag(L))
+    coeff = inv_matrix @ A.T @ b
 
     coeff = coeff[::-1]
 

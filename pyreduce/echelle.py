@@ -365,7 +365,7 @@ def save(fname, header, **kwargs):
         if value is None:
             continue
 
-        if type(value) == list:
+        if isinstance(value, list):
             for i, arr in enumerate(value):
                 if np.issubdtype(arr.dtype, np.floating):
                     arr = arr.astype(np.float32)
