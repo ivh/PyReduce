@@ -4,7 +4,7 @@ except ImportError:  # for Python<3.8
     from importlib_metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version(__name__)
+    __version__ = version("pyreduce-astro")
 except PackageNotFoundError:
     __version__ = "unknown"
 
