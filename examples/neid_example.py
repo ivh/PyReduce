@@ -1,31 +1,26 @@
-# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
-import os.path
-
 import pyreduce
-from pyreduce import datasets
-from pyreduce.instruments.harpn import NEID
 
 # define parameters
 instrument = "NEID"
-#target = "HD 152843"
+# target = "HD 152843"
 target = ""
 night = ""
 mode = "NEID"
 steps = (
-  #  "bias",
-   # "flat",
-    #"orders",
-    #"norm_flat",
-    #"wavecal_master",
+    #  "bias",
+    # "flat",
+    # "orders",
+    # "norm_flat",
+    # "wavecal_master",
     "wavecal",
-#    "science",
-#    "continuum",
-#    "finalize",
+    #    "science",
+    #    "continuum",
+    #    "finalize",
 )
 
 # some basic settings
@@ -33,7 +28,7 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-#base_dir = datasets.HARPS("/DATA/PyReduce")
+# base_dir = datasets.HARPS("/DATA/PyReduce")
 base_dir = "/home/tom/pipes/neid_data"
 input_dir = "raw"
 output_dir = "reduced_{mode}"

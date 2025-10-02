@@ -3,10 +3,7 @@ Simple usage example for PyReduce
 Loads a simulated METIS dataset, and runs the full extraction
 """
 
-import os.path
 import pyreduce
-from pyreduce import datasets
-
 
 # define parameters
 instrument = "METIS"
@@ -14,19 +11,19 @@ target = ""
 night = ""
 mode = "LSS_M"  # LSS_M (settings_metis.json is now optimized for LSS_M mode)
 steps = (
-     # "bias",
-     "flat",
-     "orders",
-     "curvature",
-     # "scatter",
-     #"norm_flat",
-     "wavecal_master",
-     # # "wavecal_init", 
-     "wavecal",
-     # "rectify",
-     # "science",
-     # "continuum",
-     # "finalize",
+    # "bias",
+    "flat",
+    "orders",
+    "curvature",
+    # "scatter",
+    # "norm_flat",
+    "wavecal_master",
+    # # "wavecal_init",
+    "wavecal",
+    # "rectify",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
@@ -36,9 +33,9 @@ steps = (
 # Define the path for the base, input and output directories
 # The data can be fetched from https://www.dropbox.com/sh/h1dz80vsw4lwoel/AAAqJD_FGDGC-t12wgnPXVR8a?dl=0 and stored in /raw/
 
-#laptop
-base_dir = "/Users/Nadeen/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/" # an example path which you should change to your prefereed one 
-#PC
+# laptop
+base_dir = "/Users/Nadeen/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/"  # an example path which you should change to your prefereed one
+# PC
 # base_dir ="/media/data/Dropbox/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/"
 
 
@@ -48,13 +45,13 @@ output_dir = "reduced/"
 config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
 
 
-# Configuring parameters of individual steps here overwrites those defined in the the settings_METIS.json file. 
+# Configuring parameters of individual steps here overwrites those defined in the the settings_METIS.json file.
 # Once you are satisfied with the chosen parameter, you can update it in settings_METIS.json.
 
-# config["orders"]["noise"] = 120 
+# config["orders"]["noise"] = 120
 
 # config["curvature"]['dimensionality']= '1D'
-# config["curvature"]['curv_degree']= 2 
+# config["curvature"]['curv_degree']= 2
 # config["curvature"]["extraction_width"] = 0.7700
 # config["curvature"]["peak_threshold"] = 0.9725
 # config["curvature"]["peak_width"] = 1# 1 worked for lband

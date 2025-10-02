@@ -53,7 +53,7 @@
     "id_scatter": "FLAT",
     "id_wave": "WAVE,UNE",
     "id_comb": "WAVE,FPET",
-    "id_spec": "STAR,*,*"
+    "id_spec": "STAR,*,*",
     "id_lamp_wavecal" : "UNe_HCL",
-    "id_lamp_etalon": "Etalon_Halogen",
+    "id_lamp_etalon": "Etalon_Halogen"
 }

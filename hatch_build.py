@@ -90,5 +90,6 @@ class CustomBuildHook(BuildHookInterface):
         except Exception as e:
             print(f"ERROR: Failed to build CFFI extensions: {e}", file=sys.stderr)
             import traceback
+
             traceback.print_exc()
             raise

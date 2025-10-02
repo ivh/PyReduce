@@ -3,10 +3,7 @@ Simple usage example for PyReduce
 Loads a simulated METIS dataset, and runs the full extraction
 """
 
-import os.path
 import pyreduce
-from pyreduce import datasets
-
 
 # define parameters
 instrument = "METIS_IFU"
@@ -14,19 +11,19 @@ target = ""
 night = ""
 mode = "NOMINAL"  # LSS_M (settings_metis.json is now optimized for LSS_M mode)
 steps = (
-     # "bias",
-     #"flat",
-     "orders",
-     "curvature",
-     # "scatter",
-     #"norm_flat",
-     #"wavecal_master",
-     # # "wavecal_init",
-     #"wavecal",
-     # "rectify",
-     # "science",
-     # "continuum",
-     # "finalize",
+    # "bias",
+    # "flat",
+    "orders",
+    "curvature",
+    # "scatter",
+    # "norm_flat",
+    # "wavecal_master",
+    # # "wavecal_init",
+    # "wavecal",
+    # "rectify",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
 # some basic settings
@@ -36,9 +33,9 @@ steps = (
 # Define the path for the base, input and output directories
 # The da://neon.physics.uu.se/metis/lms_pinholes.fitsta can be fetched from https://www.dropbox.com/sh/h1dz80vsw4lwoel/AAAqJD_FGDGC-t12wgnPXVR8a?dl=0 and stored in /raw/
 
-#laptop
-base_dir = "/Users/Nadeen/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/" # an example path which you should change to your prefereed one
-#PC
+# laptop
+base_dir = "/Users/Nadeen/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/"  # an example path which you should change to your prefereed one
+# PC
 # base_dir ="/media/data/Dropbox/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/datasets/METIS/"
 
 

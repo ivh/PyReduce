@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 import datetime as dt
 from os.path import dirname, join
 
-import numpy as np
 from astroquery.eso import Eso
 
 instrument = "HARPS"

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 import os
 import subprocess
@@ -11,10 +10,8 @@ import numpy as np
 import pandas as pd
 from astropy.io import fits
 from scipy import signal
-from scipy.optimize import NonlinearConstraint, minimize
 
 from pyreduce.echelle import Echelle
-from pyreduce.util import polyfit2d
 from pyreduce.wavelength_calibration import WavelengthCalibration
 
 

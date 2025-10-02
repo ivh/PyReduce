@@ -1,13 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
-import os.path
-
 import pyreduce
-from pyreduce import datasets
 from pyreduce.configuration import get_configuration_for_instrument
 
 # define parameters
@@ -16,18 +12,18 @@ target = ""
 night = ""
 mode = "J1228_Open_det1"
 steps = (
-     #"bias",
-     #"flat",
-     #"orders",
-     #"curvature",
-     #"scatter",
-     #"norm_flat",
-     #"wavecal_master",
-     #"wavecal_init",
-     #"wavecal",
-    #"freq_comb_master",
+    # "bias",
+    # "flat",
+    # "orders",
+    # "curvature",
+    # "scatter",
+    # "norm_flat",
+    # "wavecal_master",
+    # "wavecal_init",
+    # "wavecal",
+    # "freq_comb_master",
     "freq_comb",
-    #"science",
+    # "science",
     # "continuum",
     # "finalize",
 )
@@ -39,13 +35,14 @@ steps = (
 # load dataset (and save the location)
 base_dir = "/DATA/datasets/CRIRES"
 input_dir = base_dir
-output_dir = base_dir+"/reduced/"
+output_dir = base_dir + "/reduced/"
 
 # Path to the configuration parameters, that are to be used for this reduction
 
 config = get_configuration_for_instrument(
-    instrument, plot=1,
-    )
+    instrument,
+    plot=1,
+)
 
 pyreduce.reduce.main(
     instrument,

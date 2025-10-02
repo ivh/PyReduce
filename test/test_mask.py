@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
 import os
-from os.path import join
 
 import numpy as np
 import pytest
-
-from pyreduce import util
 
 
 @pytest.fixture

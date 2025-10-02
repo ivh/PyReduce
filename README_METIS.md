@@ -20,7 +20,7 @@ See also https://cffi.readthedocs.io/en/latest/installation.html#platform-specif
 
 Output Format
 -------------
-PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``. 
+PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``.
 
 Other PyReduce outputs are ``.npz`` files. These are numpy recarrays and can be opened as in the example copied below:
 ```
@@ -54,11 +54,11 @@ In this example, PyReduce will plot all intermediary results, and also plot the 
 
 Relevant for MICADO:
 
-Please note that in the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO (HK band) files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
+Please note that in the micado example file it is specified to return only the order trace corresponding to the center of the order on MICADO (HK band) files, i.e. fit number 4 (or 3 as per Python convention counted from bottom to up) of the traces on the pinhole frame.
 
 Relevant for METIS:
 
-Please note that reduce.py main script is modified to return only the order trace corresponding to the center of the slit trace on METIS LSS files, i.e. fit number 17 (or 16 as per Python convention counted from bottom to up) of the traces on the pinhole frame. 
+Please note that reduce.py main script is modified to return only the order trace corresponding to the center of the slit trace on METIS LSS files, i.e. fit number 17 (or 16 as per Python convention counted from bottom to up) of the traces on the pinhole frame.
 
 Input Data
 ------
@@ -104,27 +104,27 @@ index ba2c639..f7c2772 100755
 @@ -764,6 +764,26 @@ class OrderTracing(CalibrationStep):
              plot_title=self.plot_title,
          )
- 
+
 +        # NBS: BEGINNING of fix for MICADO and METIS pinholes
 +        print('#NBS:here!!!')
 +        print(orders.shape) #NBS
 +
 +        # if len(orders) == 7:
-+        #     orders=orders[3] #NBS:  MICADO fix if only 1 order on the detector, use [3::7] if 2 orders present 
++        #     orders=orders[3] #NBS:  MICADO fix if only 1 order on the detector, use [3::7] if 2 orders present
 +        #     orders = orders.reshape((1, 5))#NBS: to reshape it
 +        #     print(orders.shape) #NBS
 +
 +        # if len(orders) == 14:
-+        #     orders=orders[3::7] #NBS:  MICADO fix if 2 orders on the detector 
++        #     orders=orders[3::7] #NBS:  MICADO fix if 2 orders on the detector
 +        #     print(orders.shape) #NBS
 +
 +        if len(orders) == 33:
-+            orders=orders[16] #NBS: METIS fix For MICADO if only 1 order on the detector, use [3::7] if 2 orders present 
++            orders=orders[16] #NBS: METIS fix For MICADO if only 1 order on the detector, use [3::7] if 2 orders present
 +            orders = orders.reshape((1, 5))#NBS: to reshape it
 +            print(orders.shape) #NBS
-+        
++
 +        # NBS: END of fix for MICADO and METIS pinholes
 +
          self.save(orders, column_range)
- 
+
          return orders, column_range

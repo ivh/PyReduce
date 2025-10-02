@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
-
-import os.path
 
 import matplotlib.pyplot as plt
 import numpy as np

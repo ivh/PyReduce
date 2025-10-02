@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pytest
 
-from pyreduce import util
 from pyreduce.combine_frames import combine_calibrate
 from pyreduce.extract import extract
 

@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pytest
 
-from pyreduce import instruments, util
 from pyreduce.extract import extract
 from pyreduce.wavelength_calibration import WavelengthCalibration
 

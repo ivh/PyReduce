@@ -1,14 +1,8 @@
-# -*- coding: utf-8 -*-
-from os.path import dirname, join
-
-import astropy.io.fits as fits
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from scipy.signal.windows import gaussian
 
-from pyreduce import extract, util
-from pyreduce.cwrappers import slitfunc
+from pyreduce import extract
 
 # from skimage import transform as tf
 

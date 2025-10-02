@@ -29,7 +29,7 @@
     "target": "OBJECT",
     "instrument_mode": "OBS-MODE",
     "observation_type": "TNG DPR TYPE",
-    "id_fiber_sci": "LAMP,DARK,TUN", 
+    "id_fiber_sci": "LAMP,DARK,TUN",
     "id_fiber_cal": "DARK,LAMP,TUN",
     "id_fiber_sky": "DARK,LAMP,TUN",
     "kw_bias": "OBJECT",

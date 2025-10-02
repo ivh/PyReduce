@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """readmultispec.py
 
 Read IRAF (echelle) spectrum in multispec format from a FITS file.
@@ -59,7 +58,6 @@ def nonlinearwave(nwave, specstr, verbose=False):
     w0 = float(fields[10])
     ftype = int(fields[11])
     if ftype == 3:
-
         # cubic spline
 
         if len(fields) < 15:
@@ -79,14 +77,13 @@ def nonlinearwave(nwave, specstr, verbose=False):
         j = s.astype(int).clip(0, npieces - 1)
         a = (j + 1) - s
         b = s - j
-        x0 = a ** 3
+        x0 = a**3
         x1 = 1 + 3 * a * (1 + a * b)
         x2 = 1 + 3 * b * (1 + a * b)
-        x3 = b ** 3
+        x3 = b**3
         wave = coeff[j] * x0 + coeff[j + 1] * x1 + coeff[j + 2] * x2 + coeff[j + 3] * x3
 
     elif ftype == 1 or ftype == 2:
-
         # chebyshev or legendre polynomial
         # legendre not tested yet
 
@@ -171,7 +168,7 @@ def readmultispec(fitsfile, reform=True, quiet=False):
             # handle log spacing too
             dcflag = header.get("dc-flag", 0)
             if dcflag == 1:
-                wavelen = 10.0 ** wavelen
+                wavelen = 10.0**wavelen
                 if not quiet:
                     print("Dispersion is linear in log wavelength")
             elif dcflag == 0:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
@@ -33,7 +32,7 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.MCDONALD(os.path.expanduser("~")+"/PyReduce/DATA")
+base_dir = datasets.MCDONALD(os.path.expanduser("~") + "/PyReduce/DATA")
 input_dir = "raw"
 output_dir = "reduced"
 

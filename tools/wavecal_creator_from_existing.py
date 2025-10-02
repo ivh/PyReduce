@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This script creates a new linelist file based on an existing wavelength solution and an atlas for a specific element of the gas lamp
 used in the wavelength calibration.
@@ -6,11 +5,9 @@ used in the wavelength calibration.
 
 from os.path import dirname, join
 
-import matplotlib.pyplot as plt
 import numpy as np
 from pymultispec import readmultispec
 
-from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments import instrument_info
 from pyreduce.wavelength_calibration import LineAtlas, LineList, WavelengthCalibration
 

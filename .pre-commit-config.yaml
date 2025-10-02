@@ -1,6 +1,6 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v6.0.0
     hooks:
     # Identify invalid files
     -   id: check-ast
@@ -15,29 +15,19 @@ repos:
     # Python checks
     -   id: check-docstring-first
     -   id: debug-statements
-    -   id: requirements-txt-fixer
-    -   id: fix-encoding-pragma
-    -   id: fix-byte-order-marker
     # General checks
     -   id: mixed-line-ending
         exclude: ".fits"
     -   id: trailing-whitespace
         exclude: ".fits"
-    # -   id: check-executables-have-shebangs
     -   id: end-of-file-fixer
--   repo: https://github.com/asottile/pyupgrade
-    rev: v2.29.0
+
+# Ruff - Modern Python linter and formatter (replaces isort, black, flake8, pyupgrade)
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.2
     hooks:
-    -   id: pyupgrade
--   repo: https://github.com/pycqa/isort
-    rev: 5.9.3
-    hooks:
-      - id: isort
--   repo: https://github.com/psf/black
-    rev: 21.9b0
-    hooks:
-    -   id: black
--   repo: https://github.com/PyCQA/flake8
-    rev:  4.0.1
-    hooks:
-    -   id: flake8
+    # Run the linter
+    -   id: ruff
+        args: [--fix]
+    # Run the formatter
+    -   id: ruff-format

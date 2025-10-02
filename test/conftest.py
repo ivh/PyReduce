@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import tempfile
 from os.path import dirname, join
@@ -333,7 +332,7 @@ def prefix(instrument, mode):
         instrument_mode
     """
 
-    prefix = "{}_{}".format(instrument.lower(), mode.lower())
+    prefix = f"{instrument.lower()}_{mode.lower()}"
     return prefix
 
 
@@ -625,7 +624,7 @@ def wave(step_args, settings, wave_master, wave_init):
     except FileNotFoundError:
         try:
             wave, coef, linelist = step.run(wave_master, wave_init)
-        except Exception as ex:
+        except Exception:
             wave = None
     return wave
 

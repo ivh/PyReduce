@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pytest
 
-from pyreduce import util
 from pyreduce.combine_frames import combine_frames
 from pyreduce.trace_orders import mark_orders
 

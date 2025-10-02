@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
@@ -11,7 +10,6 @@ import numpy as np
 from scipy.constants import speed_of_light
 
 import pyreduce
-from pyreduce import datasets
 
 # define parameters
 instrument = "HARPS"
@@ -99,7 +97,7 @@ wave1D = wave1D["wave"]
 
 # plot
 # 2D
-gauss = lambda x, A, mu, sig: A * np.exp(-((x - mu) ** 2) / (2 * sig ** 2))
+gauss = lambda x, A, mu, sig: A * np.exp(-((x - mu) ** 2) / (2 * sig**2))
 
 xlim = (-200, 200)
 ylim = (0, 1500)
@@ -114,7 +112,7 @@ std = np.percentile(residual, 68) - mean
 
 A = plt.hist(residual, bins=bins, range=xlim)[0]
 A = A.sum() * (xlim[1] - xlim[0]) / bins
-A /= np.sqrt(2 * np.pi * std ** 2)
+A /= np.sqrt(2 * np.pi * std**2)
 
 plt.plot(x, gauss(x, A, mean, std), "--")
 plt.plot()
@@ -131,7 +129,7 @@ mean = np.median(residual)
 std = np.percentile(residual, 68) - mean
 A = plt.hist(residual, bins=bins, range=xlim)[0]
 A = A.sum() * (xlim[1] - xlim[0]) / bins
-A /= np.sqrt(2 * np.pi * std ** 2)
+A /= np.sqrt(2 * np.pi * std**2)
 plt.plot(x, gauss(x, A, mean, std), "--")
 plt.title("2D")
 plt.xlabel(r"$\Delta v$ [m/s]")

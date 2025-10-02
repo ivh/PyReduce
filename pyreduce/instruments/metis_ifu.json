@@ -7,7 +7,7 @@
     "date_format": "mjd",
     "modes": [
 	"IFU_NOMINAL",
-	"IFU_EXTENDED" 
+	"IFU_EXTENDED"
     ],
     "kw_modes": "INSTMODE",
     "id_modes": [

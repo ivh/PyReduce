@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 import os.path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pyreduce
-from pyreduce import configuration, datasets, instruments, util
+from pyreduce import configuration, datasets, instruments
 from pyreduce.wavelength_calibration import (
     WavelengthCalibration as WavelengthCalibrationModule,
 )
@@ -45,7 +43,7 @@ mode = "red"
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.HARPS(os.path.expanduser("~")+"/PyReduce/DATA")
+base_dir = datasets.HARPS(os.path.expanduser("~") + "/PyReduce/DATA")
 input_dir = "raw"
 output_dir = f"reduced_{mode}"
 

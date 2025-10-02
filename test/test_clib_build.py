@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from pyreduce.clib import build_extract
 
 

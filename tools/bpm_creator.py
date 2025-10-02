@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 import glob
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-from scipy.ndimage import label, morphology
 
 
 class SelectorWindow:

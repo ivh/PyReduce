@@ -64,4 +64,3 @@ We also define which steps of the reduction to perform. Steps that are not speci
 All of this is then passed to pyreduce.reduce.main to start the reduction.
 
 In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations, if it seems nothing is happening. Once you are statisified with the results you can disable them in settings_UVES.json (with "plot":false in each step) to speed up the computation.
-

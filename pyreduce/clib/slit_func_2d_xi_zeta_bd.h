@@ -46,10 +46,10 @@ int xi_zeta_tensors(
                     int *m_zeta);
 
 int create_spectral_model(
-    int ncols, 
-    int nrows, 
+    int ncols,
+    int nrows,
     int osample,
-    xi_ref* xi, 
-    double* spec, 
+    xi_ref* xi,
+    double* spec,
     double* slitfunc,
     double* img);

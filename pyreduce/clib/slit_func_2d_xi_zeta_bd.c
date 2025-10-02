@@ -1291,11 +1291,11 @@ int create_spectral_model(int ncols, int nrows, int osample, xi_ref* xi, double*
         {
             img[im_index(x, iy)] = 0;
         }
-        
+
     }
 
     for (x = 0; x < ncols; x++)
-    {   
+    {
         for (iy = 0; iy < ny; iy++)
         {
             for (m = 0; m < 4; m++)
@@ -1307,7 +1307,7 @@ int create_spectral_model(int ncols, int nrows, int osample, xi_ref* xi, double*
                     img[im_index(pix_x, pix_y)] += pix_w * spec[x] * slitfunc[iy];
                 }
             }
-        }            
+        }
     }
     return 0;
 }
