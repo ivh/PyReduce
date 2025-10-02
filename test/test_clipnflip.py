@@ -68,35 +68,35 @@ def test_only_clip(image, header):
 def test_bad_clipping_range(image, header):
     # Case 1: x completely out of range
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, xrange=(100, 150))
+        clipnflip(image, header, xrange=(100, 150))
 
     # Case 2: x upper limit out of range
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, xrange=(5, 150))
+        clipnflip(image, header, xrange=(5, 150))
 
     # Case 3: x limits inverse
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, xrange=(10, 0))
+        clipnflip(image, header, xrange=(10, 0))
 
     # Case 4: x limits only one column
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, xrange=(1, 1))
+        clipnflip(image, header, xrange=(1, 1))
 
     # Case 1: y completely out of range
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, yrange=(100, 150))
+        clipnflip(image, header, yrange=(100, 150))
 
     # Case 2: y upper limit out of range
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, yrange=(5, 150))
+        clipnflip(image, header, yrange=(5, 150))
 
     # Case 3: y limits inverse
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, yrange=(10, 0))
+        clipnflip(image, header, yrange=(10, 0))
 
     # Case 4: y limits only one column
     with pytest.raises(IndexError):
-        flipped = clipnflip(image, header, yrange=(1, 1))
+        clipnflip(image, header, yrange=(1, 1))
 
 
 def test_multidimensional(image, header):

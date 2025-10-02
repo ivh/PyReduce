@@ -112,12 +112,6 @@ def main(
     if night is None or np.isscalar(night):
         night = [night]
 
-    isNone = {
-        "modes": modes is None,
-        "base_dir": base_dir is None,
-        "input_dir": input_dir is None,
-        "output_dir": output_dir is None,
-    }
     output = []
 
     # Loop over everything
@@ -149,7 +143,7 @@ def main(
     for t, n, m in product(target, night, modes):
         log_file = join(
             base_dir.format(instrument=str(instrument), mode=modes, target=t),
-            "logs/%s.log" % t,
+            f"logs/{t}.log",
         )
         util.start_logging(log_file)
         # find input files and sort them by type
@@ -1895,9 +1889,9 @@ class ContinuumNormalization(Step):
             heads, specs, sigmas, columns = science
             norm, blaze = norm_flat
             conts = [blaze for _ in specs]
-            data = dict(
-                heads=heads, specs=specs, sigmas=sigmas, conts=conts, columns=columns
-            )
+            data = {
+                "heads": heads, "specs": specs, "sigmas": sigmas, "conts": conts, "columns": columns
+            }
         heads = data["heads"]
         specs = data["specs"]
         sigmas = data["sigmas"]

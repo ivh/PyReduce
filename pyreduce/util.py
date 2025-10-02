@@ -132,7 +132,7 @@ def find_first_index(arr, value):
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
-        raise Exception("Value %s not found" % value)
+        raise Exception(f"Value {value} not found")
 
 
 def interpolate_masked(masked):
@@ -233,7 +233,9 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     return index
 
 
-def gridsearch(func, grid, args=(), kwargs={}):
+def gridsearch(func, grid, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
     matrix = np.zeros(grid.shape[:-1])
 
     for idx in np.ndindex(grid.shape[:-1]):
@@ -270,7 +272,8 @@ def gaussfit(x, y):
         fitted values for x, fit paramters (a, mu, sigma)
     """
 
-    gauss = lambda x, A0, A1, A2: A0 * np.exp(-(((x - A1) / A2) ** 2) / 2)
+    def gauss(x, A0, A1, A2):
+        return A0 * np.exp(-(((x - A1) / A2) ** 2) / 2)
     popt, _ = curve_fit(gauss, x, y, p0=[max(y), 0, 1])
     return gauss(x, *popt), popt
 
@@ -531,7 +534,7 @@ def polyscale2d(coeff, scale_x, scale_y, copy=True):
     if copy:
         coeff = np.copy(coeff)
     idx = _get_coeff_idx(coeff)
-    for k, (i, j) in enumerate(idx):
+    for _k, (i, j) in enumerate(idx):
         coeff[i, j] /= scale_x**i * scale_y**j
     return coeff
 

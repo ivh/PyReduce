@@ -47,5 +47,5 @@ def test_normflat(flat, orders, settings, order_range, scatter, instrument):
 
     for i, j in enumerate(range(order_range[0], order_range[1])):
         cr = column_range[j]
-        assert np.all(blaze[i, : cr[0]].mask == True)
-        assert np.all(blaze[i, cr[1] :].mask == True)
+        assert np.all(blaze[i, : cr[0]].mask)
+        assert np.all(blaze[i, cr[1] :].mask)

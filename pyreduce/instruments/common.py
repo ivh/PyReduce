@@ -27,7 +27,7 @@ def find_first_index(arr, value):
     try:
         return next(i for i, v in enumerate(arr) if v == value)
     except StopIteration:
-        raise KeyError("Value %s not found" % value)
+        raise KeyError(f"Value {value} not found")
 
 
 def observation_date_to_night(observation_date):
@@ -218,7 +218,6 @@ class Instrument:
         ONLY the header is returned if header_only is True
         """
 
-        info = self.info
         mode = mode.upper()
 
         hdu = fits.open(fname)
@@ -472,7 +471,7 @@ class Instrument:
 
         values = [settings[k] for k in self.shared]
         for setting in product(*values):
-            setting = {k: v for k, v in zip(self.shared, setting, strict=False)}
+            setting = dict(zip(self.shared, setting, strict=False))
             night = setting[self.night]
             f = {}
             # For each step look for files with matching settings
@@ -533,7 +532,7 @@ class Instrument:
                             )
                             f[step] = closest_files
 
-            if any([len(a) > 0 for a in f.values()]):
+            if any(len(a) > 0 for a in f.values()):
                 files.append((setting, f))
         if len(files) == 0:
             logger.warning(

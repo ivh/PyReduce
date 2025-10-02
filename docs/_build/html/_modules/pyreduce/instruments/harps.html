@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pyreduce.instruments.harps &#8212; PyReduce unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pyreduce.instruments.harps</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Handles instrument specific info for the HARPS spectrograph</span>
+
+<span class="sd">Mostly reading data from the header</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">os.path</span><span class="w"> </span><span class="kn">import</span> <span class="n">dirname</span><span class="p">,</span> <span class="n">join</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">Instrument</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Filter</span><span class="p">,</span> <span class="n">InstrumentFilter</span><span class="p">,</span> <span class="n">NightFilter</span><span class="p">,</span> <span class="n">ObjectFilter</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="TypeFilter">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.TypeFilter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TypeFilter</span><span class="p">(</span><span class="n">Filter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="o">=</span><span class="s2">&quot;ESO DPR TYPE&quot;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">regex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TypeFilter.classify">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.TypeFilter.classify">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">match</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+                <span class="n">keys</span> <span class="o">=</span> <span class="p">[[</span><span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span> <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+                <span class="n">unique</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+                <span class="n">assign</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="n">u</span><span class="p">:</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="n">u</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">unique</span>
+                <span class="p">}</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">a</span><span class="p">)))</span> <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">assign</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+            <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">match</span><span class="p">])</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">d</span><span class="p">))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">d</span><span class="p">))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="FiberFilter">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.FiberFilter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FiberFilter</span><span class="p">(</span><span class="n">Filter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="o">=</span><span class="s2">&quot;ESO DPR TYPE&quot;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">regex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lamp_values</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;LAMP&quot;</span><span class="p">,</span> <span class="s2">&quot;STAR&quot;</span><span class="p">,</span> <span class="s2">&quot;CIRPOL&quot;</span><span class="p">,</span> <span class="s2">&quot;LINPOL&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="FiberFilter.collect">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.FiberFilter.collect">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lamp_values</span> <span class="ow">and</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lamp_values</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;AB&quot;</span>
+            <span class="k">elif</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lamp_values</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;B&quot;</span>
+            <span class="k">elif</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lamp_values</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;A&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="PolarizationFilter">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.PolarizationFilter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PolarizationFilter</span><span class="p">(</span><span class="n">Filter</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="o">=</span><span class="s2">&quot;ESO INS RET?? POS&quot;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">regex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PolarizationFilter.collect">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.PolarizationFilter.collect">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="n">dpr_type</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ESO DPR TYPE&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^.*,(CIR|LIN)POL,.*$&quot;</span><span class="p">,</span> <span class="n">dpr_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+        <span class="k">elif</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;CIR&quot;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;circular&quot;</span>
+        <span class="k">elif</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;LIN&quot;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;linear&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Polarization not recognised&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="HARPS">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HARPS</span><span class="p">(</span><span class="n">Instrument</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filters</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="n">InstrumentFilter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;instrument&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">NightFilter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]),</span>
+            <span class="c1"># &quot;branch&quot;: Filter(, regex=True),</span>
+            <span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="n">Filter</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;instrument_mode&quot;</span><span class="p">],</span> <span class="n">regex</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">TypeFilter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;observation_type&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;polarization&quot;</span><span class="p">:</span> <span class="n">PolarizationFilter</span><span class="p">(),</span>
+            <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="n">ObjectFilter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;target&quot;</span><span class="p">],</span> <span class="n">regex</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+            <span class="s2">&quot;fiber&quot;</span><span class="p">:</span> <span class="n">FiberFilter</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">night</span> <span class="o">=</span> <span class="s2">&quot;night&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">science</span> <span class="o">=</span> <span class="s2">&quot;science&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shared</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;instrument&quot;</span><span class="p">,</span> <span class="s2">&quot;night&quot;</span><span class="p">,</span> <span class="s2">&quot;mode&quot;</span><span class="p">,</span> <span class="s2">&quot;polarization&quot;</span><span class="p">,</span> <span class="s2">&quot;fiber&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">find_closest</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;bias&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;flat&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;wavecal_master&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;freq_comb_master&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;orders&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;scatter&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;curvature&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+
+<div class="viewcode-block" id="HARPS.get_expected_values">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS.get_expected_values">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_expected_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">night</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">fiber</span><span class="p">,</span> <span class="n">polarimetry</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Determine the default expected values in the headers for a given observation configuration</span>
+
+<span class="sd">        Any parameter may be None, to indicate that all values are allowed</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        target : str</span>
+<span class="sd">            Name of the star / observation target</span>
+<span class="sd">        night : str</span>
+<span class="sd">            Observation night/nights</span>
+<span class="sd">        fiber : &quot;A&quot;, &quot;B&quot;, &quot;AB&quot;</span>
+<span class="sd">            Which of the fibers should carry observation signal</span>
+<span class="sd">        polarimetry : &quot;none&quot;, &quot;linear&quot;, &quot;circular&quot;, bool</span>
+<span class="sd">            Whether the instrument is used in HARPS or HARPSpol mode</span>
+<span class="sd">            and which polarization is observed. Set to true for both kinds</span>
+<span class="sd">            of polarisation.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        expectations: dict</span>
+<span class="sd">            Dictionary of expected header values, with one entry per step.</span>
+<span class="sd">            The entries for each step refer to the filters defined in self.filters</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            Invalid combination of parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(?:\s*|-)&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
+
+        <span class="k">if</span> <span class="n">fiber</span> <span class="o">==</span> <span class="s2">&quot;AB&quot;</span><span class="p">:</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(</span><span class="si">{a}</span><span class="s2">,</span><span class="si">{a}</span><span class="s2">),</span><span class="si">{c}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">fiber</span> <span class="o">==</span> <span class="s2">&quot;A&quot;</span><span class="p">:</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(</span><span class="si">{a}</span><span class="s2">,</span><span class="si">{b}</span><span class="s2">),</span><span class="si">{c}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">fiber</span> <span class="o">==</span> <span class="s2">&quot;B&quot;</span><span class="p">:</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(</span><span class="si">{b}</span><span class="s2">,</span><span class="si">{a}</span><span class="s2">),</span><span class="si">{c}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">fiber</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">template</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">fiber</span> <span class="o">=</span> <span class="s2">&quot;(AB)|(A)|(B)&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;fiber keyword not understood, possible values are &#39;AB&#39;, &#39;A&#39;, &#39;B&#39;&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">polarimetry</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">polarimetry</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;HARPS&quot;</span>
+            <span class="k">if</span> <span class="n">template</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">id_orddef</span> <span class="o">=</span> <span class="n">template</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="s2">&quot;LAMP&quot;</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="s2">&quot;DARK&quot;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s2">&quot;.*?&quot;</span><span class="p">)</span>
+                <span class="n">id_spec</span> <span class="o">=</span> <span class="n">template</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="s2">&quot;STAR&quot;</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="s2">&quot;(?!STAR).*?&quot;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s2">&quot;.*?&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">id_spec</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="sa">r</span><span class="s2">&quot;^(STAR,(?!STAR).*),.*$|^((?!STAR).*?,STAR),.*$|^(STAR,STAR),.*$&quot;</span>
+                <span class="p">)</span>
+                <span class="n">id_orddef</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;^(LAMP,DARK),.*$|^(DARK,LAMP),.*$|^(LAMP,LAMP),.*$&quot;</span>
+            <span class="n">polarimetry</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;HARPSpol&quot;</span>
+            <span class="n">id_orddef</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(LAMP,LAMP),.*&quot;</span>
+            <span class="k">if</span> <span class="n">polarimetry</span> <span class="o">==</span> <span class="sa">r</span><span class="s2">&quot;linear&quot;</span><span class="p">:</span>
+                <span class="n">id_spec</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(STAR,LINPOL),.*&quot;</span>
+            <span class="k">elif</span> <span class="n">polarimetry</span> <span class="o">==</span> <span class="s2">&quot;circular&quot;</span><span class="p">:</span>
+                <span class="n">id_spec</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(STAR,CIRPOL),.*&quot;</span>
+            <span class="k">elif</span> <span class="n">polarimetry</span><span class="p">:</span>
+                <span class="n">id_spec</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(STAR,(?:LIN|CIR)POL),.*&quot;</span>
+                <span class="n">polarimetry</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(circular|linear)&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;polarization parameter not recognized. Expected one of &#39;none&#39;, &#39;linear&#39;, &#39;circular&#39;, but got </span><span class="si">{</span><span class="n">polarimetry</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="n">expectations</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;bias&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span> <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;BIAS,BIAS&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;flat&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span> <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;(LAMP,LAMP),.*&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;orders&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;fiber&quot;</span><span class="p">:</span> <span class="n">fiber</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">id_orddef</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;scatter&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">id_orddef</span><span class="p">,</span>  <span class="c1"># Same as orders or same as flat?</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;curvature&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="p">[</span><span class="sa">r</span><span class="s2">&quot;(WAVE,WAVE,COMB)&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(WAVE,WAVE,THAR)\d?&quot;</span><span class="p">],</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;wavecal_master&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;(WAVE,WAVE,THAR)\d?&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;freq_comb_master&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;(WAVE,WAVE,COMB)&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;science&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;instrument&quot;</span><span class="p">:</span> <span class="s2">&quot;HARPS&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;night&quot;</span><span class="p">:</span> <span class="n">night</span><span class="p">,</span>
+                <span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="n">mode</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">id_spec</span><span class="p">,</span>
+                <span class="s2">&quot;fiber&quot;</span><span class="p">:</span> <span class="n">fiber</span><span class="p">,</span>
+                <span class="s2">&quot;polarization&quot;</span><span class="p">:</span> <span class="n">polarimetry</span><span class="p">,</span>
+                <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">expectations</span></div>
+
+
+<div class="viewcode-block" id="HARPS.get_extension">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS.get_extension">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_extension</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="n">extension</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_extension</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+                <span class="ow">and</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS1&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4296</span>
+                <span class="ow">and</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS2&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4096</span>
+            <span class="p">):</span>
+                <span class="n">extension</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">extension</span></div>
+
+
+<div class="viewcode-block" id="HARPS.add_header_info">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS.add_header_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_header_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;read data from header and add it as REDUCE keyword back to the header&quot;&quot;&quot;</span>
+        <span class="c1"># &quot;Normal&quot; stuff is handled by the general version, specific changes to values happen here</span>
+        <span class="c1"># alternatively you can implement all of it here, whatever works</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">add_header_info</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_ra&quot;</span><span class="p">]</span> <span class="o">/=</span> <span class="mi">15</span>
+            <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_jd&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_exptim&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="mi">7200</span> <span class="o">*</span> <span class="mi">24</span><span class="p">)</span> <span class="o">+</span> <span class="mf">0.5</span>
+
+            <span class="n">pol_angle</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;eso ins ret25 pos&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">pol_angle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">pol_angle</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;eso ins ret50 pos&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">pol_angle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">pol_angle</span> <span class="o">=</span> <span class="s2">&quot;no polarimeter&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">pol_angle</span> <span class="o">=</span> <span class="s2">&quot;lin </span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">pol_angle</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pol_angle</span> <span class="o">=</span> <span class="s2">&quot;cir </span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">pol_angle</span>
+
+            <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_pol&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">pol_angle</span><span class="p">,</span> <span class="s2">&quot;polarization angle&quot;</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+                <span class="ow">and</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS1&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4296</span>
+                <span class="ow">and</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;NAXIS2&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4096</span>
+            <span class="p">):</span>
+                <span class="c1"># both modes are in the same image</span>
+                <span class="n">prescan_x</span> <span class="o">=</span> <span class="mi">50</span>
+                <span class="n">overscan_x</span> <span class="o">=</span> <span class="mi">50</span>
+                <span class="n">naxis_x</span> <span class="o">=</span> <span class="mi">2148</span>
+                <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;BLUE&quot;</span><span class="p">:</span>
+                    <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_xlo&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prescan_x</span>
+                    <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_xhi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">naxis_x</span> <span class="o">-</span> <span class="n">overscan_x</span>
+                <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;RED&quot;</span><span class="p">:</span>
+                    <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_xlo&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">naxis_x</span> <span class="o">+</span> <span class="n">prescan_x</span>
+                    <span class="n">header</span><span class="p">[</span><span class="s2">&quot;e_xhi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">naxis_x</span> <span class="o">-</span> <span class="n">overscan_x</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">header</span></div>
+
+
+<div class="viewcode-block" id="HARPS.get_wavecal_filename">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS.get_wavecal_filename">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_wavecal_filename</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">polarimetry</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the filename of the wavelength calibration config file&quot;&quot;&quot;</span>
+        <span class="n">cwd</span> <span class="o">=</span> <span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">polarimetry</span><span class="p">:</span>
+            <span class="n">pol</span> <span class="o">=</span> <span class="s2">&quot;_pol&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pol</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">fname</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;harps_</span><span class="si">{</span><span class="n">mode</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}{</span><span class="n">pol</span><span class="si">}</span><span class="s2">_2D.npz&quot;</span>
+        <span class="n">fname</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">cwd</span><span class="p">,</span> <span class="s2">&quot;..&quot;</span><span class="p">,</span> <span class="s2">&quot;wavecal&quot;</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fname</span></div>
+
+
+<div class="viewcode-block" id="HARPS.get_wavelength_range">
+<a class="viewcode-back" href="../../../pyreduce.instruments.html#pyreduce.instruments.harps.HARPS.get_wavelength_range">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_wavelength_range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">wave_range</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_wavelength_range</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># The wavelength orders are in inverse order in the .json file</span>
+        <span class="c1"># because I was to lazy to invert them in the file</span>
+        <span class="n">wave_range</span> <span class="o">=</span> <span class="n">wave_range</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">wave_range</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">PyReduce</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../howto.html">How To use PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_file.html">PyReduce Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../instruments.html">Supporting Custom instruments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../wavecal_linelist.html">Wavelength Calibration</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  <li><a href="../../pyreduce.html">pyreduce</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Ansgar Wehrhahn.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

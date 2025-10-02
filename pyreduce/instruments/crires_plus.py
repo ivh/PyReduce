@@ -31,7 +31,7 @@ class CRIRES_PLUS(Instrument):
         # alternatively you can implement all of it here, whatever works
         band, decker, detector = self.parse_mode(mode)
         header = super().add_header_info(header, band)
-        info = self.load_info()
+        self.load_info()
 
         return header
 

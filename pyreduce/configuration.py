@@ -36,7 +36,7 @@ def get_configuration_for_instrument(instrument, **kwargs):
     config = load_config(fname, instrument)
 
     for kwarg_key, kwarg_value in kwargs.items():
-        for key, value in config.items():
+        for key, _value in config.items():
             if isinstance(config[key], dict) and kwarg_key in config[key].keys():
                 config[key][kwarg_key] = kwarg_value
 

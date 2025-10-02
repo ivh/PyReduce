@@ -363,7 +363,7 @@ def combine_frames(
         # orient 0, 2, 5, 7: orders are horizontal
         # orient 1, 3, 4, 6: orders are vertical
         orientation = head.get("e_orient", 0)
-        transpose = head.get("e_transpose", False)
+        head.get("e_transpose", False)
         orientation = orientation % 8
         # check if non-linearity correction
         linear = head.get("e_linear", True)
@@ -413,11 +413,13 @@ def combine_frames(
         if orientation in [1, 3, 4, 6]:
             # idx gives the index for accessing the data in the image, which is rotated depending on the orientation
             # We could just rotate the whole image, but that requires reading the whole image at once
-            index = lambda row, x_left, x_right: (slice(x_left, x_right), row)
+            def index(row, x_left, x_right):
+                return (slice(x_left, x_right), row)
             # Exchange the borders of the image
             x_low, x_high, y_low, y_high = y_low, y_high, x_low, x_high
         else:
-            index = lambda row, x_left, x_right: (row, slice(x_left, x_right))
+            def index(row, x_left, x_right):
+                return (row, slice(x_left, x_right))
 
         # For several amplifiers, different sections of the image are set
         # One for each amplifier, each amplifier is treated seperately
@@ -495,7 +497,7 @@ def combine_frames(
     head["nimages"] = (len(files), " number of images summed")
     head["npixfix"] = (n_fixed, " pixels corrected for cosmic rays")
     head.add_history(
-        "images coadded by combine_frames.py on %s" % datetime.datetime.now()
+        f"images coadded by combine_frames.py on {datetime.datetime.now()}"
     )
 
     if not linear:  # pragma: no cover
@@ -574,7 +576,6 @@ def combine_calibrate(
     # Subtract bias
     if bias is not None and bias_scaling is not None and bias_scaling != "none":
         if bias.ndim == 2:
-            degree = 0
             if bhead["exptime"] == 0 and bias_scaling == "exposure_time":
                 logger.warning(
                     "No exposure time set in bias, using number of files instead"
@@ -590,11 +591,10 @@ def combine_calibrate(
                 orig -= bias * np.ma.median(orig) / np.ma.median(bias)
             else:
                 raise ValueError(
-                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time', 'number_of_files', 'mean', 'median', 'none'], but got %s"
-                    % bias_scaling
+                    f"Unexpected value for 'bias_scaling', expected one of ['exposure_time', 'number_of_files', 'mean', 'median', 'none'], but got {bias_scaling}"
                 )
         else:
-            degree = bias.shape[0]
+            bias.shape[0]
             if bias_scaling == "exposure_time":
                 orig -= np.polyval(bias, thead["exptime"])
             # elif bias_scaling == "number_of_files":
@@ -605,8 +605,7 @@ def combine_calibrate(
             #     flat -= bias * np.ma.median(flat) / np.ma.median(bias)
             else:
                 raise ValueError(
-                    "Unexpected value for 'bias_scaling', expected one of ['exposure_time'], but got %s"
-                    % bias_scaling
+                    f"Unexpected value for 'bias_scaling', expected one of ['exposure_time'], but got {bias_scaling}"
                 )
 
     # Remove the Flat
@@ -615,8 +614,7 @@ def combine_calibrate(
             orig /= norm
         else:
             raise ValueError(
-                "Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got %s"
-                % norm_scaling
+                f"Unexpected value for 'norm_scaling', expected one of ['divide', 'none'], but got {norm_scaling}"
             )
 
     if plot:  # pragma: no cover

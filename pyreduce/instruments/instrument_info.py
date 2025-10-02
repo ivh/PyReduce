@@ -30,7 +30,7 @@ def load_instrument(instrument) -> Instrument:
     if instrument is None:
         instrument = "common"
 
-    fname = ".instruments.%s" % instrument.lower()
+    fname = f".instruments.{instrument.lower()}"
     lib = importlib.import_module(fname, package="pyreduce")
     instrument = getattr(lib, instrument.upper())
     instrument = instrument()

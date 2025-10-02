@@ -171,8 +171,10 @@ class ModeFilter(Filter):
         flags=0,
         unique=True,
         ignorecase=True,
-        replacement={},
+        replacement=None,
     ):
+        if replacement is None:
+            replacement = {}
         super().__init__(
             keyword,
             dtype=dtype,

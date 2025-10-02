@@ -31,7 +31,7 @@ class XSHOOTER(InstrumentWithModes):
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
-        info = self.load_info()
+        self.load_info()
 
         cwd = os.path.dirname(__file__)
         fname = f"xshooter_{mode.lower()}.npz"

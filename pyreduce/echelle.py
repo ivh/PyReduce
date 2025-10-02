@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class Echelle:
-    def __init__(self, head={}, filename="", data={}):
+    def __init__(self, head=None, filename="", data=None):
+        if data is None:
+            data = {}
+        if head is None:
+            head = {}
         self.filename = filename
         self.header = head
         self._data = data

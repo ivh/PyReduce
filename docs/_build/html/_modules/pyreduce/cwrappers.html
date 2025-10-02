@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pyreduce.cwrappers &#8212; PyReduce unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pyreduce.cwrappers</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Wrapper for REDUCE C functions</span>
+
+<span class="sd">This module provides access to the extraction algorithms in the</span>
+<span class="sd">C libraries and sanitizes the input parameters.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ctypes</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.ndimage</span><span class="w"> </span><span class="kn">import</span> <span class="n">median_filter</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_2d</span><span class="w"> </span><span class="kn">import</span> <span class="n">ffi</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_2d</span><span class="w"> </span><span class="kn">import</span> <span class="n">lib</span> <span class="k">as</span> <span class="n">slitfunc_2dlib</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_bd</span><span class="w"> </span><span class="kn">import</span> <span class="n">lib</span> <span class="k">as</span> <span class="n">slitfunclib</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+        <span class="s2">&quot;C libraries could not be found. Compiling them by running build_extract.py&quot;</span>
+    <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_extract</span>
+
+    <span class="n">build_extract</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+    <span class="k">del</span> <span class="n">build_extract</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_2d</span><span class="w"> </span><span class="kn">import</span> <span class="n">ffi</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_2d</span><span class="w"> </span><span class="kn">import</span> <span class="n">lib</span> <span class="k">as</span> <span class="n">slitfunc_2dlib</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.clib._slitfunc_bd</span><span class="w"> </span><span class="kn">import</span> <span class="n">lib</span> <span class="k">as</span> <span class="n">slitfunclib</span>
+
+
+<span class="n">c_double</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_double</span>
+<span class="n">c_int</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span>
+<span class="n">c_mask</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ubyte</span>
+
+
+<div class="viewcode-block" id="slitfunc">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.cwrappers.slitfunc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">slitfunc</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">ycen</span><span class="p">,</span> <span class="n">lambda_sp</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lambda_sf</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">osample</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decompose image into spectrum and slitfunction</span>
+
+<span class="sd">    This is for horizontal straight orders only, for curved orders use slitfunc_curved instead</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    img : array[n, m]</span>
+<span class="sd">        image to decompose, should just contain a small part of the overall image</span>
+<span class="sd">    ycen : array[n]</span>
+<span class="sd">        traces the center of the order along the image, relative to the center of the image?</span>
+<span class="sd">    lambda_sp : float, optional</span>
+<span class="sd">        smoothing parameter of the spectrum (the default is 0, which no smoothing)</span>
+<span class="sd">    lambda_sf : float, optional</span>
+<span class="sd">        smoothing parameter of the slitfunction (the default is 0.1, which )</span>
+<span class="sd">    osample : int, optional</span>
+<span class="sd">        Subpixel ovsersampling factor (the default is 1, which no oversampling)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    sp, sl, model, unc</span>
+<span class="sd">        spectrum, slitfunction, model, spectrum uncertainties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Convert input to expected datatypes</span>
+    <span class="n">lambda_sf</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">lambda_sf</span><span class="p">)</span>
+    <span class="n">lambda_sp</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">lambda_sp</span><span class="p">)</span>
+    <span class="n">osample</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">osample</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">ycen</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ycen</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Image must be 2 dimensional&quot;</span>
+    <span class="k">assert</span> <span class="n">ycen</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Ycen must be 1 dimensional&quot;</span>
+
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">ycen</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Image and Ycen shapes are incompatible, got </span><span class="si">{</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">ycen</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">osample</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Oversample rate must be positive, but got </span><span class="si">{</span><span class="n">osample</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">assert</span> <span class="n">lambda_sf</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Slitfunction smoothing must be positive, but got </span><span class="si">{</span><span class="n">lambda_sf</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lambda_sp</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Spectrum smoothing must be positive, but got </span><span class="si">{</span><span class="n">lambda_sp</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="c1"># Get some derived values</span>
+    <span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">ny</span> <span class="o">=</span> <span class="n">osample</span> <span class="o">*</span> <span class="p">(</span><span class="n">nrows</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">ycen</span> <span class="o">=</span> <span class="n">ycen</span> <span class="o">-</span> <span class="n">ycen</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">c_int</span><span class="p">)</span>
+
+    <span class="c1"># Prepare all arrays</span>
+    <span class="c1"># Inital guess for slit function and spectrum</span>
+    <span class="n">sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">requirements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">,</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">]</span>
+    <span class="n">sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">sp</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">sl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getmaskarray</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_int</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">pix_unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">pix_unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">pix_unc</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">ycen</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">ycen</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ncols</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="c1"># Call the C function</span>
+    <span class="n">slitfunclib</span><span class="o">.</span><span class="n">slit_func_vert</span><span class="p">(</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">nrows</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">pix_unc</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int *&quot;</span><span class="p">,</span> <span class="n">mask</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">ycen</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">osample</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="n">lambda_sp</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="n">lambda_sf</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">sl</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">unc</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">sp</span><span class="p">,</span> <span class="n">sl</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">unc</span><span class="p">,</span> <span class="n">mask</span></div>
+
+
+
+<div class="viewcode-block" id="slitfunc_curved">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.cwrappers.slitfunc_curved">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">slitfunc_curved</span><span class="p">(</span>
+    <span class="n">img</span><span class="p">,</span> <span class="n">ycen</span><span class="p">,</span> <span class="n">tilt</span><span class="p">,</span> <span class="n">shear</span><span class="p">,</span> <span class="n">lambda_sp</span><span class="p">,</span> <span class="n">lambda_sf</span><span class="p">,</span> <span class="n">osample</span><span class="p">,</span> <span class="n">yrange</span><span class="p">,</span> <span class="n">maxiter</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">gain</span><span class="o">=</span><span class="mi">1</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decompose an image into a spectrum and a slitfunction, image may be curved</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    img : array[n, m]</span>
+<span class="sd">        input image</span>
+<span class="sd">    ycen : array[n]</span>
+<span class="sd">        traces the center of the order</span>
+<span class="sd">    tilt : array[n]</span>
+<span class="sd">        tilt (1st order curvature) of the order along the image, set to 0 if order straight</span>
+<span class="sd">    shear : array[n]</span>
+<span class="sd">        shear (2nd order curvature) of the order along the image, set to 0 if order straight</span>
+<span class="sd">    osample : int</span>
+<span class="sd">        Subpixel ovsersampling factor (the default is 1, no oversampling)</span>
+<span class="sd">    lambda_sp : float</span>
+<span class="sd">        smoothing factor spectrum (the default is 0, no smoothing)</span>
+<span class="sd">    lambda_sl : float</span>
+<span class="sd">        smoothing factor slitfunction (the default is 0.1, small smoothing)</span>
+<span class="sd">    yrange : array[2]</span>
+<span class="sd">        number of pixels below and above the central line that have been cut out</span>
+<span class="sd">    maxiter : int, optional</span>
+<span class="sd">        maximumim number of iterations, by default 20</span>
+<span class="sd">    gain : float, optional</span>
+<span class="sd">        gain of the image, by default 1</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    sp, sl, model, unc</span>
+<span class="sd">        spectrum, slitfunction, model, spectrum uncertainties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Convert datatypes to expected values</span>
+    <span class="n">lambda_sf</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">lambda_sf</span><span class="p">)</span>
+    <span class="n">lambda_sp</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">lambda_sp</span><span class="p">)</span>
+    <span class="n">osample</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">osample</span><span class="p">)</span>
+    <span class="n">maxiter</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">maxiter</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">ycen</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ycen</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">yrange</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">yrange</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Image must be 2 dimensional&quot;</span>
+    <span class="k">assert</span> <span class="n">ycen</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Ycen must be 1 dimensional&quot;</span>
+    <span class="k">assert</span> <span class="n">maxiter</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Maximum iterations must be positive&quot;</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">tilt</span><span class="p">):</span>
+        <span class="n">tilt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">tilt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">tilt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tilt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">shear</span><span class="p">):</span>
+        <span class="n">shear</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">shear</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">shear</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">shear</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">ycen</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Image and Ycen shapes are incompatible, got </span><span class="si">{</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">ycen</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">tilt</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Image and Tilt shapes are incompatible, got </span><span class="si">{</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">tilt</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">shear</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Image and Shear shapes are incompatible, got </span><span class="si">{</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">shear</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">osample</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Oversample rate must be positive, but got </span><span class="si">{</span><span class="n">osample</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">assert</span> <span class="n">lambda_sf</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Slitfunction smoothing must be positive, but got </span><span class="si">{</span><span class="n">lambda_sf</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">lambda_sp</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Spectrum smoothing must be positive, but got </span><span class="si">{</span><span class="n">lambda_sp</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="c1"># assert np.ma.all(np.isfinite(img)), &quot;All values in the image must be finite&quot;</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">ycen</span><span class="p">)),</span> <span class="s2">&quot;All values in ycen must be finite&quot;</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">tilt</span><span class="p">)),</span> <span class="s2">&quot;All values in tilt must be finite&quot;</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">shear</span><span class="p">)),</span> <span class="s2">&quot;All values in shear must be finite&quot;</span>
+
+    <span class="k">assert</span> <span class="n">yrange</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Yrange must be 1 dimensional&quot;</span>
+    <span class="k">assert</span> <span class="n">yrange</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Yrange must have 2 elements&quot;</span>
+    <span class="k">assert</span> <span class="n">yrange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">yrange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">==</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span>
+        <span class="s2">&quot;Yrange must cover the whole image&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">yrange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Yrange must be positive&quot;</span>
+    <span class="k">assert</span> <span class="n">yrange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Yrange must be positive&quot;</span>
+
+    <span class="c1"># Retrieve some derived values</span>
+    <span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">ny</span> <span class="o">=</span> <span class="n">osample</span> <span class="o">*</span> <span class="p">(</span><span class="n">nrows</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="n">ycen_offset</span> <span class="o">=</span> <span class="n">ycen</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">c_int</span><span class="p">)</span>
+    <span class="n">ycen_int</span> <span class="o">=</span> <span class="n">ycen</span> <span class="o">-</span> <span class="n">ycen_offset</span>
+    <span class="n">y_lower_lim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">yrange</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getmaskarray</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">mask2</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">img</span><span class="p">[</span><span class="n">mask2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">mask</span> <span class="o">|=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+
+    <span class="c1"># sp should never be all zero (thats a horrible guess) and leads to all nans</span>
+    <span class="c1"># This is a simplified run of the algorithm without oversampling or curvature</span>
+    <span class="c1"># But strong smoothing</span>
+    <span class="c1"># To remove the most egregious outliers, which would ruin the fit</span>
+    <span class="n">sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">median_filter</span><span class="p">(</span><span class="n">sp</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="n">sp</span><span class="p">)</span>
+    <span class="n">sl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sl</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sl</span><span class="p">)</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">sl</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">sp</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">model</span> <span class="o">-</span> <span class="n">img</span>
+    <span class="n">mask</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">diff</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">diff</span><span class="o">.</span><span class="n">std</span><span class="p">()]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">c_int</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">c_int</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="c1"># Determine the shot noise</span>
+    <span class="c1"># by converting electrons to photonsm via the gain</span>
+    <span class="n">pix_unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">img</span><span class="p">),</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">pix_unc</span> <span class="o">*=</span> <span class="n">gain</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">pix_unc</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">pix_unc</span><span class="p">)</span>
+    <span class="n">pix_unc</span><span class="p">[</span><span class="n">pix_unc</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">psf_curve</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ncols</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">psf_curve</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">tilt</span>
+    <span class="n">psf_curve</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">shear</span>
+
+    <span class="c1"># Initialize arrays and ensure the correct datatype for C</span>
+    <span class="n">requirements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">,</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">]</span>
+    <span class="n">sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">sp</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_mask</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">pix_unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">pix_unc</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">ycen_int</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">ycen_int</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">ycen_offset</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">ycen_offset</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_int</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="c1"># This memory could be reused between swaths</span>
+    <span class="n">sl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">unc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ncols</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="c1"># Info contains the folowing: sucess, cost, status, iteration, delta_x</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="n">col</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">col</span><span class="p">):</span>
+        <span class="n">mask</span><span class="p">[</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="c1"># assert not np.any(np.sum(mask, axis=0) == 0), &quot;At least one mask column is all 0.&quot;</span>
+
+    <span class="c1"># Call the C function</span>
+    <span class="n">slitfunc_2dlib</span><span class="o">.</span><span class="n">slit_func_curved</span><span class="p">(</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">nrows</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ny</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">pix_unc</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;unsigned char *&quot;</span><span class="p">,</span> <span class="n">mask</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">ycen_int</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int *&quot;</span><span class="p">,</span> <span class="n">ycen_offset</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">y_lower_lim</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">osample</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="n">lambda_sp</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="n">lambda_sf</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">maxiter</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">psf_curve</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">sl</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">unc</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">sp</span><span class="p">)):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;NaNs in the spectrum&quot;</span><span class="p">)</span>
+
+    <span class="c1"># The decomposition failed</span>
+    <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;I dont&#39;t know what happened&quot;</span>
+        <span class="k">elif</span> <span class="n">status</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Did not finish convergence after maxiter (</span><span class="si">{</span><span class="n">maxiter</span><span class="si">}</span><span class="s2">) iterations&quot;</span>
+        <span class="k">elif</span> <span class="n">status</span> <span class="o">==</span> <span class="o">-</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Curvature is larger than the swath. Check the curvature!&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Check the C code, for status = </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="c1"># raise RuntimeError(msg)</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="k">return</span> <span class="n">sp</span><span class="p">,</span> <span class="n">sl</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">unc</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">info</span></div>
+
+
+
+<span class="c1"># x, y, w</span>
+<span class="n">xi_ref</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">c_int</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="n">c_int</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)]</span>
+<span class="c1"># x, iy, w</span>
+<span class="n">zeta_ref</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">c_int</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;iy&quot;</span><span class="p">,</span> <span class="n">c_int</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)]</span>
+
+
+<div class="viewcode-block" id="xi_zeta_tensors">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.cwrappers.xi_zeta_tensors">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">xi_zeta_tensors</span><span class="p">(</span>
+    <span class="n">ncols</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">nrows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">ycen</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">yrange</span><span class="p">,</span>  <span class="c1"># (int, int)</span>
+    <span class="n">osample</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">tilt</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">shear</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">ncols</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ncols</span><span class="p">)</span>
+    <span class="n">nrows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nrows</span><span class="p">)</span>
+    <span class="n">osample</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">osample</span><span class="p">)</span>
+    <span class="n">ny</span> <span class="o">=</span> <span class="n">osample</span> <span class="o">*</span> <span class="p">(</span><span class="n">nrows</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="n">ycen_offset</span> <span class="o">=</span> <span class="n">ycen</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">c_int</span><span class="p">)</span>
+    <span class="n">ycen_int</span> <span class="o">=</span> <span class="n">ycen</span> <span class="o">-</span> <span class="n">ycen_offset</span>
+    <span class="n">y_lower_lim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">yrange</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">psf_curve</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ncols</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+    <span class="n">psf_curve</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">tilt</span>
+    <span class="n">psf_curve</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">shear</span>
+
+    <span class="n">requirements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">,</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">]</span>
+    <span class="n">ycen_int</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">ycen_int</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">ycen_offset</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">ycen_offset</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_int</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ncols</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">xi_ref</span><span class="p">)</span>
+    <span class="n">zeta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ncols</span><span class="p">,</span> <span class="n">nrows</span><span class="p">,</span> <span class="mi">3</span> <span class="o">*</span> <span class="p">(</span><span class="n">osample</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">zeta_ref</span><span class="p">)</span>
+    <span class="n">m_zeta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ncols</span><span class="p">,</span> <span class="n">nrows</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_int</span><span class="p">)</span>
+
+    <span class="n">slitfunc_2dlib</span><span class="o">.</span><span class="n">xi_zeta_tensors</span><span class="p">(</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">nrows</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ny</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">ycen_int</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int *&quot;</span><span class="p">,</span> <span class="n">ycen_offset</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">y_lower_lim</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">osample</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">psf_curve</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;xi_ref *&quot;</span><span class="p">,</span> <span class="n">xi</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;zeta_ref *&quot;</span><span class="p">,</span> <span class="n">zeta</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int *&quot;</span><span class="p">,</span> <span class="n">m_zeta</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">xi</span><span class="p">,</span> <span class="n">zeta</span><span class="p">,</span> <span class="n">m_zeta</span></div>
+
+
+
+<div class="viewcode-block" id="create_spectral_model">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.cwrappers.create_spectral_model">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_spectral_model</span><span class="p">(</span>
+    <span class="n">ncols</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">nrows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">osample</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">xi</span><span class="p">:</span> <span class="s2">&quot;xi_ref&quot;</span><span class="p">,</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">slitfunc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">ncols</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ncols</span><span class="p">)</span>
+    <span class="n">nrows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">nrows</span><span class="p">)</span>
+
+    <span class="n">requirements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">,</span> <span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;O&quot;</span><span class="p">]</span>
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">slitfunc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">slitfunc</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+    <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">require</span><span class="p">(</span><span class="n">xi</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">xi_ref</span><span class="p">,</span> <span class="n">requirements</span><span class="o">=</span><span class="n">requirements</span><span class="p">)</span>
+
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nrows</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">c_double</span><span class="p">)</span>
+
+    <span class="n">slitfunc_2dlib</span><span class="o">.</span><span class="n">create_spectral_model</span><span class="p">(</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">nrows</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">osample</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;xi_ref *&quot;</span><span class="p">,</span> <span class="n">xi</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">spec</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">slitfunc</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="n">ffi</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;double *&quot;</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">img</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">PyReduce</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../howto.html">How To use PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration_file.html">PyReduce Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../instruments.html">Supporting Custom instruments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../wavecal_linelist.html">Wavelength Calibration</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  <li><a href="../pyreduce.html">pyreduce</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Ansgar Wehrhahn.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

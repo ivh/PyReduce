@@ -224,7 +224,7 @@ oincr = 1
         temp.flush()
 
         # with open(os.devnull, 'w') as devnull:
-        subprocess.run(["idl", "-e", ".r %s" % tempname])
+        subprocess.run(["idl", "-e", f".r {tempname}"])
         # input("Wait for me...")
         clean_temps()
 
@@ -303,7 +303,8 @@ class OrderPlot:
         deg = min(self.degree, len(pos))
 
         x = np.arange(self.ncol)
-        fun = lambda p: np.where(np.gradient(np.polyval(p, x)) >= 0, 1, 0)
+        def fun(p):
+            return np.where(np.gradient(np.polyval(p, x)) >= 0, 1, 0)
 
         # constraints = NonlinearConstraint(fun, 1, 1, jac="3-point", keep_feasible=True)
 

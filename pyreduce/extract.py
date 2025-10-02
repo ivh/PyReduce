@@ -680,7 +680,7 @@ def extract_spectrum(
     ylow, yhigh = yrange
     xlow, xhigh = xrange
     nslitf = osample * (ylow + yhigh + 2) + 1
-    height = yhigh + ylow + 1
+    yhigh + ylow + 1
 
     ycen_int = np.floor(ycen).astype(int)
 
@@ -1015,7 +1015,7 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
 
 def model_image(img, xwd, tilt, shear):
     # Correct image for curvature
-    height = img.shape[0]
+    img.shape[0]
     img = correct_for_curvature(img, tilt, shear, xwd)
     # Find slitfunction using the median to avoid outliers
     slitf = np.ma.median(img, axis=1)
@@ -1111,7 +1111,7 @@ def arc_extraction(
         # Then the center of the order is within one pixel variations
         ycen = np.polyval(orders[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-        height = extraction_width[i, 0] + extraction_width[i, 1] + 1
+        extraction_width[i, 0] + extraction_width[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
@@ -1135,8 +1135,7 @@ def arc_extraction(
             arc = np.ma.median(img_order, axis=0) * img_order.shape[0]
         else:
             raise ValueError(
-                "Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got %s"
-                % collapse_function
+                f"Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got {collapse_function}"
             )
 
         # Store results

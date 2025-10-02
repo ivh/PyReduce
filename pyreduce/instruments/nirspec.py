@@ -133,7 +133,6 @@ class NIRSPEC(Instrument):
             )
 
         files_per_observation = []
-        nights_out = []
         cache = {}
 
         for ind_night in tqdm(individual_nights):
@@ -198,13 +197,13 @@ class NIRSPEC(Instrument):
         """Get the filename of the wavelength calibration config file"""
         info = self.load_info()
         if header[info["id_neon"]] == 1:
-            element = "neon"
+            pass
         elif header[info["id_argon"]] == 1:
-            element = "argon"
+            pass
         elif header[info["id_krypton"]] == 1:
-            element = "krypton"
+            pass
         elif header[info["id_xenon"]] == 1:
-            element = "xenon"
+            pass
         else:
             raise ValueError("Wavelength calibration element not recognised")
 

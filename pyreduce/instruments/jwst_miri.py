@@ -18,7 +18,7 @@ class JWST_MIRI(Instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
-        info = self.load_info()
+        self.load_info()
         return header
 
     def get_wavecal_filename(self, header, mode, **kwargs):

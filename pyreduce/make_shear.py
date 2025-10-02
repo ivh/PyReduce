@@ -257,9 +257,11 @@ class Curvature:
         A = np.nanpercentile(img_compressed, 95)
         sig = (xmax - xmin) / 4  # TODO
         if self.curv_degree == 1:
-            shift = lambda curv: curv[0] * y
+            def shift(curv):
+                return curv[0] * y
         elif self.curv_degree == 2:
-            shift = lambda curv: (curv[0] + curv[1] * y) * y
+            def shift(curv):
+                return (curv[0] + curv[1] * y) * y
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
         # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>pyreduce.instruments package &#8212; PyReduce unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Wavelength Calibration" href="wavecal_linelist.html" />
+    <link rel="prev" title="pyreduce.clib package" href="pyreduce.clib.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="pyreduce-instruments-package">
+<h1>pyreduce.instruments package<a class="headerlink" href="#pyreduce-instruments-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-pyreduce.instruments.common">
+<span id="pyreduce-instruments-common-module"></span><h2>pyreduce.instruments.common module<a class="headerlink" href="#module-pyreduce.instruments.common" title="Link to this heading">¶</a></h2>
+<p>Abstract parent module for all other instruments
+Contains some general functionality, which may be overridden by the children of course</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.COMMON">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">COMMON</span></span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#COMMON"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.COMMON" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument"><code class="xref py py-class docutils literal notranslate"><span class="pre">Instrument</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">Instrument</span></span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Abstract parent class for all instruments
+Handles the instrument specific information</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.add_header_info">
+<span class="sig-name descname"><span class="pre">add_header_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.add_header_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.add_header_info" title="Link to this definition">¶</a></dt>
+<dd><p>read data from header and add it as REDUCE keyword back to the header</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>header</strong> (<em>fits.header</em><em>, </em><em>dict</em>) – header to read/write info from/to</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>header</strong> – header with added information</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fits.header, dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.apply_filters">
+<span class="sig-name descname"><span class="pre">apply_filters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expected</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_calibration_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.apply_filters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.apply_filters" title="Link to this definition">¶</a></dt>
+<dd><p>Determine the relevant files for a given set of expected values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>files</strong> (<em>list</em><em>(</em><em>files</em><em>)</em>) – list if fits files</p></li>
+<li><p><strong>expected</strong> (<em>dict</em>) – dictionary with expected header values for each reduction step</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>files</strong> – list of files. The first element of each tuple is the used setting,
+and the second are the files for each step.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list((dict, dict))</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.find_files">
+<span class="sig-name descname"><span class="pre">find_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.find_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.find_files" title="Link to this definition">¶</a></dt>
+<dd><p>Find fits files in the given folder</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>input_dir</strong> (<em>string</em>) – directory to look for fits and fits.gz files in, may include bash style wildcards</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>files</strong> – absolute path filenames</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>array(string)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_expected_values">
+<span class="sig-name descname"><span class="pre">get_expected_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_expected_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_expected_values" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_extension">
+<span class="sig-name descname"><span class="pre">get_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_extension"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_extension" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_mask_filename">
+<span class="sig-name descname"><span class="pre">get_mask_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_mask_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_mask_filename" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_supported_modes">
+<span class="sig-name descname"><span class="pre">get_supported_modes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_supported_modes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_supported_modes" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_wavecal_filename">
+<span class="sig-name descname"><span class="pre">get_wavecal_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_wavecal_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_wavecal_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Get the filename of the pre-existing wavelength solution for the current setting</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>header</strong> (<em>fits.header</em><em>, </em><em>dict</em>) – header of the wavelength calibration file</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>filename</strong> – name of the wavelength solution file</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.get_wavelength_range">
+<span class="sig-name descname"><span class="pre">get_wavelength_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.get_wavelength_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.get_wavelength_range" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.info">
+<span class="sig-name descname"><span class="pre">info</span></span><a class="headerlink" href="#pyreduce.instruments.common.Instrument.info" title="Link to this definition">¶</a></dt>
+<dd><p>Information about the instrument</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.load_fits">
+<span class="sig-name descname"><span class="pre">load_fits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">header_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.load_fits"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.load_fits" title="Link to this definition">¶</a></dt>
+<dd><p>load fits file, REDUCE style</p>
+<p>primary and extension header are combined
+modeinfo is applied to header
+data is clipnflipped
+mask is applied</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fname</strong> (<em>str</em>) – filename</p></li>
+<li><p><strong>instrument</strong> (<em>str</em>) – name of the instrument</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode</p></li>
+<li><p><strong>extension</strong> (<em>int</em>) – data extension of the FITS file to load</p></li>
+<li><p><strong>mask</strong> (<em>array</em><em>, </em><em>optional</em>) – mask to add to the data</p></li>
+<li><p><strong>header_only</strong> (<em>bool</em><em>, </em><em>optional</em>) – only load the header, not the data</p></li>
+<li><p><strong>dtype</strong> (<em>str</em><em>, </em><em>optional</em>) – numpy datatype to convert the read data to</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>data</strong> (<em>masked_array</em>) – FITS data, clipped and flipped, and with mask</p></li>
+<li><p><strong>header</strong> (<em>fits.header</em>) – FITS header (Primary and Extension + Modeinfo)</p></li>
+<li><p><em>ONLY the header is returned if header_only is True</em></p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.load_info">
+<span class="sig-name descname"><span class="pre">load_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.load_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.load_info" title="Link to this definition">¶</a></dt>
+<dd><p>Load static instrument information
+Either as fits header keywords or static values</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>info</strong> – dictionary of REDUCE names for properties to Header keywords/static values</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict(str:object)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#pyreduce.instruments.common.Instrument.name" title="Link to this definition">¶</a></dt>
+<dd><p>Name of the instrument (lowercase)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.populate_filters">
+<span class="sig-name descname"><span class="pre">populate_filters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.populate_filters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.populate_filters" title="Link to this definition">¶</a></dt>
+<dd><p>Extract values from the fits headers and store them in self.filters</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>files</strong> (<em>list</em><em>(</em><em>str</em><em>)</em>) – list of fits files</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>filters</strong> – list of populated filters (identical to self.filters)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list(Filter)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.Instrument.sort_files">
+<span class="sig-name descname"><span class="pre">sort_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_calibration_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#Instrument.sort_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.Instrument.sort_files" title="Link to this definition">¶</a></dt>
+<dd><p>Sort a set of fits files into different categories
+types are: bias, flat, wavecal, orderdef, spec</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_dir</strong> (<em>str</em>) – input directory containing the files to sort</p></li>
+<li><p><strong>target</strong> (<em>str</em>) – name of the target as in the fits headers</p></li>
+<li><p><strong>night</strong> (<em>str</em>) – observation night, possibly with wildcards</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>files_per_night</strong> (<em>list[dict{str:dict{str:list[str]}}]</em>) – a list of file sets, one entry per night, where each night consists of a dictionary with one entry per setting,
+each fileset has five lists of filenames: “bias”, “flat”, “order”, “wave”, “spec”, organised in another dict</p></li>
+<li><p><strong>nights_out</strong> (<em>list[datetime]</em>) – a list of observation times, same order as files_per_night</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.InstrumentWithModes">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">InstrumentWithModes</span></span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#InstrumentWithModes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.InstrumentWithModes" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument"><code class="xref py py-class docutils literal notranslate"><span class="pre">Instrument</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.InstrumentWithModes.get_expected_values">
+<span class="sig-name descname"><span class="pre">get_expected_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#InstrumentWithModes.get_expected_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.InstrumentWithModes.get_expected_values" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.create_custom_instrument">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">create_custom_instrument</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wavecal_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hasModes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#create_custom_instrument"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.create_custom_instrument" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.find_first_index">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">find_first_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#find_first_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.find_first_index" title="Link to this definition">¶</a></dt>
+<dd><p>find the first element equal to value in the array arr</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.getter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">getter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#getter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.getter" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Get data from a header/dict, based on the given mode, and applies replacements</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.getter.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#getter.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.getter.get" title="Link to this definition">¶</a></dt>
+<dd><p>Get data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<em>str</em>) – key of the data in the header</p></li>
+<li><p><strong>alt</strong> (<em>obj</em><em>, </em><em>optional</em>) – alternative value, if key does not exist (default: None)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>value</strong> – value found in header (or alternatively alt)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>obj</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.common.observation_date_to_night">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.common.</span></span><span class="sig-name descname"><span class="pre">observation_date_to_night</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observation_date</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/common.html#observation_date_to_night"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.common.observation_date_to_night" title="Link to this definition">¶</a></dt>
+<dd><p>Convert an observation timestamp into the date of the observation night
+Nights start at 12am and end at 12 am the next day</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>observation_date</strong> (<em>datetime</em>) – timestamp of the observation</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>night</strong> – night of the observation</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>datetime.date</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-pyreduce.instruments.harps">
+<span id="pyreduce-instruments-harps-module"></span><h2>pyreduce.instruments.harps module<a class="headerlink" href="#module-pyreduce.instruments.harps" title="Link to this heading">¶</a></h2>
+<p>Handles instrument specific info for the HARPS spectrograph</p>
+<p>Mostly reading data from the header</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.FiberFilter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.harps.</span></span><span class="sig-name descname"><span class="pre">FiberFilter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keyword</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ESO</span> <span class="pre">DPR</span> <span class="pre">TYPE'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#FiberFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.FiberFilter" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Filter</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.FiberFilter.collect">
+<span class="sig-name descname"><span class="pre">collect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#FiberFilter.collect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.FiberFilter.collect" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.harps.</span></span><span class="sig-name descname"><span class="pre">HARPS</span></span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument"><code class="xref py py-class docutils literal notranslate"><span class="pre">Instrument</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS.add_header_info">
+<span class="sig-name descname"><span class="pre">add_header_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS.add_header_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS.add_header_info" title="Link to this definition">¶</a></dt>
+<dd><p>read data from header and add it as REDUCE keyword back to the header</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS.get_expected_values">
+<span class="sig-name descname"><span class="pre">get_expected_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fiber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polarimetry</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS.get_expected_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS.get_expected_values" title="Link to this definition">¶</a></dt>
+<dd><p>Determine the default expected values in the headers for a given observation configuration</p>
+<p>Any parameter may be None, to indicate that all values are allowed</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target</strong> (<em>str</em>) – Name of the star / observation target</p></li>
+<li><p><strong>night</strong> (<em>str</em>) – Observation night/nights</p></li>
+<li><p><strong>fiber</strong> (<em>&quot;A&quot;</em><em>, </em><em>&quot;B&quot;</em><em>, </em><em>&quot;AB&quot;</em>) – Which of the fibers should carry observation signal</p></li>
+<li><p><strong>polarimetry</strong> (<em>&quot;none&quot;</em><em>, </em><em>&quot;linear&quot;</em><em>, </em><em>&quot;circular&quot;</em><em>, </em><em>bool</em>) – Whether the instrument is used in HARPS or HARPSpol mode
+and which polarization is observed. Set to true for both kinds
+of polarisation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>expectations</strong> – Dictionary of expected header values, with one entry per step.
+The entries for each step refer to the filters defined in self.filters</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – Invalid combination of parameters</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS.get_extension">
+<span class="sig-name descname"><span class="pre">get_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS.get_extension"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS.get_extension" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS.get_wavecal_filename">
+<span class="sig-name descname"><span class="pre">get_wavecal_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polarimetry</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS.get_wavecal_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS.get_wavecal_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Get the filename of the wavelength calibration config file</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.HARPS.get_wavelength_range">
+<span class="sig-name descname"><span class="pre">get_wavelength_range</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#HARPS.get_wavelength_range"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.HARPS.get_wavelength_range" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.PolarizationFilter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.harps.</span></span><span class="sig-name descname"><span class="pre">PolarizationFilter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keyword</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ESO</span> <span class="pre">INS</span> <span class="pre">RET??</span> <span class="pre">POS'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#PolarizationFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.PolarizationFilter" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Filter</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.PolarizationFilter.collect">
+<span class="sig-name descname"><span class="pre">collect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#PolarizationFilter.collect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.PolarizationFilter.collect" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.TypeFilter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.harps.</span></span><span class="sig-name descname"><span class="pre">TypeFilter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keyword</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ESO</span> <span class="pre">DPR</span> <span class="pre">TYPE'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#TypeFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.TypeFilter" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Filter</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.harps.TypeFilter.classify">
+<span class="sig-name descname"><span class="pre">classify</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/harps.html#TypeFilter.classify"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.harps.TypeFilter.classify" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-pyreduce.instruments.instrument_info">
+<span id="pyreduce-instruments-instrument-info-module"></span><h2>pyreduce.instruments.instrument_info module<a class="headerlink" href="#module-pyreduce.instruments.instrument_info" title="Link to this heading">¶</a></h2>
+<p>Interface for all instrument specific information
+The actual info is contained in the instruments/{name}.py modules/classes, which are all subclasses of “common”</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.get_instrument_info">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">get_instrument_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#get_instrument_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.get_instrument_info" title="Link to this definition">¶</a></dt>
+<dd><p>Load instrument specific information</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>instrument</strong> (<em>str</em>) – Name of the instrument</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>dict{str</strong> – Dictionary with information</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>obj}</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.get_supported_modes">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">get_supported_modes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#get_supported_modes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.get_supported_modes" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.get_wavecal_filename">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">get_wavecal_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#get_wavecal_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.get_wavecal_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Get the filename of the pre-existing wavelength solution for the current settings</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>header</strong> (<em>fits.header</em><em>, </em><em>dict</em>) – header of the wavelength calibration file</p></li>
+<li><p><strong>instrument</strong> (<em>str</em>) – instrument name</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode (e.g. red/blue for HARPS)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>filename</strong> – wavelength solution file</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.load_instrument">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">load_instrument</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument"><span class="pre">Instrument</span></a></span></span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#load_instrument"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.load_instrument" title="Link to this definition">¶</a></dt>
+<dd><p>Load an python instrument module</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>instrument</strong> (<em>str</em>) – name of the instrument</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>instrument</strong> – Instance of the {instrument} class</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument">Instrument</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.modeinfo">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">modeinfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#modeinfo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.modeinfo" title="Link to this definition">¶</a></dt>
+<dd><p>Add instrument specific information to a header/dict</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>header</strong> (<em>fits.header</em><em>, </em><em>dict</em>) – header to add information to</p></li>
+<li><p><strong>instrument</strong> (<em>str</em>) – instrument name</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode (e.g. red/blue for HARPS)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>header with added information</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>header</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pyreduce.instruments.instrument_info.sort_files">
+<span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.instrument_info.</span></span><span class="sig-name descname"><span class="pre">sort_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">instrument</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/instrument_info.html#sort_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.instrument_info.sort_files" title="Link to this definition">¶</a></dt>
+<dd><p>Sort a list of files into different categories and discard files that are not used</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input_dir</strong> (<em>str</em>) – directory containing all files (with tags for target, night, and instrument)</p></li>
+<li><p><strong>target</strong> (<em>str</em>) – observation target name, as found in the files</p></li>
+<li><p><strong>night</strong> (<em>str</em>) – observation night of interest, as found in the files</p></li>
+<li><p><strong>instrument</strong> (<em>str</em>) – instrument name</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – instrument mode, if applicable (e.g. red/blue for HARPS)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>biaslist</strong> (<em>list(str)</em>) – list of bias files</p></li>
+<li><p><strong>flatlist</strong> (<em>list(str)</em>) – list of flat field files</p></li>
+<li><p><strong>wavelist</strong> (<em>list(str)</em>) – list of wavelength calibration files</p></li>
+<li><p><strong>orderlist</strong> (<em>list(str)</em>) – list of order definition files (for order tracing)</p></li>
+<li><p><strong>speclist</strong> (<em>list(str)</em>) – list of science files, i.e. observations</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-pyreduce.instruments.uves">
+<span id="pyreduce-instruments-uves-module"></span><h2>pyreduce.instruments.uves module<a class="headerlink" href="#module-pyreduce.instruments.uves" title="Link to this heading">¶</a></h2>
+<p>Handles instrument specific info for the UVES spectrograph</p>
+<p>Mostly reading data from the header</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyreduce.instruments.uves.UVES">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyreduce.instruments.uves.</span></span><span class="sig-name descname"><span class="pre">UVES</span></span><a class="reference internal" href="_modules/pyreduce/instruments/uves.html#UVES"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.uves.UVES" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyreduce.instruments.common.Instrument" title="pyreduce.instruments.common.Instrument"><code class="xref py py-class docutils literal notranslate"><span class="pre">Instrument</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.uves.UVES.add_header_info">
+<span class="sig-name descname"><span class="pre">add_header_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/uves.html#UVES.add_header_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.uves.UVES.add_header_info" title="Link to this definition">¶</a></dt>
+<dd><p>read data from header and add it as REDUCE keyword back to the header</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.uves.UVES.get_mask_filename">
+<span class="sig-name descname"><span class="pre">get_mask_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/uves.html#UVES.get_mask_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.uves.UVES.get_mask_filename" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyreduce.instruments.uves.UVES.get_wavecal_filename">
+<span class="sig-name descname"><span class="pre">get_wavecal_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyreduce/instruments/uves.html#UVES.get_wavecal_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyreduce.instruments.uves.UVES.get_wavecal_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Get the filename of the wavelength calibration config file</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-pyreduce.instruments">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-pyreduce.instruments" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">PyReduce</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="howto.html">How To use PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_file.html">PyReduce Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="instruments.html">Supporting Custom instruments</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">PyReduce</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="pyreduce.html">pyreduce package</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="wavecal_linelist.html">Wavelength Calibration</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">PyReduce</a><ul>
+  <li><a href="pyreduce.html">pyreduce package</a><ul>
+      <li>Previous: <a href="pyreduce.clib.html" title="previous chapter">pyreduce.clib package</a></li>
+      <li>Next: <a href="wavecal_linelist.html" title="next chapter">Wavelength Calibration</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Ansgar Wehrhahn.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/pyreduce.instruments.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

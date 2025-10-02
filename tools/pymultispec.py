@@ -54,8 +54,8 @@ def nonlinearwave(nwave, specstr, verbose=False):
         raise ValueError("Not nonlinear dispersion: dtype=" + fields[2])
     if len(fields) < 12:
         raise ValueError("Bad spectrum format (only %d fields)" % len(fields))
-    wt = float(fields[9])
-    w0 = float(fields[10])
+    float(fields[9])
+    float(fields[10])
     ftype = int(fields[11])
     if ftype == 3:
         # cubic spline
@@ -175,7 +175,7 @@ def readmultispec(fitsfile, reform=True, quiet=False):
                 if not quiet:
                     print("Dispersion is linear")
             else:
-                raise ValueError("Dispersion not linear or log (DC-FLAG=%s)" % dcflag)
+                raise ValueError(f"Dispersion not linear or log (DC-FLAG={dcflag})")
 
             if nspec == 1 and reform:
                 # get rid of unity dimensions
@@ -193,7 +193,7 @@ def readmultispec(fitsfile, reform=True, quiet=False):
     # get wavelength parameters from multispec keywords
     try:
         wat2 = header["wat2_*"]
-        count = len(wat2)
+        len(wat2)
     except KeyError:
         raise ValueError("Cannot decipher header, need either WAT2_ or CRVAL keywords")
 
@@ -254,7 +254,7 @@ def readmultispec(fitsfile, reform=True, quiet=False):
             )
         wavelen *= 1.0 + wparms[i, 6]
         if verbose:
-            print("Correcting for redshift: z=%f" % wparms[i, 6])
+            print(f"Correcting for redshift: z={wparms[i, 6]:f}")
     if nspec == 1 and reform:
         # get rid of unity dimensions
         flux = np.squeeze(flux)

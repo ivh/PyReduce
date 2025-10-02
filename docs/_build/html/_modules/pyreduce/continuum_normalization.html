@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pyreduce.continuum_normalization &#8212; PyReduce unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <script src="../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pyreduce.continuum_normalization</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Find the continuum level</span>
+
+<span class="sd">Currently only splices orders together</span>
+<span class="sd">First guess of the continuum is provided by the flat field</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">chain</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># np.seterr(&quot;raise&quot;)</span>
+
+
+<div class="viewcode-block" id="splice_orders">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.continuum_normalization.splice_orders">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">splice_orders</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">wave</span><span class="p">,</span> <span class="n">cont</span><span class="p">,</span> <span class="n">sigm</span><span class="p">,</span> <span class="n">scaling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">plot_title</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Splice orders together so that they form a continous spectrum</span>
+<span class="sd">    This is achieved by linearly combining the overlaping regions</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec : array[nord, ncol]</span>
+<span class="sd">        Spectrum to splice, with seperate orders</span>
+<span class="sd">    wave : array[nord, ncol]</span>
+<span class="sd">        Wavelength solution for each point</span>
+<span class="sd">    cont : array[nord, ncol]</span>
+<span class="sd">        Continuum, blaze function will do fine as well</span>
+<span class="sd">    sigm : array[nord, ncol]</span>
+<span class="sd">        Errors on the spectrum</span>
+<span class="sd">    scaling : bool, optional</span>
+<span class="sd">        If true, the spectrum/continuum will be scaled to 1 (default: False)</span>
+<span class="sd">    plot : bool, optional</span>
+<span class="sd">        If true, will plot the spliced spectrum (default: False)</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    NotImplementedError</span>
+<span class="sd">        If neighbouring orders dont overlap</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    spec, wave, cont, sigm : array[nord, ncol]</span>
+<span class="sd">        spliced spectrum</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nord</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">shape</span>  <span class="c1"># Number of sp. orders, Order length in pixels</span>
+
+    <span class="k">if</span> <span class="n">cont</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cont</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+    <span class="c1"># Just to be extra safe that they are all the same</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getmaskarray</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+        <span class="o">|</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="o">|</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">cont</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_array</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+    <span class="n">wave</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">wave</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+    <span class="n">cont</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">cont</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+    <span class="n">sigm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getdata</span><span class="p">(</span><span class="n">sigm</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">scaling</span><span class="p">:</span>
+        <span class="c1"># Scale everything to roughly the same size, around spec/blaze = 1</span>
+        <span class="n">scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">spec</span> <span class="o">/</span> <span class="n">cont</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">cont</span> <span class="o">*=</span> <span class="n">scale</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">411</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plot_title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">plot_title</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Before&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">412</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Before Error&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">sigm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">sigm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span>
+
+    <span class="c1"># Order with largest signal, everything is scaled relative to this order</span>
+    <span class="n">iord0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">spec</span> <span class="o">/</span> <span class="n">cont</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="c1"># Loop from iord0 outwards, first to the top, then to the bottom</span>
+    <span class="n">tmp0</span> <span class="o">=</span> <span class="n">chain</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">iord0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">iord0</span><span class="p">,</span> <span class="n">nord</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">tmp1</span> <span class="o">=</span> <span class="n">chain</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">iord0</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">iord0</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nord</span><span class="p">))</span>
+
+    <span class="c1"># Looping over order pairs</span>
+    <span class="k">for</span> <span class="n">iord0</span><span class="p">,</span> <span class="n">iord1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tmp0</span><span class="p">,</span> <span class="n">tmp1</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># Get data for current order</span>
+        <span class="c1"># Note that those are just references to parts of the original data</span>
+        <span class="c1"># any changes will also affect spec, wave, cont, and sigm</span>
+        <span class="n">s0</span><span class="p">,</span> <span class="n">s1</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="n">iord0</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="n">iord1</span><span class="p">]</span>
+        <span class="n">w0</span><span class="p">,</span> <span class="n">w1</span> <span class="o">=</span> <span class="n">wave</span><span class="p">[</span><span class="n">iord0</span><span class="p">],</span> <span class="n">wave</span><span class="p">[</span><span class="n">iord1</span><span class="p">]</span>
+        <span class="n">c0</span><span class="p">,</span> <span class="n">c1</span> <span class="o">=</span> <span class="n">cont</span><span class="p">[</span><span class="n">iord0</span><span class="p">],</span> <span class="n">cont</span><span class="p">[</span><span class="n">iord1</span><span class="p">]</span>
+        <span class="n">u0</span><span class="p">,</span> <span class="n">u1</span> <span class="o">=</span> <span class="n">sigm</span><span class="p">[</span><span class="n">iord0</span><span class="p">],</span> <span class="n">sigm</span><span class="p">[</span><span class="n">iord1</span><span class="p">]</span>
+
+        <span class="c1"># Calculate Overlap</span>
+        <span class="n">i0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">w0</span> <span class="o">&gt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">w0</span> <span class="o">&lt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">w1</span><span class="p">)))</span>
+        <span class="n">i1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">w1</span> <span class="o">&gt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">w0</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">w1</span> <span class="o">&lt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">w0</span><span class="p">)))</span>
+
+        <span class="c1"># Orders overlap</span>
+        <span class="k">if</span> <span class="n">i0</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">i1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Interpolate the overlapping region onto the wavelength grid of the other order</span>
+            <span class="n">tmpS0</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w1</span><span class="p">,</span> <span class="n">s1</span><span class="p">,</span> <span class="n">w0</span><span class="p">[</span><span class="n">i0</span><span class="p">])</span>
+            <span class="n">tmpB0</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w1</span><span class="p">,</span> <span class="n">c1</span><span class="p">,</span> <span class="n">w0</span><span class="p">[</span><span class="n">i0</span><span class="p">])</span>
+            <span class="n">tmpU0</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w1</span><span class="p">,</span> <span class="n">u1</span><span class="p">,</span> <span class="n">w0</span><span class="p">[</span><span class="n">i0</span><span class="p">])</span>
+
+            <span class="n">tmpS1</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w0</span><span class="p">,</span> <span class="n">s0</span><span class="p">,</span> <span class="n">w1</span><span class="p">[</span><span class="n">i1</span><span class="p">])</span>
+            <span class="n">tmpB1</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w0</span><span class="p">,</span> <span class="n">c0</span><span class="p">,</span> <span class="n">w1</span><span class="p">[</span><span class="n">i1</span><span class="p">])</span>
+            <span class="n">tmpU1</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">bezier_interp</span><span class="p">(</span><span class="n">w0</span><span class="p">,</span> <span class="n">u0</span><span class="p">,</span> <span class="n">w1</span><span class="p">[</span><span class="n">i1</span><span class="p">])</span>
+
+            <span class="c1"># Combine the two orders weighted by the relative error</span>
+            <span class="n">wgt0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">c0</span><span class="p">[</span><span class="n">i0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="o">/</span> <span class="n">u0</span><span class="p">[</span><span class="n">i0</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">tmpB0</span> <span class="o">/</span> <span class="n">tmpU0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
+            <span class="n">wgt1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">c1</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="o">/</span> <span class="n">u1</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">tmpB1</span> <span class="o">/</span> <span class="n">tmpU1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
+
+            <span class="n">s0</span><span class="p">[</span><span class="n">i0</span><span class="p">],</span> <span class="n">utmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">average</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">s0</span><span class="p">[</span><span class="n">i0</span><span class="p">],</span> <span class="n">tmpS0</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">wgt0</span><span class="p">,</span> <span class="n">returned</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="n">c0</span><span class="p">[</span><span class="n">i0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">average</span><span class="p">([</span><span class="n">c0</span><span class="p">[</span><span class="n">i0</span><span class="p">],</span> <span class="n">tmpB0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">wgt0</span><span class="p">)</span>
+            <span class="n">u0</span><span class="p">[</span><span class="n">i0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c0</span><span class="p">[</span><span class="n">i0</span><span class="p">]</span> <span class="o">*</span> <span class="n">utmp</span><span class="o">**-</span><span class="mf">0.5</span>
+
+            <span class="n">s1</span><span class="p">[</span><span class="n">i1</span><span class="p">],</span> <span class="n">utmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">average</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">s1</span><span class="p">[</span><span class="n">i1</span><span class="p">],</span> <span class="n">tmpS1</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">wgt1</span><span class="p">,</span> <span class="n">returned</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="n">c1</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">average</span><span class="p">([</span><span class="n">c1</span><span class="p">[</span><span class="n">i1</span><span class="p">],</span> <span class="n">tmpB1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">wgt1</span><span class="p">)</span>
+            <span class="n">u1</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c1</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span> <span class="o">*</span> <span class="n">utmp</span><span class="o">**-</span><span class="mf">0.5</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+            <span class="c1"># TODO: Orders dont overlap</span>
+            <span class="k">continue</span>
+
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">413</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;After&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nord</span><span class="p">):</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;order=</span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">414</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Error&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nord</span><span class="p">):</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">sigm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;order=</span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">sigm</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">cont</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">spec</span><span class="p">,</span> <span class="n">wave</span><span class="p">,</span> <span class="n">cont</span><span class="p">,</span> <span class="n">sigm</span></div>
+
+
+
+<div class="viewcode-block" id="Plot_Normalization">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.continuum_normalization.Plot_Normalization">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Plot_Normalization</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ion</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">title</span>
+        <span class="n">suptitle</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Iteration: </span><span class="si">{</span><span class="n">iteration</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">suptitle</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">suptitle</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">suptitle</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Spectrum&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Continuum Fit&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Plot_Normalization.plot">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.continuum_normalization.Plot_Normalization.plot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">,</span> <span class="n">iteration</span><span class="p">):</span>
+        <span class="n">suptitle</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Iteration: </span><span class="si">{</span><span class="n">iteration</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">suptitle</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">suptitle</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">suptitle</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">line1</span><span class="o">.</span><span class="n">set_xdata</span><span class="p">(</span><span class="n">wsort</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line1</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">(</span><span class="n">sB</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line2</span><span class="o">.</span><span class="n">set_xdata</span><span class="p">(</span><span class="n">new_wave</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">line2</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">(</span><span class="n">contB</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">flush_events</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Plot_Normalization.close">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.continuum_normalization.Plot_Normalization.close">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ioff</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="continuum_normalize">
+<a class="viewcode-back" href="../../pyreduce.html#pyreduce.continuum_normalization.continuum_normalize">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">continuum_normalize</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">,</span>
+    <span class="n">wave</span><span class="p">,</span>
+    <span class="n">cont</span><span class="p">,</span>
+    <span class="n">sigm</span><span class="p">,</span>
+    <span class="n">iterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">smooth_initial</span><span class="o">=</span><span class="mf">1e5</span><span class="p">,</span>
+    <span class="n">smooth_final</span><span class="o">=</span><span class="mf">5e6</span><span class="p">,</span>
+    <span class="n">scale_vert</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">plot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">plot_title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit a continuum to a spectrum by slowly approaching it from the top.</span>
+<span class="sd">    We exploit here that the continuum varies only on large wavelength scales, while individual lines act on much smaller scales</span>
+
+<span class="sd">    TODO automatically find good parameters for smooth_initial and smooth_final</span>
+<span class="sd">    TODO give variables better names</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec : masked array of shape (nord, ncol)</span>
+<span class="sd">        Observed input spectrum, masked values describe column ranges</span>
+<span class="sd">    wave : masked array of shape (nord, ncol)</span>
+<span class="sd">        Wavelength solution of the spectrum</span>
+<span class="sd">    cont : masked array of shape (nord, ncol)</span>
+<span class="sd">        Initial continuum guess, for example based on the blaze</span>
+<span class="sd">    sigm : masked array of shape (nord, ncol)</span>
+<span class="sd">        Uncertainties of the spectrum</span>
+<span class="sd">    iterations : int, optional</span>
+<span class="sd">        Number of iterations of the algorithm,</span>
+<span class="sd">        note that runtime roughly scales with the number of iterations squared</span>
+<span class="sd">        (default: 10)</span>
+<span class="sd">    smooth_initial : float, optional</span>
+<span class="sd">        Smoothing parameter in the initial runs, usually smaller than smooth_final (default: 1e5)</span>
+<span class="sd">    smooth_final : float, optional</span>
+<span class="sd">        Smoothing parameter of the final run (default: 5e6)</span>
+<span class="sd">    scale_vert : float, optional</span>
+<span class="sd">        Vertical scale of the spectrum. Usually 1 if a previous normalization exists (default: 1)</span>
+<span class="sd">    plot : bool, optional</span>
+<span class="sd">        Wether to plot the current status and results or not (default: True)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cont : masked array of shape (nord, ncol)</span>
+<span class="sd">        New continuum</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">nord</span><span class="p">,</span> <span class="n">ncol</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="n">par2</span> <span class="o">=</span> <span class="mf">1e-4</span>
+    <span class="n">par4</span> <span class="o">=</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">spec</span><span class="p">))))</span>
+
+    <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">cont</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getmaskarray</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nord</span><span class="p">):</span>
+        <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">]],</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">cont</span> <span class="o">=</span> <span class="n">b</span>
+
+    <span class="c1"># Create new equispaced wavelength grid</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">wave</span><span class="o">.</span><span class="n">compressed</span><span class="p">()</span>
+    <span class="n">wmin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+    <span class="n">wmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+    <span class="n">dwave</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">tmp</span><span class="p">[</span><span class="n">tmp</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">tmp</span><span class="p">[</span><span class="n">tmp</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="mf">0.5</span>
+    <span class="n">nwave</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">((</span><span class="n">wmax</span> <span class="o">-</span> <span class="n">wmin</span><span class="p">)</span> <span class="o">/</span> <span class="n">dwave</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">new_wave</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">wmin</span><span class="p">,</span> <span class="n">wmax</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">nwave</span><span class="p">),</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># Combine all orders into one big spectrum, sorted by wavelength</span>
+    <span class="n">wsort</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">tmp</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">sB</span> <span class="o">=</span> <span class="p">(</span><span class="n">spec</span> <span class="o">/</span> <span class="n">cont</span><span class="p">)</span><span class="o">.</span><span class="n">compressed</span><span class="p">()[</span><span class="n">j</span><span class="p">]</span>
+
+    <span class="c1"># Get initial weights for each point</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="n">sB</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">wsort</span> <span class="o">-</span> <span class="n">wmin</span><span class="p">)</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="n">weight</span> <span class="o">/</span> <span class="n">util</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">smooth_initial</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+        <span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">weight</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">weight</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">weight</span><span class="p">[</span><span class="mi">2</span><span class="p">:],</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># TODO for some reason the interpolation messes up, use linear instead for now</span>
+    <span class="c1"># weight = util.safe_interpolation(wsort, weight, new_wave)</span>
+    <span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">new_wave</span><span class="p">,</span> <span class="n">wsort</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span>
+    <span class="n">weight</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span>
+
+    <span class="c1"># Interpolate Spectrum onto the new grid</span>
+    <span class="c1"># ssB = util.safe_interpolation(wsort, sB, new_wave)</span>
+    <span class="n">ssB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">new_wave</span><span class="p">,</span> <span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">)</span>
+    <span class="c1"># Keep the scale of the continuum</span>
+    <span class="n">bbb</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="n">cont</span><span class="o">.</span><span class="n">compressed</span><span class="p">()[</span><span class="n">j</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">contB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">ssB</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">Plot_Normalization</span><span class="p">(</span><span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">plot_title</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">iterations</span><span class="p">):</span>
+            <span class="c1"># Find new approximation of the top, smoothed by some parameter</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">ssB</span> <span class="o">/</span> <span class="n">contB</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">iterations</span><span class="p">):</span>
+                <span class="n">_c</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">top</span><span class="p">(</span>
+                    <span class="n">c</span><span class="p">,</span> <span class="n">smooth_initial</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">par2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span> <span class="n">lambda2</span><span class="o">=</span><span class="n">smooth_final</span>
+                <span class="p">)</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">_c</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">util</span><span class="o">.</span><span class="n">top</span><span class="p">(</span>
+                    <span class="n">c</span><span class="p">,</span> <span class="n">smooth_initial</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">par4</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span> <span class="n">lambda2</span><span class="o">=</span><span class="n">smooth_final</span>
+                <span class="p">)</span>
+                <span class="o">*</span> <span class="n">contB</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Scale it and update the weights of each point</span>
+            <span class="n">contB</span> <span class="o">=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">scale_vert</span>
+            <span class="n">contB</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="n">contB</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">ssB</span> <span class="o">/</span> <span class="n">contB</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">contB</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">ssB</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+
+            <span class="c1"># Plot the intermediate results</span>
+            <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+                <span class="n">p</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wsort</span><span class="p">,</span> <span class="n">sB</span><span class="p">,</span> <span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Continuum fitting aborted&quot;</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="c1"># Calculate the new continuum from intermediate values</span>
+    <span class="c1"># new_cont = util.safe_interpolation(new_wave, contB, wsort)</span>
+    <span class="n">new_cont</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">wsort</span><span class="p">,</span> <span class="n">new_wave</span><span class="p">,</span> <span class="n">contB</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">getmaskarray</span><span class="p">(</span><span class="n">cont</span><span class="p">)</span>
+    <span class="n">cont</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_cont</span> <span class="o">*</span> <span class="n">bbb</span><span class="p">)[</span><span class="n">index</span><span class="p">]</span>
+
+    <span class="c1"># Final output plot</span>
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">spec</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;spec&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">wave</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">cont</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;cont&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s2">&quot;best&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plot_title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">plot_title</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Wavelength [A]&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Flux&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">cont</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">PyReduce</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../howto.html">How To use PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration_file.html">PyReduce Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../instruments.html">Supporting Custom instruments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">PyReduce</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../wavecal_linelist.html">Wavelength Calibration</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  <li><a href="../pyreduce.html">pyreduce</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Ansgar Wehrhahn.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

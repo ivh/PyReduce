@@ -31,7 +31,7 @@ def rectify_image(
         # Then the center of the order is within one pixel variations
         ycen = np.polyval(orders[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-        height = extraction_width[i, 0] + extraction_width[i, 1] + 1
+        extraction_width[i, 0] + extraction_width[i, 1] + 1
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 

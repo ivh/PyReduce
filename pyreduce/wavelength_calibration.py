@@ -743,7 +743,7 @@ class WavelengthCalibration:
             unique = np.unique(m_ord)
             nord = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
-            n = np.prod(shape)
+            np.prod(shape)
 
             step_coef = np.zeros((nord, nstep, 2))
             step_coef[:, :, 0] = np.linspace(ncol / (nstep + 1), ncol, nstep + 1)[:-1]
@@ -1298,7 +1298,7 @@ class WavelengthCalibration:
         # but need to remove the speed of light component, to get dimensionless parameters
         x = lines["posm"]
         y = lines["order"]
-        mask = ~lines["flag"]
+        ~lines["flag"]
         solution = self.evaluate_solution(x, y, wave_solution)
         rss = (solution - lines["wll"]) / lines["wll"]
 
@@ -1509,7 +1509,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
         # coef = self.build_2d_solution(laser_lines)
         new_wave = self.make_wave(coef)
 
-        aic = self.calculate_AIC(laser_lines, coef)
+        self.calculate_AIC(laser_lines, coef)
 
         self.n_lines_good = np.count_nonzero(laser_lines["flag"])
         logger.info(
@@ -1748,7 +1748,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             vectorize=True,
             moves=[(emcee.moves.DEMove(), 0.8), (emcee.moves.DESnookerMove(), 0.2)],
         )
-        state = sampler.run_mcmc(p0, self.steps, progress=True)
+        sampler.run_mcmc(p0, self.steps, progress=True)
 
         tau = sampler.get_autocorr_time(quiet=True)
         burnin = int(2 * np.max(tau))
@@ -1759,7 +1759,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         coef = mid * factors
 
         if self.plot:
-            fig = corner.corner(samples, truths=mid)
+            corner.corner(samples, truths=mid)
             plt.show()
 
             wave = np.polyval(coef, x)
@@ -1819,7 +1819,6 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
         n_features = spectrum.shape[0]
         x = np.arange(n_features)
-        smoothing = self.smoothing
 
         # Normalize just in case
         spectrum = self.normalize(spectrum)

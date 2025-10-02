@@ -22,7 +22,7 @@ class JWST_NIRISS(Instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, mode)
-        info = self.load_info()
+        self.load_info()
 
         # TODO: this references some files, I dont know where they should be
         header["e_gain"] = 1.61
@@ -63,7 +63,7 @@ class JWST_NIRISS(Instrument):
         files = []
         os.makedirs(os.path.join(dirname, "split"), exist_ok=True)
         for i in range(1, nframes * ngroups):
-            this = data[i] - bias
+            data[i] - bias
             bias = data[i]
             fname_this = os.path.join(dirname, "split", f"pyreduce_{i}_{fname}")
 
@@ -83,7 +83,7 @@ class JWST_NIRISS(Instrument):
             mode,
             allow_calibration_only=allow_calibration_only,
         )
-        for i, (k, file) in enumerate(files):
+        for i, (_k, file) in enumerate(files):
             files_split = []
             for f in file["science"]:
                 files_split += self.split_observation(f, mode)

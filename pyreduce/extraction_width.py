@@ -53,7 +53,7 @@ def estimate_extraction_width(
 
         index = make_index(y_int - width_below, y_int + width_above, beg, end, True)
 
-        slitf = np.ma.sum(img[index], axis=1)
+        np.ma.sum(img[index], axis=1)
 
         # TODO fit rectangular profile
 
