@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyreduce-astro"
-version = "0.6.0b1"
+version = "0.6.0b2"
 requires-python = ">=3.11"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"

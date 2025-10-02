@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0b2] - 2025-10-02
+
+### Changed
+- lazy imports
+- cosmetic fixes like version string
+
 ## [0.6.0b1] - 2025-10-02
 
 ### Changed
