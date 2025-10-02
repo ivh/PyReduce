@@ -15,3 +15,4 @@ pyreduce_astro.egg*
 .uv
 esorex.log
 pyesorex.log
+test/test_outputs
