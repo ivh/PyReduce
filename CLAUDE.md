@@ -63,15 +63,17 @@ uv run twine upload dist/*
 ### Code Quality
 ```bash
 # Format and lint with Ruff (replaces black, isort, flake8)
-uv run ruff format pyreduce/
-uv run ruff check pyreduce/
-uv run ruff check --fix pyreduce/
+uv run ruff format .
+uv run ruff check .
+uv run ruff check --fix .
 
-# Run pre-commit hooks
+# Run pre-commit hooks (runs automatically on commit, or manually)
 uv run pre-commit run --all-files
 
-# Note: pre-commit config still references legacy tools (black, isort, flake8)
-# but pyproject.toml uses Ruff for new development
+# Pre-commit hooks include:
+# - File checks (trailing whitespace, end-of-file, yaml/json/toml validation)
+# - Ruff linter and formatter
+# All legacy tools (black, isort, flake8) have been replaced with Ruff
 ```
 
 ## Build System
@@ -193,11 +195,78 @@ To add a new instrument:
 
 See `examples/custom_instrument_example.py` for template.
 
+## GitHub and CI/CD
+
+### GitHub Actions Workflow
+The repository uses GitHub Actions (`.github/workflows/python-publish.yml`) for CI/CD:
+
+**On every push/PR to master:**
+- Runs pre-commit hooks (Ruff linting/formatting, file checks)
+- Runs pytest test suite with coverage reporting
+- Builds distribution packages to verify build works
+
+**Manual publishing to PyPI:**
+- Use `uv build` locally to create wheel and sdist
+- Use `uv run twine upload dist/*` to publish (requires API keys in `~/.pypirc`)
+- CI does NOT auto-publish (manual control for releases)
+
+### Using the `gh` CLI Tool
+
+```bash
+# View recent workflow runs
+gh run list --limit 5
+
+# View logs from a failed run
+gh run view <run-id> --log-failed
+
+# Watch a workflow run in real-time
+gh run watch <run-id>
+
+# View workflow configuration
+gh workflow list
+gh workflow view "PyReduce CI/CD"
+
+# Work with issues and PRs
+gh issue list
+gh pr create
+gh pr view <pr-number>
+```
+
+### Common CI/CD Tasks
+
+**Check if CI is passing:**
+```bash
+gh run list --limit 1
+```
+
+**Debug failed CI run:**
+```bash
+gh run list --limit 5
+gh run view <run-id> --log-failed
+```
+
+**Re-run failed jobs:**
+```bash
+gh run rerun <run-id>
+```
+
 ## Important Notes
 
 - Always use `uv run` for Python commands to ensure correct environment
-- Pre-commit hooks enforce code quality but still reference legacy tools (being migrated)
+- Pre-commit hooks enforce code quality (runs Ruff automatically)
+- CI runs pre-commit hooks - make sure they pass locally before pushing
 - Interactive plotting can be disabled in settings JSON files with `"plot": false`
 - All reduction steps are resumable - intermediate products are cached
 - The C extensions must compile successfully for extraction to work
 - Output `.ech` files are standard FITS files despite the extension name
+- `docs/_build/` is gitignored - built docs shouldn't be committed
+
+## Ruff Configuration
+
+Ruff errors are configured in `pyproject.toml` with intelligent ignores:
+- E402: Module imports not at top (legitimate in `__init__.py`, `docs/conf.py`)
+- E722: Bare except clauses (legacy code, requires careful refactoring)
+- UP031: Printf-style formatting (low priority in `tools/` and `examples/`)
+- F401: Unused imports in `__init__.py` (intentional re-exports)
+
+All Ruff checks currently pass. When adding new code, run `uv run ruff check --fix .` to auto-fix issues.
