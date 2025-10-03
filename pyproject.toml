@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyreduce-astro"
-version = "0.6.0b4"
+version = "0.6.0b5"
 requires-python = ">=3.11"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"
 authors = [
-    {name = "Ansgar Wehrhahn"},
     {name = "Thomas Marquart", email = "thomas.marquart@astro.uu.se"},
-    {name = "Nikolai Piskunov"}
+    {name = "Nikolai Piskunov"},
+    {name = "Ansgar Wehrhahn"}
 ]
 license = {text = "GPL-3.0-or-later"}
 classifiers = [
