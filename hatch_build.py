@@ -21,6 +21,10 @@ class CustomBuildHook(BuildHookInterface):
 
         This method is called by hatchling during the build process.
         """
+        # Mark wheel as platform-specific (not py3-none-any)
+        build_data["pure_python"] = False
+        build_data["infer_tag"] = True
+
         print("=" * 60)
         print("Building CFFI extensions for PyReduce")
         print("=" * 60)

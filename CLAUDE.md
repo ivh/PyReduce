@@ -52,21 +52,56 @@ uv run python -m pyreduce
 ```
 
 ### Building and Publishing
+
+**Local development builds:**
 ```bash
-# Build source distribution and wheel (uses Hatchling)
+# Build locally (creates platform-specific wheel for your OS only)
 uv build
 
 # The build will:
 # 1. Compile two CFFI C extensions via hatch_build.py:
 #    - _slitfunc_bd (vertical extraction)
 #    - _slitfunc_2d (curved extraction)
-# 2. Create .tar.gz and .whl in dist/
+# 2. Create platform-specific .whl and .tar.gz in dist/
 
 # Note: setuptools is required in build-system even though we use Hatchling
 # because CFFI requires it on Python 3.12+
+```
 
-# Publish to PyPI (manual with twine, API keys in ~/.pypirc)
-uv run twine upload dist/*
+**Publishing releases to PyPI:**
+
+PyReduce uses **cibuildwheel** in GitHub Actions to automatically build platform-specific wheels for:
+- Linux (x86_64, manylinux)
+- macOS (Intel x86_64 and Apple Silicon arm64)
+- Windows (x86_64)
+
+For each platform, wheels are built for Python 3.11, 3.12, and 3.13.
+
+**Release workflow:**
+```bash
+# 1. Update version in pyproject.toml
+# 2. Update CHANGELOG.md
+# 3. Commit changes
+git commit -am "Release vX.Y.Z"
+
+# 4. Create and push tag (this triggers CI build + PyPI upload)
+git tag vX.Y.Z
+git push origin master
+git push origin vX.Y.Z
+
+# GitHub Actions will automatically:
+# - Build wheels for all platforms (Linux, macOS Intel/ARM, Windows)
+# - Build source distribution
+# - Upload all artifacts to PyPI (via trusted publishing)
+```
+
+**Manual upload (if needed):**
+```bash
+# Download wheel artifacts from GitHub Actions
+gh run download <run-id> -D dist/
+
+# Upload to PyPI
+uvx twine upload dist/*
 ```
 
 ### Code Quality
@@ -104,14 +139,20 @@ build-backend = "hatchling.build"
 
 ### CFFI Extension Build Process
 The `hatch_build.py` file implements a Hatchling build hook that:
-1. Reads C source files from `pyreduce/clib/`
-2. Uses CFFI's `FFI()` to generate wrapper code
-3. Compiles two extensions:
+1. Marks the wheel as platform-specific (sets `pure_python=False` and `infer_tag=True`)
+2. Reads C source files from `pyreduce/clib/`
+3. Uses CFFI's `FFI()` to generate wrapper code
+4. Compiles two extensions:
    - `_slitfunc_bd.so` - Vertical slit function extraction
    - `_slitfunc_2d.so` - Curved slit function extraction (2D)
-4. Places compiled `.so` files in `pyreduce/clib/`
+5. Places compiled `.so` files in `pyreduce/clib/`
 
-The hook runs automatically during `uv build` or `uv sync` when installing in editable mode.
+The hook runs automatically during:
+- `uv build` - Creates platform-specific wheel (e.g., `cp313-cp313-macosx_14_0_arm64.whl`)
+- `uv sync` - When installing in editable mode
+- `cibuildwheel` - In CI, builds wheels for all platforms
+
+**Platform-specific wheels:** The build creates different wheel files for each OS/architecture combination. This ensures users get pre-compiled C extensions that work on their system without requiring a C compiler.
 
 ## Architecture
 
@@ -259,45 +300,82 @@ See `examples/custom_instrument_example.py` for template.
 ### GitHub Actions Workflow
 The repository uses GitHub Actions (`.github/workflows/python-publish.yml`) for CI/CD:
 
-**On pull requests to master:**
+**On pull requests:**
 - Runs pre-commit hooks (Ruff linting/formatting, file checks)
-- Runs pytest test suite with coverage reporting
-- Builds distribution packages to verify build works
+- Runs pytest test suite with coverage reporting (non-slow tests)
+- Uploads coverage to Codecov
 
-**On regular pushes to master:**
-- Tests do NOT run automatically (saves CI time since pre-commit hooks run locally)
-- Manually trigger tests when needed: `gh workflow run "PyReduce CI/CD"`
-- Or trigger from GitHub UI: Actions tab → "PyReduce CI/CD" → "Run workflow"
+**On push to master:**
+- Builds platform-specific wheels for Linux, macOS (Intel + ARM), Windows
+- Builds source distribution
+- Does NOT upload to PyPI (only on tags)
+
+**On tag push (v*):**
+- Builds platform-specific wheels for all platforms using **cibuildwheel**
+- Builds source distribution
+- **Automatically uploads to PyPI** using trusted publishing
+
+### cibuildwheel Configuration
+
+The project uses cibuildwheel to build wheels for multiple platforms. Configuration in `pyproject.toml`:
+
+```toml
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-*"  # Python 3.11, 3.12, 3.13
+skip = "*-musllinux_* *-win32 *-manylinux_i686"  # Skip musl and 32-bit
+test-command = "pytest {project}/test -m unit"
+test-requires = ["pytest"]
+```
+
+This builds wheels for:
+- **Linux**: manylinux x86_64 (compatible with most Linux distros)
+- **macOS**: Intel (x86_64) and Apple Silicon (arm64)
+- **Windows**: x86_64
+
+Each platform builds 3 wheels (one per Python version), totaling ~12-15 wheels per release.
 
 ### Release Process
 
-To publish a new release to PyPI:
+**Automated release workflow (recommended):**
 
-1. **Edit CHANGELOG.md** - Document changes in the new version
-2. **Update version** - Edit version number in `pyproject.toml`
-3. **Commit and tag**:
+1. **Update version and changelog:**
    ```bash
+   # Edit version in pyproject.toml
+   # Update CHANGELOG.md with changes
    git commit -am "Release vX.Y.Z"
-   git tag vX.Y.Z
-   git push
-   git push --tags
-   ```
-4. **Clean and build**:
-   ```bash
-   rm -rf dist/ build/ *.egg-info
-   uv build
-   ```
-5. **Upload to PyPI**:
-   ```bash
-   uvx twine upload dist/*
-   ```
-   (Requires API keys in `~/.pypirc`)
-6. **GitHub Release (optional)**
-   ```bash
-   gh release create vX.Y.Z --notes-file CHANGELOG.md
    ```
 
-CI does NOT auto-publish (manual control for releases)
+2. **Create and push tag:**
+   ```bash
+   git tag vX.Y.Z
+   git push origin master
+   git push origin vX.Y.Z
+   ```
+
+3. **GitHub Actions automatically:**
+   - Builds wheels for all platforms (takes ~30-60 minutes)
+   - Uploads to PyPI via trusted publishing
+   - Creates release artifacts
+
+4. **Verify release:**
+   ```bash
+   # Check PyPI
+   open https://pypi.org/project/pyreduce-astro/
+
+   # Monitor workflow
+   gh run watch
+   ```
+
+**Manual release (if CI fails):**
+```bash
+# Download wheels from GitHub Actions
+gh run download <run-id> -D dist/
+
+# Upload to PyPI
+uvx twine upload dist/*
+```
+
+**Important:** PyPI upload requires the `pypi` environment configured in GitHub with trusted publishing enabled. No API tokens needed.
 
 ### Using the `gh` CLI Tool
 

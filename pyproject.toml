@@ -185,3 +185,15 @@ dev = [
     "pytest-cov>=4.1.0",
     "sphinx>=7.2.0",
 ]
+
+# cibuildwheel configuration for building platform-specific wheels
+[tool.cibuildwheel]
+# Build for Python 3.11, 3.12, 3.13 on common platforms
+build = "cp311-* cp312-* cp313-*"
+
+# Skip musllinux (use manylinux instead) and 32-bit builds
+skip = "*-musllinux_* *-win32 *-manylinux_i686"
+
+# Test the built wheels
+test-command = "pytest {project}/test -m unit"
+test-requires = ["pytest"]
