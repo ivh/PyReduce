@@ -264,9 +264,15 @@ class Instrument:
         info = self.info
         get = getter(header, info, mode)
 
-        header["e_instrument"] = get("instrument", self.__class__.__name__)
-        header["e_telescope"] = get("telescope", "")
-        header["e_exptime"] = get("exposure_time", 0)
+        # Use HIERARCH prefix only for FITS Header objects to avoid warnings
+        # For dict objects, HIERARCH is not needed and would break key access
+        from astropy.io.fits import Header as FitsHeader
+
+        hierarch = "HIERARCH " if isinstance(header, FitsHeader) else ""
+
+        header[f"{hierarch}e_instrument"] = get("instrument", self.__class__.__name__)
+        header[f"{hierarch}e_telescope"] = get("telescope", "")
+        header[f"{hierarch}e_exptime"] = get("exposure_time", 0)
 
         jd = get("date")
         if jd is not None:
@@ -276,7 +282,9 @@ class Instrument:
         header["e_orient"] = get("orientation", 0)
         # As per IDL rotate if orient is 4 or larger and transpose is undefined
         # the image is transposed
-        header["e_transpose"] = get("transpose", (header["e_orient"] % 8 >= 4))
+        header[f"{hierarch}e_transpose"] = get(
+            "transpose", (header["e_orient"] % 8 >= 4)
+        )
 
         naxis_x = get("naxis_x", 0)
         naxis_y = get("naxis_y", 0)

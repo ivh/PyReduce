@@ -44,6 +44,11 @@ uv run pytest -m instrument              # Integration tests with datasets (~70 
 uv run pytest -m "instrument and not slow"  # Skip slow integration tests
 uv run pytest -m "not downloads"         # Offline mode (no dataset downloads)
 
+# Run tests for specific instruments using CLI arguments
+uv run pytest --instrument=UVES          # Test only UVES (with default target)
+uv run pytest --instrument=XSHOOTER --target="UX-Ori"  # Custom target
+uv run pytest test/test_flat.py --instrument=NIRSPEC   # Single test file, one instrument
+
 # Run example script
 uv run python examples/uves_example.py
 
@@ -51,58 +56,17 @@ uv run python examples/uves_example.py
 uv run python -m pyreduce
 ```
 
-### Building and Publishing
+### Building Locally
 
-**Local development builds:**
 ```bash
-# Build locally (creates platform-specific wheel for your OS only)
+# Build platform-specific wheel for local testing
 uv build
 
-# The build will:
-# 1. Compile two CFFI C extensions via hatch_build.py:
-#    - _slitfunc_bd (vertical extraction)
-#    - _slitfunc_2d (curved extraction)
-# 2. Create platform-specific .whl and .tar.gz in dist/
-
-# Note: setuptools is required in build-system even though we use Hatchling
-# because CFFI requires it on Python 3.12+
+# Forces source build on unsupported platforms (requires C compiler)
+uv pip install --no-binary pyreduce-astro pyreduce-astro
 ```
 
-**Publishing releases to PyPI:**
-
-PyReduce uses **cibuildwheel** in GitHub Actions to automatically build platform-specific wheels for:
-- Linux (x86_64, manylinux)
-- macOS (Intel x86_64 and Apple Silicon arm64)
-- Windows (x86_64)
-
-For each platform, wheels are built for Python 3.11, 3.12, and 3.13.
-
-**Release workflow:**
-```bash
-# 1. Update version in pyproject.toml
-# 2. Update CHANGELOG.md
-# 3. Commit changes
-git commit -am "Release vX.Y.Z"
-
-# 4. Create and push tag (this triggers CI build + PyPI upload)
-git tag vX.Y.Z
-git push origin master
-git push origin vX.Y.Z
-
-# GitHub Actions will automatically:
-# - Build wheels for all platforms (Linux, macOS Intel/ARM, Windows)
-# - Build source distribution
-# - Upload all artifacts to PyPI (via trusted publishing)
-```
-
-**Manual upload (if needed):**
-```bash
-# Download wheel artifacts from GitHub Actions
-gh run download <run-id> -D dist/
-
-# Upload to PyPI
-uvx twine upload dist/*
-```
+**Note:** See "Release Process" section below for publishing to PyPI.
 
 ### Code Quality
 ```bash
@@ -143,9 +107,9 @@ The `hatch_build.py` file implements a Hatchling build hook that:
 2. Reads C source files from `pyreduce/clib/`
 3. Uses CFFI's `FFI()` to generate wrapper code
 4. Compiles two extensions:
-   - `_slitfunc_bd.so` - Vertical slit function extraction
-   - `_slitfunc_2d.so` - Curved slit function extraction (2D)
-5. Places compiled `.so` files in `pyreduce/clib/`
+   - `_slitfunc_bd.so/.pyd` - Vertical slit function extraction
+   - `_slitfunc_2d.so/.pyd` - Curved slit function extraction (2D)
+5. Places compiled extensions in `pyreduce/clib/` (`.so` on Linux/macOS, `.pyd` on Windows)
 
 The hook runs automatically during:
 - `uv build` - Creates platform-specific wheel (e.g., `cp313-cp313-macosx_14_0_arm64.whl`)
@@ -192,7 +156,7 @@ The main entry point is `pyreduce.reduce.main()`, which orchestrates these steps
 **pyreduce/clib/** - C extensions for performance-critical extraction code:
 - `slit_func_bd.c` / `slit_func_bd.h` - Vertical slit function decomposition
 - `slit_func_2d_xi_zeta_bd.c` / `slit_func_2d_xi_zeta_bd.h` - Curved 2D extraction
-- Compiled `.so` files for each Python version
+- Compiled extensions (`.so` on Linux/macOS, `.pyd` on Windows) for each Python version
 
 **pyreduce/wavecal/** - Wavelength calibration reference data:
 - `atlas/` - Spectral line atlases (ThAr, etalon)
@@ -255,7 +219,12 @@ uv run pytest -m "not slow"
 # Offline mode (no downloads, unit tests only)
 uv run pytest -m "not downloads"
 
-# Debug specific instrument failures
+# Test specific instrument (faster than running all 4 instruments)
+uv run pytest --instrument=UVES                          # UVES with default target
+uv run pytest --instrument=XSHOOTER --target="UX-Ori"   # Custom target
+uv run pytest test/test_orders.py --instrument=NIRSPEC   # Single file, one instrument
+
+# Debug specific instrument failures (keyword matching)
 uv run pytest -m instrument -k NIRSPEC
 
 # Combine markers
@@ -267,6 +236,16 @@ uv run pytest -m "instrument and not slow"
 - `instrument` fixture provides dataset instances for UVES, XSHOOTER, NIRSPEC, JWST_NIRISS
 - Each reduction step has a corresponding class fixture (e.g., `bias_step`, `flat_step`)
 - Integration tests download small sample datasets automatically via `pyreduce.datasets`
+
+**CLI Arguments:**
+Tests accept optional command-line arguments to filter by instrument/target:
+- `--instrument=NAME` - Run tests for single instrument (UVES, XSHOOTER, NIRSPEC, JWST_NIRISS)
+- `--target=NAME` - Override default target for the instrument (optional)
+- Without arguments: Tests run for all instruments (full parametrized matrix)
+- Use cases:
+  - Development: `uv run pytest --instrument=UVES` (faster iteration)
+  - Debugging: `uv run pytest test/test_wavecal.py --instrument=NIRSPEC` (isolate failures)
+  - CI: No arguments needed (runs full matrix automatically)
 
 **Unit Tests** (no instrument fixtures):
 - `test_extract.py` - Extraction algorithm with synthetic data
@@ -306,33 +285,31 @@ The repository uses GitHub Actions (`.github/workflows/python-publish.yml`) for 
 - Uploads coverage to Codecov
 
 **On push to master:**
-- Builds platform-specific wheels for Linux, macOS (Intel + ARM), Windows
-- Builds source distribution
-- Does NOT upload to PyPI (only on tags)
+- Nothing (saves CI time - tests run on PRs)
 
 **On tag push (v*):**
+- Runs tests first (blocks builds if tests fail)
 - Builds platform-specific wheels for all platforms using **cibuildwheel**
 - Builds source distribution
 - **Automatically uploads to PyPI** using trusted publishing
+- **Creates GitHub Release** with CHANGELOG.md as release notes
 
 ### cibuildwheel Configuration
 
-The project uses cibuildwheel to build wheels for multiple platforms. Configuration in `pyproject.toml`:
-
-```toml
-[tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-*"  # Python 3.11, 3.12, 3.13
-skip = "*-musllinux_* *-win32 *-manylinux_i686"  # Skip musl and 32-bit
-test-command = "pytest {project}/test -m unit"
-test-requires = ["pytest"]
-```
-
-This builds wheels for:
-- **Linux**: manylinux x86_64 (compatible with most Linux distros)
+Builds wheels for **Python 3.11, 3.12, 3.13** on:
+- **Linux**: manylinux x86_64
 - **macOS**: Intel (x86_64) and Apple Silicon (arm64)
 - **Windows**: x86_64
 
-Each platform builds 3 wheels (one per Python version), totaling ~12-15 wheels per release.
+Total: ~12-15 wheels per release. Configuration in `pyproject.toml`:
+
+```toml
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *-win32 *-manylinux_i686"
+test-command = "pytest {project}/test -m unit"  # Tests installed wheel
+test-requires = ["pytest"]
+```
 
 ### Release Process
 
@@ -353,17 +330,21 @@ Each platform builds 3 wheels (one per Python version), totaling ~12-15 wheels p
    ```
 
 3. **GitHub Actions automatically:**
+   - Runs tests (blocks if tests fail)
    - Builds wheels for all platforms (takes ~30-60 minutes)
    - Uploads to PyPI via trusted publishing
-   - Creates release artifacts
+   - Creates GitHub Release with CHANGELOG.md as notes
 
 4. **Verify release:**
    ```bash
-   # Check PyPI
+   # Monitor workflow progress
+   gh run watch
+
+   # Check PyPI upload
    open https://pypi.org/project/pyreduce-astro/
 
-   # Monitor workflow
-   gh run watch
+   # Check GitHub Release
+   gh release view vX.Y.Z
    ```
 
 **Manual release (if CI fails):**
@@ -373,48 +354,33 @@ gh run download <run-id> -D dist/
 
 # Upload to PyPI
 uvx twine upload dist/*
+
+# Create GitHub Release manually
+gh release create vX.Y.Z --notes-file CHANGELOG.md
 ```
 
-**Important:** PyPI upload requires the `pypi` environment configured in GitHub with trusted publishing enabled. No API tokens needed.
+**Setup requirements:**
+- **PyPI trusted publishing**: Configure `pypi` environment in GitHub repository settings
+- **GitHub permissions**: Workflow has `contents: write` for creating releases
+- **No API tokens needed** - uses GitHub OIDC for PyPI authentication
 
-### Using the `gh` CLI Tool
+### Common `gh` CLI Commands
 
 ```bash
-# View recent workflow runs
-gh run list --limit 5
+# Monitor workflow runs
+gh run watch              # Watch current run in real-time
+gh run list --limit 5     # List recent runs
+gh run view <run-id> --log-failed  # Debug failed run
+gh run rerun <run-id>     # Re-run failed jobs
 
-# View logs from a failed run
-gh run view <run-id> --log-failed
+# View releases
+gh release list
+gh release view vX.Y.Z
 
-# Watch a workflow run in real-time
-gh run watch <run-id>
-
-# View workflow configuration
-gh workflow list
-gh workflow view "PyReduce CI/CD"
-
-# Work with issues and PRs
+# Issues and PRs
 gh issue list
 gh pr create
 gh pr view <pr-number>
-```
-
-### Common CI/CD Tasks
-
-**Check if CI is passing:**
-```bash
-gh run list --limit 1
-```
-
-**Debug failed CI run:**
-```bash
-gh run list --limit 5
-gh run view <run-id> --log-failed
-```
-
-**Re-run failed jobs:**
-```bash
-gh run rerun <run-id>
 ```
 
 ## Important Notes

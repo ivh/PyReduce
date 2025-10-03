@@ -25,6 +25,22 @@ from pyreduce.reduce import (
 )
 
 
+def pytest_addoption(parser):
+    """Add custom command-line options for test configuration"""
+    parser.addoption(
+        "--instrument",
+        action="store",
+        default=None,
+        help="Test specific instrument (e.g., UVES, XSHOOTER, NIRSPEC, JWST_NIRISS). If not specified, runs all instruments.",
+    )
+    parser.addoption(
+        "--target",
+        action="store",
+        default=None,
+        help="Test specific target (e.g., HD132205, UX-Ori, GJ1214). Requires --instrument.",
+    )
+
+
 @pytest.fixture(scope="function")
 def tempfiles():
     n = 10
@@ -40,17 +56,62 @@ def tempfiles():
 
 
 # TODO Add more datasets
-@pytest.fixture(
-    params=[
-        ("UVES", "HD[ -]?132205"),
-        ("XSHOOTER", "UX-Ori"),
-        ("NIRSPEC", "GJ1214"),
-        ("JWST_NIRISS", ""),
-    ],
-    ids=["UVES_HD132205", "XSHOOTER_UxOri", "NIRSPEC_GJ1214", "JWST_NIRISS"],
-)
+# Default datasets for parametrized testing
+_DEFAULT_DATASETS = [
+    ("UVES", "HD[ -]?132205"),
+    ("XSHOOTER", "UX-Ori"),
+    ("NIRSPEC", "GJ1214"),
+    ("JWST_NIRISS", ""),
+]
+_DEFAULT_IDS = ["UVES_HD132205", "XSHOOTER_UxOri", "NIRSPEC_GJ1214", "JWST_NIRISS"]
+
+
+@pytest.fixture
 def dataset(request):
-    return request.param
+    """Get dataset from CLI args or use parametrized defaults
+
+    If --instrument is specified on command line, uses that single instrument/target.
+    Otherwise, runs parametrized tests across all default datasets.
+    """
+    # Check for command-line overrides
+    instrument_arg = request.config.getoption("--instrument")
+    target_arg = request.config.getoption("--target")
+
+    if instrument_arg is not None:
+        # Use CLI-specified instrument/target
+        # Map instrument to default target if not specified
+        target_defaults = {
+            "UVES": "HD[ -]?132205",
+            "XSHOOTER": "UX-Ori",
+            "NIRSPEC": "GJ1214",
+            "JWST_NIRISS": "",
+        }
+        target = (
+            target_arg
+            if target_arg is not None
+            else target_defaults.get(instrument_arg, "")
+        )
+        return (instrument_arg, target)
+
+    # Use parametrized dataset (for full test matrix)
+    # This requires the fixture to be parametrized when called without CLI args
+    if hasattr(request, "param"):
+        return request.param
+
+    # Fallback to first dataset if neither CLI nor parametrization provided
+    return _DEFAULT_DATASETS[0]
+
+
+# Parametrize the dataset fixture for tests that don't use CLI args
+def pytest_generate_tests(metafunc):
+    """Parametrize dataset fixture unless overridden by CLI"""
+    if "dataset" in metafunc.fixturenames:
+        # Only parametrize if --instrument was not specified
+        if metafunc.config.getoption("--instrument") is None:
+            metafunc.parametrize(
+                "dataset", _DEFAULT_DATASETS, ids=_DEFAULT_IDS, indirect=True
+            )
+        # Otherwise, dataset fixture will use CLI args via request.config
 
 
 @pytest.fixture

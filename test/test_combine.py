@@ -22,10 +22,10 @@ def create_file(file, nx=100, ny=100, ovscx=5):
     data = img + np.random.randint(0, 20, size=img.shape)
     head = fits.Header(
         cards={
-            "ESO DET OUT1 PRSCX": 0,
-            "ESO DET OUT1 OVSCX": ovscx,
-            "ESO DET OUT1 CONAD": 1,
-            "ESO DET OUT1 RON": 0,
+            "HIERARCH ESO DET OUT1 PRSCX": 0,
+            "HIERARCH ESO DET OUT1 OVSCX": ovscx,
+            "HIERARCH ESO DET OUT1 CONAD": 1,
+            "HIERARCH ESO DET OUT1 RON": 0,
             "EXPTIME": 1,
             "RA": 100,
             "DEC": 51,
