@@ -80,13 +80,15 @@ include = [
     "pyreduce/**/*.py",
     "pyreduce/**/*.c",
     "pyreduce/**/*.h",
-    "pyreduce/**/*.so",
+    "pyreduce/**/*.so",   # Linux/macOS compiled extensions
+    "pyreduce/**/*.pyd",  # Windows compiled extensions
     "pyreduce/**/*.json",
     "pyreduce/**/*.npz",
     "pyreduce/**/*.sav",
 ]
 artifacts = [
-    "pyreduce/clib/*.so",
+    "pyreduce/clib/*.so",   # Linux/macOS compiled extensions
+    "pyreduce/clib/*.pyd",  # Windows compiled extensions
 ]
 
 # Build CFFI extensions via build hook
