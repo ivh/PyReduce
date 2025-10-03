@@ -121,3 +121,27 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # Create GitHub Release with CHANGELOG
+  create_release:
+    name: Create GitHub Release
+    needs: [upload_pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write  # Required to create releases
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Extract tag name
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+
+          # Create release with CHANGELOG as notes
+          gh release create "$TAG_NAME" \
+            --title "Release $TAG_NAME" \
+            --notes-file CHANGELOG.md
