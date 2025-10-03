@@ -1,5 +1,12 @@
 # Changelog
 
+
+## [0.6.0b4] - 2025-10-03
+
+### Changed
+- workflow builds multi-arch wheels
+- minor fixes to make build pass
+
 ## [0.6.0b3] - 2025-10-02
 
 ### Added

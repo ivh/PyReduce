@@ -60,7 +60,7 @@ class CustomBuildHook(BuildHookInterface):
             try:
                 os.chdir(clib_dir)
                 ffibuilder_vertical.compile(verbose=True)
-                print("✓ Vertical extraction extension built successfully\n")
+                print("[OK] Vertical extraction extension built successfully\n")
             finally:
                 os.chdir(old_cwd)
 
@@ -83,7 +83,7 @@ class CustomBuildHook(BuildHookInterface):
             try:
                 os.chdir(clib_dir)
                 ffibuilder_curved.compile(verbose=True)
-                print("✓ Curved extraction extension built successfully\n")
+                print("[OK] Curved extraction extension built successfully\n")
             finally:
                 os.chdir(old_cwd)
 
