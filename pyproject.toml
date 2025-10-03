@@ -196,4 +196,4 @@ skip = "*-musllinux_* *-win32 *-manylinux_i686"
 
 # Test the built wheels
 test-command = "pytest {project}/test -m unit"
-test-requires = ["pytest", "setuptools"]  # setuptools needed for test_clib_build.py
+test-requires = ["pytest"]
