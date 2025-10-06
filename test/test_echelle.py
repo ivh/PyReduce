@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pytest
 import scipy.constants
@@ -10,12 +8,10 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def fname():
-    name = "test_ech.ech"
-    yield name
-
-    if os.path.exists(name):
-        os.remove(name)
+def fname(tmp_path):
+    name = tmp_path / "test_ech.ech"
+    yield str(name)
+    # Cleanup happens automatically with tmp_path
 
 
 @pytest.fixture

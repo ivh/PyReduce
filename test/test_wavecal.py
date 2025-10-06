@@ -51,7 +51,7 @@ def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_r
         threshold=settings[name]["threshold"],
         degree=settings[name]["degree"],
     )
-    wave, solution = module.execute(thar, linelist)
+    wave, solution, lines = module.execute(thar, linelist)
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2
