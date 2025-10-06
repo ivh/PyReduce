@@ -1,6 +1,8 @@
+import json
 from glob import glob
 from os.path import basename, dirname, exists, join
 
+import jsonschema
 import pytest
 
 from pyreduce.configuration import get_configuration_for_instrument
@@ -26,6 +28,25 @@ def supported_modes(supported_instrument):
 @pytest.fixture
 def config(supported_instrument):
     return get_configuration_for_instrument(supported_instrument)
+
+
+@pytest.mark.unit
+def test_instrument_json_schema_valid(supported_instrument):
+    """Validate instrument JSON files against the instrument schema."""
+    schema_path = join(
+        dirname(__file__), "../pyreduce/instruments/instrument_schema.json"
+    )
+    with open(schema_path) as f:
+        schema = json.load(f)
+
+    instrument_path = join(
+        dirname(__file__), f"../pyreduce/instruments/{supported_instrument}.json"
+    )
+    with open(instrument_path) as f:
+        instrument_data = json.load(f)
+
+    # This will raise ValidationError if invalid
+    jsonschema.validate(instance=instrument_data, schema=schema)
 
 
 @pytest.mark.unit
