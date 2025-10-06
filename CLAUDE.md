@@ -49,6 +49,9 @@ uv run pytest --instrument=UVES          # Test only UVES (with default target)
 uv run pytest --instrument=XSHOOTER --target="UX-Ori"  # Custom target
 uv run pytest test/test_flat.py --instrument=NIRSPEC   # Single test file, one instrument
 
+# Run tests in parallel (unit tests only - integration tests share datasets)
+uv run --with pytest-xdist pytest -n auto -m unit
+
 # Run example script
 uv run python examples/uves_example.py
 
@@ -230,8 +233,9 @@ uv run pytest -m instrument -k NIRSPEC
 # Combine markers
 uv run pytest -m "instrument and not slow"
 
-# Running all tests in parallel, only for manual trigger
-uv run --with pytest-xdist pytest -n auto
+# Parallel test execution (faster, but only for unit tests)
+uv run --with pytest-xdist pytest -n auto -m unit  # ~3-4x faster
+# Note: Integration tests cannot run in parallel - they share dataset directories
 ```
 
 **Test Structure:**
