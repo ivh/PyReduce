@@ -229,6 +229,9 @@ uv run pytest -m instrument -k NIRSPEC
 
 # Combine markers
 uv run pytest -m "instrument and not slow"
+
+# Running all tests in parallel, only for manual trigger
+uv run --with pytest-xdist pytest -n auto
 ```
 
 **Test Structure:**
