@@ -57,6 +57,6 @@
     "continuum": {
     },
     "finalize": {
-        "filename": "{input}.ech"
+        "filename": "{input}.fits"
     }
 }

@@ -135,7 +135,7 @@ The main entry point is `pyreduce.reduce.main()`, which orchestrates these steps
 6. **wavecal** - Wavelength calibration from ThAr/etalon spectra (`wavelength_calibration.py`)
 7. **science** - Extracts 1D spectrum from 2D image using `extract.py`
 8. **continuum** - Continuum normalization via `continuum_normalization.py`
-9. **finalize** - Writes final .ech FITS files
+9. **finalize** - Writes final FITS files
 
 ### Key Modules
 
@@ -182,7 +182,7 @@ Input: Raw FITS files organized as `base_dir/input_dir/{night}/`
 
 Output:
 - Intermediate products saved as `.npz` files in `output_dir/`
-- Final 1D spectra as `.ech` files (FITS format with table extension)
+- Final 1D spectra as FITS files (with binary table extension)
 - Header keywords from input preserved, PyReduce keywords prefixed with `e_`
 
 ### C Integration
@@ -398,7 +398,7 @@ gh pr view <pr-number>
 - Interactive plotting can be disabled in settings JSON files with `"plot": false`
 - All reduction steps are resumable - intermediate products are cached
 - The C extensions must compile successfully for extraction to work
-- Output `.ech` files are standard FITS files despite the extension name
+- Output spectrum files are standard FITS files with binary table extensions
 - `docs/_build/` is gitignored - built docs shouldn't be committed
 
 ## Ruff Configuration

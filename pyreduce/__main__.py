@@ -71,14 +71,14 @@ def combine():
     parser.add_argument("script", help="which script to execute", choices=["combine"])
 
     parser.add_argument(
-        "--output", help="destination of the combined file", default="./combined.ech"
+        "--output", help="destination of the combined file", default="./combined.fits"
     )
     parser.add_argument(
         "--plot", type=int, help="plot the results of the desired order"
     )
 
     parser.add_argument(
-        "input", nargs="+", help="input files to use", default="./*.final.ech"
+        "input", nargs="+", help="input files to use", default="./*.final.fits"
     )
 
     args = parser.parse_args()
