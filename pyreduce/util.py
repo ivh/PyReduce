@@ -22,6 +22,34 @@ from . import __version__
 
 logger = logging.getLogger(__name__)
 
+# Global plot directory - set by Pipeline/main() to save plots instead of showing
+_plot_dir = None
+
+
+def set_plot_dir(path):
+    """Set directory for saving plots. If None, plots will be shown interactively."""
+    global _plot_dir
+    _plot_dir = path
+    if path:
+        os.makedirs(path, exist_ok=True)
+
+
+def show_or_save(name="plot"):
+    """Show plot interactively or save to file if plot_dir is set.
+
+    Parameters
+    ----------
+    name : str
+        Base name for the saved file (without extension)
+    """
+    if _plot_dir:
+        fname = os.path.join(_plot_dir, f"{name}.png")
+        plt.savefig(fname, dpi=150, bbox_inches="tight")
+        logger.debug("Saved plot to %s", fname)
+        plt.close()
+    else:
+        plt.show()
+
 
 def resample(array, new_size):
     x = np.arange(new_size)
@@ -579,7 +607,7 @@ def plot2d(x, y, z, coeff, title=None):
         plt.title(title)
     # ax.axis("equal")
     # ax.axis("tight")
-    plt.show()
+    show_or_save("polyfit2d")
 
 
 def polyfit2d(
@@ -709,7 +737,7 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=Fa
         ax.set_zlabel("Z")
         ax.axis("equal")
         ax.axis("tight")
-        plt.show()
+        show_or_save("polyfit2d_2")
     return coef
 
 

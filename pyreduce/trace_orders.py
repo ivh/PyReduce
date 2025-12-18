@@ -14,6 +14,8 @@ from scipy.ndimage import binary_closing, binary_opening, grey_closing, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter
 from scipy.signal import find_peaks, peak_widths
 
+from . import util
+
 logger = logging.getLogger(__name__)
 
 
@@ -345,7 +347,7 @@ def plot_orders(im, x, y, clusters, orders, order_range, title=None):
     plt.ylim([0, im.shape[0]])
     if title is not None:
         plt.suptitle(title)
-    plt.show()
+    util.show_or_save("orders_trace")
 
 
 def plot_order(i, j, x, y, img, deg, title=""):
@@ -380,7 +382,7 @@ def plot_order(i, j, x, y, img, deg, title=""):
     plt.plot(y[j], x[j], "g.")
     plt.xlim([ymin, ymax])
     plt.ylim([xmin, xmax])
-    plt.show()
+    util.show_or_save(f"orders_single_{i}_{j}")
 
 
 def mark_orders(
@@ -587,7 +589,7 @@ def mark_orders(
         clusters[clusters == 0] = np.ma.masked
 
         plt.imshow(clusters, origin="lower", cmap="prism")
-        plt.show()
+        util.show_or_save("orders_clusters")
 
     # Merge clusters, if there are even any possible mergers left
     x, y, n = merge_clusters(

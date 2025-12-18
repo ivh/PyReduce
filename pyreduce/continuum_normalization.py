@@ -147,7 +147,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
         for i in range(nord):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
         plt.ylim((0, np.ma.median(sigm[i] / cont[i]) * 2))
-        plt.show()
+        util.show_or_save("continuum_sigma")
 
     return spec, wave, cont, sigm
 
@@ -167,7 +167,7 @@ class Plot_Normalization:  # pragma: no cover
         self.line2 = self.ax.plot(new_wave, contB, label="Continuum Fit")[0]
         plt.legend()
 
-        plt.show()
+        util.show_or_save("continuum_fit")
 
     def plot(self, wsort, sB, new_wave, contB, iteration):
         suptitle = f"Iteration: {iteration}"
@@ -324,6 +324,6 @@ def continuum_normalize(
             plt.title(plot_title)
         plt.xlabel("Wavelength [A]")
         plt.ylabel("Flux")
-        plt.show()
+        util.show_or_save("continuum_final")
 
     return cont

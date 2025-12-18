@@ -14,6 +14,7 @@ import numpy as np
 from scipy.ndimage.filters import median_filter
 from tqdm import tqdm
 
+from . import util
 from .clipnflip import clipnflip
 from .instruments.instrument_info import load_instrument
 from .util import gaussbroad, gaussfit
@@ -628,10 +629,7 @@ def combine_calibrate(
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(orig[orig != 0], (10, 90))
         plt.imshow(orig, vmin=bot, vmax=top, origin="lower")
-        if plot != "png":
-            plt.show()
-        else:
-            plt.savefig("crires_master_flat.png")
+        util.show_or_save("combine_master")
 
     return orig, thead
 
@@ -699,10 +697,7 @@ def combine_polynomial(
             plt.imshow(bias[i], vmin=bot, vmax=top, origin="lower")
 
         plt.suptitle(title)
-        if plot != "png":
-            plt.show()
-        else:
-            plt.savefig("master_bias.png")
+        util.show_or_save("combine_polynomial")
 
     return bias, bhead
 
@@ -831,7 +826,7 @@ def combine_bias(
             plt.axvline(gmin, c="b")
             plt.axvline(gmax, c="b")
             plt.title("contamination estimation")
-            plt.show()
+            util.show_or_save("bias_contamination")
     else:
         diff = 0
         biasnoise = 1.0
@@ -846,7 +841,7 @@ def combine_bias(
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(bias, (1, 99))
         plt.imshow(bias, vmin=bot, vmax=top, origin="lower")
-        plt.show()
+        util.show_or_save("bias_master")
 
     head["obslist"] = " ".join([os.path.basename(f) for f in files])
     head["nimages"] = (n, "number of images summed")

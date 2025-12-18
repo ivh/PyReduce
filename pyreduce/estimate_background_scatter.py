@@ -7,6 +7,7 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 
+from . import util
 from .extract import fix_parameters
 from .util import make_index, polyfit2d
 
@@ -124,6 +125,6 @@ def estimate_background_scatter(
 
         if plot_title is not None:
             plt.suptitle(plot_title)
-        plt.show()
+        util.show_or_save("scatter")
 
     return coeff

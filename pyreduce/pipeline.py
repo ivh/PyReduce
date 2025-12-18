@@ -25,6 +25,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from . import util
 from .instruments.instrument_info import load_instrument
 from .reduce import (
     BackgroundScatter,
@@ -102,6 +103,7 @@ class Pipeline:
         config: dict | None = None,
         order_range: tuple[int, int] | None = None,
         plot: int = 0,
+        plot_dir: str | None = None,
     ):
         """Initialize a reduction pipeline.
 
@@ -123,6 +125,8 @@ class Pipeline:
             (first, last+1) orders to process
         plot : int, optional
             Plot level (0=off, 1=basic, 2=detailed). Default 0.
+        plot_dir : str, optional
+            Directory to save plots as PNG files. If None, plots are shown interactively.
         """
         if isinstance(instrument, str):
             instrument = load_instrument(instrument)
@@ -140,6 +144,10 @@ class Pipeline:
         self.config = config or {}
         self.order_range = order_range
         self.plot = plot
+        self.plot_dir = plot_dir
+
+        # Set global plot directory for util.show_or_save()
+        util.set_plot_dir(plot_dir)
 
         self._steps: list[tuple[str, list | None]] = []
         self._data: dict = {}
@@ -348,6 +356,7 @@ class Pipeline:
         order_range=None,
         steps="all",
         plot: int = 0,
+        plot_dir: str | None = None,
     ) -> Pipeline:
         """Create pipeline from a files dict and run specified steps.
 
@@ -375,6 +384,8 @@ class Pipeline:
             Steps to run
         plot : int, optional
             Plot level (0=off, 1=basic, 2=detailed). Default 0.
+        plot_dir : str, optional
+            Directory to save plots as PNG files. If None, plots are shown interactively.
 
         Returns
         -------
@@ -390,6 +401,7 @@ class Pipeline:
             config=config,
             order_range=order_range,
             plot=plot,
+            plot_dir=plot_dir,
         )
 
         if steps == "all":

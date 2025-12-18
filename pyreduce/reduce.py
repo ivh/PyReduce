@@ -76,6 +76,7 @@ def main(
     allow_calibration_only=False,
     skip_existing=False,
     plot=0,
+    plot_dir=None,
 ):
     r"""
     Main entry point for REDUCE scripts,
@@ -120,9 +121,14 @@ def main(
     # info: constant, instrument specific parameters
     config = load_config(configuration, instrument, 0)
 
-    # Environment variable override for plot (useful for headless runs)
+    # Environment variable overrides for plot (useful for headless runs)
     if "PYREDUCE_PLOT" in os.environ:
         plot = int(os.environ["PYREDUCE_PLOT"])
+    if "PYREDUCE_PLOT_DIR" in os.environ:
+        plot_dir = os.environ["PYREDUCE_PLOT_DIR"]
+
+    # Set global plot directory for util.show_or_save()
+    util.set_plot_dir(plot_dir)
 
     if isinstance(instrument, str):
         instrument = instruments.instrument_info.load_instrument(instrument)
@@ -188,6 +194,7 @@ def main(
                 order_range=order_range,
                 steps=steps,
                 plot=plot,
+                plot_dir=plot_dir,
             )
             data = pipe.run(skip_existing=skip_existing)
             output.append(data)
@@ -1996,7 +2003,7 @@ class Finalize(Step):
                 plt.plot(wave.T, (spec / blaze).T)
                 if self.plot_title is not None:
                     plt.title(self.plot_title)
-                plt.show()
+                util.show_or_save(f"finalize_{i}")
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
             fnames.append(fname)
