@@ -18,7 +18,6 @@ License
 
 """
 
-import glob
 import logging
 import os.path
 import warnings
@@ -47,7 +46,6 @@ from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract
-from .instruments.instrument_info import load_instrument
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
 from .trace_orders import mark_orders
@@ -77,6 +75,7 @@ def main(
     order_range=None,
     allow_calibration_only=False,
     skip_existing=False,
+    plot=0,
 ):
     r"""
     Main entry point for REDUCE scripts,
@@ -120,6 +119,11 @@ def main(
     # config: paramters for the current reduction
     # info: constant, instrument specific parameters
     config = load_config(configuration, instrument, 0)
+
+    # Environment variable override for plot (useful for headless runs)
+    if "PYREDUCE_PLOT" in os.environ:
+        plot = int(os.environ["PYREDUCE_PLOT"])
+
     if isinstance(instrument, str):
         instrument = instruments.instrument_info.load_instrument(instrument)
     info = instrument.info
@@ -171,23 +175,22 @@ def main(
                 logger.info("%s: %s", key, value)
             logger.debug("Files:\n%s", f)
 
-            reducer = Reducer(
-                f,
-                output_dir,
-                k.get("target"),
-                instrument,
-                m,
-                k.get("night"),
-                config,
+            from .pipeline import Pipeline
+
+            pipe = Pipeline.from_files(
+                files=f,
+                output_dir=output_dir,
+                target=k.get("target"),
+                instrument=instrument,
+                mode=m,
+                night=k.get("night"),
+                config=config,
                 order_range=order_range,
-                skip_existing=skip_existing,
+                steps=steps,
+                plot=plot,
             )
-            # try:
-            data = reducer.run_steps(steps=steps)
+            data = pipe.run(skip_existing=skip_existing)
             output.append(data)
-            # except Exception as e:
-            #     logger.error("Reduction failed with error message: %s", str(e))
-            #     logger.info("------------")
     return output
 
 
@@ -1648,7 +1651,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         name : str
             science file name
         """
-        return util.swap_extension(name, ".science.ech", path=self.output_dir)
+        return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
     def run(self, files, bias, orders, norm_flat, curvature, scatter, mask):
         """Extract Science spectra from observation
@@ -2031,175 +2034,3 @@ class Finalize(Step):
         )
         logger.info("Final science file: %s", out_file)
         return out_file
-
-
-class Reducer:
-    step_order = {
-        "bias": 10,
-        "flat": 20,
-        "orders": 30,
-        "curvature": 40,
-        "scatter": 45,
-        "norm_flat": 50,
-        "wavecal_master": 60,
-        "wavecal_init": 64,
-        "wavecal": 67,
-        "freq_comb_master": 70,
-        "freq_comb": 72,
-        "rectify": 75,
-        "science": 80,
-        "continuum": 90,
-        "finalize": 100,
-    }
-
-    modules = {
-        "mask": Mask,
-        "bias": Bias,
-        "flat": Flat,
-        "orders": OrderTracing,
-        "scatter": BackgroundScatter,
-        "norm_flat": NormalizeFlatField,
-        "wavecal_master": WavelengthCalibrationMaster,
-        "wavecal_init": WavelengthCalibrationInitialize,
-        "wavecal": WavelengthCalibrationFinalize,
-        "freq_comb_master": LaserFrequencyCombMaster,
-        "freq_comb": LaserFrequencyCombFinalize,
-        "curvature": SlitCurvatureDetermination,
-        "science": ScienceExtraction,
-        "continuum": ContinuumNormalization,
-        "finalize": Finalize,
-        "rectify": RectifyImage,
-    }
-
-    def __init__(
-        self,
-        files,
-        output_dir,
-        target,
-        instrument,
-        mode,
-        night,
-        config,
-        order_range=None,
-        skip_existing=False,
-    ):
-        """Reduce all observations from a single night and instrument mode
-
-        Parameters
-        ----------
-        files: dict{str:str}
-            Data files for each step
-        output_dir : str
-            directory to place output files in
-        target : str
-            observed targets as used in directory names/fits headers
-        instrument : str
-            instrument used for observations
-        mode : str
-            instrument mode used (e.g. "red" or "blue" for HARPS)
-        night : str
-            Observation night, in the same format as used in the directory structure/file sorting
-        config : dict
-            numeric reduction specific settings, like pixel threshold, which may change between runs
-        info : dict
-            fixed instrument specific values, usually header keywords for gain, readnoise, etc.
-        skip_existing : bool
-            Whether to skip reductions with existing output
-        """
-        #:dict(str:str): Filenames sorted by usecase
-        self.files = files
-        self.output_dir = output_dir.format(
-            instrument=str(instrument), target=target, night=night, mode=mode
-        )
-
-        if isinstance(instrument, str):
-            instrument = load_instrument(instrument)
-
-        self.data = {"files": files, "config": config}
-        self.inputs = (instrument, mode, target, night, output_dir, order_range)
-        self.config = config
-        self.skip_existing = skip_existing
-
-    def run_module(self, step, load=False):
-        # The Module this step is based on (An object of the Step class)
-        module = self.modules[step](*self.inputs, **self.config.get(step, {}))
-
-        # Load the dependencies necessary for loading/running this step
-        dependencies = module.dependsOn if not load else module.loadDependsOn
-        for dependency in dependencies:
-            if dependency not in self.data.keys():
-                self.data[dependency] = self.run_module(dependency, load=True)
-        args = {d: self.data[d] for d in dependencies}
-
-        # Try to load the data, if the step is not specifically given as necessary
-        # If the intermediate data is not available, run it normally instead
-        # But give a warning
-        if load:
-            try:
-                logger.info("Loading data from step '%s'", step)
-                data = module.load(**args)
-            except FileNotFoundError:
-                logger.warning(
-                    "Intermediate File(s) for loading step %s not found. Running it instead.",
-                    step,
-                )
-                data = self.run_module(step, load=False)
-        else:
-            logger.info("Running step '%s'", step)
-            if step in self.files.keys():
-                args["files"] = self.files[step]
-            data = module.run(**args)
-
-        self.data[step] = data
-        return data
-
-    def prepare_output_dir(self):
-        # create output folder structure if necessary
-        output_dir = self.output_dir
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-    def run_steps(self, steps="all"):
-        """
-        Execute the steps as required
-
-        Parameters
-        ----------
-        steps : {tuple(str), "all"}, optional
-            which steps of the reduction process to perform
-            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "freq_comb",
-            "curvature", "science", "continuum", "finalize"
-            alternatively set steps to "all", which is equivalent to setting all steps
-        """
-        self.prepare_output_dir()
-
-        if steps == "all":
-            steps = list(self.step_order.keys())
-        steps = list(steps)
-
-        if self.skip_existing and "finalize" in steps:
-            module = self.modules["finalize"](
-                *self.inputs, **self.config.get("finalize", {})
-            )
-            exists = [False] * len(self.files["science"])
-            data = {"finalize": [None] * len(self.files["science"])}
-            for i, f in enumerate(self.files["science"]):
-                fname_in = os.path.basename(f)
-                fname_in = os.path.splitext(fname_in)[0]
-                fname_out = module.output_file("?", fname_in)
-                fname_out = glob.glob(fname_out)
-                exists[i] = len(fname_out) != 0
-                if exists[i]:
-                    data["finalize"][i] = fname_out[0]
-            if all(exists):
-                logger.info("All science files already exist, skipping this set")
-                logger.debug("--------------------------------")
-                return data
-
-        steps.sort(key=lambda x: self.step_order[x])
-
-        for step in steps:
-            self.run_module(step)
-
-        logger.debug("--------------------------------")
-        return self.data
