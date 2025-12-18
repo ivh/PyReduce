@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from ..clipnflip import clipnflip
 from .filters import Filter, InstrumentFilter, ModeFilter, NightFilter, ObjectFilter
+from .models import validate_instrument_config
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +192,15 @@ class Instrument:
                 f"No instrument config found for {self.name} "
                 f"(tried {yaml_fname} and {json_fname})"
             )
+
+        # Validate with Pydantic (log warnings, don't raise)
+        try:
+            validate_instrument_config(info)
+        except Exception as e:
+            logger.warning(
+                "Instrument config validation warning for %s: %s", self.name, e
+            )
+
         return info
 
     def load_fits(
