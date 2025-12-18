@@ -11,6 +11,7 @@ import os.path
 from itertools import product
 
 import numpy as np
+import yaml
 from astropy.io import fits
 from astropy.time import Time
 from dateutil import parser
@@ -174,10 +175,22 @@ class Instrument:
         # you can also use values from this dictionary as placeholders using {name}, just like str.format
 
         this = os.path.dirname(__file__)
-        fname = f"{self.name}.json"
-        fname = os.path.join(this, fname)
-        with open(fname) as f:
-            info = json.load(f)
+
+        # Try YAML first, fall back to JSON
+        yaml_fname = os.path.join(this, f"{self.name}.yaml")
+        json_fname = os.path.join(this, f"{self.name}.json")
+
+        if os.path.exists(yaml_fname):
+            with open(yaml_fname) as f:
+                info = yaml.safe_load(f)
+        elif os.path.exists(json_fname):
+            with open(json_fname) as f:
+                info = json.load(f)
+        else:
+            raise FileNotFoundError(
+                f"No instrument config found for {self.name} "
+                f"(tried {yaml_fname} and {json_fname})"
+            )
         return info
 
     def load_fits(
