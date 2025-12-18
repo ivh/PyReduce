@@ -839,8 +839,16 @@ def combine_bias(
         plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
-        bot, top = np.percentile(bias, (1, 99))
-        plt.imshow(bias, vmin=bot, vmax=top, origin="lower")
+        # Handle non-finite values for plotting
+        plot_data = np.where(np.isfinite(bias), bias, np.nan)
+        valid = np.isfinite(plot_data)
+        if np.any(valid):
+            bot, top = np.percentile(plot_data[valid], (1, 99))
+            if bot >= top:
+                bot, top = None, None
+        else:
+            bot, top = None, None
+        plt.imshow(plot_data, vmin=bot, vmax=top, origin="lower")
         util.show_or_save("bias_master")
 
     head["obslist"] = " ".join([os.path.basename(f) for f in files])

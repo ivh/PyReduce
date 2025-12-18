@@ -319,8 +319,16 @@ def plot_orders(im, x, y, clusters, orders, order_range, title=None):
     cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
     plt.subplot(121)
-    bot, top = np.percentile(im, (1, 99))
-    plt.imshow(im, origin="lower", vmin=bot, vmax=top)
+    # Handle non-finite values for plotting
+    plot_im = np.where(np.isfinite(im), im, np.nan)
+    valid = np.isfinite(plot_im)
+    if np.any(valid):
+        bot, top = np.percentile(plot_im[valid], (1, 99))
+        if bot >= top:
+            bot, top = None, None
+    else:
+        bot, top = None, None
+    plt.imshow(plot_im, origin="lower", vmin=bot, vmax=top)
     plt.title("Input Image + Order polynomials")
     plt.xlabel("x [pixel]")
     plt.ylabel("y [pixel]")
