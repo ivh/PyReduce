@@ -211,6 +211,122 @@ trace_arrangement:
 - Polarimeter: 1 path × 2 beams = 2 traces/order
 - HARPS + polarimeter: 2 paths × 2 beams = 4 traces/order
 
+### Extension: Fiber Bundles / IFU (Many-Fiber Instruments)
+
+For instruments with many fibers (e.g., 60-fiber pseudo-slit), need:
+1. Compact fiber geometry definition
+2. Multi-frame trace calibration (even/odd illumination)
+3. Flexible extraction apertures (individual, grouped, arbitrary slit portions)
+
+**Instrument config** (geometry - static):
+```yaml
+optical_paths:
+  type: fiber_bundle
+  count: 60
+  arrangement: pseudo_slit
+  spacing: 2.5  # pixels between fiber centers
+  slit_coords: [0, 1]  # map fiber 0 → 0.0, fiber 59 → 1.0
+
+trace_calibration:
+  method: alternating_illumination
+  sets:
+    - name: even
+      pattern: "0::2"  # fibers 0, 2, 4, ...
+      file_keyword: "FLAT_EVEN"
+    - name: odd
+      pattern: "1::2"  # fibers 1, 3, 5, ...
+      file_keyword: "FLAT_ODD"
+  merge: true  # combine into single 60-trace set
+```
+
+**Extraction config** (runtime - flexible):
+```yaml
+# Mode 1: Extract all 60 fibers individually
+extraction:
+  mode: individual
+  # → 60 spectra per order
+
+# Mode 2: Two groups centered on specific fibers
+extraction:
+  mode: grouped
+  apertures:
+    - center_fiber: 7
+      width_fibers: 15  # covers fibers 0-14
+      name: "group_A"
+    - center_fiber: 22
+      width_fibers: 15  # covers fibers 15-29
+      name: "group_B"
+  # → 2 spectra per order
+
+# Mode 3: Arbitrary slit portion via normalized coords
+extraction:
+  mode: slit_range
+  apertures:
+    - range: [0.0, 0.125]   # bottom 1/8th of slit
+      name: "bottom"
+    - range: [0.4, 0.6]     # middle 20%
+      name: "center"
+  # → 2 spectra per order
+
+# Mode 4: Full slit as single spectrum
+extraction:
+  mode: slit_range
+  apertures:
+    - range: [0.0, 1.0]
+      name: "full_slit"
+  # → 1 spectrum per order (sum of all fibers)
+```
+
+**Implementation:**
+```python
+class FiberBundle:
+    """Represents a bundle of fibers along a pseudo-slit."""
+
+    def __init__(self, count: int, spacing: float):
+        self.count = count
+        self.spacing = spacing
+        self.traces = []  # populated after tracing
+
+    def fiber_to_slit(self, fiber: int) -> float:
+        """Convert fiber number to normalized slit position [0,1]."""
+        return fiber / (self.count - 1)
+
+    def slit_to_fibers(self, slit_range: tuple[float, float]) -> list[int]:
+        """Convert slit range to list of fiber indices."""
+        lo, hi = slit_range
+        return [i for i in range(self.count)
+                if lo <= self.fiber_to_slit(i) <= hi]
+
+    def get_aperture(self, spec: dict) -> Aperture:
+        """Create extraction aperture from config."""
+        if "center_fiber" in spec:
+            center = spec["center_fiber"]
+            width = spec["width_fibers"]
+            fibers = list(range(center - width//2, center + width//2 + 1))
+        elif "range" in spec:
+            fibers = self.slit_to_fibers(spec["range"])
+        return Aperture(fibers=fibers, name=spec.get("name"))
+```
+
+**Order tracing flow:**
+```
+1. Load even-illuminated flat → trace 30 fibers (well-separated)
+2. Load odd-illuminated flat → trace 30 fibers (interleaved)
+3. Merge by position → 60 traces, each tagged with fiber_id
+4. Store as single trace set with fiber_id metadata
+```
+
+**Extraction flow:**
+```
+1. Load trace set (60 traces per order)
+2. Parse extraction config (individual / grouped / slit_range)
+3. For each aperture:
+   - Identify which fibers contribute
+   - Sum/combine those traces' extraction regions
+   - Run slit decomposition on combined region
+4. Output: N spectra per order (N = number of apertures)
+```
+
 ### 4. Configuration Structure
 
 **Single YAML file per instrument** (consolidates hardware, dimensions, headers):
