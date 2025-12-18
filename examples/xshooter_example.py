@@ -10,7 +10,7 @@ from pyreduce import datasets
 instrument = "XShooter"
 target = "UX-Ori"
 night = None
-mode = "NIR"
+arm = "NIR"
 steps = (
     # "bias",
     # "flat",
@@ -43,7 +43,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

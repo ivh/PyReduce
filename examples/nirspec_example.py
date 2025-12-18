@@ -10,7 +10,7 @@ from pyreduce import datasets
 instrument = "NIRSPEC"
 target = "GJ1214"
 night = ""
-mode = "NIRSPEC"
+arm = "NIRSPEC"
 steps = (
     "bias",
     "flat",
@@ -39,7 +39,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

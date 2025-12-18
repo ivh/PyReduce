@@ -10,8 +10,8 @@ telescope: TELESCOP
 date: DATE-OBS
 date_format: fits
 
-modes: [HARPN]
-modes_id: [harpn]
+arms: [HARPN]
+arms_id: [harpn]
 extension: [1]
 id: [[1, 2]]
 orientation: 2

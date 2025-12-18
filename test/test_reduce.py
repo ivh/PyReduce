@@ -6,12 +6,12 @@ from pyreduce import reduce
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_main(instrument, target, night, mode, input_dir, output_dir):
+def test_main(instrument, target, night, arm, input_dir, output_dir):
     output = reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
@@ -32,12 +32,12 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+def test_run_all(instrument, target, night, arm, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
@@ -50,12 +50,12 @@ def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_r
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+def test_load_all(instrument, target, night, arm, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,

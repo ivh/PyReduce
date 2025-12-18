@@ -6,8 +6,7 @@
     "category": "IMAGECAT",
     "target": "OBJECT",
     "date": "DATE-OBS",
-    "date_format" : "fits",
-    "modes": ["VIS", "NIR"],
+    "date_format": "fits",
     "extension": 0,
     "orientation": 0,
     "prescan_x": 0,
@@ -43,5 +42,9 @@
     "id_scatter": "LAMP,FLAT",
     "id_wave": "LAMP,WAVE",
     "id_comb": "LAMP,FPE",
-    "id_spec": "OBJECT"
+    "id_spec": "OBJECT",
+    "arms": [
+        "VIS",
+        "NIR"
+    ]
 }

@@ -9,7 +9,7 @@ import pyreduce
 instrument = "MICADO"
 target = ""
 night = ""
-mode = ""
+arm = ""
 steps = (
     # "bias",
     "flat",
@@ -56,7 +56,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

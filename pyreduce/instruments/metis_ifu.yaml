@@ -8,9 +8,9 @@ telescope: ELT
 date: MJD-OBS
 date_format: mjd
 
-modes: [IFU_NOMINAL, IFU_EXTENDED]
-kw_modes: INSTMODE
-id_modes: [ifu_nom, ifu_ext]
+arms: [IFU_NOMINAL, IFU_EXTENDED]
+kw_arm: INSTMODE
+id_arm: [ifu_nom, ifu_ext]
 extension: 0
 orientation: [1, 1, 1]
 

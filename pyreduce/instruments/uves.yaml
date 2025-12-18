@@ -9,8 +9,8 @@ telescope: VLT
 date: DATE-OBS
 date_format: fits
 
-modes: [BLUE, MIDDLE, RED]
-modes_id: [blue, red, red]
+arms: [BLUE, MIDDLE, RED]
+arms_id: [blue, red, red]
 extension: [0, 2, 1]
 id: [[1, 5], [1, 4], [1, 4]]
 orientation: [2, 1, 1]

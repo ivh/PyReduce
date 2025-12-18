@@ -9,12 +9,12 @@ pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
 @pytest.fixture
-def original(files, instrument, mode, mask):
+def original(files, instrument, arm, mask):
     if len(files["curvature"]) == 0:
         return None, None
 
     files = files["curvature"]
-    original, chead = combine_frames(files, instrument, mode, mask=mask)
+    original, chead = combine_frames(files, instrument, arm, mask=mask)
 
     return original, chead
 

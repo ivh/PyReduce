@@ -11,8 +11,8 @@ time: TIME-OBS
 
 target: OBJECT
 instrument_mode: EXP_TYPE
-modes: [LRS_SLITLESS]
-modes_id: [MIR_LRS-SLITLESS]
+arms: [LRS_SLITLESS]
+arms_id: [MIR_LRS-SLITLESS]
 extension: [SCI]
 orientation: 3
 transpose: false

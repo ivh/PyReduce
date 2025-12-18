@@ -98,7 +98,7 @@ class Pipeline:
         instrument: Instrument | str,
         output_dir: str,
         target: str = "",
-        mode: str = "",
+        arm: str = "",
         night: str = "",
         config: dict | None = None,
         order_range: tuple[int, int] | None = None,
@@ -115,8 +115,8 @@ class Pipeline:
             Directory for output files
         target : str, optional
             Target name for output file naming
-        mode : str, optional
-            Instrument mode (e.g., "RED", "BLUE")
+        arm : str, optional
+            Instrument arm (e.g., "RED", "BLUE")
         night : str, optional
             Observation night string
         config : dict, optional
@@ -136,10 +136,10 @@ class Pipeline:
             instrument=instrument.name.upper(),
             target=target,
             night=night,
-            mode=mode,
+            arm=arm,
         )
         self.target = target
-        self.mode = mode
+        self.arm = arm
         self.night = night
         self.config = config or {}
         self.order_range = order_range
@@ -258,7 +258,7 @@ class Pipeline:
         """Get the standard inputs for Step classes."""
         return (
             self.instrument,
-            self.mode,
+            self.arm,
             self.target,
             self.night,
             self.output_dir,
@@ -350,7 +350,7 @@ class Pipeline:
         output_dir: str,
         target: str,
         instrument,
-        mode: str,
+        arm: str,
         night: str,
         config: dict,
         order_range=None,
@@ -372,8 +372,8 @@ class Pipeline:
             Target name
         instrument : Instrument or str
             Instrument instance or name
-        mode : str
-            Instrument mode
+        arm : str
+            Instrument arm
         night : str
             Observation night
         config : dict
@@ -396,7 +396,7 @@ class Pipeline:
             instrument=instrument,
             output_dir=output_dir,
             target=target,
-            mode=mode,
+            arm=arm,
             night=night,
             config=config,
             order_range=order_range,

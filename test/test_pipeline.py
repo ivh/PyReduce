@@ -89,13 +89,13 @@ class TestPipelineExecution:
     """Test Pipeline execution with real data."""
 
     @pytest.mark.instrument
-    def test_pipeline_bias_only(self, instr, mode, files, settings, tmp_path):
+    def test_pipeline_bias_only(self, instr, arm, files, settings, tmp_path):
         """Test running just bias step through Pipeline."""
         bias_files = files.get("bias", [])
         if len(bias_files) == 0:
             pytest.skip("No bias files for this instrument")
 
-        pipe = Pipeline(instr, str(tmp_path), mode=mode, config=settings).bias(
+        pipe = Pipeline(instr, str(tmp_path), arm=arm, config=settings).bias(
             list(bias_files)
         )
         result = pipe.run()
@@ -107,14 +107,14 @@ class TestPipelineExecution:
         assert bias_data is not None
 
     @pytest.mark.instrument
-    def test_pipeline_flat_with_bias(self, instr, mode, files, settings, tmp_path):
+    def test_pipeline_flat_with_bias(self, instr, arm, files, settings, tmp_path):
         """Test running flat step which depends on bias."""
         flat_files = files.get("flat", [])
         if len(flat_files) == 0:
             pytest.skip("No flat files for this instrument")
 
         bias_files = list(files.get("bias", []))
-        pipe = Pipeline(instr, str(tmp_path), mode=mode, config=settings)
+        pipe = Pipeline(instr, str(tmp_path), arm=arm, config=settings)
         if bias_files:
             pipe = pipe.bias(bias_files)
         pipe = pipe.flat(list(flat_files))
@@ -123,14 +123,14 @@ class TestPipelineExecution:
         assert "flat" in result
 
     @pytest.mark.instrument
-    def test_pipeline_trace_orders(self, instr, mode, files, settings, tmp_path):
+    def test_pipeline_trace_orders(self, instr, arm, files, settings, tmp_path):
         """Test order tracing through Pipeline."""
         order_files = files.get("orders", [])
         if len(order_files) == 0:
             pytest.skip("No order tracing files for this instrument")
 
         bias_files = list(files.get("bias", []))
-        pipe = Pipeline(instr, str(tmp_path), mode=mode, config=settings)
+        pipe = Pipeline(instr, str(tmp_path), arm=arm, config=settings)
         if bias_files:
             pipe = pipe.bias(bias_files)
         pipe = pipe.trace_orders(list(order_files))
@@ -141,13 +141,13 @@ class TestPipelineExecution:
         assert orders is not None
 
     @pytest.mark.instrument
-    def test_pipeline_results_property(self, instr, mode, files, settings, tmp_path):
+    def test_pipeline_results_property(self, instr, arm, files, settings, tmp_path):
         """Test that results property returns same as run()."""
         bias_files = files.get("bias", [])
         if len(bias_files) == 0:
             pytest.skip("No bias files for this instrument")
 
-        pipe = Pipeline(instr, str(tmp_path), mode=mode, config=settings).bias(
+        pipe = Pipeline(instr, str(tmp_path), arm=arm, config=settings).bias(
             list(bias_files)
         )
         run_result = pipe.run()

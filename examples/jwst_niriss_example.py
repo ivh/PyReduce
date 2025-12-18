@@ -12,7 +12,7 @@ from pyreduce import datasets
 instrument = "JWST_NIRISS"
 target = None
 night = None
-mode = "GR700XD"
+arm = "GR700XD"
 steps = (
     "bias",
     "flat",
@@ -41,7 +41,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

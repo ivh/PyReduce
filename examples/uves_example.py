@@ -10,7 +10,7 @@ from pyreduce import datasets
 instrument = "UVES"
 target = "HD[- ]?132205"
 night = "2010-04-01"
-mode = "middle"
+arm = "middle"
 steps = (
     "bias",
     "flat",
@@ -30,7 +30,7 @@ steps = (
 # load dataset (and save the location)
 base_dir = datasets.UVES()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw/"
-output_dir = "reduced/{night}/{mode}"
+output_dir = "reduced/{night}/{arm}"
 
 config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
@@ -38,7 +38,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

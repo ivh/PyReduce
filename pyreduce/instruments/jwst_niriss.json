@@ -7,9 +7,9 @@
     "date": "DATE-OBS",
     "date_format": "iso",
     "instrument_mode": "PUPIL",
-    "modes": ["GR700XD"],
-    "modes_id": ["GR700XD"],
-    "extension": ["SCI"],
+    "extension": [
+        "SCI"
+    ],
     "orientation": 0,
     "transpose": false,
     "prescan_y": 0,
@@ -32,21 +32,26 @@
     "position.vz": "JWST_DZ",
     "target": "TARGNAME",
     "observation_type": "FILETYPE",
-
-    "kw_bias" : null,
-    "kw_flat" : "FILENAME",
+    "kw_bias": null,
+    "kw_flat": "FILENAME",
     "kw_curvature": null,
     "kw_scatter": "FILENAME",
-    "kw_orders" : "FILENAME",
+    "kw_orders": "FILENAME",
     "kw_wave": null,
     "kw_comb": null,
     "kw_spec": "INSTRUME",
-    "id_bias" : null,
+    "id_bias": null,
     "id_flat": "flat.fits",
     "id_orders": "flat.fits",
     "id_curvature": null,
     "id_scatter": "flat.fits",
     "id_wave": null,
     "id_comb": null,
-    "id_spec": "NIRISS"
+    "id_spec": "NIRISS",
+    "arms": [
+        "GR700XD"
+    ],
+    "arms_id": [
+        "GR700XD"
+    ]
 }

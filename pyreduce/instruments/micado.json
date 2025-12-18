@@ -5,11 +5,10 @@
     "telescope": "ELT",
     "date": "MJD-OBS",
     "date_format": "mjd",
-    "modes": ["NIR"],
-    "kw_modes": "ESO DET CHIP*NAME",
-    "id_modes": ["Hawaii4RG"],
     "extension": 0,
-    "orientation": [1],
+    "orientation": [
+        1
+    ],
     "prescan_x": 0,
     "overscan_x": 0,
     "prescan_y": 0,
@@ -49,5 +48,12 @@
     "id_scatter": "LAMP,FLAT",
     "id_wave": "WAVE",
     "id_comb": null,
-    "id_spec": "OBJECT"
+    "id_spec": "OBJECT",
+    "arms": [
+        "NIR"
+    ],
+    "kw_arm": "ESO DET CHIP*NAME",
+    "id_arm": [
+        "Hawaii4RG"
+    ]
 }

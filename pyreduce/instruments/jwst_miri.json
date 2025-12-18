@@ -8,12 +8,6 @@
     "time": "TIME-OBS",
     "target": "OBJECT",
     "instrument_mode": "EXP_TYPE",
-    "modes": [
-        "LRS_SLITLESS"
-    ],
-    "modes_id": [
-        "MIR_LRS-SLITLESS"
-    ],
     "extension": [
         "SCI"
     ],
@@ -33,21 +27,26 @@
     "dec": "DEC_V1",
     "pa": "PA_V3",
     "exposure_time": "EXPTIME",
-
-    "kw_bias" : null,
-    "kw_flat" : null,
+    "kw_bias": null,
+    "kw_flat": null,
     "kw_curvature": null,
     "kw_scatter": null,
-    "kw_orders" : null,
+    "kw_orders": null,
     "kw_wave": null,
     "kw_comb": null,
     "kw_spec": "FILETYPE",
-    "id_bias" : null,
+    "id_bias": null,
     "id_flat": null,
     "id_orders": null,
     "id_curvature": null,
     "id_scatter": null,
     "id_wave": null,
     "id_comb": null,
-    "id_spec": "ILLUMINATION"
+    "id_spec": "ILLUMINATION",
+    "arms": [
+        "LRS_SLITLESS"
+    ],
+    "arms_id": [
+        "MIR_LRS-SLITLESS"
+    ]
 }

@@ -10,7 +10,7 @@ from pyreduce.configuration import get_configuration_for_instrument
 instrument = "Crires_plus"
 target = ""
 night = ""
-mode = "J1228_Open_det1"
+arm = "J1228_Open_det1"
 steps = (
     # "bias",
     # "flat",
@@ -48,7 +48,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

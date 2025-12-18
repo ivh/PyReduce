@@ -10,7 +10,7 @@ instrument = "NEID"
 # target = "HD 152843"
 target = ""
 night = ""
-mode = "NEID"
+arm = "NEID"
 steps = (
     #  "bias",
     # "flat",
@@ -31,7 +31,7 @@ steps = (
 # base_dir = datasets.HARPS("/DATA/PyReduce")
 base_dir = "/home/tom/pipes/neid_data"
 input_dir = "raw"
-output_dir = "reduced_{mode}"
+output_dir = "reduced_{arm}"
 
 # instrument = HARPS()
 # files = instrument.find_files(base_dir + "/" + input_dir)
@@ -45,7 +45,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

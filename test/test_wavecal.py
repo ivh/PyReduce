@@ -7,14 +7,14 @@ from pyreduce.wavelength_calibration import WavelengthCalibration
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads, pytest.mark.slow]
 
 
-def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_range):
+def test_wavecal(files, instr, instrument, arm, mask, orders, settings, order_range):
     name = "wavecal_master"
     if len(files[name]) == 0:
         pytest.skip(f"No wavecal files found for instrument {instrument}")
 
     orders, column_range = orders
     files = files[name][0]
-    orig, thead = instr.load_fits(files, mode, mask=mask)
+    orig, thead = instr.load_fits(files, arm, mask=mask)
     thead["obase"] = (0, "base order number")
 
     # Extract wavecal spectrum
@@ -40,7 +40,7 @@ def test_wavecal(files, instr, instrument, mode, mask, orders, settings, order_r
     # assert np.min(thar) == 0
     # assert np.max(thar) == 1
 
-    reference = instr.get_wavecal_filename(thead, mode, **settings["instrument"])
+    reference = instr.get_wavecal_filename(thead, arm, **settings["instrument"])
     reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]
 

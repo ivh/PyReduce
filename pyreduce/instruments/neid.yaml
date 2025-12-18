@@ -10,8 +10,8 @@ telescope: TELESCOP
 date: DATE-OBS
 date_format: fits
 
-modes: [HR]
-modes_id: [HR]
+arms: [HR]
+arms_id: [HR]
 namps: NAMPS
 extension: "AMPLIFIER {amp}"
 orientation: 0

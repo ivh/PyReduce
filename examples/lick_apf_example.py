@@ -9,7 +9,7 @@ import pyreduce
 instrument = "Lick_APF"
 target = "KIC05005618"
 night = None
-mode = ""
+arm = ""
 steps = (
     "bias",
     # "flat",
@@ -38,7 +38,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

@@ -4,18 +4,6 @@
     "id_instrument": "MCDONALD",
     "telescope": "OBSERVAT",
     "date": "DATE-OBS",
-    "modes": [
-        "CS21",
-        "CS23",
-        "TS21",
-        "TS23"
-    ],
-    "id_modes": [
-        "cs21-e2",
-        "cs23-e2",
-        "ts21-e2",
-        "ts23-e2"
-    ],
     "extension": 0,
     "orientation": 0,
     "transpose": false,
@@ -39,7 +27,6 @@
     "altitude": 2075,
     "target": "OBJECT",
     "instrument_mode": "INSTRUME",
-    "kw_modes": "INSTRUME",
     "kw_bias": "OBJECT",
     "kw_flat": "IMAGETYP",
     "kw_curvature": "OBJECT",
@@ -55,5 +42,18 @@
     "id_scatter": "flat",
     "id_wave": "ThAr",
     "id_comb": null,
-    "id_spec": "object"
+    "id_spec": "object",
+    "arms": [
+        "CS21",
+        "CS23",
+        "TS21",
+        "TS23"
+    ],
+    "kw_arm": "INSTRUME",
+    "id_arm": [
+        "cs21-e2",
+        "cs23-e2",
+        "ts21-e2",
+        "ts23-e2"
+    ]
 }

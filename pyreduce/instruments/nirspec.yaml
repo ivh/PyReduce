@@ -8,7 +8,7 @@ telescope: Keck
 date: DATE-OBS
 date_format: fits
 
-modes: [NIRSPEC]
+arms: [NIRSPEC]
 extension: 0
 orientation: 0
 transpose: false

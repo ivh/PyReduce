@@ -6,8 +6,6 @@
     "telescope": "TELESCOP",
     "date": "DATE-OBS",
     "date_format": "fits",
-    "modes": ["HR"],
-    "modes_id" : ["HR"],
     "namps": "NAMPS",
     "extension": "AMPLIFIER {amp}",
     "orientation": 0,
@@ -47,5 +45,11 @@
     "id_scatter": "LAMP,LAMP,TUN",
     "id_wave": "WAVE,WAVE,THAR2",
     "id_comb": "WAVE,WAVE,COMB",
-    "id_spec": "STAR,*"
+    "id_spec": "STAR,*",
+    "arms": [
+        "HR"
+    ],
+    "arms_id": [
+        "HR"
+    ]
 }

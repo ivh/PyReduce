@@ -45,7 +45,7 @@ start_logging(log_file)
 # Define other parameter for PyReduce
 target = ""
 night = "2019-07-21"
-mode = ""
+arm = ""
 steps = (
     "bias",
     "flat",
@@ -66,7 +66,7 @@ pipe = Pipeline.from_files(
     output_dir=output_dir,
     target=target,
     instrument=instrument,
-    mode=mode,
+    arm=arm,
     night=night,
     config=config,
     # order_range=order_range,

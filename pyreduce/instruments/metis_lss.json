@@ -5,17 +5,6 @@
     "telescope": "ELT",
     "date": "MJD-OBS",
     "date_format": "mjd",
-    "modes": [
-	"LSS_L",
-	"LSS_M",
-	"LSS_N"
-    ],
-    "kw_modes": "INSTMODE",
-    "id_modes": [
-	"lss_l",
-	"lss_m",
-	"lss_n"
-    ],
     "extension": 0,
     "orientation": [
         1,
@@ -61,5 +50,16 @@
     "id_scatter": "LAMP,FLAT",
     "id_wave": "SKY,WAVE",
     "id_comb": null,
-    "id_spec": "OBJECT"
+    "id_spec": "OBJECT",
+    "arms": [
+        "LSS_L",
+        "LSS_M",
+        "LSS_N"
+    ],
+    "kw_arm": "INSTMODE",
+    "id_arm": [
+        "lss_l",
+        "lss_m",
+        "lss_n"
+    ]
 }

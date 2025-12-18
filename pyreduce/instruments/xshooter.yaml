@@ -8,9 +8,9 @@ telescope: VLT
 date: MJD-OBS
 date_format: mjd
 
-modes: [UVB, VIS, NIR]
-kw_modes: "ESO DET CHIP*NAME"
-id_modes: ["E2V CC44-82", "MIT/LL CCID-20", "Hawaii2RG"]
+arms: [UVB, VIS, NIR]
+kw_arm: "ESO DET CHIP*NAME"
+id_arm: ["E2V CC44-82", "MIT/LL CCID-20", "Hawaii2RG"]
 extension: 0
 orientation: [1, 0, 0]
 transpose: false

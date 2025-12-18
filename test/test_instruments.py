@@ -21,8 +21,8 @@ def supported_instrument(request):
 
 
 @pytest.fixture
-def supported_modes(supported_instrument):
-    return instrument_info.get_supported_modes(supported_instrument)
+def supported_arms(supported_instrument):
+    return instrument_info.get_supported_arms(supported_instrument)
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_get_instrument_info(supported_instrument):
 
 
 @pytest.mark.unit
-def test_modeinfo(supported_instrument, supported_modes):
+def test_arminfo(supported_instrument, supported_arms):
     # Standard FITS header keywords
     required_keywords = ["e_instrument", "e_telescope", "e_exptime", "e_jd"]
     # PyReduce keywords
@@ -91,18 +91,18 @@ def test_modeinfo(supported_instrument, supported_modes):
         "e_obslat",
         "e_obsalt",
     ]
-    for mode in supported_modes:
-        header = instrument_info.modeinfo({}, supported_instrument, mode)
+    for arm in supported_arms:
+        header = instrument_info.arminfo({}, supported_instrument, arm)
         assert isinstance(header, dict)
         for key in required_keywords:
             assert key in header.keys()
 
 
 @pytest.mark.unit
-def test_sort_files(supported_instrument, supported_modes, config):
-    for mode in supported_modes:
+def test_sort_files(supported_instrument, supported_arms, config):
+    for arm in supported_arms:
         files = instrument_info.sort_files(
-            ".", "", "", supported_instrument, mode, **config["instrument"]
+            ".", "", "", supported_instrument, arm, **config["instrument"]
         )
         print(files)
         assert isinstance(files, list)
@@ -124,8 +124,8 @@ def test_sort_files(supported_instrument, supported_modes, config):
     reason="No wavelength calibration files for most instruments present at the moment"
 )
 @pytest.mark.unit
-def test_get_wavecal_name(supported_instrument, supported_modes):
-    for mode in supported_modes:
-        wname = instrument_info.get_wavecal_filename({}, supported_instrument, mode)
+def test_get_wavecal_name(supported_instrument, supported_arms):
+    for arm in supported_arms:
+        wname = instrument_info.get_wavecal_filename({}, supported_instrument, arm)
         assert isinstance(wname, str)
         assert exists(wname)

@@ -10,11 +10,30 @@
     "id_band": "ESO INS WLEN ID",
     "id_decker": "ESO INS OPTI8 ID",
     "id_lamp": "ESO INS1 LAMP? ID",
-    "modes": ["SL", "IFU"],
-    "deckers": ["Open", "pos1", "pos2"],
-    "bands": ["UBV", "RIZ", "YJH", "K"],
-    "settings": ["B", "V", "R", "IZ", "Y", "J", "H", "K"],
-    "chips": ["det1"],
+    "deckers": [
+        "Open",
+        "pos1",
+        "pos2"
+    ],
+    "bands": [
+        "UBV",
+        "RIZ",
+        "YJH",
+        "K"
+    ],
+    "settings": [
+        "B",
+        "V",
+        "R",
+        "IZ",
+        "Y",
+        "J",
+        "H",
+        "K"
+    ],
+    "chips": [
+        "det1"
+    ],
     "extension": "CHIP1.INT1",
     "orientation": 0,
     "transpose": false,
@@ -39,12 +58,11 @@
     "altitude": "HIERARCH ESO TEL GEOELEV",
     "target": "OBJECT",
     "observation_type": "ESO DPR TYPE",
-
-    "kw_bias" : "ESO DPR TYPE",
-    "kw_flat" : "ESO DPR TYPE",
+    "kw_bias": "ESO DPR TYPE",
+    "kw_flat": "ESO DPR TYPE",
     "kw_curvature": "ESO DPR TYPE",
     "kw_scatter": "ESO DPR TYPE",
-    "kw_orders" : "ESO DPR TYPE",
+    "kw_orders": "ESO DPR TYPE",
     "kw_wave": "ESO DPR TYPE",
     "kw_comb": "ESO DPR TYPE",
     "kw_spec": "ESO DPR TYPE",
@@ -56,6 +74,10 @@
     "id_wave": "WAVE,UNE",
     "id_comb": "WAVE,FPET",
     "id_spec": "STAR,*,*",
-    "id_lamp_wavecal" : "UNe_HCL",
-    "id_lamp_etalon": "Etalon_Halogen"
+    "id_lamp_wavecal": "UNe_HCL",
+    "id_lamp_etalon": "Etalon_Halogen",
+    "arms": [
+        "SL",
+        "IFU"
+    ]
 }

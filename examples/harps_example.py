@@ -10,7 +10,7 @@ from pyreduce import datasets
 instrument = "HARPS"
 target = "HD109200"
 night = None
-mode = "red"
+arm = "red"
 steps = (
     "bias",
     "flat",
@@ -32,7 +32,7 @@ steps = (
 # load dataset (and save the location)
 base_dir = datasets.HARPS()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
-output_dir = "reduced_{mode}"
+output_dir = "reduced_{arm}"
 
 # instrument = HARPS()
 # files = instrument.find_files(base_dir + "/" + input_dir)
@@ -46,7 +46,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

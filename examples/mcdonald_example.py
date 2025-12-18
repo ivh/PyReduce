@@ -10,7 +10,7 @@ from pyreduce import datasets
 instrument = "McDonald"
 target = "Vega"
 night = None
-mode = "CS23"
+arm = "CS23"
 steps = (
     # "bias",
     # "flat",
@@ -41,7 +41,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

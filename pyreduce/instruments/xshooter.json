@@ -5,17 +5,6 @@
     "telescope": "VLT",
     "date": "MJD-OBS",
     "date_format": "mjd",
-    "modes": [
-        "UVB",
-        "VIS",
-        "NIR"
-    ],
-    "kw_modes": "ESO DET CHIP*NAME",
-    "id_modes": [
-        "E2V CC44-82",
-        "MIT/LL CCID-20",
-        "Hawaii2RG"
-    ],
     "extension": 0,
     "orientation": [
         1,
@@ -62,5 +51,16 @@
     "id_scatter": "LAMP,FLAT",
     "id_wave": "LAMP,WAVE",
     "id_comb": null,
-    "id_spec": "OBJECT"
+    "id_spec": "OBJECT",
+    "arms": [
+        "UVB",
+        "VIS",
+        "NIR"
+    ],
+    "kw_arm": "ESO DET CHIP*NAME",
+    "id_arm": [
+        "E2V CC44-82",
+        "MIT/LL CCID-20",
+        "Hawaii2RG"
+    ]
 }

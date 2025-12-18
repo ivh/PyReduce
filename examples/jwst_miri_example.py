@@ -9,7 +9,7 @@ import pyreduce
 instrument = "JWST_MIRI"
 target = None
 night = None
-mode = "LRS_SLITLESS"
+arm = "LRS_SLITLESS"
 steps = (
     "bias",
     "flat",
@@ -38,7 +38,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

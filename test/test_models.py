@@ -70,26 +70,26 @@ class TestInstrumentConfigValidation:
             InstrumentConfig(**data)
 
     @pytest.mark.unit
-    def test_modes_as_list(self):
-        """Test modes field accepts list."""
+    def test_arms_as_list(self):
+        """Test arms field accepts list."""
         data = {
             "instrument": "INSTRUME",
             "id_instrument": "TEST",
-            "modes": ["BLUE", "RED"],
+            "arms": ["BLUE", "RED"],
         }
         config = InstrumentConfig(**data)
-        assert config.modes == ["BLUE", "RED"]
+        assert config.arms == ["BLUE", "RED"]
 
     @pytest.mark.unit
-    def test_modes_as_single_string(self):
-        """Test modes field converts single string to list."""
+    def test_arms_as_single_string(self):
+        """Test arms field converts single string to list."""
         data = {
             "instrument": "INSTRUME",
             "id_instrument": "TEST",
-            "modes": "SINGLE",
+            "arms": "SINGLE",
         }
         config = InstrumentConfig(**data)
-        assert config.modes == ["SINGLE"]
+        assert config.arms == ["SINGLE"]
 
     @pytest.mark.unit
     def test_extension_as_int(self):

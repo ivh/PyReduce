@@ -145,7 +145,7 @@ def fix_bad_pixels(probability, buffer, readnoise, gain, threshold):
 
 
 def combine_frames_simple(
-    files, instrument, mode, extension=None, dtype=np.float32, **kwargs
+    files, instrument, arm, extension=None, dtype=np.float32, **kwargs
 ):
     """
     Simple addition of similar images.
@@ -156,8 +156,8 @@ def combine_frames_simple(
         list of fits files to combine
     instrument : str
         instrument id for modinfo
-    mode : str
-        instrument mode
+    arm : str
+        instrument arm
     extension : int, optional
         fits extension to load (default: 1)
     dtype : np.dtype, optional
@@ -174,13 +174,13 @@ def combine_frames_simple(
 
     # Load the first file to get the shape and header
     result, head = instrument.load_fits(
-        files[0], mode, dtype=dtype, extension=extension, **kwargs
+        files[0], arm, dtype=dtype, extension=extension, **kwargs
     )
 
     # Sum the remaining files
     for fname in files[1:]:
         data, _ = instrument.load_fits(
-            fname, mode, dtype=dtype, extension=extension, **kwargs
+            fname, arm, dtype=dtype, extension=extension, **kwargs
         )
         result += data
 
@@ -207,7 +207,7 @@ def combine_frames_simple(
 def combine_frames(
     files,
     instrument,
-    mode,
+    arm,
     extension=None,
     threshold=3.5,
     window=50,
@@ -221,7 +221,7 @@ def combine_frames(
     combine_frames co-adds a group of FITS files with 2D images of identical dimensions.
     In the process it rejects cosmic ray, detector defects etc. It is capable of
     handling images that have strip pattern (e.g. echelle spectra) using the REDUCE
-    modinfo conventions to figure out image orientation and useful pixel ranges.
+    arminfo conventions to figure out image orientation and useful pixel ranges.
     It can handle many frames. Special cases: 1 file in the list (the input is returned as output)
     and 2 files (straight sum is returned).
 
@@ -274,9 +274,9 @@ def combine_frames(
     files : list(str)
         list of fits files to combine
     instrument : str
-        instrument id for modinfo
-    mode : str
-        instrument mode
+        instrument id for arminfo
+    arm : str
+        instrument arm
     extension : int, optional
         fits extension to load (default: 1)
     threshold : float, optional
@@ -314,7 +314,7 @@ def combine_frames(
         raise ValueError("No files given for combine frames")
     elif len(files) == 1:
         result, head = instrument.load_fits(
-            files[0], mode, dtype=dtype, extension=extension, **kwargs
+            files[0], arm, dtype=dtype, extension=extension, **kwargs
         )
         readnoise = np.atleast_1d(head.get("e_readn", 0))
         total_exposure_time = head.get("exptime", 0)
@@ -324,12 +324,12 @@ def combine_frames(
     # Two images
     elif len(files) == 2:
         bias1, head1 = instrument.load_fits(
-            files[0], mode, dtype=dtype, extension=extension, **kwargs
+            files[0], arm, dtype=dtype, extension=extension, **kwargs
         )
         exp1 = head1.get("exptime", 0)
 
         bias2, head2 = instrument.load_fits(
-            files[1], mode, dtype=dtype, extension=extension, **kwargs
+            files[1], arm, dtype=dtype, extension=extension, **kwargs
         )
         exp2 = head2.get("exptime", 0)
         readnoise = head2.get("e_readn", 0)
@@ -348,7 +348,7 @@ def combine_frames(
 
         heads = [
             instrument.load_fits(
-                f, mode, header_only=True, dtype=dtype, extension=extension, **kwargs
+                f, arm, header_only=True, dtype=dtype, extension=extension, **kwargs
             )
             for f in files
         ]
@@ -397,7 +397,7 @@ def combine_frames(
         # Load all image hdus, but leave the data on the disk, using memmap
         # Need to scale data later
         if extension is None:
-            extension = [instrument.get_extension(h, mode) for h in heads]
+            extension = [instrument.get_extension(h, arm) for h in heads]
         else:
             extension = [extension] * len(heads)
 
@@ -523,7 +523,7 @@ def combine_frames(
 def combine_calibrate(
     files,
     instrument,
-    mode,
+    arm,
     mask=None,
     bias=None,
     bhead=None,
@@ -544,8 +544,8 @@ def combine_calibrate(
         list of file names to load
     instrument : Instrument
         PyReduce instrument object with load_fits method
-    mode : str
-        descriptor of the instrument mode
+    arm : str
+        descriptor of the instrument arm
     mask : array
         2D Bad Pixel Mask to apply to the master image
     bias : tuple(bias, bhead), optional
@@ -574,7 +574,7 @@ def combine_calibrate(
         Unrecognised bias_scaling option
     """
     # Combine the images and try to remove bad pixels
-    orig, thead = combine_frames(files, instrument, mode, mask=mask, **kwargs)
+    orig, thead = combine_frames(files, instrument, arm, mask=mask, **kwargs)
 
     # Subtract bias
     if bias is not None and bias_scaling is not None and bias_scaling != "none":
@@ -635,7 +635,7 @@ def combine_calibrate(
 
 
 def combine_polynomial(
-    files, instrument, mode, mask, degree=1, plot=False, plot_title=None
+    files, instrument, arm, mask, degree=1, plot=False, plot_title=None
 ):
     """
     Combine the input files by fitting a polynomial of the pixel value versus
@@ -647,8 +647,8 @@ def combine_polynomial(
         list of file names
     instrument : Instrument
         PyReduce instrument object with load_fits method
-    mode : str
-        mode identifier for this instrument
+    arm : str
+        arm identifier for this instrument
     mask : array
         bad pixel mask to apply to the coefficients
     degree : int, optional
@@ -665,7 +665,7 @@ def combine_polynomial(
     bhead : Header
         combined FITS header of the coefficients
     """
-    hdus = [instrument.load_fits(f, mode) for f in tqdm(files)]
+    hdus = [instrument.load_fits(f, arm) for f in tqdm(files)]
     data = np.array([h[0] for h in hdus])
     exptimes = np.array([h[1]["EXPTIME"] for h in hdus])
     # Numpy polyfit can fit all polynomials at the same time
@@ -705,7 +705,7 @@ def combine_polynomial(
 def combine_bias(
     files,
     instrument,
-    mode,
+    arm,
     extension=None,
     plot=False,
     plot_title=None,
@@ -721,7 +721,7 @@ def combine_bias(
     files : list(str)
         bias files to combine
     instrument : str
-        instrument mode for modinfo
+        instrument arm for arminfo
     extension : {int, str}, optional
         fits extension to use (default: 1)
     xr : 2-tuple(int), optional
@@ -753,10 +753,10 @@ def combine_bias(
     n2 = len(list2)
 
     # Separately images in two groups.
-    bias1, head1 = combine_frames(list1, instrument, mode, extension, **kwargs)
+    bias1, head1 = combine_frames(list1, instrument, arm, extension, **kwargs)
     bias1 /= n1
 
-    bias2, head = combine_frames(list2, instrument, mode, extension, **kwargs)
+    bias2, head = combine_frames(list2, instrument, arm, extension, **kwargs)
     bias2 /= n2
 
     # Make sure we know the gain.

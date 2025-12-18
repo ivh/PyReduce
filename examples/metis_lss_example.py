@@ -9,7 +9,7 @@ import pyreduce
 instrument = "METIS"
 target = ""
 night = ""
-mode = "LSS_M"  # LSS_M (settings_metis.json is now optimized for LSS_M mode)
+arm = "LSS_M"  # LSS_M (settings_metis.json is now optimized for LSS_M arm)
 steps = (
     # "bias",
     "flat",
@@ -66,7 +66,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    mode,
+    arm,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

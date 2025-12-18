@@ -14,7 +14,7 @@ id_band: "ESO INS WLEN ID"
 id_decker: "ESO INS OPTI8 ID"
 id_lamp: "ESO INS1 LAMP? ID"
 
-modes: [J1228]
+arms: [J1228]
 deckers: [OPEN, pos1, pos2]
 bands: [Y, J, H, K, L, M]
 settings:

@@ -6,9 +6,9 @@
     "telescope": "Lick",
     "date": "DATE",
     "date_format": "fits",
-    "modes": [""],
-    "modes_id": [""],
-    "extension": [0],
+    "extension": [
+        0
+    ],
     "orientation": 3,
     "transpose": false,
     "prescan_y": "TCPR1",
@@ -30,17 +30,15 @@
     "altitude": 1290,
     "target": "OBJECT",
     "observation_type": "OBSTYPE",
-
     "kw_mode": null,
-    "kw_bias" : "OBSTYPE",
-    "kw_flat" : "OBJECT",
+    "kw_bias": "OBSTYPE",
+    "kw_flat": "OBJECT",
     "kw_curvature": "OBJECT",
     "kw_scatter": "OBJECT",
-    "kw_orders" : "OBJECT",
+    "kw_orders": "OBJECT",
     "kw_wave": "OBJECT",
     "kw_comb": null,
     "kw_spec": "OBSTYPE",
-
     "id_mode": null,
     "id_bias": "DARK",
     "id_flat": "WideFlat",
@@ -49,5 +47,11 @@
     "id_scatter": "NarrowFlat",
     "id_wave": "ThAr",
     "id_comb": null,
-    "id_spec": "OBJECT"
+    "id_spec": "OBJECT",
+    "arms": [
+        ""
+    ],
+    "arms_id": [
+        ""
+    ]
 }
