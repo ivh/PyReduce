@@ -1,0 +1,326 @@
+"""
+Fluent Pipeline API for PyReduce.
+
+Provides a cleaner interface for building and running reduction pipelines.
+Wraps the existing Step classes internally for backward compatibility.
+
+Example usage:
+    from pyreduce.pipeline import Pipeline
+    from pyreduce.instruments import load_instrument
+
+    inst = load_instrument("UVES")
+    result = (
+        Pipeline(inst, output_dir, config=settings)
+        .bias(bias_files)
+        .flat(flat_files)
+        .trace_orders(order_files)
+        .extract(science_files)
+        .run()
+    )
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import TYPE_CHECKING
+
+from .instruments.instrument_info import load_instrument
+from .reduce import (
+    BackgroundScatter,
+    Bias,
+    ContinuumNormalization,
+    Finalize,
+    Flat,
+    LaserFrequencyCombFinalize,
+    LaserFrequencyCombMaster,
+    Mask,
+    NormalizeFlatField,
+    OrderTracing,
+    RectifyImage,
+    ScienceExtraction,
+    SlitCurvatureDetermination,
+    WavelengthCalibrationFinalize,
+    WavelengthCalibrationInitialize,
+    WavelengthCalibrationMaster,
+)
+
+if TYPE_CHECKING:
+    from .instruments.common import Instrument
+
+logger = logging.getLogger(__name__)
+
+
+class Pipeline:
+    """Fluent API for building reduction pipelines."""
+
+    STEP_CLASSES = {
+        "mask": Mask,
+        "bias": Bias,
+        "flat": Flat,
+        "orders": OrderTracing,
+        "scatter": BackgroundScatter,
+        "norm_flat": NormalizeFlatField,
+        "wavecal_master": WavelengthCalibrationMaster,
+        "wavecal_init": WavelengthCalibrationInitialize,
+        "wavecal": WavelengthCalibrationFinalize,
+        "freq_comb_master": LaserFrequencyCombMaster,
+        "freq_comb": LaserFrequencyCombFinalize,
+        "curvature": SlitCurvatureDetermination,
+        "science": ScienceExtraction,
+        "continuum": ContinuumNormalization,
+        "finalize": Finalize,
+        "rectify": RectifyImage,
+    }
+
+    STEP_ORDER = {
+        "mask": 5,
+        "bias": 10,
+        "flat": 20,
+        "orders": 30,
+        "curvature": 40,
+        "scatter": 45,
+        "norm_flat": 50,
+        "wavecal_master": 60,
+        "wavecal_init": 64,
+        "wavecal": 67,
+        "freq_comb_master": 70,
+        "freq_comb": 72,
+        "rectify": 75,
+        "science": 80,
+        "continuum": 90,
+        "finalize": 100,
+    }
+
+    def __init__(
+        self,
+        instrument: Instrument | str,
+        output_dir: str,
+        target: str = "",
+        mode: str = "",
+        night: str = "",
+        config: dict | None = None,
+        order_range: tuple[int, int] | None = None,
+    ):
+        """Initialize a reduction pipeline.
+
+        Parameters
+        ----------
+        instrument : Instrument or str
+            Instrument instance or name to load
+        output_dir : str
+            Directory for output files
+        target : str, optional
+            Target name for output file naming
+        mode : str, optional
+            Instrument mode (e.g., "RED", "BLUE")
+        night : str, optional
+            Observation night string
+        config : dict, optional
+            Configuration dict with step-specific settings
+        order_range : tuple, optional
+            (first, last+1) orders to process
+        """
+        if isinstance(instrument, str):
+            instrument = load_instrument(instrument)
+
+        self.instrument = instrument
+        self.output_dir = output_dir.format(
+            instrument=instrument.name.upper(),
+            target=target,
+            night=night,
+            mode=mode,
+        )
+        self.target = target
+        self.mode = mode
+        self.night = night
+        self.config = config or {}
+        self.order_range = order_range
+
+        self._steps: list[tuple[str, list | None]] = []
+        self._data: dict = {}
+        self._files: dict = {}
+
+    def _add_step(self, name: str, files: list | None = None) -> Pipeline:
+        """Add a step to the pipeline."""
+        self._steps.append((name, files))
+        if files is not None:
+            self._files[name] = files
+        return self
+
+    # Step methods - fluent API
+
+    def mask(self) -> Pipeline:
+        """Load or create bad pixel mask."""
+        return self._add_step("mask")
+
+    def bias(self, files: list[str]) -> Pipeline:
+        """Combine bias frames into master bias."""
+        return self._add_step("bias", files)
+
+    def flat(self, files: list[str]) -> Pipeline:
+        """Combine flat frames into master flat."""
+        return self._add_step("flat", files)
+
+    def trace_orders(self, files: list[str] | None = None) -> Pipeline:
+        """Trace echelle orders on flat field.
+
+        If files not provided, uses flat from previous step.
+        """
+        return self._add_step("orders", files)
+
+    def curvature(self, files: list[str] | None = None) -> Pipeline:
+        """Determine slit curvature (tilt/shear)."""
+        return self._add_step("curvature", files)
+
+    def scatter(self, files: list[str] | None = None) -> Pipeline:
+        """Fit background scatter model."""
+        return self._add_step("scatter", files)
+
+    def normalize_flat(self) -> Pipeline:
+        """Normalize flat field, extract blaze function."""
+        return self._add_step("norm_flat")
+
+    def wavecal_master(self, files: list[str]) -> Pipeline:
+        """Extract wavelength calibration spectrum."""
+        return self._add_step("wavecal_master", files)
+
+    def wavecal_init(self) -> Pipeline:
+        """Initialize wavelength solution from line atlas."""
+        return self._add_step("wavecal_init")
+
+    def wavecal(self) -> Pipeline:
+        """Finalize wavelength calibration."""
+        return self._add_step("wavecal")
+
+    def wavelength_calibration(self, files: list[str]) -> Pipeline:
+        """Full wavelength calibration (master + init + finalize)."""
+        return self.wavecal_master(files).wavecal_init().wavecal()
+
+    def freq_comb_master(self, files: list[str]) -> Pipeline:
+        """Extract laser frequency comb spectrum."""
+        return self._add_step("freq_comb_master", files)
+
+    def freq_comb(self) -> Pipeline:
+        """Finalize frequency comb calibration."""
+        return self._add_step("freq_comb")
+
+    def extract(self, files: list[str]) -> Pipeline:
+        """Extract science spectra."""
+        return self._add_step("science", files)
+
+    def continuum(self) -> Pipeline:
+        """Normalize continuum."""
+        return self._add_step("continuum")
+
+    def finalize(self) -> Pipeline:
+        """Write final output files."""
+        return self._add_step("finalize")
+
+    def rectify(self) -> Pipeline:
+        """Rectify 2D image."""
+        return self._add_step("rectify")
+
+    # Loading intermediate results
+
+    def load(self, step: str, data=None) -> Pipeline:
+        """Load intermediate result instead of computing.
+
+        Parameters
+        ----------
+        step : str
+            Name of step whose output to load
+        data : any, optional
+            Data to use directly instead of loading from disk
+        """
+        if data is not None:
+            self._data[step] = data
+        else:
+            # Will be loaded during run()
+            self._data[step] = None  # Marker to load
+        return self
+
+    # Execution
+
+    def _get_step_inputs(self) -> tuple:
+        """Get the standard inputs for Step classes."""
+        return (
+            self.instrument,
+            self.mode,
+            self.target,
+            self.night,
+            self.output_dir,
+            self.order_range,
+        )
+
+    def _run_step(self, name: str, files: list | None, load_only: bool = False):
+        """Run or load a single step."""
+        step_class = self.STEP_CLASSES[name]
+        step_config = self.config.get(name, {})
+        step = step_class(*self._get_step_inputs(), **step_config)
+
+        # Get dependencies
+        deps = step.loadDependsOn if load_only else step.dependsOn
+        for dep in deps:
+            if dep not in self._data:
+                self._ensure_dependency(dep)
+        dep_args = {d: self._data[d] for d in deps}
+
+        if load_only:
+            try:
+                logger.info("Loading data from step '%s'", name)
+                return step.load(**dep_args)
+            except FileNotFoundError:
+                logger.warning(
+                    "Intermediate files for step '%s' not found, running instead.",
+                    name,
+                )
+                return self._run_step(name, files, load_only=False)
+
+        logger.info("Running step '%s'", name)
+        if files is not None:
+            dep_args["files"] = files
+        return step.run(**dep_args)
+
+    def _ensure_dependency(self, name: str):
+        """Ensure a dependency is available (load if needed)."""
+        if name in self._data:
+            return
+
+        files = self._files.get(name)
+        self._data[name] = self._run_step(name, files, load_only=True)
+
+    def run(self, skip_existing: bool = False) -> dict:
+        """Execute all queued steps.
+
+        Parameters
+        ----------
+        skip_existing : bool
+            If True, skip steps whose output files already exist
+
+        Returns
+        -------
+        dict
+            Results keyed by step name
+        """
+        # Create output directory
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
+        # Sort steps by execution order
+        sorted_steps = sorted(self._steps, key=lambda x: self.STEP_ORDER.get(x[0], 999))
+
+        for name, files in sorted_steps:
+            # Check if already computed
+            if name in self._data and self._data[name] is not None:
+                continue
+
+            result = self._run_step(name, files)
+            self._data[name] = result
+
+        return self._data
+
+    @property
+    def results(self) -> dict:
+        """Access results after run()."""
+        return self._data
