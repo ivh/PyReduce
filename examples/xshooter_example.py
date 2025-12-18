@@ -3,8 +3,6 @@ Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
-import os.path
-
 import pyreduce
 from pyreduce import datasets
 
@@ -33,11 +31,11 @@ steps = (
 # load dataset (and save the location)
 # change the location (as set in datasets() to some folder of you choice)
 # or dont pass a path to use the local directory
-base_dir = datasets.XSHOOTER(os.path.expanduser("~") + "/PyReduce/DATA")
+base_dir = datasets.XSHOOTER()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
 output_dir = "reduced"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=0)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 # config["science"]["extraction_method"] = "arc"
 # config["science"]["extraction_cutoff"] = 0
 
@@ -52,4 +50,5 @@ pyreduce.reduce.main(
     output_dir=output_dir,
     configuration=config,
     order_range=(0, 15),
+    plot=0,
 )

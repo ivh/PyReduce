@@ -35,7 +35,7 @@ input_dir = "awesimsoss"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=False)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
 pyreduce.reduce.main(
     instrument,
@@ -48,4 +48,5 @@ pyreduce.reduce.main(
     output_dir=output_dir,
     configuration=config,
     # order_range=(0, 25),
+    plot=0,
 )

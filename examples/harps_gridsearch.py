@@ -43,11 +43,11 @@ mode = "red"
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.HARPS(os.path.expanduser("~") + "/PyReduce/DATA")
+base_dir = datasets.HARPS()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
 output_dir = f"reduced_{mode}"
 
-config = configuration.get_configuration_for_instrument(instrument, plot=False)
+config = configuration.get_configuration_for_instrument(instrument)
 
 f = os.path.join(base_dir, output_dir, "harps_red.thar.npz")
 data = np.load(f, allow_pickle=True)

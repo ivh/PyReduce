@@ -2,7 +2,7 @@ import numpy as np
 
 from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments.common import create_custom_instrument
-from pyreduce.reduce import Reducer
+from pyreduce.pipeline import Pipeline
 from pyreduce.util import start_logging
 
 # Define the path to support files if possible
@@ -75,7 +75,7 @@ instrument.info["wavelength_range"] = [
 ]  # ATTN, flipping the order to match the order of the traces
 
 # For loading the config we specify pyreduce as the source, since this is the default
-config = get_configuration_for_instrument("pyreduce", plot=1)
+config = get_configuration_for_instrument("pyreduce")
 # Define your own configuration
 config["orders"]["filter_size"] = 20  # smoothing
 config["orders"]["degree"] = 4
@@ -144,15 +144,16 @@ steps = (
 )
 
 # Call the PyReduce algorithm
-reducer = Reducer(
-    files,
-    output_dir,
-    target,
-    instrument,
-    mode,
-    night,
-    config,
+pipe = Pipeline.from_files(
+    files=files,
+    output_dir=output_dir,
+    target=target,
+    instrument=instrument,
+    mode=mode,
+    night=night,
+    config=config,
     # order_range=[6,8],
-    # skip_existing=False,
+    steps=steps,
+    plot=1,
 )
-data = reducer.run_steps(steps=steps)
+data = pipe.run()

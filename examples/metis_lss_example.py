@@ -42,7 +42,7 @@ base_dir = "/Users/Nadeen/Dropbox/WORKING/iMETIS/Working/WORKING_PyReduce/DATA/d
 input_dir = "raw/"
 output_dir = "reduced/"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
 
 # Configuring parameters of individual steps here overwrites those defined in the the settings_METIS.json file.
@@ -73,4 +73,5 @@ pyreduce.reduce.main(
     output_dir=output_dir,
     configuration=config,
     # order_range=(16, 17),  #(16, 17) # I had to change it inside reduce.py becuase it does the fix_column_range for all detected orders > outside of image
+    plot=1,
 )

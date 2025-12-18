@@ -36,7 +36,7 @@ base_dir = "/media/data/Dropbox/Dropbox/WORKING/iMICADO/Working/WORKING_PyReduce
 input_dir = "raw_new/HK/"
 output_dir = "reduced_new/"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
+config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
 
 # Configuring parameters of individual steps here overwrites those defined  in the settings_MICADO.json file.
@@ -66,4 +66,5 @@ pyreduce.reduce.main(
         3,
         4,
     ),  # for MICADO, when one order is on the detector (currently detector 5 of the HK band)
+    plot=1,
 )
