@@ -712,60 +712,29 @@ Order (simple → complex):
 ### Step 4: Pydantic Models for Instrument Config
 **Goal:** Type-safe instrument loading with validation.
 
-```python
-# pyreduce/instruments/models.py
-from pydantic import BaseModel
+**DONE:** `InstrumentConfig` model in `models.py` validates the current flat YAML structure.
 
-class Amplifier(BaseModel):
-    id: str
-    gain: float | dict  # float or {key: "HEADER_KEY"}
-    readnoise: float | dict
-    region: dict | None = None
-
-class Detector(BaseModel):
-    name: str
-    naxis: tuple[int, int]
-    orientation: int
-    amplifiers: list[Amplifier] = []
-
-class OpticalPath(BaseModel):
-    name: str
-    beam_arms: list[BeamArm] | None = None
-
-class InstrumentConfig(BaseModel):
-    instrument: str
-    detectors: list[Detector]
-    optical_paths: list[OpticalPath]
-    dimensions: dict = {}
-    headers: dict = {}
-    # ... etc
-```
-
-**Migrate YAML schema** to use new structure (detectors[], optical_paths[], etc.)
+**OPTIONAL (V2 - future):** Nested structure with `detectors[]`, `optical_paths[]`, `dimensions{}`.
+The V2 models are defined in `models.py` but not yet used. Migration to V2 would require
+rewriting all YAML files and is deferred until there's a concrete need.
 
 **Test:** Load each instrument, validate Pydantic catches errors.
 
 ---
 
 ### Step 5: Update Instrument Class to Use Models
-**Goal:** `Instrument` class uses Pydantic models internally.
+**Goal:** `Instrument` class uses Pydantic model attributes instead of raw dict access.
 
-```python
-class Instrument:
-    def __init__(self, config: InstrumentConfig):
-        self.config = config
-        self.detectors = config.detectors
-        self.optical_paths = config.optical_paths
-        # ...
+Replace `self.info["field"]` with `self.config.field` throughout the codebase:
+- `self.info["instrument"]` → `self.config.instrument`
+- `self.info["arms"]` → `self.config.arms`
+- `self.info.get("gain", 1)` → `self.config.gain`
+- etc.
 
-    @classmethod
-    def from_yaml(cls, path: str) -> "Instrument":
-        data = yaml.safe_load(open(path))
-        config = InstrumentConfig(**data)
-        return cls(config)
-```
-
-**Refactor** methods like `get_extension()`, `load_fits()` to use new model.
+Benefits:
+- Type safety and IDE autocompletion
+- Validation happens at load time
+- Default values defined in model, not scattered in code
 
 **Test:** All instrument tests pass.
 

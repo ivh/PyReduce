@@ -92,15 +92,15 @@ class HARPS(Instrument):
     def __init__(self):
         super().__init__()
         self.filters = {
-            "instrument": InstrumentFilter(self.info["instrument"]),
-            "night": NightFilter(self.info["date"]),
+            "instrument": InstrumentFilter(self.config.instrument),
+            "night": NightFilter(self.config.date),
             # "branch": Filter(, regex=True),
             "mode": Filter(
-                self.info["instrument_mode"], regex=True, flags=re.IGNORECASE
+                self.config.instrument_mode, regex=True, flags=re.IGNORECASE
             ),
-            "type": TypeFilter(self.info["observation_type"]),
+            "type": TypeFilter(self.config.observation_type),
             "polarization": PolarizationFilter(),
-            "target": ObjectFilter(self.info["target"], regex=True),
+            "target": ObjectFilter(self.config.target, regex=True),
             "fiber": FiberFilter(),
         }
         self.night = "night"
@@ -116,7 +116,9 @@ class HARPS(Instrument):
             "curvature",
         ]
 
-    def get_expected_values(self, target, night, mode, fiber, polarimetry):
+    def get_expected_values(
+        self, target, night, arm=None, mode=None, fiber=None, polarimetry=None, **kwargs
+    ):
         """Determine the default expected values in the headers for a given observation configuration
 
         Any parameter may be None, to indicate that all values are allowed

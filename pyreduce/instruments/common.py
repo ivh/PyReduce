@@ -116,19 +116,17 @@ class Instrument:
         self.config, self.info = self.load_info()
 
         self.filters = {
-            "instrument": InstrumentFilter(self.info["instrument"], regex=True),
-            "night": NightFilter(
-                self.info["date"], timeformat=self.info.get("date_format", "fits")
-            ),
-            "target": ObjectFilter(self.info["target"], regex=True),
-            "bias": Filter(self.info["kw_bias"]),
-            "flat": Filter(self.info["kw_flat"]),
-            "orders": Filter(self.info["kw_orders"]),
-            "curvature": Filter(self.info["kw_curvature"]),
-            "scatter": Filter(self.info["kw_scatter"]),
-            "wave": Filter(self.info["kw_wave"]),
-            "comb": Filter(self.info["kw_comb"]),
-            "spec": Filter(self.info["kw_spec"]),
+            "instrument": InstrumentFilter(self.config.instrument, regex=True),
+            "night": NightFilter(self.config.date, timeformat=self.config.date_format),
+            "target": ObjectFilter(self.config.target, regex=True),
+            "bias": Filter(self.config.kw_bias),
+            "flat": Filter(self.config.kw_flat),
+            "orders": Filter(self.config.kw_orders),
+            "curvature": Filter(self.config.kw_curvature),
+            "scatter": Filter(self.config.kw_scatter),
+            "wave": Filter(self.config.kw_wave),
+            "comb": Filter(self.config.kw_comb),
+            "spec": Filter(self.config.kw_spec),
         }
 
         self.night = "night"
@@ -136,8 +134,8 @@ class Instrument:
         self.shared = ["instrument", "night"]
 
         # Add arm filter if kw_arm is defined (for instruments with separate files per arm)
-        if self.info.get("kw_arm") is not None:
-            self.filters["arm"] = ArmFilter(self.info["kw_arm"])
+        if self.config.kw_arm is not None:
+            self.filters["arm"] = ArmFilter(self.config.kw_arm)
             self.shared.append("arm")
         self.find_closest = [
             "bias",
@@ -155,30 +153,22 @@ class Instrument:
     @property
     def arms(self) -> list[str] | None:
         """Available instrument arms (detectors/channels)."""
-        if self.config:
-            return self.config.arms
-        return self.info.get("arms")
+        return self.config.arms
 
     @property
     def extension(self) -> int | str | list:
         """FITS extension(s) to read."""
-        if self.config:
-            return self.config.extension
-        return self.info.get("extension", 0)
+        return self.config.extension
 
     @property
     def orientation(self) -> int | list[int]:
         """Detector orientation code(s)."""
-        if self.config:
-            return self.config.orientation
-        return self.info.get("orientation", 0)
+        return self.config.orientation
 
     @property
     def id_instrument(self) -> str:
         """Instrument identifier for header matching."""
-        if self.config:
-            return self.config.id_instrument
-        return self.info.get("id_instrument", "")
+        return self.config.id_instrument
 
     def get(self, key, header, arm, alt=None):
         get = getter(header, self.info, arm)
@@ -229,14 +219,8 @@ class Instrument:
                 f"(tried {yaml_fname} and {json_fname})"
             )
 
-        # Validate with Pydantic
-        try:
-            config = InstrumentConfig(**info)
-        except Exception as e:
-            logger.warning(
-                "Instrument config validation warning for %s: %s", self.name, e
-            )
-            config = None
+        # Validate with Pydantic (strict - invalid config is a bug)
+        config = InstrumentConfig(**info)
 
         return config, info
 
@@ -405,52 +389,52 @@ class Instrument:
     def get_expected_values(self, target, night, arm=None, **kwargs):
         expectations = {
             "bias": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "bias": self.info["id_bias"],
+                "bias": self.config.id_bias,
             },
             "flat": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "flat": self.info["id_flat"],
+                "flat": self.config.id_flat,
             },
             "orders": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "orders": self.info["id_orders"],
+                "orders": self.config.id_orders,
             },
             "scatter": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "scatter": self.info["id_scatter"],
+                "scatter": self.config.id_scatter,
             },
             "curvature": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "curvature": self.info["id_curvature"],
+                "curvature": self.config.id_curvature,
             },
             "wavecal_master": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "wave": self.info["id_wave"],
+                "wave": self.config.id_wave,
             },
             "freq_comb_master": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
-                "comb": self.info["id_comb"],
+                "comb": self.config.id_comb,
             },
             "science": {
-                "instrument": self.info["id_instrument"],
+                "instrument": self.config.id_instrument,
                 "night": night,
                 "target": target,
-                "spec": self.info["id_spec"],
+                "spec": self.config.id_spec,
             },
         }
 
         # Add arm filter if this instrument has separate files per arm
-        if arm is not None and self.info.get("kw_arm") is not None:
-            id_arm = self.info["id_arm"]
-            arms = self.info["arms"]
+        if arm is not None and self.config.kw_arm is not None:
+            id_arm = self.config.id_arm
+            arms = self.config.arms
             arm_id = id_arm[arms.index(arm)] if arm in arms else arm
             for key in expectations:
                 expectations[key]["arm"] = arm_id
@@ -670,7 +654,7 @@ class Instrument:
             name of the wavelength solution file
         """
 
-        specifier = header.get(self.info.get("wavecal_specifier", ""), "")
+        specifier = header.get(self.config.wavecal_specifier or "", "")
         instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)

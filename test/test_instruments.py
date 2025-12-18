@@ -1,18 +1,16 @@
-import json
 from glob import glob
 from os.path import basename, dirname, exists, join
 
-import jsonschema
 import pytest
+import yaml
 
 from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments import common, instrument_info
+from pyreduce.instruments.models import validate_instrument_config
 
-supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.json"))
+supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.yaml"))
 supported_instruments = [basename(f)[:-5] for f in supported_instruments]
-supported_instruments = [
-    f for f in supported_instruments if f not in ["common", "instrument_schema"]
-]
+supported_instruments = [f for f in supported_instruments if f not in ["common"]]
 
 
 @pytest.fixture(params=supported_instruments)
@@ -31,22 +29,17 @@ def config(supported_instrument):
 
 
 @pytest.mark.unit
-def test_instrument_json_schema_valid(supported_instrument):
-    """Validate instrument JSON files against the instrument schema."""
-    schema_path = join(
-        dirname(__file__), "../pyreduce/instruments/instrument_schema.json"
-    )
-    with open(schema_path) as f:
-        schema = json.load(f)
-
+def test_instrument_yaml_pydantic_valid(supported_instrument):
+    """Validate instrument YAML files with Pydantic."""
     instrument_path = join(
-        dirname(__file__), f"../pyreduce/instruments/{supported_instrument}.json"
+        dirname(__file__), f"../pyreduce/instruments/{supported_instrument}.yaml"
     )
     with open(instrument_path) as f:
-        instrument_data = json.load(f)
+        instrument_data = yaml.safe_load(f)
 
     # This will raise ValidationError if invalid
-    jsonschema.validate(instance=instrument_data, schema=schema)
+    config = validate_instrument_config(instrument_data)
+    assert config.instrument is not None
 
 
 @pytest.mark.unit

@@ -107,8 +107,29 @@ class InstrumentConfig(BaseModel):
     image_type: str | None = None
     instrument_mode: str | None = None
 
+    # File classification - header keywords
+    kw_bias: str | None = None
+    kw_flat: str | None = None
+    kw_curvature: str | None = None
+    kw_scatter: str | None = None
+    kw_orders: str | None = None
+    kw_wave: str | None = None
+    kw_comb: str | None = None
+    kw_spec: str | None = None
+
+    # File classification - identifier patterns
+    id_bias: str | None = None
+    id_flat: str | None = None
+    id_curvature: str | None = None
+    id_scatter: str | None = None
+    id_orders: str | None = None
+    id_wave: str | None = None
+    id_comb: str | None = None
+    id_spec: str | None = None
+
     # Wavelength information
     wavelength_range: list | None = None
+    wavecal_specifier: str | None = None
 
     # Allow additional fields for instrument-specific parameters
     model_config = ConfigDict(
