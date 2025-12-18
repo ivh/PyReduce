@@ -68,7 +68,7 @@ Repository = "https://github.com/ivh/PyReduce"
 Issues = "https://github.com/ivh/PyReduce/issues"
 
 [project.scripts]
-reduce = "pyreduce.cli:main"
+reduce = "pyreduce.__main__:main"
 
 # Hatch build configuration
 [tool.hatch.build]
