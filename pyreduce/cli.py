@@ -13,8 +13,21 @@ from pathlib import Path
 
 import click
 
+from . import datasets
 from .instruments.instrument_info import load_instrument
 from .pipeline import Pipeline
+
+# Map CLI names to dataset functions
+AVAILABLE_DATASETS = {
+    "UVES": datasets.UVES,
+    "HARPS": datasets.HARPS,
+    "XSHOOTER": datasets.XSHOOTER,
+    "NIRSPEC": datasets.KECK_NIRSPEC,
+    "JWST_NIRISS": datasets.JWST_NIRISS,
+    "JWST_MIRI": datasets.JWST_MIRI,
+    "LICK_APF": datasets.LICK_APF,
+    "MCDONALD": datasets.MCDONALD,
+}
 
 
 @click.group()
@@ -27,6 +40,50 @@ def cli():
 @cli.command()
 @click.argument("instrument")
 @click.option(
+    "--output",
+    "-o",
+    default=None,
+    help="Output directory (default: $REDUCE_DATA or ~/REDUCE_DATA)",
+)
+def download(instrument: str, output: str | None):
+    """Download example dataset for an instrument.
+
+    Available instruments: UVES, HARPS, XSHOOTER, NIRSPEC, JWST_NIRISS, JWST_MIRI,
+    LICK_APF, MCDONALD
+
+    Data is saved to $REDUCE_DATA if set, otherwise ~/REDUCE_DATA.
+
+    \b
+    Examples:
+        uv run reduce download UVES
+        uv run reduce download UVES -o ~/data/
+    """
+    instrument_upper = instrument.upper()
+    if instrument_upper not in AVAILABLE_DATASETS:
+        available = ", ".join(sorted(AVAILABLE_DATASETS.keys()))
+        raise click.ClickException(
+            f"Unknown instrument '{instrument}'. Available: {available}"
+        )
+
+    click.echo(f"Downloading {instrument_upper} example dataset...")
+    data_dir = AVAILABLE_DATASETS[instrument_upper](output)
+    click.echo(f"Dataset saved to: {data_dir}")
+
+
+@cli.command("list-datasets")
+def list_datasets():
+    """List available example datasets."""
+    click.echo("Available example datasets:")
+    click.echo()
+    for name in sorted(AVAILABLE_DATASETS.keys()):
+        click.echo(f"  {name}")
+    click.echo()
+    click.echo("Download with: uv run reduce download <INSTRUMENT> -o <DIR>")
+
+
+@cli.command()
+@click.argument("instrument")
+@click.option(
     "--files",
     "-f",
     multiple=True,
@@ -34,7 +91,10 @@ def cli():
 )
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--mode", "-m", default="", help="Instrument mode (e.g., RED, BLUE)")
-def bias(instrument: str, files: tuple[str, ...], output: str, mode: str):
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
+def bias(instrument: str, files: tuple[str, ...], output: str, mode: str, plot: int):
     """Create master bias from bias frames."""
     inst = load_instrument(instrument)
     file_list = _expand_globs(files)
@@ -43,7 +103,7 @@ def bias(instrument: str, files: tuple[str, ...], output: str, mode: str):
         raise click.ClickException("No input files specified. Use --files option.")
 
     click.echo(f"Creating master bias from {len(file_list)} files...")
-    Pipeline(inst, output, mode=mode).bias(file_list).run()
+    Pipeline(inst, output, mode=mode, plot=plot).bias(file_list).run()
     click.echo(f"Master bias saved to {output}")
 
 
@@ -57,7 +117,10 @@ def bias(instrument: str, files: tuple[str, ...], output: str, mode: str):
 )
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--mode", "-m", default="", help="Instrument mode")
-def flat(instrument: str, files: tuple[str, ...], output: str, mode: str):
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
+def flat(instrument: str, files: tuple[str, ...], output: str, mode: str, plot: int):
     """Create master flat from flat frames."""
     inst = load_instrument(instrument)
     file_list = _expand_globs(files)
@@ -66,7 +129,7 @@ def flat(instrument: str, files: tuple[str, ...], output: str, mode: str):
         raise click.ClickException("No input files specified. Use --files option.")
 
     click.echo(f"Creating master flat from {len(file_list)} files...")
-    Pipeline(inst, output, mode=mode).flat(file_list).run()
+    Pipeline(inst, output, mode=mode, plot=plot).flat(file_list).run()
     click.echo(f"Master flat saved to {output}")
 
 
@@ -80,13 +143,16 @@ def flat(instrument: str, files: tuple[str, ...], output: str, mode: str):
 )
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--mode", "-m", default="", help="Instrument mode")
-def trace(instrument: str, files: tuple[str, ...], output: str, mode: str):
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
+def trace(instrument: str, files: tuple[str, ...], output: str, mode: str, plot: int):
     """Trace echelle orders on flat field."""
     inst = load_instrument(instrument)
     file_list = _expand_globs(files) if files else None
 
     click.echo("Tracing echelle orders...")
-    pipe = Pipeline(inst, output, mode=mode)
+    pipe = Pipeline(inst, output, mode=mode, plot=plot)
     if file_list:
         pipe = pipe.flat(file_list)
     pipe.trace_orders(file_list).run()
@@ -104,7 +170,10 @@ def trace(instrument: str, files: tuple[str, ...], output: str, mode: str):
 )
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--mode", "-m", default="", help="Instrument mode")
-def wavecal(instrument: str, files: tuple[str, ...], output: str, mode: str):
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
+def wavecal(instrument: str, files: tuple[str, ...], output: str, mode: str, plot: int):
     """Perform wavelength calibration."""
     inst = load_instrument(instrument)
     file_list = _expand_globs(files)
@@ -113,7 +182,7 @@ def wavecal(instrument: str, files: tuple[str, ...], output: str, mode: str):
         raise click.ClickException("No input files specified. Use --files option.")
 
     click.echo(f"Running wavelength calibration with {len(file_list)} files...")
-    Pipeline(inst, output, mode=mode).wavelength_calibration(file_list).run()
+    Pipeline(inst, output, mode=mode, plot=plot).wavelength_calibration(file_list).run()
     click.echo(f"Wavelength calibration saved to {output}")
 
 
@@ -129,8 +198,16 @@ def wavecal(instrument: str, files: tuple[str, ...], output: str, mode: str):
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--mode", "-m", default="", help="Instrument mode")
 @click.option("--target", "-t", default="", help="Target name")
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
 def extract(
-    instrument: str, files: tuple[str, ...], output: str, mode: str, target: str
+    instrument: str,
+    files: tuple[str, ...],
+    output: str,
+    mode: str,
+    target: str,
+    plot: int,
 ):
     """Extract spectra from science frames."""
     inst = load_instrument(instrument)
@@ -140,7 +217,7 @@ def extract(
         raise click.ClickException("No input files specified. Use --files option.")
 
     click.echo(f"Extracting spectra from {len(file_list)} files...")
-    Pipeline(inst, output, mode=mode, target=target).extract(file_list).run()
+    Pipeline(inst, output, mode=mode, target=target, plot=plot).extract(file_list).run()
     click.echo(f"Extracted spectra saved to {output}")
 
 
@@ -153,7 +230,10 @@ def extract(
     help="Steps to run (comma-separated, or 'all')",
 )
 @click.option("--skip-existing", is_flag=True, help="Skip steps with existing output")
-def run(config_file: str, steps: str, skip_existing: bool):
+@click.option(
+    "--plot", "-p", default=0, type=int, help="Plot level (0=off, 1=basic, 2=detailed)"
+)
+def run(config_file: str, steps: str, skip_existing: bool, plot: int):
     """Run full reduction pipeline from config file.
 
     CONFIG_FILE should be a YAML file with instrument, files, and output settings.
@@ -197,7 +277,7 @@ def run(config_file: str, steps: str, skip_existing: bool):
     click.echo(f"Steps: {', '.join(config_steps)}")
     click.echo(f"Output: {output}")
 
-    pipe = Pipeline(inst, output, mode=mode, target=target)
+    pipe = Pipeline(inst, output, mode=mode, target=target, plot=plot)
 
     # Add steps based on config
     if "bias" in config_steps and files.get("bias"):
