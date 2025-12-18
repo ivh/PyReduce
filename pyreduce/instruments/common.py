@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from ..clipnflip import clipnflip
 from .filters import Filter, InstrumentFilter, ModeFilter, NightFilter, ObjectFilter
-from .models import validate_instrument_config
+from .models import InstrumentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +111,9 @@ class Instrument:
     def __init__(self):
         #:str: Name of the instrument (lowercase)
         self.name = self.__class__.__name__.lower()
-        #:dict: Information about the instrument
-        self.info = self.load_info()
+        #:InstrumentConfig: Validated configuration model
+        #:dict: Information about the instrument (for backward compatibility)
+        self.config, self.info = self.load_info()
 
         self.filters = {
             "instrument": InstrumentFilter(self.info["instrument"], regex=True),
@@ -146,19 +147,47 @@ class Instrument:
     def __str__(self):
         return self.name
 
+    @property
+    def modes(self) -> list[str] | None:
+        """Available instrument modes."""
+        if self.config:
+            return self.config.modes
+        return self.info.get("modes")
+
+    @property
+    def extension(self) -> int | str | list:
+        """FITS extension(s) to read."""
+        if self.config:
+            return self.config.extension
+        return self.info.get("extension", 0)
+
+    @property
+    def orientation(self) -> int | list[int]:
+        """Detector orientation code(s)."""
+        if self.config:
+            return self.config.orientation
+        return self.info.get("orientation", 0)
+
+    @property
+    def id_instrument(self) -> str:
+        """Instrument identifier for header matching."""
+        if self.config:
+            return self.config.id_instrument
+        return self.info.get("id_instrument", "")
+
     def get(self, key, header, mode, alt=None):
         get = getter(header, self.info, mode)
         return get(key, alt=alt)
 
     def get_extension(self, header, mode):
         mode = mode.upper()
-        extension = self.info.get("extension", 0)
+        ext = self.extension  # Use property
 
-        if isinstance(extension, list):
-            imode = find_first_index(self.info["modes"], mode)
-            extension = extension[imode]
+        if isinstance(ext, list):
+            imode = find_first_index(self.modes, mode)
+            ext = ext[imode]
 
-        return extension
+        return ext
 
     def load_info(self):
         """
@@ -167,6 +196,8 @@ class Instrument:
 
         Returns
         ------
+        config : InstrumentConfig
+            Validated Pydantic model
         info : dict(str:object)
             dictionary of REDUCE names for properties to Header keywords/static values
         """
@@ -193,15 +224,16 @@ class Instrument:
                 f"(tried {yaml_fname} and {json_fname})"
             )
 
-        # Validate with Pydantic (log warnings, don't raise)
+        # Validate with Pydantic
         try:
-            validate_instrument_config(info)
+            config = InstrumentConfig(**info)
         except Exception as e:
             logger.warning(
                 "Instrument config validation warning for %s: %s", self.name, e
             )
+            config = None
 
-        return info
+        return config, info
 
     def load_fits(
         self, fname, mode, extension=None, mask=None, header_only=False, dtype=None
@@ -633,7 +665,7 @@ class Instrument:
         return fname
 
     def get_supported_modes(self):
-        return self.info["modes"]
+        return self.modes
 
     def get_mask_filename(self, mode, **kwargs):
         i = self.name.lower()

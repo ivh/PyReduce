@@ -27,7 +27,7 @@ class NTE(Instrument):
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
-        info = self.load_info()
+        info = self.info
         specifier = int(header[info["wavecal_specifier"]])
 
         cwd = os.path.dirname(__file__)

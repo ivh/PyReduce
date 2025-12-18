@@ -33,7 +33,7 @@ class MCDONALD(InstrumentWithModes):
         # alternatively you can implement all of it here, whatever works
 
         header = super().add_header_info(header, mode, **kwargs)
-        info = self.load_info()
+        info = self.info  # Use cached info dict
         get = getter(header, info, mode)
 
         header["e_orient"] = get("orientation", 0)

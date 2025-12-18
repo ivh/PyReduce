@@ -84,7 +84,7 @@ class NIRSPEC(Instrument):
 
         # TODO allow several names for the target?
 
-        info = self.load_info()
+        info = self.info
         target = target.casefold()
         instrument = self.__class__.__name__
 
@@ -195,7 +195,7 @@ class NIRSPEC(Instrument):
 
     def get_wavecal_filename(self, header, mode, **kwargs):
         """Get the filename of the wavelength calibration config file"""
-        info = self.load_info()
+        info = self.info
         if header[info["id_neon"]] == 1:
             pass
         elif header[info["id_argon"]] == 1:
