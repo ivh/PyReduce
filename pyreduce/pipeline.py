@@ -101,6 +101,7 @@ class Pipeline:
         night: str = "",
         config: dict | None = None,
         order_range: tuple[int, int] | None = None,
+        plot: int = 0,
     ):
         """Initialize a reduction pipeline.
 
@@ -120,6 +121,8 @@ class Pipeline:
             Configuration dict with step-specific settings
         order_range : tuple, optional
             (first, last+1) orders to process
+        plot : int, optional
+            Plot level (0=off, 1=basic, 2=detailed). Default 0.
         """
         if isinstance(instrument, str):
             instrument = load_instrument(instrument)
@@ -136,6 +139,7 @@ class Pipeline:
         self.night = night
         self.config = config or {}
         self.order_range = order_range
+        self.plot = plot
 
         self._steps: list[tuple[str, list | None]] = []
         self._data: dict = {}
@@ -256,7 +260,8 @@ class Pipeline:
     def _run_step(self, name: str, files: list | None, load_only: bool = False):
         """Run or load a single step."""
         step_class = self.STEP_CLASSES[name]
-        step_config = self.config.get(name, {})
+        step_config = self.config.get(name, {}).copy()
+        step_config["plot"] = self.plot  # Runtime plot setting
         step = step_class(*self._get_step_inputs(), **step_config)
 
         # Get dependencies
@@ -285,6 +290,11 @@ class Pipeline:
     def _ensure_dependency(self, name: str):
         """Ensure a dependency is available (load if needed)."""
         if name in self._data:
+            return
+
+        # 'config' is a special dependency - it's the full config dict, not a step
+        if name == "config":
+            self._data["config"] = self.config
             return
 
         files = self._files.get(name)
@@ -324,3 +334,118 @@ class Pipeline:
     def results(self) -> dict:
         """Access results after run()."""
         return self._data
+
+    @classmethod
+    def from_files(
+        cls,
+        files: dict,
+        output_dir: str,
+        target: str,
+        instrument,
+        mode: str,
+        night: str,
+        config: dict,
+        order_range=None,
+        steps="all",
+        plot: int = 0,
+    ) -> Pipeline:
+        """Create pipeline from a files dict and run specified steps.
+
+        This provides a simpler interface similar to the legacy Reducer class.
+
+        Parameters
+        ----------
+        files : dict
+            Files for each step (bias, flat, orders, wavecal, science, etc.)
+        output_dir : str
+            Output directory
+        target : str
+            Target name
+        instrument : Instrument or str
+            Instrument instance or name
+        mode : str
+            Instrument mode
+        night : str
+            Observation night
+        config : dict
+            Configuration dict
+        order_range : tuple, optional
+            Order range to process
+        steps : list or "all"
+            Steps to run
+        plot : int, optional
+            Plot level (0=off, 1=basic, 2=detailed). Default 0.
+
+        Returns
+        -------
+        Pipeline
+            Configured pipeline ready to run
+        """
+        pipe = cls(
+            instrument=instrument,
+            output_dir=output_dir,
+            target=target,
+            mode=mode,
+            night=night,
+            config=config,
+            order_range=order_range,
+            plot=plot,
+        )
+
+        if steps == "all":
+            steps = list(cls.STEP_ORDER.keys())
+
+        # Register files for steps that may be needed as dependencies
+        # (even if the step itself isn't in the steps list)
+        for key in [
+            "bias",
+            "flat",
+            "orders",
+            "curvature",
+            "scatter",
+            "wavecal_master",
+            "freq_comb_master",
+            "science",
+        ]:
+            if key in files and len(files.get(key, [])):
+                pipe._files[key] = files[key]
+
+        # Map step names to pipeline methods
+        # Use len() for truth checks since files can be numpy arrays
+        step_map = {
+            "bias": lambda: pipe.bias(files.get("bias", []))
+            if len(files.get("bias", []))
+            else pipe,
+            "flat": lambda: pipe.flat(files.get("flat", []))
+            if len(files.get("flat", []))
+            else pipe,
+            "orders": lambda: pipe.trace_orders(files.get("orders")),
+            "curvature": lambda: pipe.curvature(files.get("curvature")),
+            "scatter": lambda: pipe.scatter(files.get("scatter")),
+            "norm_flat": lambda: pipe.normalize_flat(),
+            "wavecal_master": lambda: pipe.wavecal_master(
+                files.get("wavecal_master", [])
+            )
+            if len(files.get("wavecal_master", []))
+            else pipe,
+            "wavecal_init": lambda: pipe.wavecal_init(),
+            "wavecal": lambda: pipe.wavecal(),
+            "freq_comb_master": lambda: pipe.freq_comb_master(
+                files.get("freq_comb_master", [])
+            )
+            if len(files.get("freq_comb_master", []))
+            else pipe,
+            "freq_comb": lambda: pipe.freq_comb(),
+            "rectify": lambda: pipe.rectify(),
+            "science": lambda: pipe.extract(files.get("science", []))
+            if len(files.get("science", []))
+            else pipe,
+            "continuum": lambda: pipe.continuum(),
+            "finalize": lambda: pipe.finalize(),
+        }
+
+        for step in steps:
+            if step in step_map:
+                step_map[step]()
+
+        return pipe
