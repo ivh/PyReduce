@@ -4,63 +4,59 @@
 
 # PyReduce
 
-PyReduce is a port of the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package to Python.
-It is a complete data reduction pipeline for the echelle spectrographs, e.g. HARPS or UVES.
+A data reduction pipeline for echelle spectrographs (HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS, and more).
 
-The methods are descibed in the papers
-* Original REDUCE: Piskunov & Valenti (2001) [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
-* Updates to curved slit extraction and PyReduce: Piskunov, Wehrhahn & Marquart (2021) [10.1051/0004-6361/202038293](https://doi.org/10.1051/0004-6361/202038293)
+Based on the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package. See the papers:
+- Piskunov & Valenti (2001) [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
+- Piskunov, Wehrhahn & Marquart (2021) [doi:10.1051/0004-6361/202038293](https://doi.org/10.1051/0004-6361/202038293)
 
-Some documentation on how to use PyReduce is available at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/en/latest/index.html).
-
-Installation
-------------
-
-### For Users
-
-The latest version can be installed with pip:
+## Installation
 
 ```bash
-pip install git+https://github.com/ivh/PyReduce
+# Using uv (recommended)
+uv add pyreduce-astro
+
+# Or pip
+pip install pyreduce-astro
 ```
 
-The version available from PyPI is slightly outdated, but functional: ``pip install pyreduce-astro``.
-
-### For Development
-
-If you foresee making changes to PyReduce itself, clone the repository and use [uv](https://docs.astral.sh/uv/) for fast, modern package management:
-
+For development:
 ```bash
-git clone <your fork url>
-cd PyReduce/
+git clone https://github.com/ivh/PyReduce
+cd PyReduce
 uv sync
 ```
 
-This will automatically:
-- Create a virtual environment
-- Install all dependencies
-- Build the CFFI C extensions
-- Install PyReduce in editable mode
+## Quick Start
 
-To run commands, use `uv run`:
 ```bash
-uv run pytest                    # Run tests
-uv run python examples/uves_example.py  # Run example
+# Download sample data
+uv run reduce download UVES
+
+# Run reduction
+uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+
+# Or run individual steps
+uv run reduce bias UVES HD132205
+uv run reduce flat UVES HD132205
 ```
 
-**Note:** PyReduce uses CFFI to link to C code. On non-Linux platforms you might need to install libffi.
-See https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+Or use the Python API:
+```python
+from pyreduce.pipeline import Pipeline
 
-Output Format
--------------
-PyReduce will create ``.ech`` files when run. Despite the name those are just regular ``.fits`` files and can be opened with any programm that can read ``.fits``. The data is contained in a table extension. The header contains all the keywords of the input science file, plus some extra PyReduce specific keyword, all of which start with ``e_``.
+Pipeline.from_instrument(
+    instrument="UVES",
+    target="HD132205",
+    night="2010-04-01",
+    arm="middle",
+).run()
+```
 
-How To
-------
-PyReduce is designed to be easy to use, but still be flexible.
-``examples/uves_example.py`` is a good starting point, to understand how it works.
-First we define the instrument, target, night, and instrument mode (if applicable) of our reduction. Then we tell PyReduce where to find the data, and lastly we define all the specific settings of the reduction (e.g. polynomial degrees of various fits) in a json configuration file.
-We also define which steps of the reduction to perform. Steps that are not specified, but are still required, will be loaded from previous runs if possible, or executed otherwise.
-All of this is then passed to pyreduce.reduce.main to start the reduction.
+## Documentation
 
-In this example, PyReduce will plot all intermediary results, and also plot the progres during some of the steps. Close them to continue calculations, if it seems nothing is happening. Once you are statisified with the results you can disable them in settings_UVES.json (with "plot":false in each step) to speed up the computation.
+Full documentation at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/).
+
+## Output
+
+PyReduce creates `.ech` files (standard FITS with binary table extension). Headers include original keywords plus PyReduce-specific ones prefixed with `e_`.

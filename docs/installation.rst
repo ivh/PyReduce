@@ -1,23 +1,30 @@
 Installation
 ============
 
-For Users
+Using uv (Recommended)
+----------------------
+
+`uv <https://docs.astral.sh/uv/>`_ is the recommended way to install PyReduce::
+
+    uv add pyreduce-astro
+
+Or to install globally::
+
+    uv tool install pyreduce-astro
+
+Using pip
 ---------
 
-The latest version can be installed with pip::
-
-    pip install git+https://github.com/ivh/PyReduce
-
-The version available from PyPI is slightly outdated, but functional::
+::
 
     pip install pyreduce-astro
 
 For Development
 ---------------
 
-If you foresee making changes to PyReduce itself, clone the repository and use `uv <https://docs.astral.sh/uv/>`_ for fast, modern package management::
+Clone the repository and use uv::
 
-    git clone <your fork url>
+    git clone https://github.com/ivh/PyReduce
     cd PyReduce/
     uv sync
 
@@ -28,10 +35,14 @@ This will automatically:
 - Build the CFFI C extensions
 - Install PyReduce in editable mode
 
-To run commands, use ``uv run``::
+To run commands::
 
-    uv run pytest                           # Run tests
-    uv run python examples/uves_example.py  # Run example
+    uv run reduce --help              # CLI
+    uv run pytest -m unit             # Tests
+    uv run python examples/uves_example.py
 
-**Note:** PyReduce uses CFFI to link to C code. On non-Linux platforms you might need to install libffi.
+Platform Notes
+--------------
+
+PyReduce uses CFFI to link to C code. On non-Linux platforms you may need to install libffi.
 See https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.

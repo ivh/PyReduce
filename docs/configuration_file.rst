@@ -1,15 +1,100 @@
-PyReduce Configuration
-======================
+Configuration
+=============
 
-All free parameters of the PyReduce pipeline are defined in a configuration
-file, that is passed to the main function. If certain values are not explicitly
-defined, default values will be used, which may or may not work well.
-Some configurations for common instruments are provided in the examples
-directory.
+PyReduce uses two types of configuration files:
 
-All input is validated using the jsonschema ``settings/settings_schema.json``.
+- **Instrument configs** (YAML) - Define the instrument hardware and header mappings
+- **Reduction settings** (JSON) - Define algorithm parameters for each step
 
-The default values are defined as:
+Reduction Settings
+------------------
+
+Location: ``pyreduce/settings/settings_*.json``
+
+These control HOW the reduction is performed - polynomial degrees, thresholds,
+extraction parameters, etc.
+
+.. code-block:: json
+
+    {
+      "bias": {
+        "degree": 0
+      },
+      "orders": {
+        "degree": 4,
+        "noise": 100,
+        "min_cluster": 500,
+        "filter_size": 120
+      },
+      "science": {
+        "extraction_method": "optimal",
+        "extraction_width": 0.5,
+        "oversampling": 10
+      }
+    }
+
+Settings are loaded in order:
+
+1. ``settings_pyreduce.json`` - Base defaults
+2. ``settings_INSTRUMENT.json`` - Instrument-specific overrides
+3. Runtime overrides via ``configuration`` parameter
+
+To override settings at runtime:
+
+.. code-block:: python
+
+    from pyreduce.configuration import get_configuration_for_instrument
+
+    config = get_configuration_for_instrument("UVES")
+    config["orders"]["degree"] = 5
+    config["science"]["oversampling"] = 8
+
+    Pipeline.from_instrument(
+        instrument="UVES",
+        ...,
+        configuration=config,
+    ).run()
+
+Instrument Configs
+------------------
+
+Location: ``pyreduce/instruments/*.yaml``
+
+These define WHAT the instrument is - detector properties, header keyword
+mappings, file classification patterns.
+
+.. code-block:: yaml
+
+    # Identity
+    instrument: HARPS
+    telescope: ESO-3.6m
+    arms: [red, blue]
+
+    # Detector
+    naxis: [4096, 4096]
+    orientation: 4
+    extension: 0
+    gain: ESO DET OUT1 CONAD
+    readnoise: ESO DET OUT1 RON
+
+    # Header mappings
+    date: DATE-OBS
+    target: ESO OBS TARG NAME
+    exposure_time: EXPTIME
+
+    # File classification
+    kw_bias: ESO DPR TYPE
+    id_bias: BIAS
+    kw_flat: ESO DPR TYPE
+    id_flat: FLAT.*
+
+Instrument configs are validated by Pydantic models at load time.
+See ``pyreduce/instruments/models.py`` for the full schema.
+
+Default Settings
+----------------
+
+The default values are defined in:
 
 .. literalinclude:: /../pyreduce/settings/settings_pyreduce.json
     :language: json

@@ -1,69 +1,103 @@
-How To use PyReduce
+How To Use PyReduce
 ===================
 
-Using PyReduce is easy. Simply specify the instrument and where to find the
-data, and the rest should take care of itself. Of course you can also set all
-parameters yourself if you want more control over what is happening.
+PyReduce offers two ways to run reductions: the command-line interface (CLI) and the Python API.
 
-A good starting point is the examples section. But here is what you need.
+Command Line Interface
+----------------------
 
->>> import pyreduce
->>> from pyreduce import datasets
+The simplest way to run a reduction::
 
-Define parameters
+    # Download sample data
+    uv run reduce download UVES
 
->>> # The instrument name as specified in the supported instruments
->>> instrument = "UVES"
->>> # The name of the observation target as specified in the file structure
->>> target = "HD132205"
->>> # The observation night as a string, as specified in the file structure
->>> night = "2010-04-02"
->>> # The instrument mode/setting that is used, depends on the instrument
->>> mode = "middle"
->>> # The data reduction steps to run
->>> steps = (
-    "bias",
-    "flat",
-    "orders",
-    "norm_flat",
-    "wavecal",
-    "freq_comb",
-    "shear",
-    "science",
-    "continuum",
-    "finalize",
+    # Run full pipeline
+    uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+
+    # Run individual steps
+    uv run reduce bias UVES HD132205
+    uv run reduce orders UVES HD132205
+
+    # List available steps
+    uv run reduce list-steps
+
+CLI options::
+
+    uv run reduce run UVES HD132205 \
+        --night 2010-04-01 \
+        --arm middle \
+        --steps bias,flat,orders,science \
+        --base-dir /data \
+        --plot 1
+
+Python API
+----------
+
+The recommended Python entry point is ``Pipeline.from_instrument()``:
+
+.. code-block:: python
+
+    from pyreduce.pipeline import Pipeline
+
+    result = Pipeline.from_instrument(
+        instrument="UVES",
+        target="HD132205",
+        night="2010-04-01",
+        arm="middle",
+        steps=("bias", "flat", "orders", "science"),
+        plot=1,
+    ).run()
+
+This handles:
+
+- Loading the instrument configuration
+- Finding and sorting input files
+- Setting up output directories
+- Running the requested steps
+
+For more control, construct a Pipeline manually:
+
+.. code-block:: python
+
+    from pyreduce.pipeline import Pipeline
+
+    pipe = Pipeline(
+        instrument="UVES",
+        output_dir="/data/reduced",
+        arm="middle",
     )
+    pipe.bias(bias_files)
+    pipe.flat(flat_files)
+    pipe.trace_orders()
+    pipe.extract(science_files)
+    result = pipe.run()
 
-Some basic settings
-Expected Folder Structure: ``base_dir/datasets/HD132205/*.fits.gz``
-Feel free to change this to your own preference, values in curly brackets
-will be replaced with the actual values {}
+Environment Variables
+---------------------
 
->>> input_dir = "{target}/"
->>> output_dir = "reduced/{instrument}/{target}/{night}/{mode}"
+- ``REDUCE_DATA`` - Base data directory (default: ``~/REDUCE_DATA``)
+- ``PYREDUCE_PLOT`` - Override plot level (0=off, 1=basic, 2=detailed)
+- ``PYREDUCE_PLOT_DIR`` - Save plots to directory instead of displaying
 
-Load dataset (and save the location)
+Pipeline Steps
+--------------
 
-For the example dataset use
+Steps are run in dependency order. Available steps:
 
->>> base_dir = datasets.UVES_HD132205()
+- ``bias`` - Combine bias frames
+- ``flat`` - Combine flat frames
+- ``orders`` - Trace echelle orders on flat
+- ``curvature`` - Measure slit tilt/shear
+- ``scatter`` - Model inter-order background
+- ``norm_flat`` - Normalize flat, extract blaze
+- ``wavecal_master`` - Extract wavelength calibration spectrum
+- ``wavecal_init`` - Initial line identification
+- ``wavecal`` - Refine wavelength solution
+- ``freq_comb_master`` - Extract frequency comb spectrum
+- ``freq_comb`` - Apply frequency comb calibration
+- ``science`` - Optimally extract science spectra
+- ``continuum`` - Normalize continuum
+- ``finalize`` - Write final output
 
-For your own observations set base_dir to the path that points to your files.
-Note that the full path is given by base_dir + input_dir / output_dir.
-If these are completely independant you can set base_dir = "" instead.
-
->>> base_dir = "your-file-path-here"
-
-Start the extraction
-
->>> pyreduce.reduce.main(
-    instrument,
-    target,
-    night,
-    mode,
-    steps,
-    base_dir=base_dir,
-    input_dir=input_dir,
-    output_dir=output_dir,
-    configuration="settings_UVES.json",
-    )
+Steps not explicitly requested but required as dependencies will be loaded
+from previous runs if available, or executed automatically.

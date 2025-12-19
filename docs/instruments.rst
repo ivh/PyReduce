@@ -1,39 +1,123 @@
-Supporting Custom instruments
-=============================
+Instruments
+===========
 
+PyReduce supports many instruments out of the box. Custom instruments can be added
+by creating YAML configuration files.
 
-PyReduce supports a number of instruments by default, but it can be extended to support your instrument too.
-There are two ways to implement your instrument. The first works on a script by script basis. The second is a more complete ompelementation.
-The second choice is recommended for proper use, although the first can be useful for experimentation.
+Supported Instruments
+---------------------
 
+- **ESO**: HARPS, HARPS-N, UVES, XSHOOTER, CRIRES+
+- **Space**: JWST NIRISS, JWST MIRI
+- **Ground**: Keck NIRSPEC, Lick APF, McDonald
 
-Method 1: Create your instrument as part of the script
-------------------------------------------------------
+Adding a Custom Instrument
+--------------------------
 
-There is a very simple example in the examples folder for the support of a custom instrument "custom_instrument_example.py".
-The idea is that we create a custom class on the fly and define all the necessary parameters within the script that is currently being run.
-This is in general less flexible than the second method, but can be useful since all variables are available within the script itself.
-Once a good solution has been found it is recommended to convert this to what is described below in method 2, since we can then use the same
-instrument configuration in other scripts.
+Method 1: YAML Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Create a YAML file defining your instrument:
 
-Method 2: Create the instrument class and configuration
--------------------------------------------------------
+.. code-block:: yaml
 
-In this method, we create a custom class and configuration as seperate files, similar to how instruments are implemented in PyReduce itself.
-The general instrument is defined by the pyreduce.instruments.common.Instrument class, so the easiest way is to create your own class that inherits from it.
+    # myinstrument.yaml
+    instrument: MyInstrument
+    telescope: MyTelescope
+    arms: [default]
 
-Here are the general steps that need to be followed to support your instrument:
+    # Detector
+    naxis: [2048, 2048]
+    orientation: 0
+    extension: 0
+    gain: 1.0
+    readnoise: 5.0
 
-    - You need to implement your own version of the instrument class, that inherits from pyreduce.instruments.common.Instrument
-    - In that class there are a few important functions that may need to be adapted:
+    # Header keywords
+    date: DATE-OBS
+    target: OBJECT
+    exposure_time: EXPTIME
 
-        - load_info, this loads a json file with information mostly about the FITS header (e.g. which keyword gives us the time of the observation etc.) Look at other pyreduce.instruments.instrument_schema to get some information about what is what
-        - sort_files, finds and sorts the files for the different steps of pyreduce. There is a system here that might work for your instrument as well, depending on the FITS headers. In that case you just need to set the kw_bias etc fields in load_info correctly
-        - add_header_info, this modifies the fits header information. Usually to combine fields in the header to get the correct information (e.g. to get the time in the middle of the observation, instead of at the beginning).
-        - get_wavecal_filename, should return the filename to the wavelength calibration first guess. See the Wavelength Calibration section on how to create this file.
-        - get_wavelength_range, this returns an initial guess for the wavelength of each order, if the initial first guess file from get_wavecal_filename is not provided.
-        - (optional) get_mask_filename, should return the filename of the bad pixel map. A fits file with the badpixel map in the main extension. With the same size as the input fits files
+    # File classification
+    kw_bias: IMAGETYP
+    id_bias: bias
+    kw_flat: IMAGETYP
+    id_flat: flat
+    kw_spec: IMAGETYP
+    id_spec: object
 
-    - You probably also want to override the settings used by PyReduce (config in the example scripts). You can find examples for settings in pyreduce.settings. (settings_pyreduce.json has all available settings, they all need to be specified)
-    - When calling PyReduce instead of passing the name of the instrument you pass an instance of your instrument class.
+Load it directly:
+
+.. code-block:: python
+
+    from pyreduce.instruments import load_instrument
+
+    inst = load_instrument("/path/to/myinstrument.yaml")
+
+Method 2: Python Class
+^^^^^^^^^^^^^^^^^^^^^^
+
+For instruments needing custom logic, create a Python class:
+
+.. code-block:: python
+
+    from pyreduce.instruments.common import Instrument
+
+    class MyInstrument(Instrument):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            # Custom initialization
+
+        def add_header_info(self, header):
+            # Compute derived header values
+            header["MJD_MID"] = header["MJD_OBS"] + header["EXPTIME"] / 86400 / 2
+            return header
+
+        def get_wavecal_filename(self, header, arm, **kwargs):
+            # Return path to wavelength calibration file
+            return f"wavecal_{arm}.npz"
+
+Place the YAML in ``pyreduce/instruments/`` and the Python file alongside it.
+
+Instrument Configuration Fields
+-------------------------------
+
+Required fields:
+
+- ``instrument`` - Instrument name
+- ``telescope`` - Telescope name
+- ``arms`` - List of instrument arms/modes
+- ``naxis`` - Detector dimensions [x, y]
+
+Detector properties:
+
+- ``extension`` - FITS extension (0 or name)
+- ``orientation`` - Rotation/flip code (0-7)
+- ``gain`` - Detector gain (value or header keyword)
+- ``readnoise`` - Read noise (value or header keyword)
+- ``dark`` - Dark current (value or header keyword)
+- ``prescan_x``, ``overscan_x`` - Prescan/overscan regions
+
+Header mappings (instrument keyword -> internal name):
+
+- ``date`` - Observation date
+- ``target`` - Target name
+- ``exposure_time`` - Exposure time
+- ``ra``, ``dec`` - Coordinates
+- ``jd`` - Julian date
+- ``instrument_mode`` - Instrument mode
+
+File classification:
+
+- ``kw_bias``, ``id_bias`` - Bias file keyword and pattern
+- ``kw_flat``, ``id_flat`` - Flat file keyword and pattern
+- ``kw_wave``, ``id_wave`` - Wavelength calibration keyword and pattern
+- ``kw_spec``, ``id_spec`` - Science file keyword and pattern
+
+See ``pyreduce/instruments/models.py`` for the complete schema.
+
+Reduction Settings
+------------------
+
+Each instrument can have its own settings file at ``pyreduce/settings/settings_INSTRUMENT.json``.
+This overrides the defaults for that instrument. See :doc:`configuration_file` for details.
