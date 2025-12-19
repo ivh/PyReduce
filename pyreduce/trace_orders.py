@@ -653,3 +653,195 @@ def mark_orders(
         plot_orders(im, x, y, n, orders, column_range, title=plot_title)
 
     return orders, column_range
+
+
+def merge_traces(
+    traces_a, column_range_a, traces_b, column_range_b, order_centers=None, ncols=None
+):
+    """
+    Merge two sets of traces from different illumination patterns.
+
+    Traces are assigned to spectral orders based on their y-position at x=ncols/2
+    compared to order_centers. Within each order, traces are sorted by y-position
+    and assigned fiber IDs.
+
+    Parameters
+    ----------
+    traces_a : array (n_traces_a, degree+1)
+        Polynomial coefficients from first illumination set (even fibers)
+    column_range_a : array (n_traces_a, 2)
+        Column ranges for first set
+    traces_b : array (n_traces_b, degree+1)
+        Polynomial coefficients from second illumination set (odd fibers)
+    column_range_b : array (n_traces_b, 2)
+        Column ranges for second set
+    order_centers : array-like, optional
+        Expected y-positions of order centers at x=ncols/2
+    ncols : int, optional
+        Number of columns in the image (for center calculation)
+
+    Returns
+    -------
+    traces_by_order : dict
+        {order_idx: array (n_fibers, degree+1)} traces per order
+    column_range_by_order : dict
+        {order_idx: array (n_fibers, 2)} column ranges per order
+    fiber_ids_by_order : dict
+        {order_idx: array (n_fibers,)} fiber indices per order (0-74)
+    """
+    if len(traces_a) == 0 and len(traces_b) == 0:
+        return {}, {}, {}
+
+    # Combine all traces
+    if len(traces_a) > 0 and len(traces_b) > 0:
+        traces = np.vstack([traces_a, traces_b])
+        column_range = np.vstack([column_range_a, column_range_b])
+        is_even = np.concatenate(
+            [np.ones(len(traces_a), dtype=bool), np.zeros(len(traces_b), dtype=bool)]
+        )
+    elif len(traces_a) > 0:
+        traces = traces_a
+        column_range = column_range_a
+        is_even = np.ones(len(traces_a), dtype=bool)
+    else:
+        traces = traces_b
+        column_range = column_range_b
+        is_even = np.zeros(len(traces_b), dtype=bool)
+
+    # Evaluate y-position at center column
+    if ncols is None:
+        ncols = int(np.max(column_range[:, 1]))
+    x_center = ncols // 2
+    y_positions = np.array([np.polyval(t, x_center) for t in traces])
+
+    # Assign each trace to nearest order center
+    if order_centers is None:
+        # No order centers - put all in order 0
+        order_ids = np.zeros(len(traces), dtype=int)
+    else:
+        order_centers = np.array(order_centers)
+        order_ids = np.array(
+            [np.argmin(np.abs(order_centers - y)) for y in y_positions]
+        )
+
+    # Group by order, sort by y within each order, assign fiber IDs
+    traces_by_order = {}
+    column_range_by_order = {}
+    fiber_ids_by_order = {}
+
+    for order_idx in np.unique(order_ids):
+        mask = order_ids == order_idx
+        order_traces = traces[mask]
+        order_cr = column_range[mask]
+        order_y = y_positions[mask]
+        order_is_even = is_even[mask]
+
+        # Sort by y-position within this order
+        sort_idx = np.argsort(order_y)
+        order_traces = order_traces[sort_idx]
+        order_cr = order_cr[sort_idx]
+        order_is_even = order_is_even[sort_idx]
+
+        # Assign fiber IDs: even fibers get 0,2,4,...  odd get 1,3,5,...
+        fiber_ids = np.zeros(len(order_traces), dtype=int)
+        even_count = 0
+        odd_count = 0
+        for i, is_e in enumerate(order_is_even):
+            if is_e:
+                fiber_ids[i] = even_count * 2
+                even_count += 1
+            else:
+                fiber_ids[i] = odd_count * 2 + 1
+                odd_count += 1
+
+        traces_by_order[order_idx] = order_traces
+        column_range_by_order[order_idx] = order_cr
+        fiber_ids_by_order[order_idx] = fiber_ids
+
+    return traces_by_order, column_range_by_order, fiber_ids_by_order
+
+
+def group_and_refit(
+    traces_by_order, column_range_by_order, fiber_ids_by_order, groups, degree=4
+):
+    """
+    Group physical fiber traces into logical fibers and refit polynomials.
+
+    For each spectral order and each fiber group, evaluates all member
+    polynomials at each column, averages the y-positions, and fits a new
+    polynomial.
+
+    Parameters
+    ----------
+    traces_by_order : dict
+        {order_idx: array (n_fibers, degree+1)} traces per order
+    column_range_by_order : dict
+        {order_idx: array (n_fibers, 2)} column ranges per order
+    fiber_ids_by_order : dict
+        {order_idx: array (n_fibers,)} fiber IDs per order (0-74)
+    groups : dict
+        Mapping of group name to fiber index range, e.g.:
+        {'A': (0, 36), 'cal': (36, 38), 'B': (38, 75)}
+    degree : int
+        Polynomial degree for refitted traces
+
+    Returns
+    -------
+    logical_traces : dict
+        {group_name: array (n_orders, degree+1)} polynomials per group
+    logical_column_range : array (n_orders, 2)
+        Column range per order
+    fiber_counts : dict
+        {group_name: dict {order_idx: int}} fiber counts per order
+    """
+    from numpy.polynomial.polynomial import Polynomial
+
+    order_indices = sorted(traces_by_order.keys())
+
+    logical_traces = {name: [] for name in groups.keys()}
+    logical_column_range = []
+    fiber_counts = {name: {} for name in groups.keys()}
+
+    for order_idx in order_indices:
+        traces = traces_by_order[order_idx]
+        column_range = column_range_by_order[order_idx]
+        fiber_ids = fiber_ids_by_order[order_idx]
+
+        # Find shared column range for this order
+        col_min = np.max(column_range[:, 0])
+        col_max = np.min(column_range[:, 1])
+        x_eval = np.arange(col_min, col_max)
+        logical_column_range.append([col_min, col_max])
+
+        for group_name, (start, end) in groups.items():
+            # Find traces belonging to this group
+            mask = (fiber_ids >= start) & (fiber_ids < end)
+            group_traces = traces[mask]
+
+            if len(group_traces) == 0:
+                logger.warning(
+                    "No traces for group %s in order %d", group_name, order_idx
+                )
+                # Use NaN coefficients for missing groups
+                logical_traces[group_name].append(np.full(degree + 1, np.nan))
+                fiber_counts[group_name][order_idx] = 0
+                continue
+
+            # Evaluate all traces at each column and average
+            y_values = np.array([np.polyval(t, x_eval) for t in group_traces])
+            y_mean = np.mean(y_values, axis=0)
+
+            # Fit new polynomial to averaged positions
+            fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+            coeffs = fit.coef[::-1]  # Convert to np.polyval order
+
+            logical_traces[group_name].append(coeffs)
+            fiber_counts[group_name][order_idx] = len(group_traces)
+
+    # Convert lists to arrays
+    for name in groups.keys():
+        logical_traces[name] = np.array(logical_traces[name])
+
+    logical_column_range = np.array(logical_column_range)
+
+    return logical_traces, logical_column_range, fiber_counts

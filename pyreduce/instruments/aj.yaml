@@ -1,0 +1,51 @@
+# AJ instrument configuration
+# Simulated echelle spectrograph with 75 fibers per order
+
+__instrument__: AJ
+instrument: PYE1
+id_instrument: ".*ZEMAX.*"
+telescope: Simulated
+
+date: DATE-OBS
+date_format: fits
+
+arms: [ALL]
+extension: 0
+orientation: 0
+transpose: false
+
+prescan_x: 0
+overscan_x: 0
+prescan_y: 0
+overscan_y: 0
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: 1
+readnoise: 0
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: null
+dec: null
+target: PYE1
+
+# File classification
+# For fiber bundle tracing, we need separate even/odd flat files
+# These are matched by filename pattern since header values aren't reliable
+kw_bias: PYE1
+kw_flat: PYE1
+kw_flat_even: FILENAME
+kw_flat_odd: FILENAME
+kw_orders: PYE1
+kw_wave: PYE1
+kw_spec: PYE1
+
+id_bias: ".*bias.*"
+id_flat: ".*"
+id_flat_even: ".*even.*"
+id_flat_odd: ".*odd.*"
+id_orders: ".*"
+id_wave: ".*"
+id_spec: ".*"

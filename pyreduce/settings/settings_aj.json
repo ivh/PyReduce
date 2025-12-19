@@ -1,0 +1,32 @@
+{
+  "__instrument__": "AJ",
+  "orders": {
+    "degree": 4,
+    "noise": 0,
+    "min_cluster": 2000,
+    "min_width": 1000,
+    "filter_size": 20,
+    "border_width": 0,
+    "closing_shape": [1, 1],
+    "manual": false,
+    "auto_merge_threshold": 1.0,
+    "fiber_bundle": {
+      "count": 75,
+      "order_centers": [377, 1217, 1442, 1639, 1879, 2087, 2314, 2539, 2781, 3017, 3265, 3519, 3749],
+      "illumination_sets": {
+        "even": {"pattern": "0::2"},
+        "odd": {"pattern": "1::2"}
+      },
+      "logical_fibers": {
+        "A": {"range": [0, 36]},
+        "cal": {"range": [36, 38]},
+        "B": {"range": [38, 75]}
+      }
+    }
+  },
+  "science": {
+    "extraction_method": "optimal",
+    "extraction_width": 0.5,
+    "oversampling": 6
+  }
+}
