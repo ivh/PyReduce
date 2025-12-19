@@ -20,7 +20,7 @@ This document describes the fiber bundle tracing feature for instruments with ma
 
 ### Configuration in `pyreduce/settings/settings_aj.json`
 
-```json
+```javascript
 {
   "orders": {
     "fiber_bundle": {

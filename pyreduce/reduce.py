@@ -79,20 +79,13 @@ def main(
     plot_dir=None,
 ):
     r"""
-    Main entry point for REDUCE scripts,
-    default values can be changed as required if reduce is used as a script
-    Finds input directories, and loops over observation nights and instrument arms
+    Main entry point for REDUCE scripts.
+
+    Default values can be changed as required if reduce is used as a script.
+    Finds input directories, and loops over observation nights and instrument arms.
 
     .. deprecated::
-        Use :meth:`Pipeline.from_instrument` instead::
-
-            from pyreduce.pipeline import Pipeline
-            result = Pipeline.from_instrument(
-                instrument="UVES",
-                target="HD132205",
-                night="2010-04-01",
-                arm="middle",
-            ).run()
+        Use :meth:`Pipeline.from_instrument` instead.
 
     Parameters
     ----------

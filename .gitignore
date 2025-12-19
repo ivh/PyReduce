@@ -17,3 +17,4 @@ esorex.log
 pyesorex.log
 test/test_outputs
 docs/_build/
+.claude

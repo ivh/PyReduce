@@ -614,16 +614,14 @@ class WavelengthCalibration:
 
     def build_2d_solution(self, lines, plot=False):
         """
-        Create a 2D polynomial fit to flagged lines
-        degree : tuple(int, int), optional
-            polynomial degree of the fit in (column, order) dimension (default: (6, 6))
+        Create a 2D polynomial fit to flagged lines.
 
         Parameters
         ----------
         lines : struc_array
             line data
         plot : bool, optional
-            wether to plot the solution (default: False)
+            whether to plot the solution (default: False)
 
         Returns
         -------
