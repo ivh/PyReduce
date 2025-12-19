@@ -5,6 +5,7 @@ Usage:
     uv run reduce --help
     uv run reduce run UVES HD132205 --night 2010-04-01
     uv run reduce run UVES HD132205 --steps bias,flat,orders
+    uv run reduce bias UVES HD132205
     uv run reduce combine --output combined.fits *.final.fits
 """
 
@@ -160,12 +161,6 @@ def list_steps():
         click.echo(f"  - {step}")
 
 
-@cli.group()
-def step():
-    """Run individual reduction steps."""
-    pass
-
-
 def make_step_command(step_name):
     """Factory to create a command for a single step."""
 
@@ -199,7 +194,7 @@ def make_step_command(step_name):
 
 # Register individual step commands
 for _step in ALL_STEPS:
-    step.add_command(make_step_command(_step))
+    cli.add_command(make_step_command(_step))
 
 
 def main():

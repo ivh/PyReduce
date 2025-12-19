@@ -1,10 +1,11 @@
 """
 Simple usage example for PyReduce
-Loads a sample UVES dataset, and runs the full extraction
+Loads a sample XSHOOTER dataset, and runs the extraction
 """
 
-import pyreduce
 from pyreduce import datasets
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "XShooter"
@@ -35,20 +36,20 @@ base_dir = datasets.XSHOOTER()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
 output_dir = "reduced"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument)
+config = get_configuration_for_instrument(instrument)
 # config["science"]["extraction_method"] = "arc"
 # config["science"]["extraction_cutoff"] = 0
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    arm,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
     order_range=(0, 15),
     plot=0,
-)
+).run()

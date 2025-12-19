@@ -6,11 +6,19 @@ Wraps the existing Step classes internally for backward compatibility.
 
 Example usage:
     from pyreduce.pipeline import Pipeline
-    from pyreduce.instruments import load_instrument
 
-    inst = load_instrument("UVES")
+    # Simple: auto-discover files for an instrument
+    result = Pipeline.from_instrument(
+        instrument="UVES",
+        target="HD132205",
+        night="2010-04-01",
+        arm="middle",
+        base_dir="/data",
+    ).run()
+
+    # Or build manually with explicit files:
     result = (
-        Pipeline(inst, output_dir, config=settings)
+        Pipeline("UVES", output_dir, config=settings)
         .bias(bias_files)
         .flat(flat_files)
         .trace_orders(order_files)
@@ -23,9 +31,11 @@ from __future__ import annotations
 
 import logging
 import os
+from os.path import join
 from typing import TYPE_CHECKING
 
 from . import util
+from .configuration import load_config
 from .instruments.instrument_info import load_instrument
 from .reduce import (
     BackgroundScatter,
@@ -459,5 +469,151 @@ class Pipeline:
         for step in steps:
             if step in step_map:
                 step_map[step]()
+
+        return pipe
+
+    @classmethod
+    def from_instrument(
+        cls,
+        instrument: str,
+        target: str,
+        night: str | None = None,
+        arm: str | None = None,
+        steps: tuple | list | str = "all",
+        base_dir: str | None = None,
+        input_dir: str | None = None,
+        output_dir: str | None = None,
+        configuration: dict | None = None,
+        order_range: tuple[int, int] | None = None,
+        allow_calibration_only: bool = False,
+        plot: int = 0,
+        plot_dir: str | None = None,
+    ) -> Pipeline:
+        """Create pipeline from instrument name with automatic file discovery.
+
+        This is the recommended entry point for running reductions. It handles
+        loading the instrument, finding and sorting files, and setting up
+        the pipeline with the correct configuration.
+
+        Parameters
+        ----------
+        instrument : str
+            Instrument name (e.g., "UVES", "HARPS", "XSHOOTER")
+        target : str
+            Target name or regex pattern to match in headers
+        night : str, optional
+            Observation night (YYYY-MM-DD format or regex)
+        arm : str, optional
+            Instrument arm (e.g., "RED", "BLUE", "middle"). If None,
+            uses all available arms for the instrument.
+        steps : tuple, list, or "all"
+            Steps to run. Default "all" runs all applicable steps.
+        base_dir : str, optional
+            Base directory for data. Default: $REDUCE_DATA or ~/REDUCE_DATA
+        input_dir : str, optional
+            Input directory relative to base_dir. Default: from config
+        output_dir : str, optional
+            Output directory relative to base_dir. Default: from config
+        configuration : dict, optional
+            Configuration overrides. Default: instrument defaults
+        order_range : tuple, optional
+            (first, last+1) orders to process
+        allow_calibration_only : bool
+            If True, allow running without science files
+        plot : int
+            Plot level (0=off, 1=basic, 2=detailed)
+        plot_dir : str, optional
+            Directory to save plots. If None, shows interactively.
+
+        Returns
+        -------
+        Pipeline
+            Configured pipeline ready to call .run()
+
+        Example
+        -------
+        >>> result = Pipeline.from_instrument(
+        ...     instrument="UVES",
+        ...     target="HD132205",
+        ...     night="2010-04-01",
+        ...     arm="middle",
+        ...     steps=("bias", "flat", "orders", "science"),
+        ... ).run()
+        """
+        # Environment variable overrides for plot
+        if "PYREDUCE_PLOT" in os.environ:
+            plot = int(os.environ["PYREDUCE_PLOT"])
+        if "PYREDUCE_PLOT_DIR" in os.environ:
+            plot_dir = os.environ["PYREDUCE_PLOT_DIR"]
+
+        # Set global plot directory
+        util.set_plot_dir(plot_dir)
+
+        # Load configuration
+        config = load_config(configuration, instrument, 0)
+
+        # Load instrument
+        inst = load_instrument(instrument)
+        info = inst.info
+
+        # Get directories from config if not specified
+        if base_dir is None:
+            base_dir = config["reduce"]["base_dir"]
+        if input_dir is None:
+            input_dir = config["reduce"]["input_dir"]
+        if output_dir is None:
+            output_dir = config["reduce"]["output_dir"]
+
+        full_input_dir = join(base_dir, input_dir)
+        full_output_dir = join(base_dir, output_dir)
+
+        # Get arms to process
+        if arm is None:
+            arms = info["arms"]
+        else:
+            arms = [arm] if isinstance(arm, str) else arm
+
+        # Find and sort files
+        files = inst.sort_files(
+            full_input_dir,
+            target,
+            night,
+            arm=arms[0] if len(arms) == 1 else arms[0],
+            **config["instrument"],
+            allow_calibration_only=allow_calibration_only,
+        )
+
+        if len(files) == 0:
+            logger.warning(
+                "No files found for instrument: %s, target: %s, night: %s, arm: %s",
+                instrument,
+                target,
+                night,
+                arm,
+            )
+            raise FileNotFoundError(
+                f"No files found for {instrument} / {target} / {night} / {arm}"
+            )
+
+        # Use the first file set (for single arm)
+        k, f = files[0]
+        logger.info("Pipeline settings:")
+        for key, value in k.items():
+            logger.info("  %s: %s", key, value)
+
+        # Create pipeline
+        pipe = cls.from_files(
+            files=f,
+            output_dir=full_output_dir,
+            target=k.get("target", target),
+            instrument=inst,
+            arm=arms[0],
+            night=k.get("night", night or ""),
+            config=config,
+            order_range=order_range,
+            steps=steps,
+            plot=plot,
+            plot_dir=plot_dir,
+        )
 
         return pipe

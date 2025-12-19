@@ -83,6 +83,17 @@ def main(
     default values can be changed as required if reduce is used as a script
     Finds input directories, and loops over observation nights and instrument arms
 
+    .. deprecated::
+        Use :meth:`Pipeline.from_instrument` instead::
+
+            from pyreduce.pipeline import Pipeline
+            result = Pipeline.from_instrument(
+                instrument="UVES",
+                target="HD132205",
+                night="2010-04-01",
+                arm="middle",
+            ).run()
+
     Parameters
     ----------
     instrument : str, list[str]
@@ -107,6 +118,14 @@ def main(
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
+    warnings.warn(
+        "pyreduce.reduce.main() is deprecated. Use Pipeline.from_instrument() instead:\n"
+        "    from pyreduce.pipeline import Pipeline\n"
+        "    result = Pipeline.from_instrument(instrument, target, ...).run()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if target is None or np.isscalar(target):
         target = [target]
     if night is None or np.isscalar(night):

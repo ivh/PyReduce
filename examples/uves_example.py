@@ -3,8 +3,8 @@ Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction
 """
 
-import pyreduce
 from pyreduce import datasets
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "UVES"
@@ -32,18 +32,15 @@ base_dir = datasets.UVES()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw/"
 output_dir = "reduced/{night}/{arm}"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument)
-
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    arm,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    configuration=config,
     order_range=(1, 21),
     plot=1,
-)
+).run()
