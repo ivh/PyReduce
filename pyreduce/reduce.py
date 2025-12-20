@@ -769,12 +769,20 @@ class OrderTracing(CalibrationStep):
         """
 
         # Check if this is a fiber bundle instrument
-        if (
-            self.fiber_bundle is not None
-            and files_even is not None
-            and files_odd is not None
-        ):
-            return self._run_fiber_bundle(files_even, files_odd, mask, bias)
+        if self.fiber_bundle is not None:
+            # Auto-detect even/odd files from input if not explicitly provided
+            if files_even is None or files_odd is None:
+                files_even = [f for f in files if "even" in os.path.basename(f).lower()]
+                files_odd = [f for f in files if "odd" in os.path.basename(f).lower()]
+                if files_even and files_odd:
+                    logger.info(
+                        "Auto-detected fiber bundle files: %d even, %d odd",
+                        len(files_even),
+                        len(files_odd),
+                    )
+
+            if files_even and files_odd:
+                return self._run_fiber_bundle(files_even, files_odd, mask, bias)
 
         logger.info("Order tracing files: %s", files)
 
