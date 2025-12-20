@@ -137,7 +137,8 @@
                                 "integer",
                                 "null"
                             ],
-                            "minimum": 0
+                            "minimum": 0,
+                            "maximum": 1
                         },
                         "min_width": {
                             "description": "Minimum width of a cluster to be considered after merging. If between 0 and 1, use that fraction of the detector width. Estimated automatically if null",

@@ -40,18 +40,17 @@ output_file = os.path.join(output_dir, "fiber_traces.npz")
 # Order tracing parameters (tune these for your data)
 trace_params = {
     "min_cluster": 100,
-    "min_width": 10,
-    "filter_size": 20,
-    "noise": 50,
+    "min_width": 0.2,
+    "filter_size": 5,
+    "noise": 0,
     "opower": 4,
-    "degree_before_merge": 2,
+    "degree_before_merge": 4,
     "regularization": 0,
-    "closing_shape": (1, 5),
+    "closing_shape": (1, 1),
     "border_width": 0,
     "manual": False,
     "auto_merge_threshold": 1.0,
     "merge_min_threshold": 0.1,
-    "sigma": 0,
     "plot": 1,
 }
 
@@ -74,9 +73,9 @@ order_centers = [
 
 # Logical fiber grouping (fiber index ranges)
 logical_fibers = {
-    "A": (0, 36),
+    "A": (0, 35),
     "cal": (36, 38),
-    "B": (38, 75),
+    "B": (39, 75),
 }
 
 # --- Load instrument ---

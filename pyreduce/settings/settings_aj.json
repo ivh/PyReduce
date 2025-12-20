@@ -4,7 +4,7 @@
     "degree": 4,
     "noise": 0,
     "min_cluster": 2000,
-    "min_width": 1000,
+    "min_width": 0.5,
     "filter_size": 20,
     "border_width": 0,
     "closing_shape": [1, 1],
