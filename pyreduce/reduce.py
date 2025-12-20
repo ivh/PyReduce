@@ -736,15 +736,12 @@ class OrderTracing(CalibrationStep):
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
-        #:dict: Fiber bundle configuration for multi-fiber instruments
-        self.fiber_bundle = config.get("fiber_bundle", None)
-
     @property
     def savefile(self):
         """str: Name of the order tracing file"""
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
-    def run(self, files, mask, bias, files_even=None, files_odd=None):
+    def run(self, files, mask, bias):
         """Determine polynomial coefficients describing order locations
 
         Parameters
@@ -755,10 +752,6 @@ class OrderTracing(CalibrationStep):
             Bad pixel mask
         bias : tuple or None
             Bias correction
-        files_even : list(str), optional
-            Even-illuminated fiber flat files (for fiber bundles)
-        files_odd : list(str), optional
-            Odd-illuminated fiber flat files (for fiber bundles)
 
         Returns
         -------
@@ -767,22 +760,6 @@ class OrderTracing(CalibrationStep):
         column_range : array of shape (nord, 2)
             first and last(+1) column that carries signal in each order
         """
-
-        # Check if this is a fiber bundle instrument
-        if self.fiber_bundle is not None:
-            # Auto-detect even/odd files from input if not explicitly provided
-            if files_even is None or files_odd is None:
-                files_even = [f for f in files if "even" in os.path.basename(f).lower()]
-                files_odd = [f for f in files if "odd" in os.path.basename(f).lower()]
-                if files_even and files_odd:
-                    logger.info(
-                        "Auto-detected fiber bundle files: %d even, %d odd",
-                        len(files_even),
-                        len(files_odd),
-                    )
-
-            if files_even and files_odd:
-                return self._run_fiber_bundle(files_even, files_odd, mask, bias)
 
         logger.info("Order tracing files: %s", files)
 
@@ -811,129 +788,6 @@ class OrderTracing(CalibrationStep):
 
         return orders, column_range
 
-    def _run_fiber_bundle(self, files_even, files_odd, mask, bias):
-        """Run order tracing for fiber bundle instruments.
-
-        Traces even and odd illuminated flats separately, merges them
-        by order, then groups into logical fibers.
-        """
-        from .trace_orders import group_and_refit, merge_traces
-
-        logger.info("Fiber bundle tracing - even files: %s", files_even)
-        logger.info("Fiber bundle tracing - odd files: %s", files_odd)
-
-        # Trace even-illuminated fibers
-        even_img, _ = self.calibrate(files_even, mask, bias, None)
-        traces_even, cr_even = mark_orders(
-            even_img,
-            min_cluster=self.min_cluster,
-            min_width=self.min_width,
-            filter_size=self.filter_size,
-            noise=self.noise,
-            opower=self.fit_degree,
-            degree_before_merge=self.degree_before_merge,
-            regularization=self.regularization,
-            closing_shape=self.closing_shape,
-            border_width=self.border_width,
-            manual=self.manual,
-            auto_merge_threshold=self.auto_merge_threshold,
-            merge_min_threshold=self.merge_min_threshold,
-            sigma=self.sigma,
-            plot=self.plot,
-            plot_title=f"{self.plot_title} (even)"
-            if self.plot_title
-            else "Even fibers",
-        )
-        logger.info("Found %d traces in even-illuminated flat", len(traces_even))
-
-        # Trace odd-illuminated fibers
-        odd_img, _ = self.calibrate(files_odd, mask, bias, None)
-        traces_odd, cr_odd = mark_orders(
-            odd_img,
-            min_cluster=self.min_cluster,
-            min_width=self.min_width,
-            filter_size=self.filter_size,
-            noise=self.noise,
-            opower=self.fit_degree,
-            degree_before_merge=self.degree_before_merge,
-            regularization=self.regularization,
-            closing_shape=self.closing_shape,
-            border_width=self.border_width,
-            manual=self.manual,
-            auto_merge_threshold=self.auto_merge_threshold,
-            merge_min_threshold=self.merge_min_threshold,
-            sigma=self.sigma,
-            plot=self.plot,
-            plot_title=f"{self.plot_title} (odd)" if self.plot_title else "Odd fibers",
-        )
-        logger.info("Found %d traces in odd-illuminated flat", len(traces_odd))
-
-        # Merge traces by order
-        order_centers = self.fiber_bundle.get("order_centers", None)
-        ncols = even_img.shape[1]
-        traces_by_order, cr_by_order, fiber_ids_by_order = merge_traces(
-            traces_even,
-            cr_even,
-            traces_odd,
-            cr_odd,
-            order_centers=order_centers,
-            ncols=ncols,
-        )
-
-        n_orders = len(traces_by_order)
-        total_traces = sum(len(t) for t in traces_by_order.values())
-        logger.info(
-            "Merged into %d orders with %d total traces", n_orders, total_traces
-        )
-        for oid in sorted(traces_by_order.keys()):
-            logger.info("  Order %d: %d traces", oid, len(traces_by_order[oid]))
-
-        # Group into logical fibers
-        logical_fibers = self.fiber_bundle.get("logical_fibers", {})
-        groups = {name: tuple(cfg["range"]) for name, cfg in logical_fibers.items()}
-
-        logical_traces, logical_cr, fiber_counts = group_and_refit(
-            traces_by_order,
-            cr_by_order,
-            fiber_ids_by_order,
-            groups,
-            degree=self.fit_degree,
-        )
-
-        for name in groups.keys():
-            total = sum(fiber_counts[name].values())
-            logger.info(
-                "Logical fiber '%s': %d total physical fibers across orders",
-                name,
-                total,
-            )
-
-        # Save with fiber bundle metadata
-        self.save_fiber_bundle(
-            traces_by_order,
-            cr_by_order,
-            fiber_ids_by_order,
-            logical_traces,
-            logical_cr,
-            fiber_counts,
-        )
-
-        # Return the first logical trace as the default (backward compat)
-        first_name = list(logical_traces.keys())[0] if logical_traces else None
-        if first_name:
-            orders = logical_traces[first_name]
-            column_range = logical_cr
-        else:
-            # Flatten physical traces as fallback
-            orders = np.vstack(
-                [traces_by_order[o] for o in sorted(traces_by_order.keys())]
-            )
-            column_range = np.vstack(
-                [cr_by_order[o] for o in sorted(cr_by_order.keys())]
-            )
-
-        return orders, column_range
-
     def save(self, orders, column_range):
         """Save order tracing results to disk
 
@@ -946,47 +800,6 @@ class OrderTracing(CalibrationStep):
         """
         np.savez(self.savefile, orders=orders, column_range=column_range)
         logger.info("Created order tracing file: %s", self.savefile)
-
-    def save_fiber_bundle(
-        self,
-        traces_by_order,
-        cr_by_order,
-        fiber_ids_by_order,
-        logical_traces,
-        logical_cr,
-        fiber_counts,
-    ):
-        """Save fiber bundle order tracing results to disk.
-
-        Saves both physical traces (per order) and logical fiber traces.
-        """
-        save_dict = {
-            # Logical column range
-            "column_range": logical_cr,
-            # Number of orders
-            "n_orders": len(traces_by_order),
-        }
-
-        # Save physical traces per order
-        for order_idx in sorted(traces_by_order.keys()):
-            save_dict[f"traces_order_{order_idx}"] = traces_by_order[order_idx]
-            save_dict[f"column_range_order_{order_idx}"] = cr_by_order[order_idx]
-            save_dict[f"fiber_ids_order_{order_idx}"] = fiber_ids_by_order[order_idx]
-
-        # Add each logical fiber trace
-        for name, trace in logical_traces.items():
-            save_dict[f"traces_{name}"] = trace
-            # Sum fiber counts across orders
-            total_count = sum(fiber_counts[name].values())
-            save_dict[f"fiber_count_{name}"] = total_count
-
-        # Backward compat: first logical trace as 'orders'
-        if logical_traces:
-            first_name = list(logical_traces.keys())[0]
-            save_dict["orders"] = logical_traces[first_name]
-
-        np.savez(self.savefile, **save_dict)
-        logger.info("Created fiber bundle order tracing file: %s", self.savefile)
 
     def load(self):
         """Load order tracing results

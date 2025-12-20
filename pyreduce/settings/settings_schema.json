@@ -166,30 +166,6 @@
                         "manual": {
                             "description": "Ask for manual confirmation before merging any clusters. Otherwise only ask when overlap below 90%.",
                             "type": "boolean"
-                        },
-                        "fiber_bundle": {
-                            "description": "Configuration for multi-fiber instruments with many physical fibers per spectral order",
-                            "type": ["object", "null"],
-                            "properties": {
-                                "count": {
-                                    "description": "Number of physical fibers per spectral order",
-                                    "type": "integer",
-                                    "minimum": 1
-                                },
-                                "order_centers": {
-                                    "description": "Y-positions of spectral order centers at x=ncols/2 for trace assignment",
-                                    "type": "array",
-                                    "items": {"type": "number"}
-                                },
-                                "illumination_sets": {
-                                    "description": "Illumination patterns for separate flat files",
-                                    "type": "object"
-                                },
-                                "logical_fibers": {
-                                    "description": "Groupings of physical fibers into logical fibers (A, B, cal, etc.)",
-                                    "type": "object"
-                                }
-                            }
                         }
                     },
                     "required": [
@@ -198,8 +174,7 @@
                         "min_cluster",
                         "noise",
                         "border_width",
-                        "manual",
-                        "fiber_bundle"
+                        "manual"
                     ]
                 }
             ]

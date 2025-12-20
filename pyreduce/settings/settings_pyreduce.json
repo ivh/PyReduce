@@ -38,7 +38,6 @@
         "noise": null,
         "border_width": null,
         "manual": true,
-        "fiber_bundle": null,
         "plot": true,
         "plot_title": "Order Tracing"
     },
