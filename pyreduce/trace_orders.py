@@ -397,7 +397,8 @@ def mark_orders(
     im,
     min_cluster=None,
     min_width=None,
-    filter_size=None,
+    filter_x=0,
+    filter_y=None,
     noise=None,
     opower=4,
     border_width=None,
@@ -420,8 +421,12 @@ def mark_orders(
         order definition image
     min_cluster : int, optional
         minimum cluster size in pixels (default: 500)
-    filter_size : int, optional
-        size of the running filter (default: 120)
+    filter_x : int, optional
+        gaussian smoothing sigma along x-axis/dispersion direction (default: 0, no smoothing).
+        Useful for noisy data or thin fiber traces.
+    filter_y : int, optional
+        gaussian smoothing sigma along y-axis/cross-dispersion direction (default: auto).
+        Used to estimate local background. For thin closely-spaced traces, use small values.
     noise : float, optional
         noise to filter out (default: 8)
     opower : int, optional
@@ -443,15 +448,15 @@ def mark_orders(
     im = np.asanyarray(im)
     im = im.astype(int)
 
-    if filter_size is None:
+    if filter_y is None:
         col = im[:, im.shape[0] // 2]
         col = median_filter(col, 5)
         threshold = np.percentile(col, 90)
         npeaks = find_peaks(col, height=threshold)[0].size
-        filter_size = im.shape[0] // (npeaks * 2)
-        logger.info("Median filter size, estimated: %i", filter_size)
-    elif filter_size <= 0:
-        raise ValueError(f"Expected filter size > 0, but got {filter_size}")
+        filter_y = im.shape[0] // (npeaks * 2)
+        logger.info("Median filter size (y), estimated: %i", filter_y)
+    elif filter_y <= 0:
+        raise ValueError(f"Expected filter_y > 0, but got {filter_y}")
 
     if border_width is None:
         # find width of orders, based on central column
@@ -481,8 +486,11 @@ def mark_orders(
     # im[im < 0] = np.ma.masked
     blurred = np.ma.filled(im, fill_value=0)
     blurred = grey_closing(blurred, 5)
-    # blur image along columns, and use the median + blurred + noise as threshold
-    blurred = gaussian_filter1d(blurred, filter_size, axis=0)
+    # Optionally smooth along x (dispersion) to reduce noise
+    if filter_x > 0:
+        blurred = gaussian_filter1d(blurred, filter_x, axis=1)
+    # Blur along y (cross-dispersion) to estimate local background
+    blurred = gaussian_filter1d(blurred, filter_y, axis=0)
 
     if noise is None:
         tmp = np.abs(blurred.flatten())

@@ -3,7 +3,7 @@
     "instrument": {},
     "orders": {
         "degree": 4,
-        "filter_size": 50,
+        "filter_y": 50,
         "min_cluster": 500,
         "noise": 10,
         "border_width": 0,

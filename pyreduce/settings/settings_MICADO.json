@@ -7,7 +7,7 @@
         "degree": 5,
         "degree_before_merge": "best",
         "bias_scaling": "exposure_time",
-        "filter_size": 300,
+        "filter_y": 300,
         "min_cluster": 500,
         "noise": 100,
         "border_width": 5,

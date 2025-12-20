@@ -10,7 +10,7 @@
         "degree": 5,
         "degree_before_merge": 2,
         "bias_scaling": "exposure_time",
-        "filter_size": 20,
+        "filter_y": 20,
         "min_cluster": 500,
         "noise": 10,
         "border_width": 50,

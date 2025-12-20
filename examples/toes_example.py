@@ -77,7 +77,7 @@ instrument.info["wavelength_range"] = [
 # For loading the config we specify pyreduce as the source, since this is the default
 config = get_configuration_for_instrument("pyreduce")
 # Define your own configuration
-config["orders"]["filter_size"] = 20  # smoothing
+config["orders"]["filter_y"] = 20  # smoothing along cross-dispersion
 config["orders"]["degree"] = 4
 config["orders"]["degree_before_merge"] = 2
 config["orders"]["noise"] = 5.5

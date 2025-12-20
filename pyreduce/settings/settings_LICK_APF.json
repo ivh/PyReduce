@@ -7,7 +7,7 @@
     },
     "orders": {
         "degree": 4,
-        "filter_size": 15,
+        "filter_y": 15,
         "min_cluster": 700,
         "border_width": 0,
         "noise": 10,

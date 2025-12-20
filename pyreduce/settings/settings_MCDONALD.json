@@ -6,7 +6,7 @@
         "degree_before_merge": 2,
         "regularization": 0,
         "closing_shape": [3, 10],
-        "filter_size": 30,
+        "filter_y": 30,
         "min_cluster": 200,
         "noise": 50,
         "auto_merge_threshold": 0.9,

@@ -123,8 +123,14 @@
                             "type": "number",
                             "minimum": 0
                         },
-                        "filter_size": {
-                            "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
+                        "filter_x": {
+                            "description": "Gaussian smoothing sigma along x-axis (dispersion direction). Set to 0 to disable. Useful for noisy data or thin fiber traces.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                        },
+                        "filter_y": {
+                            "description": "Gaussian smoothing sigma along y-axis (cross-dispersion) for background estimation. Estimated automatically if null. Use small values for thin closely-spaced traces.",
                             "type": [
                                 "integer",
                                 "null"
@@ -137,8 +143,7 @@
                                 "integer",
                                 "null"
                             ],
-                            "minimum": 0,
-                            "maximum": 1
+                            "minimum": 0
                         },
                         "min_width": {
                             "description": "Minimum width of a cluster to be considered after merging. If between 0 and 1, use that fraction of the detector width. Estimated automatically if null",
@@ -171,7 +176,8 @@
                     },
                     "required": [
                         "degree",
-                        "filter_size",
+                        "filter_x",
+                        "filter_y",
                         "min_cluster",
                         "noise",
                         "border_width",
