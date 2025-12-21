@@ -29,6 +29,10 @@
             5,
             5
         ],
+        "opening_shape": [
+            2,
+            2
+        ],
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.1,
         "split_sigma": 0,

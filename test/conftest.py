@@ -248,7 +248,7 @@ def data(dataset, settings, target, night, arm):
     """
 
     instrument, target = dataset
-    folder = dirname(__file__)
+    folder = join(dirname(__file__), "datasets")
     if instrument == "UVES":
         folder = datasets.UVES(folder)
     elif instrument == "XSHOOTER":

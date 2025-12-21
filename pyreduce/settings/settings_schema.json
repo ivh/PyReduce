@@ -97,7 +97,17 @@
                             "minimum": 0
                         },
                         "closing_shape": {
-                            "description": "Shape for the binary closing",
+                            "description": "Shape for binary closing (fills gaps within traces)",
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "opening_shape": {
+                            "description": "Shape for binary opening (removes isolated noise pixels)",
                             "type": "array",
                             "minItems": 2,
                             "maxItems": 2,

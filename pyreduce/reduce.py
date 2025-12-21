@@ -730,6 +730,7 @@ class OrderTracing(CalibrationStep):
         self.degree_before_merge = config["degree_before_merge"]
         self.regularization = config["regularization"]
         self.closing_shape = config["closing_shape"]
+        self.opening_shape = config["opening_shape"]
         self.auto_merge_threshold = config["auto_merge_threshold"]
         self.merge_min_threshold = config["merge_min_threshold"]
         self.sigma = config["split_sigma"]
@@ -778,6 +779,7 @@ class OrderTracing(CalibrationStep):
             degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,
             closing_shape=self.closing_shape,
+            opening_shape=self.opening_shape,
             border_width=self.border_width,
             manual=self.manual,
             auto_merge_threshold=self.auto_merge_threshold,

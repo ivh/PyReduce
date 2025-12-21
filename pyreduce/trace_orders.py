@@ -483,23 +483,27 @@ def mark_orders(
         min_width = int(min_width * im.shape[0])
         logger.info("Minimum order width, estimated: %i", min_width)
 
-    # im[im < 0] = np.ma.masked
-    blurred = np.ma.filled(im, fill_value=0)
-    blurred = grey_closing(blurred, 5)
+    # Prepare image for thresholding
+    im_clean = np.ma.filled(im, fill_value=0).astype(float)
+    im_clean = grey_closing(im_clean, 5)
+
     # Optionally smooth along x (dispersion) to reduce noise
+    # Applied to both signal and background so we detect y-structure only
     if filter_x > 0:
-        blurred = gaussian_filter1d(blurred, filter_x, axis=1)
-    # Blur along y (cross-dispersion) to estimate local background
-    blurred = gaussian_filter1d(blurred, filter_y, axis=0)
+        im_clean = gaussian_filter1d(im_clean, filter_x, axis=1)
+
+    # Estimate local background by smoothing along y (cross-dispersion)
+    background = gaussian_filter1d(im_clean, filter_y, axis=0)
 
     if noise is None:
-        tmp = np.abs(blurred.flatten())
+        tmp = np.abs(background.flatten())
         noise = np.percentile(tmp, 5)
         logger.info("Background noise, estimated: %f", noise)
     elif not np.isscalar(noise):
         raise TypeError(f"Expected scalar noise level, but got {noise}")
 
-    mask = im > blurred + noise
+    # Threshold: pixels above local background are signal
+    mask = im_clean > background + noise
     # remove borders
     if border_width != 0:
         mask[:border_width, :] = mask[-border_width:, :] = False

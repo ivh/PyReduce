@@ -40,14 +40,14 @@ output_file = os.path.join(output_dir, "fiber_traces.npz")
 # Order tracing parameters (tune these for your data)
 trace_params = {
     "min_cluster": 50,
-    "min_width": 0,  # Disable min_width filter - fibers may be fragmented
-    "filter_x": 20,  # Smooth along dispersion to reduce noise
-    "filter_y": 3,  # Small value to preserve thin fiber separation
+    "min_width": 0.1,  # Fraction of detector height
+    "filter_x": 0,  # Smooth along dispersion to reduce noise
+    "filter_y": 20,  # Small value to preserve thin fiber separation
     "noise": 0,
     "opower": 4,
     "degree_before_merge": 2,
     "regularization": 0,
-    "closing_shape": (1, 3),
+    "closing_shape": (1, 1),
     "opening_shape": (1, 1),
     "border_width": 0,
     "manual": False,
