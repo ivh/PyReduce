@@ -19,12 +19,14 @@ def test_orders(instr, instrument, arm, files, settings, mask):
         order_img,
         min_cluster=settings["min_cluster"],
         min_width=settings["min_width"],
-        filter_size=settings["filter_size"],
+        filter_x=settings.get("filter_x", 0),
+        filter_y=settings["filter_y"],
         noise=settings["noise"],
         opower=settings["degree"],
         degree_before_merge=settings["degree_before_merge"],
         regularization=settings["regularization"],
         closing_shape=settings["closing_shape"],
+        opening_shape=settings.get("opening_shape", None),
         border_width=settings["border_width"],
         manual=False,
         auto_merge_threshold=settings["auto_merge_threshold"],
@@ -71,9 +73,9 @@ def test_parameters():
     with pytest.raises(TypeError):
         mark_orders(img, min_cluster="bla")
     with pytest.raises(TypeError):
-        mark_orders(img, filter_size="bla")
+        mark_orders(img, filter_y="bla")
     with pytest.raises(ValueError):
-        mark_orders(img, filter_size=0)
+        mark_orders(img, filter_y=0)
     with pytest.raises(TypeError):
         mark_orders(img, noise="bla")
     with pytest.raises(TypeError):
