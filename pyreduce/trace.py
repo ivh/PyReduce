@@ -778,7 +778,13 @@ def trace(
 
 
 def merge_traces(
-    traces_a, column_range_a, traces_b, column_range_b, order_centers=None, ncols=None
+    traces_a,
+    column_range_a,
+    traces_b,
+    column_range_b,
+    order_centers=None,
+    order_numbers=None,
+    ncols=None,
 ):
     """
     Merge two sets of traces from different illumination patterns.
@@ -799,17 +805,19 @@ def merge_traces(
         Column ranges for second set
     order_centers : array-like, optional
         Expected y-positions of order centers at x=ncols/2
+    order_numbers : array-like, optional
+        Actual order numbers corresponding to each center. If None, uses 0-based indices.
     ncols : int, optional
         Number of columns in the image (for center calculation)
 
     Returns
     -------
     traces_by_order : dict
-        {order_idx: array (n_fibers, degree+1)} traces per order
+        {order_num: array (n_fibers, degree+1)} traces per order
     column_range_by_order : dict
-        {order_idx: array (n_fibers, 2)} column ranges per order
+        {order_num: array (n_fibers, 2)} column ranges per order
     fiber_ids_by_order : dict
-        {order_idx: array (n_fibers,)} fiber indices per order (0-74)
+        {order_num: array (n_fibers,)} fiber indices per order (0-74)
     """
     if len(traces_a) == 0 and len(traces_b) == 0:
         return {}, {}, {}
@@ -842,9 +850,14 @@ def merge_traces(
         order_ids = np.zeros(len(traces), dtype=int)
     else:
         order_centers = np.array(order_centers)
-        order_ids = np.array(
+        center_indices = np.array(
             [np.argmin(np.abs(order_centers - y)) for y in y_positions]
         )
+        if order_numbers is not None:
+            order_numbers = np.array(order_numbers)
+            order_ids = order_numbers[center_indices]
+        else:
+            order_ids = center_indices
 
     # Group by order, sort by y within each order, assign fiber IDs
     traces_by_order = {}
@@ -864,16 +877,16 @@ def merge_traces(
         order_cr = order_cr[sort_idx]
         order_is_even = order_is_even[sort_idx]
 
-        # Assign fiber IDs: even fibers get 0,2,4,...  odd get 1,3,5,...
+        # Assign fiber IDs: even fibers get 1,3,5,...  odd get 2,4,6,...
         fiber_ids = np.zeros(len(order_traces), dtype=int)
         even_count = 0
         odd_count = 0
         for i, is_e in enumerate(order_is_even):
             if is_e:
-                fiber_ids[i] = even_count * 2
+                fiber_ids[i] = even_count * 2 + 1
                 even_count += 1
             else:
-                fiber_ids[i] = odd_count * 2 + 1
+                fiber_ids[i] = odd_count * 2 + 2
                 odd_count += 1
 
         traces_by_order[order_idx] = order_traces

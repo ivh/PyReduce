@@ -27,15 +27,24 @@ from pyreduce.trace import group_and_refit, merge_traces, trace
 
 # --- Configuration ---
 instrument_name = "AJ"
-base_dir = os.path.expanduser("~/REDUCE_DATA/AJ")
+raw_dir = os.path.expanduser("~/REDUCE_DATA/AJ/raw")
 
-# Input files - explicitly specify which is which
-file_even = os.path.join(base_dir, "raw/J_FF_even_1s.fits")
-file_odd = os.path.join(base_dir, "raw/J_FF_odd_1s.fits")
+# Input files
+file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
+file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
+orders_file = os.path.join(raw_dir, "ANDES_75fibre_J_orders.npz")
 
 # Output
-output_dir = os.path.join(base_dir, "reduced")
+output_dir = os.path.expanduser("~/REDUCE_DATA/AJ/reduced")
 output_file = os.path.join(output_dir, "fiber_traces.npz")
+
+# Load order centers from npz file
+orders_data = np.load(orders_file)
+order_numbers = orders_data["order"]
+order_centers = orders_data["y_mid"]
+print(
+    f"Loaded {len(order_centers)} orders ({order_numbers[0]}-{order_numbers[-1]}) from {orders_file}"
+)
 
 # Order tracing parameters (tune these for your data)
 trace_params = {
@@ -57,28 +66,11 @@ trace_params = {
     "plot": 1,
 }
 
-# Order centers: y-position of each spectral order at x=ncols/2
-order_centers = [
-    377,
-    1217,
-    1442,
-    1639,
-    1879,
-    2087,
-    2314,
-    2539,
-    2781,
-    3017,
-    3265,
-    3519,
-    3749,
-]
-
-# Logical fiber grouping (fiber index ranges)
+# Logical fiber grouping (fiber number ranges, 1-based)
 logical_fibers = {
-    "A": (0, 35),
-    "cal": (36, 38),
-    "B": (39, 75),
+    "A": (1, 36),
+    "cal": (37, 39),
+    "B": (40, 76),
 }
 
 # --- Load instrument ---
@@ -115,6 +107,7 @@ traces_by_order, cr_by_order, fiber_ids = merge_traces(
     traces_odd,
     cr_odd,
     order_centers=order_centers,
+    order_numbers=order_numbers,
     ncols=img_even.shape[1],
 )
 
