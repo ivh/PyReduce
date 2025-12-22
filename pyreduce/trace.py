@@ -544,12 +544,9 @@ def trace(
     # Convert masked values to NaN, interpolate, then back to regular ndarray
     if np.ma.is_masked(im):
         im_clean = np.ma.filled(im.astype(float), fill_value=np.nan)
-        kernel_size_x = max(3, filter_x) if filter_x > 0 else 3
-        kernel_size_y = max(3, filter_y) if filter_y else 3
-        kernel = Gaussian2DKernel(
-            x_stddev=kernel_size_x / 2, y_stddev=kernel_size_y / 2
-        )
+        kernel = Gaussian2DKernel(x_stddev=1.5, y_stddev=2.5)
         im_clean = np.asarray(interpolate_replace_nans(im_clean, kernel))
+        im_clean = np.nan_to_num(im_clean, nan=0.0)
     else:
         im_clean = np.asarray(im, dtype=float)
 
