@@ -94,10 +94,10 @@ pyreduce.reduce module
     :show-inheritance:
 
 
-pyreduce.trace\_orders module
------------------------------
+pyreduce.trace module
+---------------------
 
-.. automodule:: pyreduce.trace_orders
+.. automodule:: pyreduce.trace
     :members:
     :undoc-members:
     :show-inheritance:

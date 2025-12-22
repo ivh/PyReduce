@@ -39,6 +39,7 @@ installation
 howto
 cli
 examples
+manual_calls
 configuration_file
 instruments
 wavecal_linelist
