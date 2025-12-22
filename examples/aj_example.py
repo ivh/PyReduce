@@ -39,13 +39,13 @@ output_file = os.path.join(output_dir, "fiber_traces.npz")
 
 # Order tracing parameters (tune these for your data)
 trace_params = {
-    "min_cluster": 50,
+    "min_cluster": 500,
     "min_width": 0.1,  # Fraction of detector height
     "filter_x": 0,  # Smooth along dispersion to reduce noise
-    "filter_y": 20,  # Small value to preserve thin fiber separation
+    "filter_y": 4,  # Small value to preserve thin fiber separation
     "noise": 0,
-    "opower": 4,
-    "degree_before_merge": 2,
+    "degree": 4,
+    "degree_before_merge": 4,
     "regularization": 0,
     "closing_shape": (1, 1),
     "opening_shape": (1, 1),
@@ -96,11 +96,15 @@ img_odd, head_odd = instrument.load_fits(file_odd, arm=arm, extension=0)
 
 # --- Step 2: Trace each flat independently ---
 print("\nTracing even-illuminated fibers...")
-traces_even, cr_even = mark_orders(img_even, plot_title="Even fibers", **trace_params)
+traces_even, cr_even = mark_orders(
+    img_even, plot_title="Even fibers", debug_dir="./debug/even", **trace_params
+)
 print(f"  Found {len(traces_even)} traces")
 
 print("\nTracing odd-illuminated fibers...")
-traces_odd, cr_odd = mark_orders(img_odd, plot_title="Odd fibers", **trace_params)
+traces_odd, cr_odd = mark_orders(
+    img_odd, plot_title="Odd fibers", debug_dir="./debug/odd", **trace_params
+)
 print(f"  Found {len(traces_odd)} traces")
 
 # --- Step 3: Merge traces and assign to spectral orders ---
@@ -128,7 +132,7 @@ try:
         cr_by_order,
         fiber_ids,
         groups=logical_fibers,
-        degree=trace_params["opower"],
+        degree=trace_params["degree"],
     )
 
     for name, (start, end) in logical_fibers.items():

@@ -1,6 +1,12 @@
 """
-Find clusters of pixels with signal
-And combine them into continous orders
+Find clusters of pixels with signal and fit polynomial traces.
+
+Note on terminology:
+- "trace": A single polynomial fit to a cluster of pixels (e.g., one fiber)
+- "spectral order": A group of traces at similar wavelengths (e.g., all fibers in one echelle order)
+
+The main function `mark_orders` detects and fits individual traces.
+Use `merge_traces` and `group_and_refit` to organize traces into spectral orders.
 """
 
 import logging
@@ -400,7 +406,7 @@ def mark_orders(
     filter_x=0,
     filter_y=None,
     noise=None,
-    opower=4,
+    degree=4,
     border_width=None,
     degree_before_merge=2,
     regularization=0,
@@ -412,6 +418,7 @@ def mark_orders(
     auto_merge_threshold=0.9,
     merge_min_threshold=0.1,
     sigma=0,
+    debug_dir=None,
 ):
     """Identify and trace orders
 
@@ -437,6 +444,8 @@ def mark_orders(
         wether to plot the final order fits (default: False)
     manual : bool, optional
         wether to manually select clusters to merge (strongly recommended) (default: True)
+    debug_dir : str, optional
+        if set, write intermediate images (filtered, background, mask) to this directory
 
     Returns
     -------
@@ -481,7 +490,7 @@ def mark_orders(
         pass
     elif isinstance(min_width, (float, np.floating)):
         min_width = int(min_width * im.shape[0])
-        logger.info("Minimum order width, estimated: %i", min_width)
+        logger.info("Minimum trace width: %i", min_width)
 
     # Prepare image for thresholding
     im_clean = np.ma.filled(im, fill_value=0).astype(float)
@@ -504,6 +513,7 @@ def mark_orders(
 
     # Threshold: pixels above local background are signal
     mask = im_clean > background + noise
+    mask_initial = mask.copy()
     # remove borders
     if border_width != 0:
         mask[:border_width, :] = mask[-border_width:, :] = False
@@ -517,6 +527,35 @@ def mark_orders(
     struct = np.full(opening_shape, 1)
     # struct = generate_binary_structure(2, 1)
     mask = binary_opening(mask, struct)
+
+    # Write debug output if requested
+    if debug_dir is not None:
+        import os
+
+        from astropy.io import fits
+
+        os.makedirs(debug_dir, exist_ok=True)
+        fits.writeto(
+            os.path.join(debug_dir, "trace_filtered.fits"),
+            im_clean.astype(np.float32),
+            overwrite=True,
+        )
+        fits.writeto(
+            os.path.join(debug_dir, "trace_background.fits"),
+            background.astype(np.float32),
+            overwrite=True,
+        )
+        fits.writeto(
+            os.path.join(debug_dir, "trace_mask_initial.fits"),
+            mask_initial.astype(np.uint8),
+            overwrite=True,
+        )
+        fits.writeto(
+            os.path.join(debug_dir, "trace_mask_final.fits"),
+            mask.astype(np.uint8),
+            overwrite=True,
+        )
+        logger.info("Wrote debug images to %s", debug_dir)
 
     # label clusters
     clusters, _ = label(mask)
@@ -633,7 +672,7 @@ def mark_orders(
                 del y[k]
         n = x.keys()
 
-    orders = fit_polynomials_to_clusters(x, y, n, opower)
+    orders = fit_polynomials_to_clusters(x, y, n, degree)
 
     # sort orders from bottom to top, using relative position
 

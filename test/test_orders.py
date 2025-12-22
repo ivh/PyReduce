@@ -22,7 +22,7 @@ def test_orders(instr, instrument, arm, files, settings, mask):
         filter_x=settings.get("filter_x", 0),
         filter_y=settings["filter_y"],
         noise=settings["noise"],
-        opower=settings["degree"],
+        degree=settings["degree"],
         degree_before_merge=settings["degree_before_merge"],
         regularization=settings["regularization"],
         closing_shape=settings["closing_shape"],
@@ -53,7 +53,7 @@ def test_simple():
     img[45:56, :] = 100
 
     orders, column_range = mark_orders(
-        img, manual=False, opower=1, plot=False, border_width=0
+        img, manual=False, degree=1, plot=False, border_width=0
     )
 
     assert orders.shape[0] == 1
@@ -83,6 +83,6 @@ def test_parameters():
     with pytest.raises(ValueError):
         mark_orders(img, border_width=-1)
     with pytest.raises(TypeError):
-        mark_orders(img, opower="bla")
+        mark_orders(img, degree="bla")
     with pytest.raises(ValueError):
-        mark_orders(img, opower=-1)
+        mark_orders(img, degree=-1)

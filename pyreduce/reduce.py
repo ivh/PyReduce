@@ -775,7 +775,7 @@ class OrderTracing(CalibrationStep):
             filter_x=self.filter_x,
             filter_y=self.filter_y,
             noise=self.noise,
-            opower=self.fit_degree,
+            degree=self.fit_degree,
             degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,
             closing_shape=self.closing_shape,
