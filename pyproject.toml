@@ -171,6 +171,10 @@ markers = [
     "slow: Tests taking >5 seconds",
     "downloads: Tests that download sample datasets",
 ]
+filterwarnings = [
+    "ignore:The following header keyword is invalid:astropy.utils.exceptions.AstropyUserWarning",
+    "ignore:Invalid 'BLANK' keyword:astropy.io.fits.verify.VerifyWarning",
+]
 
 # Coverage configuration
 [tool.coverage.run]

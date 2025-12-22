@@ -7,6 +7,7 @@ Used to create master bias and master flat
 import datetime
 import logging
 import os
+import warnings
 
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
@@ -671,7 +672,9 @@ def combine_polynomial(
     # Numpy polyfit can fit all polynomials at the same time
     # but we need to flatten the pixels into 1 dimension
     data_flat = data.reshape((len(exptimes), -1))
-    coeffs = np.polyfit(exptimes, data_flat, degree)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", np.exceptions.RankWarning)
+        coeffs = np.polyfit(exptimes, data_flat, degree)
     # Afterwards we reshape the coefficients into the image shape
     shape = (degree + 1, data.shape[1], data.shape[2])
     coeffs = coeffs.reshape(shape)
