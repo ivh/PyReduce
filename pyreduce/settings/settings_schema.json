@@ -140,12 +140,18 @@
                             "default": 0
                         },
                         "filter_y": {
-                            "description": "Gaussian smoothing sigma along y-axis (cross-dispersion) for background estimation. Estimated automatically if null. Use small values for thin closely-spaced traces.",
+                            "description": "Smoothing width along y-axis (cross-dispersion) for background estimation. Estimated automatically if null. Use small values for thin closely-spaced traces.",
                             "type": [
                                 "integer",
                                 "null"
                             ],
                             "minimum": 0
+                        },
+                        "filter_type": {
+                            "description": "Type of smoothing filter for background estimation: boxcar (uniform average), gaussian, or whittaker (edge-preserving).",
+                            "type": "string",
+                            "enum": ["boxcar", "gaussian", "whittaker"],
+                            "default": "boxcar"
                         },
                         "min_cluster": {
                             "description": "Smallest allowed size of clusters before merging. Estimated automatically if null.",

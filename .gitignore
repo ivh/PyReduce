@@ -18,3 +18,5 @@ pyesorex.log
 test/test_outputs
 docs/_build/
 .claude
+debug/
+idl/

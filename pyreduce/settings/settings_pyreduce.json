@@ -38,6 +38,7 @@
         "split_sigma": 0,
         "filter_x": 0,
         "filter_y": null,
+        "filter_type": "boxcar",
         "min_cluster": null,
         "min_width": null,
         "noise": null,

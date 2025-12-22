@@ -17,12 +17,48 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
 from scipy.ndimage import binary_closing, binary_opening, grey_closing, label
-from scipy.ndimage.filters import gaussian_filter1d, median_filter
+from scipy.ndimage.filters import gaussian_filter1d, median_filter, uniform_filter1d
 from scipy.signal import find_peaks, peak_widths
+from scipy.sparse import diags
+from scipy.sparse.linalg import spsolve
 
 from . import util
 
 logger = logging.getLogger(__name__)
+
+
+def whittaker_smooth(y, lam, axis=0):
+    """Whittaker smoother (optimal filter).
+
+    Solves: min sum((y - z)^2) + lam * sum((z[i] - z[i-1])^2)
+
+    Parameters
+    ----------
+    y : array
+        Input data (1D or 2D)
+    lam : float
+        Smoothing parameter (higher = smoother)
+    axis : int
+        Axis along which to smooth (for 2D arrays)
+
+    Returns
+    -------
+    z : array
+        Smoothed data
+    """
+    if y.ndim == 1:
+        n = len(y)
+        # Construct tridiagonal matrix: W + lam * D'D
+        # where D is first-difference matrix
+        diag_main = np.ones(n) + 2 * lam
+        diag_main[0] = 1 + lam
+        diag_main[-1] = 1 + lam
+        diag_off = -lam * np.ones(n - 1)
+        A = diags([diag_off, diag_main, diag_off], [-1, 0, 1], format="csc")
+        return spsolve(A, y)
+    else:
+        # Apply along specified axis
+        return np.apply_along_axis(lambda row: whittaker_smooth(row, lam), axis, y)
 
 
 def fit(x, y, deg, regularization=0):
@@ -405,6 +441,7 @@ def trace(
     min_width=None,
     filter_x=0,
     filter_y=None,
+    filter_type="boxcar",
     noise=None,
     degree=4,
     border_width=None,
@@ -429,11 +466,14 @@ def trace(
     min_cluster : int, optional
         minimum cluster size in pixels (default: 500)
     filter_x : int, optional
-        gaussian smoothing sigma along x-axis/dispersion direction (default: 0, no smoothing).
+        Smoothing width along x-axis/dispersion direction (default: 0, no smoothing).
         Useful for noisy data or thin fiber traces.
     filter_y : int, optional
-        gaussian smoothing sigma along y-axis/cross-dispersion direction (default: auto).
+        Smoothing width along y-axis/cross-dispersion direction (default: auto).
         Used to estimate local background. For thin closely-spaced traces, use small values.
+    filter_type : str, optional
+        Type of smoothing filter: "boxcar" (default), "gaussian", or "whittaker".
+        Boxcar is a uniform moving average. Whittaker preserves edges better.
     noise : float, optional
         noise to filter out (default: 8)
     opower : int, optional
@@ -492,17 +532,38 @@ def trace(
         min_width = int(min_width * im.shape[0])
         logger.info("Minimum trace width: %i", min_width)
 
+    # Validate filter_type
+    valid_filters = ("boxcar", "gaussian", "whittaker")
+    if filter_type not in valid_filters:
+        raise ValueError(
+            f"filter_type must be one of {valid_filters}, got {filter_type}"
+        )
+
     # Prepare image for thresholding
     im_clean = np.ma.filled(im, fill_value=0).astype(float)
     im_clean = grey_closing(im_clean, 5)
 
+    # Select filter function based on filter_type
+    if filter_type == "boxcar":
+
+        def smooth(data, size, axis):
+            return uniform_filter1d(data, int(size), axis=axis, mode="nearest")
+    elif filter_type == "gaussian":
+
+        def smooth(data, size, axis):
+            return gaussian_filter1d(data, size, axis=axis)
+    else:  # whittaker
+
+        def smooth(data, size, axis):
+            return whittaker_smooth(data, size, axis=axis)
+
     # Optionally smooth along x (dispersion) to reduce noise
     # Applied to both signal and background so we detect y-structure only
     if filter_x > 0:
-        im_clean = gaussian_filter1d(im_clean, filter_x, axis=1)
+        im_clean = smooth(im_clean, filter_x, axis=1)
 
     # Estimate local background by smoothing along y (cross-dispersion)
-    background = gaussian_filter1d(im_clean, filter_y, axis=0)
+    background = smooth(im_clean, filter_y, axis=0)
 
     if noise is None:
         tmp = np.abs(background.flatten())

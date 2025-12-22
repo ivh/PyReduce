@@ -718,10 +718,12 @@ class OrderTracing(CalibrationStep):
         self.min_cluster = config["min_cluster"]
         #:int, float: Minimum width of each cluster after mergin
         self.min_width = config["min_width"]
-        #:int: Gaussian smoothing sigma along x-axis (dispersion direction)
+        #:int: Smoothing width along x-axis (dispersion direction)
         self.filter_x = config.get("filter_x", 0)
-        #:int: Gaussian smoothing sigma along y-axis (cross-dispersion direction)
+        #:int: Smoothing width along y-axis (cross-dispersion direction)
         self.filter_y = config["filter_y"]
+        #:str: Type of smoothing filter (boxcar, gaussian, whittaker)
+        self.filter_type = config.get("filter_type", "boxcar")
         #:int: Background noise value threshold
         self.noise = config["noise"]
         #:int: Polynomial degree of the fit to each order
@@ -774,6 +776,7 @@ class OrderTracing(CalibrationStep):
             min_width=self.min_width,
             filter_x=self.filter_x,
             filter_y=self.filter_y,
+            filter_type=self.filter_type,
             noise=self.noise,
             degree=self.fit_degree,
             degree_before_merge=self.degree_before_merge,
