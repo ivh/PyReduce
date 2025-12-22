@@ -5,7 +5,7 @@ Note on terminology:
 - "trace": A single polynomial fit to a cluster of pixels (e.g., one fiber)
 - "spectral order": A group of traces at similar wavelengths (e.g., all fibers in one echelle order)
 
-The main function `mark_orders` detects and fits individual traces.
+The main function `trace` detects and fits individual traces.
 Use `merge_traces` and `group_and_refit` to organize traces into spectral orders.
 """
 
@@ -399,7 +399,7 @@ def plot_order(i, j, x, y, img, deg, title=""):
     util.show_or_save(f"orders_single_{i}_{j}")
 
 
-def mark_orders(
+def trace(
     im,
     min_cluster=None,
     min_width=None,
@@ -587,8 +587,8 @@ def mark_orders(
             return 2
 
     if sigma > 0:
-        degree = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
-        bias = {i: np.polyfit(y[i], x[i], deg=degree[i])[-1] for i in x.keys()}
+        cluster_degrees = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
+        bias = {i: np.polyfit(y[i], x[i], deg=cluster_degrees[i])[-1] for i in x.keys()}
         n = list(x.keys())
         yt = np.concatenate([y[i] for i in n])
         xt = np.concatenate([x[i] - bias[i] for i in n])

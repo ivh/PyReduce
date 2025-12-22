@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from pyreduce.combine_frames import combine_frames
-from pyreduce.trace_orders import mark_orders
+from pyreduce.trace import trace
 
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
@@ -15,7 +15,7 @@ def test_orders(instr, instrument, arm, files, settings, mask):
     order_img, _ = combine_frames(files["orders"], instrument, arm, mask=mask)
     settings = settings["orders"]
 
-    orders, column_range = mark_orders(
+    orders, column_range = trace(
         order_img,
         min_cluster=settings["min_cluster"],
         min_width=settings["min_width"],
@@ -52,7 +52,7 @@ def test_simple():
     img = np.full((100, 100), 1)
     img[45:56, :] = 100
 
-    orders, column_range = mark_orders(
+    orders, column_range = trace(
         img, manual=False, degree=1, plot=False, border_width=0
     )
 
@@ -69,20 +69,20 @@ def test_parameters():
     img[45:56, :] = 100
 
     with pytest.raises(TypeError):
-        mark_orders(None)
+        trace(None)
     with pytest.raises(TypeError):
-        mark_orders(img, min_cluster="bla")
+        trace(img, min_cluster="bla")
     with pytest.raises(TypeError):
-        mark_orders(img, filter_y="bla")
+        trace(img, filter_y="bla")
     with pytest.raises(ValueError):
-        mark_orders(img, filter_y=0)
+        trace(img, filter_y=0)
     with pytest.raises(TypeError):
-        mark_orders(img, noise="bla")
+        trace(img, noise="bla")
     with pytest.raises(TypeError):
-        mark_orders(img, border_width="bla")
+        trace(img, border_width="bla")
     with pytest.raises(ValueError):
-        mark_orders(img, border_width=-1)
+        trace(img, border_width=-1)
     with pytest.raises(TypeError):
-        mark_orders(img, degree="bla")
+        trace(img, degree="bla")
     with pytest.raises(ValueError):
-        mark_orders(img, degree=-1)
+        trace(img, degree=-1)

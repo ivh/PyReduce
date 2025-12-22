@@ -48,7 +48,7 @@ from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
-from .trace_orders import mark_orders
+from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .wavelength_calibration import (

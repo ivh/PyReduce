@@ -23,7 +23,7 @@ import os
 import numpy as np
 
 from pyreduce.instruments.instrument_info import load_instrument
-from pyreduce.trace_orders import group_and_refit, mark_orders, merge_traces
+from pyreduce.trace import group_and_refit, merge_traces, trace
 
 # --- Configuration ---
 instrument_name = "AJ"
@@ -96,13 +96,13 @@ img_odd, head_odd = instrument.load_fits(file_odd, arm=arm, extension=0)
 
 # --- Step 2: Trace each flat independently ---
 print("\nTracing even-illuminated fibers...")
-traces_even, cr_even = mark_orders(
+traces_even, cr_even = trace(
     img_even, plot_title="Even fibers", debug_dir="./debug/even", **trace_params
 )
 print(f"  Found {len(traces_even)} traces")
 
 print("\nTracing odd-illuminated fibers...")
-traces_odd, cr_odd = mark_orders(
+traces_odd, cr_odd = trace(
     img_odd, plot_title="Odd fibers", debug_dir="./debug/odd", **trace_params
 )
 print(f"  Found {len(traces_odd)} traces")
