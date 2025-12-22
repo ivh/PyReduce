@@ -23,7 +23,9 @@ from . import __version__
 logger = logging.getLogger(__name__)
 
 # Global plot directory - set by Pipeline/main() to save plots instead of showing
-_plot_dir = None
+_plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
+if _plot_dir:
+    os.makedirs(_plot_dir, exist_ok=True)
 
 
 def set_plot_dir(path):
