@@ -51,6 +51,54 @@ def show_or_save(name="plot"):
         plt.show()
 
 
+def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):
+    """Plot image with polynomial traces overlaid.
+
+    Parameters
+    ----------
+    im : array[nrow, ncol]
+        2D image to display
+    traces : array or list
+        Polynomial coefficients for traces. Either a 2D array of shape
+        (n_traces, degree+1) or a list of 1D coefficient arrays.
+        Coefficients are in numpy polyval order (highest degree first).
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on. If None, creates new figure.
+    imshow_kwargs : dict, optional
+        Keyword arguments passed to imshow (e.g., vmin, vmax, cmap)
+    **line_kwargs
+        Additional keyword arguments passed to plot for trace lines
+        (e.g., color, linewidth, alpha)
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        The axes with the plot
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+
+    imshow_defaults = {"origin": "lower", "aspect": "auto"}
+    if imshow_kwargs:
+        imshow_defaults.update(imshow_kwargs)
+    ax.imshow(im, **imshow_defaults)
+
+    traces = np.atleast_2d(traces)
+    x = np.arange(im.shape[1])
+
+    line_defaults = {"color": "red", "linewidth": 0.5}
+    line_defaults.update(line_kwargs)
+
+    for coef in traces:
+        y = np.polyval(coef, x)
+        ax.plot(x, y, **line_defaults)
+
+    ax.set_xlim(0, im.shape[1] - 1)
+    ax.set_ylim(0, im.shape[0] - 1)
+
+    return ax
+
+
 def resample(array, new_size):
     x = np.arange(new_size)
     xp = np.linspace(0, new_size, len(array))
