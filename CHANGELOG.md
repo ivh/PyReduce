@@ -1,6 +1,28 @@
 # Changelog
 
 
+## [0.7a1] - 2025-12-22
+
+### Added
+- New Pipeline API with `Pipeline.from_instrument()` for simplified usage
+- Click-based CLI replacing argparse (`uv run reduce run UVES HD132205`)
+- Pydantic models for instrument configuration validation
+- YAML instrument configs replacing JSON
+- IPython startup script for interactive development
+- `plot_dir` option to save plots as PNG files
+- Fiber bundle tracing support for multi-fiber instruments
+- `filter_x` and `filter_type` options for order tracing
+
+### Changed
+- Rename `mode` to `arm` terminology throughout
+- Output extension changed from `.ech` to `.fits`
+- Documentation converted from RST to Markdown
+- Trace detection parameters renamed (`opower` -> `degree`, `filter_size` -> `filter_y`)
+
+### Fixed
+- Plotting issues with non-finite values
+- Use `interpolate_replace_nans` for masked pixels
+
 ## [0.6.0] - 2025-12-22
 
 ### Added
