@@ -123,6 +123,7 @@ class TestPipelineExecution:
         assert "flat" in result
 
     @pytest.mark.instrument
+    @pytest.mark.slow
     def test_pipeline_trace_orders(self, instr, arm, files, settings, tmp_path):
         """Test order tracing through Pipeline."""
         order_files = files.get("orders", [])
