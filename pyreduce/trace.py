@@ -15,8 +15,9 @@ from itertools import combinations
 
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 from numpy.polynomial.polynomial import Polynomial
-from scipy.ndimage import binary_closing, binary_opening, grey_closing, label
+from scipy.ndimage import binary_closing, binary_opening, label
 from scipy.ndimage.filters import gaussian_filter1d, median_filter, uniform_filter1d
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse import diags
@@ -540,8 +541,17 @@ def trace(
         )
 
     # Prepare image for thresholding
-    im_clean = np.ma.filled(im, fill_value=0).astype(float)
-    im_clean = grey_closing(im_clean, 5)
+    # Convert masked values to NaN, interpolate, then back to regular ndarray
+    if np.ma.is_masked(im):
+        im_clean = np.ma.filled(im.astype(float), fill_value=np.nan)
+        kernel_size_x = max(3, filter_x) if filter_x > 0 else 3
+        kernel_size_y = max(3, filter_y) if filter_y else 3
+        kernel = Gaussian2DKernel(
+            x_stddev=kernel_size_x / 2, y_stddev=kernel_size_y / 2
+        )
+        im_clean = np.asarray(interpolate_replace_nans(im_clean, kernel))
+    else:
+        im_clean = np.asarray(im, dtype=float)
 
     # Select filter function based on filter_type
     if filter_type == "boxcar":
