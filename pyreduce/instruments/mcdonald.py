@@ -10,12 +10,12 @@ import re
 
 from astropy.time import Time
 
-from .common import InstrumentWithModes, getter
+from .common import Instrument, getter
 
 logger = logging.getLogger(__name__)
 
 
-class MCDONALD(InstrumentWithModes):
+class MCDONALD(Instrument):
     def __init__(self):
         super().__init__()
         # The date is a combination of the two values
@@ -27,14 +27,14 @@ class MCDONALD(InstrumentWithModes):
         v = v[0] + v[1] / 60 + v[2] / 3600
         return v
 
-    def add_header_info(self, header, mode, **kwargs):
+    def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
 
-        header = super().add_header_info(header, mode, **kwargs)
-        info = self.load_info()
-        get = getter(header, info, mode)
+        header = super().add_header_info(header, arm, **kwargs)
+        info = self.info  # Use cached info dict
+        get = getter(header, info, arm)
 
         header["e_orient"] = get("orientation", 0)
         # As per IDL rotate if orient is 4 or larger and transpose is undefined
@@ -109,14 +109,14 @@ class MCDONALD(InstrumentWithModes):
 
         return header
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, arm, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
         fname = "mcdonald.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_mask_filename(self, mode, **kwargs):
+    def get_mask_filename(self, arm, **kwargs):
         fname = "mask_mcdonald.fits.gz"
         cwd = os.path.dirname(__file__)
         fname = os.path.join(cwd, "..", "masks", fname)

@@ -97,7 +97,17 @@
                             "minimum": 0
                         },
                         "closing_shape": {
-                            "description": "Shape for the binary closing",
+                            "description": "Shape for binary closing (fills gaps within traces)",
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "opening_shape": {
+                            "description": "Shape for binary opening (removes isolated noise pixels)",
                             "type": "array",
                             "minItems": 2,
                             "maxItems": 2,
@@ -123,13 +133,25 @@
                             "type": "number",
                             "minimum": 0
                         },
-                        "filter_size": {
-                            "description": "Size of the gaussian filter that smoothes the columns for the detection of pixels with signal. Estimated automatically if null.",
+                        "filter_x": {
+                            "description": "Gaussian smoothing sigma along x-axis (dispersion direction). Set to 0 to disable. Useful for noisy data or thin fiber traces.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                        },
+                        "filter_y": {
+                            "description": "Smoothing width along y-axis (cross-dispersion) for background estimation. Estimated automatically if null. Use small values for thin closely-spaced traces.",
                             "type": [
                                 "integer",
                                 "null"
                             ],
                             "minimum": 0
+                        },
+                        "filter_type": {
+                            "description": "Type of smoothing filter for background estimation: boxcar (uniform average), gaussian, or whittaker (edge-preserving).",
+                            "type": "string",
+                            "enum": ["boxcar", "gaussian", "whittaker"],
+                            "default": "boxcar"
                         },
                         "min_cluster": {
                             "description": "Smallest allowed size of clusters before merging. Estimated automatically if null.",
@@ -170,7 +192,8 @@
                     },
                     "required": [
                         "degree",
-                        "filter_size",
+                        "filter_x",
+                        "filter_y",
                         "min_cluster",
                         "noise",
                         "border_width",

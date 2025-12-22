@@ -10,7 +10,7 @@
     "orders": {
         "degree": 3,
         "degree_before_merge": 1,
-        "filter_size": 100,
+        "filter_y": 100,
         "min_cluster": 200000,
         "border_width": 0,
         "noise": 0,

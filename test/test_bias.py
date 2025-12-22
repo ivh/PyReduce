@@ -7,11 +7,11 @@ from pyreduce.combine_frames import combine_bias
 
 @pytest.mark.instrument
 @pytest.mark.downloads
-def test_bias(instrument, mode, files, mask):
+def test_bias(instrument, arm, files, mask):
     if len(files["bias"]) == 0:
         pytest.skip(f"No bias files for instrument {instrument}")
 
-    bias, bhead = combine_bias(files["bias"], instrument, mode, window=50, mask=mask)
+    bias, bhead = combine_bias(files["bias"], instrument, arm, window=50, mask=mask)
 
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)
@@ -23,12 +23,12 @@ def test_bias(instrument, mode, files, mask):
 
 @pytest.mark.instrument
 @pytest.mark.downloads
-def test_only_one_file(instrument, mode, files, mask):
+def test_only_one_file(instrument, arm, files, mask):
     if len(files["bias"]) == 0:
         pytest.skip(f"No bias files for instrument {instrument}")
 
     files = [files["bias"][0]]
-    bias, bhead = combine_bias(files, instrument, mode, window=50, mask=mask)
+    bias, bhead = combine_bias(files, instrument, arm, window=50, mask=mask)
 
     assert isinstance(bias, np.ma.masked_array)
     assert isinstance(bhead, fits.Header)

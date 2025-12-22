@@ -6,25 +6,25 @@ from pyreduce import reduce
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_main(instrument, target, night, mode, input_dir, output_dir):
+def test_main(instrument, target, night, arm, input_dir, output_dir):
     output = reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
         steps=(),
     )
 
+    # reduce.main() returns a list of Pipeline.run() results (one per arm/night combo)
     assert isinstance(output, list)
     assert len(output) >= 1
-    assert "config" in output[0].keys()
-    assert "files" in output[0].keys()
+    # With steps=(), each result is an empty dict (no steps executed)
+    assert isinstance(output[0], dict)
 
-    # Test default options
-    # Just just not find anything
+    # Test default options - should not find anything with default paths
     output = reduce.main(instrument, target, night, steps=())
 
 
@@ -32,12 +32,12 @@ def test_main(instrument, target, night, mode, input_dir, output_dir):
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+def test_run_all(instrument, target, night, arm, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
@@ -50,12 +50,12 @@ def test_run_all(instrument, target, night, mode, input_dir, output_dir, order_r
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_load_all(instrument, target, night, mode, input_dir, output_dir, order_range):
+def test_load_all(instrument, target, night, arm, input_dir, output_dir, order_range):
     reduce.main(
         instrument,
         target,
         night,
-        mode,
+        arm,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,

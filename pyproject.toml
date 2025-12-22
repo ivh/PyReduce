@@ -31,6 +31,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "click>=8.1.0",
     "cffi>=1.17.1",
     "numpy>=1.26.0",
     "matplotlib>=3.8.0",
@@ -41,6 +42,8 @@ dependencies = [
     "emcee>=3.1.0",
     "joblib>=1.3.0",
     "jsonschema>=4.20.0",
+    "pyyaml>=6.0.0",
+    "pydantic>=2.5.0",
     "spectres>=2.2.0",
     "python-dateutil>=2.8.0",
     "scikit-image>=0.22.0",
@@ -56,6 +59,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "sphinx>=7.2.0",
+    "myst-parser>=3.0.0",
     "setuptools",  # Required for CFFI compilation in tests (Python 3.12+)
 ]
 
@@ -64,6 +68,9 @@ Homepage = "https://github.com/ivh/PyReduce"
 Documentation = "https://pyreduce-astro.readthedocs.io"
 Repository = "https://github.com/ivh/PyReduce"
 Issues = "https://github.com/ivh/PyReduce/issues"
+
+[project.scripts]
+reduce = "pyreduce.__main__:main"
 
 # Hatch build configuration
 [tool.hatch.build]
@@ -190,6 +197,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "sphinx>=7.2.0",
+    "ipython>=9.8.0",
 ]
 
 # cibuildwheel configuration for building platform-specific wheels

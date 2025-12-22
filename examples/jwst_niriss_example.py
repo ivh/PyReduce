@@ -1,18 +1,19 @@
 """
 Simple usage example for PyReduce
-Loads a sample UVES dataset, and runs the full extraction
+Loads a sample JWST NIRISS dataset, and runs the extraction
 """
 
 import os.path
 
-import pyreduce
 from pyreduce import datasets
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "JWST_NIRISS"
 target = None
 night = None
-mode = "GR700XD"
+arm = "GR700XD"
 steps = (
     "bias",
     "flat",
@@ -35,17 +36,18 @@ input_dir = "awesimsoss"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=False)
+config = get_configuration_for_instrument(instrument)
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    mode,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
     # order_range=(0, 25),
-)
+    plot=0,
+).run()

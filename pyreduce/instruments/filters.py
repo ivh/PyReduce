@@ -161,7 +161,7 @@ class NightFilter(Filter):
         return match
 
 
-class ModeFilter(Filter):
+class ArmFilter(Filter):
     def __init__(
         self,
         keyword,

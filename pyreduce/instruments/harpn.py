@@ -49,14 +49,14 @@ class HARPN(Instrument):
     def __init__(self):
         super().__init__()
         self.filters = {
-            "instrument": InstrumentFilter(self.info["instrument"]),
-            "night": NightFilter(self.info["date"]),
+            "instrument": InstrumentFilter(self.config.instrument),
+            "night": NightFilter(self.config.date),
             # "branch": Filter(, regex=True),
             "mode": Filter(
-                self.info["instrument_mode"], regex=True, flags=re.IGNORECASE
+                self.config.instrument_mode, regex=True, flags=re.IGNORECASE
             ),
-            "type": TypeFilter(self.info["observation_type"]),
-            "target": ObjectFilter(self.info["target"], regex=True),
+            "type": TypeFilter(self.config.observation_type),
+            "target": ObjectFilter(self.config.target, regex=True),
         }
         self.night = "night"
         self.science = "science"
@@ -74,7 +74,9 @@ class HARPN(Instrument):
             "scatter",
         ]
 
-    def get_expected_values(self, target, night, mode, fiber):
+    def get_expected_values(
+        self, target, night, arm=None, mode=None, fiber=None, **kwargs
+    ):
         """Determine the default expected values in the headers for a given observation configuration
 
         Any parameter may be None, to indicate that all values are allowed
@@ -137,8 +139,8 @@ class HARPN(Instrument):
         }
         return expectations
 
-    def get_extension(self, header, mode):
-        extension = super().get_extension(header, mode)
+    def get_extension(self, header, arm):
+        extension = super().get_extension(header, arm)
 
         try:
             if (
@@ -152,11 +154,11 @@ class HARPN(Instrument):
 
         return extension
 
-    def add_header_info(self, header, mode, **kwargs):
+    def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, mode)
+        header = super().add_header_info(header, arm)
 
         try:
             header["e_ra"] /= 15
@@ -171,14 +173,14 @@ class HARPN(Instrument):
                 and header["NAXIS1"] == 4296
                 and header["NAXIS2"] == 4096
             ):
-                # both modes are in the same image
+                # both arms are in the same image
                 prescan_x = 50
                 overscan_x = 50
                 naxis_x = 2148
-                if mode == "BLUE":
+                if arm == "BLUE":
                     header["e_xlo"] = prescan_x
                     header["e_xhi"] = naxis_x - overscan_x
-                elif mode == "RED":
+                elif arm == "RED":
                     header["e_xlo"] = naxis_x + prescan_x
                     header["e_xhi"] = 2 * naxis_x - overscan_x
         except KeyError:
@@ -186,15 +188,15 @@ class HARPN(Instrument):
 
         return header
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, arm, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = dirname(__file__)
-        fname = f"harpn_{mode.lower()}_2D.npz"
+        fname = f"harpn_{arm.lower()}_2D.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_wavelength_range(self, header, mode, **kwargs):
-        wave_range = super().get_wavelength_range(header, mode, **kwargs)
+    def get_wavelength_range(self, header, arm, **kwargs):
+        wave_range = super().get_wavelength_range(header, arm, **kwargs)
         # The wavelength orders are in inverse order in the .json file
         # because I was to lazy to invert them in the file
         wave_range = wave_range[::-1]

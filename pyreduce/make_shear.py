@@ -25,6 +25,7 @@ from scipy import signal
 from scipy.optimize import least_squares
 from tqdm import tqdm
 
+from . import util
 from .extract import fix_parameters
 from .util import make_index
 from .util import polyfit2d_2 as polyfit2d
@@ -513,7 +514,7 @@ class Curvature:
         axes1 = trim_axs(axes1, self.n)
         axes2 = trim_axs(axes2, self.n)
 
-        plt.show()
+        util.show_or_save("curvature_fit")
 
     def plot_comparison(self, original, tilt, shear, peaks):  # pragma: no cover
         _, ncol = original.shape
@@ -554,7 +555,7 @@ class Curvature:
             plt.title(self.plot_title)
         plt.xlabel("x [pixel]")
         plt.ylabel("order")
-        plt.show()
+        util.show_or_save("curvature_comparison")
 
     def execute(self, extracted, original):
         logger.info("Determining the Slit Curvature")

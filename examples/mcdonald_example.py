@@ -1,18 +1,17 @@
 """
 Simple usage example for PyReduce
-Loads a sample UVES dataset, and runs the full extraction
+Loads a McDonald Observatory dataset, and runs the extraction
 """
 
-import os.path
-
-import pyreduce
 from pyreduce import datasets
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "McDonald"
 target = "Vega"
 night = None
-mode = "CS23"
+arm = "CS23"
 steps = (
     # "bias",
     # "flat",
@@ -32,22 +31,23 @@ steps = (
 # Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
 
 # load dataset (and save the location)
-base_dir = datasets.MCDONALD(os.path.expanduser("~") + "/PyReduce/DATA")
+base_dir = datasets.MCDONALD()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
 output_dir = "reduced"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=2)
+config = get_configuration_for_instrument(instrument)
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    mode,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
     # order_range=(0, 25),
-)
+    plot=2,
+).run()

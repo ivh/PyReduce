@@ -1,0 +1,101 @@
+# CRIRES+ instrument configuration
+# The upgraded CRIRES at ESO VLT, a cross-dispersed IR spectrograph for YJHKLM bands.
+
+__instrument__: CRIRES_PLUS
+instrument: INSTRUME
+id_instrument: CRIRES
+telescope: VLT
+
+date: DATE-OBS
+date_format: fits
+
+id_mode: "ESO INS MODE"
+id_band: "ESO INS WLEN ID"
+id_decker: "ESO INS OPTI8 ID"
+id_lamp: "ESO INS1 LAMP? ID"
+
+arms: [J1228]
+deckers: [OPEN, pos1, pos2]
+bands: [Y, J, H, K, L, M]
+settings:
+  - Y1029
+  - Y1028
+  - J1232
+  - J1228
+  - J1226
+  - H1582
+  - H1575
+  - H1567
+  - H1559
+  - K2217
+  - K2192
+  - K2166
+  - K2148
+  - L3426
+  - L3412
+  - L3377
+  - L3340
+  - L3302
+  - L3262
+  - L3244
+  - M4519
+  - M4504
+  - M4461
+  - M4416
+  - M4368
+  - M4318
+  - M4266
+  - M4211
+  - M4187
+chips: [det1, det2, det3]
+
+extension: CHIP1.INT1
+orientation: 0
+transpose: false
+
+prescan_x: 5
+overscan_x: 5
+prescan_y: 5
+overscan_y: 5
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: "HIERARCH ESO DET CHIP GAIN"
+readnoise: "HIERARCH ESO DET CHIP RON"
+dark: "HIERARCH ESO DET DIT"
+sky: 0
+exposure_time: EXPTIME
+
+image_type: OBJECT
+category: "HIERARCH ESO DPR CATG"
+ra: RA
+dec: DEC
+jd: MJD-OBS
+longitude: "HIERARCH ESO TEL GEOLON"
+latitude: "HIERARCH ESO TEL GEOLAT"
+altitude: "HIERARCH ESO TEL GEOELEV"
+target: OBJECT
+observation_type: "ESO DPR TYPE"
+
+id_detcheck: "FLAT,LAMP,DETCHECK"
+id_lamp_wavecal: UNe_HCL
+id_lamp_etalon: Etalon_Halogen
+
+# File classification keywords and patterns
+kw_bias: "ESO DPR TYPE"
+kw_flat: "ESO DPR TYPE"
+kw_curvature: "ESO DPR TYPE"
+kw_scatter: "ESO DPR TYPE"
+kw_orders: "ESO DPR TYPE"
+kw_wave: "ESO DPR TYPE"
+kw_comb: "ESO DPR TYPE"
+kw_spec: "ESO DPR TYPE"
+
+id_bias: DARK
+id_flat: FLAT
+id_orders: FLAT
+id_curvature: "WAVE,FPET"
+id_scatter: FLAT
+id_wave: "WAVE,UNE"
+id_comb: "WAVE,FPET"
+id_spec: "STAR,*,*"

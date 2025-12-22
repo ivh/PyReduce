@@ -1,0 +1,61 @@
+# NEID instrument configuration
+# Note: red and middle are in the same fits file, with different extensions,
+# i.e. share the same mode identifier, but have different extensions
+
+__instrument__: NEID
+id_instrument: NEID
+instrument: INSTRUME
+telescope: TELESCOP
+
+date: DATE-OBS
+date_format: fits
+
+arms: [HR]
+arms_id: [HR]
+namps: NAMPS
+extension: "AMPLIFIER {amp}"
+orientation: 0
+transpose: false
+
+prescan_y: 0
+overscan_y: 0
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: CCDGAIN
+readnoise: CCDRN
+exposure_time: EXPTIME
+
+image_type: "HIERARCH TNG OBS TARG NAME"
+category: "HIERARCH TNG DPR CATG"
+ra: RA
+dec: DEC
+longitude: GEOLON
+latitude: GEOLAT
+altitude: GEOELEV
+target: OBJECT
+instrument_mode: OBS-MODE
+observation_type: "TNG DPR TYPE"
+
+id_fiber_sci: "LAMP,DARK,TUN"
+id_fiber_cal: "DARK,LAMP,TUN"
+id_fiber_sky: "DARK,LAMP,TUN"
+
+# File classification keywords and patterns
+kw_bias: OBJECT
+kw_flat: OBJECT
+kw_curvature: OBJECT
+kw_scatter: OBJECT
+kw_orders: OBJECT
+kw_wave: OBJECT
+kw_comb: OBJECT
+kw_spec: OBJECT
+
+id_bias: "BIAS,BIAS"
+id_flat: "LAMP,LAMP,TUN"
+id_orders: "LAMP,LAMP,TUN"
+id_curvature: "WAVE,WAVE,THAR2"
+id_scatter: "LAMP,LAMP,TUN"
+id_wave: "WAVE,WAVE,THAR2"
+id_comb: "WAVE,WAVE,COMB"
+id_spec: "STAR,*"

@@ -9,7 +9,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def fname(tmp_path):
-    name = tmp_path / "test_ech.ech"
+    name = tmp_path / "test_ech.fits"
     yield str(name)
     # Cleanup happens automatically with tmp_path
 

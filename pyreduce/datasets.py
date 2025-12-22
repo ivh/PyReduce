@@ -8,11 +8,19 @@ if data needs to be downloaded
 import logging
 import os
 import tarfile
-from os.path import dirname, isfile, join
+from os.path import isfile, join
 
 import wget
 
 logger = logging.getLogger(__name__)
+
+
+def get_data_dir():
+    """Get the default data directory.
+
+    Returns $REDUCE_DATA if set, otherwise ~/REDUCE_DATA
+    """
+    return os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
 
 
 def load_data_from_server(filename, directory):
@@ -37,7 +45,7 @@ def get_dataset(name, local_dir=None):
     name : str
         Name of the dataset
     local_dir : str, optional
-        directory to save data at (default: "./")
+        directory to save data at (default: $REDUCE_DATA or ~/REDUCE_DATA)
 
     Returns
     -------
@@ -46,12 +54,11 @@ def get_dataset(name, local_dir=None):
     """
 
     if local_dir is None:
-        local_dir = dirname(__file__)
-        local_dir = join(local_dir, "../")
+        local_dir = get_data_dir()
 
     # load data if necessary
     fname = f"{name}.tar.gz"
-    data_dir = join(local_dir, "datasets", name)
+    data_dir = join(local_dir, name)
     filename = join(data_dir, fname)
 
     os.makedirs(data_dir, exist_ok=True)

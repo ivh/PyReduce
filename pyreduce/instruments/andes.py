@@ -25,30 +25,30 @@ class ANDES(Instrument):
         self.filters["decker"] = Filter(self.info["id_decker"])
         self.shared += ["band", "decker"]
 
-    def add_header_info(self, header, mode, **kwargs):
+    def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        band, decker, detector = self.parse_mode(mode)
+        band, decker, detector = self.parse_arm(arm)
         header = super().add_header_info(header, band)
         self.load_info()
 
         return header
 
-    def get_supported_modes(self):
+    def get_supported_arms(self):
         settings = self.info["settings"]
         deckers = self.info["deckers"]
         detectors = self.info["chips"]
-        modes = [
+        arms = [
             "_".join([s, d, c]) for s, d, c in product(settings, deckers, detectors)
         ]
-        return modes
+        return arms
 
-    def parse_mode(self, mode):
+    def parse_arm(self, arm):
         pattern = r"([A-Z]+)(_(Open|pos1|pos2))?_det(\d)"
-        match = re.match(pattern, mode, flags=re.IGNORECASE)
+        match = re.match(pattern, arm, flags=re.IGNORECASE)
         if not match:
-            raise ValueError(f"Invalid mode format: {mode}")
+            raise ValueError(f"Invalid arm format: {arm}")
         band = match.group(1).upper()
         if match.group(3) is not None:
             decker = match.group(3).lower().capitalize()
@@ -57,9 +57,9 @@ class ANDES(Instrument):
         detector = match.group(4)
         return band, decker, detector
 
-    def get_expected_values(self, target, night, mode):
+    def get_expected_values(self, target, night, arm):
         expectations = super().get_expected_values(target, night)
-        band, decker, detector = self.parse_mode(mode)
+        band, decker, detector = self.parse_arm(arm)
 
         for key in expectations.keys():
             if key == "bias":
@@ -69,28 +69,28 @@ class ANDES(Instrument):
 
         return expectations
 
-    def get_extension(self, header, mode):
-        band, decker, detector = self.parse_mode(mode)
+    def get_extension(self, header, arm):
+        band, decker, detector = self.parse_arm(arm)
         extension = int(detector)
         return extension
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, arm, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = f"{self.name}_{mode}.npz"
+        fname = f"{self.name}_{arm}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_mask_filename(self, mode, **kwargs):
+    def get_mask_filename(self, arm, **kwargs):
         i = self.name.lower()
-        band, decker, detector = self.parse_mode(mode)
+        band, decker, detector = self.parse_arm(arm)
 
         fname = f"mask_{i}_det{detector}.fits.gz"
         cwd = os.path.dirname(__file__)
         fname = os.path.join(cwd, "..", "masks", fname)
         return fname
 
-    def get_wavelength_range(self, header, mode, **kwargs):
+    def get_wavelength_range(self, header, arm, **kwargs):
         wmin = [header["ESO INS WLEN MIN%i" % i] for i in range(1, 11)]
         wmax = [header["ESO INS WLEN MAX%i" % i] for i in range(1, 11)]
 

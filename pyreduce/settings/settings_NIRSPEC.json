@@ -6,7 +6,7 @@
     },
     "orders": {
         "degree": 4,
-        "filter_size": 50,
+        "filter_y": 50,
         "min_cluster": 2000,
         "border_width": 0,
         "noise": 40,
@@ -53,6 +53,6 @@
         "smooth_spectrum": 0
     },
     "finalize": {
-        "filename": "{input}.ech"
+        "filename": "{input}.fits"
     }
 }

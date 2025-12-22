@@ -1,0 +1,72 @@
+# ANDES instrument configuration
+# Note: red and middle are in the same fits file, with different extensions,
+# i.e. share the same mode identifier, but have different extensions
+
+__instrument__: ANDES
+instrument: INSTRUME
+id_instrument: ANDES
+telescope: VLT
+
+date: DATE-OBS
+date_format: fits
+
+id_mode: "ESO INS MODE"
+id_band: "ESO INS WLEN ID"
+id_decker: "ESO INS OPTI8 ID"
+id_lamp: "ESO INS1 LAMP? ID"
+
+arms: [SL, IFU]
+deckers: [Open, pos1, pos2]
+bands: [UBV, RIZ, YJH, K]
+settings: [B, V, R, IZ, Y, J, H, K]
+chips: [det1]
+
+extension: CHIP1.INT1
+orientation: 0
+transpose: false
+
+prescan_x: 5
+overscan_x: 5
+prescan_y: 5
+overscan_y: 5
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: "HIERARCH ESO DET CHIP GAIN"
+readnoise: "HIERARCH ESO DET CHIP RON"
+dark: "HIERARCH ESO DET DIT"
+sky: 0
+exposure_time: EXPTIME
+
+image_type: OBJECT
+category: "HIERARCH ESO DPR CATG"
+ra: RA
+dec: DEC
+jd: MJD-OBS
+longitude: "HIERARCH ESO TEL GEOLON"
+latitude: "HIERARCH ESO TEL GEOLAT"
+altitude: "HIERARCH ESO TEL GEOELEV"
+target: OBJECT
+observation_type: "ESO DPR TYPE"
+
+id_lamp_wavecal: UNe_HCL
+id_lamp_etalon: Etalon_Halogen
+
+# File classification keywords and patterns
+kw_bias: "ESO DPR TYPE"
+kw_flat: "ESO DPR TYPE"
+kw_curvature: "ESO DPR TYPE"
+kw_scatter: "ESO DPR TYPE"
+kw_orders: "ESO DPR TYPE"
+kw_wave: "ESO DPR TYPE"
+kw_comb: "ESO DPR TYPE"
+kw_spec: "ESO DPR TYPE"
+
+id_bias: DARK
+id_flat: FLAT
+id_orders: FLAT
+id_curvature: "WAVE,FPET"
+id_scatter: FLAT
+id_wave: "WAVE,UNE"
+id_comb: "WAVE,FPET"
+id_spec: "STAR,*,*"

@@ -1,16 +1,16 @@
 """
 Simple usage example for PyReduce
-Loads a sample UVES dataset, and runs the full extraction
+Loads a CRIRES+ dataset, and runs the extraction
 """
 
-import pyreduce
 from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "Crires_plus"
 target = ""
 night = ""
-mode = "J1228_Open_det1"
+arm = "J1228_Open_det1"
 steps = (
     # "bias",
     # "flat",
@@ -44,16 +44,16 @@ config = get_configuration_for_instrument(
     plot=1,
 )
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    mode,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
     allow_calibration_only=True,
     # order_range=(0, 4),
-)
+).run()

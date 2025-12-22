@@ -432,7 +432,7 @@ class WavelengthCalibration:
         _, ax = plt.subplots()
         ap = AlignmentPlot(ax, obs, lines, plot_title=self.plot_title)
         ap.connect()
-        plt.show()
+        util.show_or_save("wavecal_alignment")
         offset = ap.offset
         return offset
 
@@ -513,7 +513,7 @@ class WavelengthCalibration:
                 plt.hlines(offset_order, -0.5, correlation.shape[1] - 0.5, color="red")
                 if self.plot_title is not None:
                     plt.title(self.plot_title)
-                plt.show()
+                util.show_or_save("wavecal_correlation")
 
             offset_order = offset_order - ccimg.shape[0] / 2 + 1
             offset_x = offset_x - ccimg.shape[1] / 2 + 1
@@ -566,7 +566,7 @@ class WavelengthCalibration:
             plt.xlabel("x [pixel]")
             plt.ylabel("Intensity [a.u.]")
             plt.legend()
-            plt.show()
+            util.show_or_save("wavecal_line_fit")
         return coef
 
     def fit_lines(self, obs, lines):
@@ -614,16 +614,14 @@ class WavelengthCalibration:
 
     def build_2d_solution(self, lines, plot=False):
         """
-        Create a 2D polynomial fit to flagged lines
-        degree : tuple(int, int), optional
-            polynomial degree of the fit in (column, order) dimension (default: (6, 6))
+        Create a 2D polynomial fit to flagged lines.
 
         Parameters
         ----------
         lines : struc_array
             line data
         plot : bool, optional
-            wether to plot the solution (default: False)
+            whether to plot the solution (default: False)
 
         Returns
         -------
@@ -1178,7 +1176,7 @@ class WavelengthCalibration:
 
             ax[0, 0].legend()
 
-            plt.show()
+            util.show_or_save("wavecal_reject_lines")
         return lines
 
     def plot_results(self, wave_img, obs):
@@ -1201,7 +1199,7 @@ class WavelengthCalibration:
         plt.xlabel("Column")
         plt.ylabel("Order")
         cbar.set_label("Wavelength [Å]")
-        plt.show()
+        util.show_or_save("wavecal_results")
 
     def plot_residuals(self, lines, coef, title="Residuals"):
         orders = np.unique(lines["order"])
@@ -1244,7 +1242,7 @@ class WavelengthCalibration:
         # plt.xlabel("x [Pixel]")
         # plt.ylabel("Residual [m/s]")
 
-        plt.show()
+        util.show_or_save("wavecal_residuals")
 
     def _find_peaks(self, comb):
         # Find peaks in the comb spectrum
@@ -1528,7 +1526,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
             plt.title(title)
             plt.xlabel(r"$\Delta\lambda$ [Å]")
             plt.ylabel("N")
-            plt.show()
+            util.show_or_save("wavecal_lfc_hist")
 
         if self.plot:
             if lines is not None:
@@ -1552,7 +1550,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
             for i in range(len(new_wave)):
                 plt.subplot(len(new_wave) // 4 + 1, 4, i + 1)
                 plt.plot(wave_img[i] - new_wave[i])
-            plt.show()
+            util.show_or_save("wavecal_lfc_diff")
 
         if self.plot:
             self.plot_results(new_wave, comb)
@@ -1760,14 +1758,14 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
         if self.plot:
             corner.corner(samples, truths=mid)
-            plt.show()
+            util.show_or_save("wavecal_init_corner")
 
             wave = np.polyval(coef, x)
             y = np.interp(wave, atlas.wave, atlas.flux)
             y /= np.max(y)
             plt.plot(wave, spectrum)
             plt.plot(wave, y)
-            plt.show()
+            util.show_or_save("wavecal_init_spectrum")
 
         return coef
 

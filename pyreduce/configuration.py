@@ -119,7 +119,12 @@ def update(dict1, dict2, check=True, name="dict1"):
         if check and key not in dict1.keys():
             logger.warning(f"{key} is not contained in {name}")
         if isinstance(value, dict):
-            dict1[key] = update(dict1[key], value, check=key not in exclude, name=key)
+            if dict1.get(key) is None:
+                dict1[key] = value
+            else:
+                dict1[key] = update(
+                    dict1[key], value, check=key not in exclude, name=key
+                )
         else:
             dict1[key] = value
     return dict1

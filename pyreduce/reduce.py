@@ -18,7 +18,6 @@ License
 
 """
 
-import glob
 import logging
 import os.path
 import warnings
@@ -47,10 +46,9 @@ from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract
-from .instruments.instrument_info import load_instrument
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
-from .trace_orders import mark_orders
+from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .wavelength_calibration import (
@@ -68,7 +66,7 @@ def main(
     instrument,
     target,
     night=None,
-    modes=None,
+    arms=None,
     steps="all",
     base_dir=None,
     input_dir=None,
@@ -77,11 +75,17 @@ def main(
     order_range=None,
     allow_calibration_only=False,
     skip_existing=False,
+    plot=0,
+    plot_dir=None,
 ):
     r"""
-    Main entry point for REDUCE scripts,
-    default values can be changed as required if reduce is used as a script
-    Finds input directories, and loops over observation nights and instrument modes
+    Main entry point for REDUCE scripts.
+
+    Default values can be changed as required if reduce is used as a script.
+    Finds input directories, and loops over observation nights and instrument arms.
+
+    .. deprecated::
+        Use :meth:`Pipeline.from_instrument` instead.
 
     Parameters
     ----------
@@ -91,8 +95,8 @@ def main(
         the observed star, as named in the folder structure/fits headers
     night : str, list[str]
         the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. \*, ?), but then relies on the folder structure for restricting the nights
-    modes : str, list[str], dict[{instrument}:list], None, optional
-        the instrument modes to use, if None will use all known modes for the current instrument. See instruments for possible options
+    arms : str, list[str], dict[{instrument}:list], None, optional
+        the instrument arms to use, if None will use all known arms for the current instrument. See instruments for possible options
     steps : tuple(str), "all", optional
         which steps of the reduction process to perform
         the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
@@ -101,12 +105,20 @@ def main(
     base_dir : str, optional
         base data directory that Reduce should work in, is prefixxed on input_dir and output_dir (default: use settings_pyreduce.json)
     input_dir : str, optional
-        input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {mode} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+        input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {arm} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     output_dir : str, optional
-        output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {mode}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+        output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {arm}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
+    warnings.warn(
+        "pyreduce.reduce.main() is deprecated. Use Pipeline.from_instrument() instead:\n"
+        "    from pyreduce.pipeline import Pipeline\n"
+        "    result = Pipeline.from_instrument(instrument, target, ...).run()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if target is None or np.isscalar(target):
         target = [target]
     if night is None or np.isscalar(night):
@@ -120,6 +132,16 @@ def main(
     # config: paramters for the current reduction
     # info: constant, instrument specific parameters
     config = load_config(configuration, instrument, 0)
+
+    # Environment variable overrides for plot (useful for headless runs)
+    if "PYREDUCE_PLOT" in os.environ:
+        plot = int(os.environ["PYREDUCE_PLOT"])
+    if "PYREDUCE_PLOT_DIR" in os.environ:
+        plot_dir = os.environ["PYREDUCE_PLOT_DIR"]
+
+    # Set global plot directory for util.show_or_save()
+    util.set_plot_dir(plot_dir)
+
     if isinstance(instrument, str):
         instrument = instruments.instrument_info.load_instrument(instrument)
     info = instrument.info
@@ -135,14 +157,14 @@ def main(
     input_dir = join(base_dir, input_dir)
     output_dir = join(base_dir, output_dir)
 
-    if modes is None:
-        modes = info["modes"]
-    if np.isscalar(modes):
-        modes = [modes]
+    if arms is None:
+        arms = info["arms"]
+    if np.isscalar(arms):
+        arms = [arms]
 
-    for t, n, m in product(target, night, modes):
+    for t, n, a in product(target, night, arms):
         log_file = join(
-            base_dir.format(instrument=str(instrument), mode=modes, target=t),
+            base_dir.format(instrument=str(instrument), arm=arms, target=t),
             f"logs/{t}.log",
         )
         util.start_logging(log_file)
@@ -151,17 +173,17 @@ def main(
             input_dir,
             t,
             n,
-            mode=m,
+            arm=a,
             **config["instrument"],
             allow_calibration_only=allow_calibration_only,
         )
         if len(files) == 0:
             logger.warning(
-                "No files found for instrument: %s, target: %s, night: %s, mode: %s in folder: %s",
+                "No files found for instrument: %s, target: %s, night: %s, arm: %s in folder: %s",
                 instrument,
                 t,
                 n,
-                m,
+                a,
                 input_dir,
             )
             continue
@@ -171,23 +193,23 @@ def main(
                 logger.info("%s: %s", key, value)
             logger.debug("Files:\n%s", f)
 
-            reducer = Reducer(
-                f,
-                output_dir,
-                k.get("target"),
-                instrument,
-                m,
-                k.get("night"),
-                config,
+            from .pipeline import Pipeline
+
+            pipe = Pipeline.from_files(
+                files=f,
+                output_dir=output_dir,
+                target=k.get("target"),
+                instrument=instrument,
+                arm=a,
+                night=k.get("night"),
+                config=config,
                 order_range=order_range,
-                skip_existing=skip_existing,
+                steps=steps,
+                plot=plot,
+                plot_dir=plot_dir,
             )
-            # try:
-            data = reducer.run_steps(steps=steps)
+            data = pipe.run(skip_existing=skip_existing)
             output.append(data)
-            # except Exception as e:
-            #     logger.error("Reduction failed with error message: %s", str(e))
-            #     logger.info("------------")
     return output
 
 
@@ -195,14 +217,14 @@ class Step:
     """Parent class for all steps"""
 
     def __init__(
-        self, instrument, mode, target, night, output_dir, order_range, **config
+        self, instrument, arm, target, night, output_dir, order_range, **config
     ):
         self._dependsOn = []
         self._loadDependsOn = []
         #:str: Name of the instrument
         self.instrument = instrument
-        #:str: Name of the instrument mode
-        self.mode = mode
+        #:str: Name of the instrument arm
+        self.arm = arm
         #:str: Name of the observation target
         self.target = target
         #:str: Date of the observation (as a string)
@@ -274,21 +296,21 @@ class Step:
 
     @property
     def output_dir(self):
-        """str: output directory, may contain tags {instrument}, {night}, {target}, {mode}"""
+        """str: output directory, may contain tags {instrument}, {night}, {target}, {arm}"""
         return self._output_dir.format(
             instrument=self.instrument.name.upper(),
             target=self.target,
             night=self.night,
-            mode=self.mode,
+            arm=self.arm,
         )
 
     @property
     def prefix(self):
         """str: temporary file prefix"""
         i = self.instrument.name.lower()
-        if self.mode is not None and self.mode != "":
-            m = self.mode.lower()
-            return f"{i}_{m}"
+        if self.arm is not None and self.arm != "":
+            a = self.arm.lower()
+            return f"{i}_{a}"
         else:
             return i
 
@@ -309,7 +331,7 @@ class CalibrationStep(Step):
         orig, thead = combine_calibrate(
             files,
             self.instrument,
-            self.mode,
+            self.arm,
             mask,
             bias=bias,
             bhead=bhead,
@@ -437,7 +459,7 @@ class FitsIOStep(Step):
 
 
 class Mask(Step):
-    """Load the bad pixel mask for the given instrument/mode"""
+    """Load the bad pixel mask for the given instrument/arm"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
@@ -460,9 +482,9 @@ class Mask(Step):
         mask : array of shape (nrow, ncol)
             Bad pixel mask for this setting
         """
-        mask_file = self.instrument.get_mask_filename(mode=self.mode)
+        mask_file = self.instrument.get_mask_filename(arm=self.arm)
         try:
-            mask, _ = self.instrument.load_fits(mask_file, self.mode, extension=0)
+            mask, _ = self.instrument.load_fits(mask_file, self.arm, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
             logger.info("Bad pixel mask file: %s", mask_file)
         except (FileNotFoundError, ValueError):
@@ -515,7 +537,7 @@ class Bias(Step):
             bias, bhead = combine_bias(
                 files,
                 self.instrument,
-                self.mode,
+                self.arm,
                 mask=mask,
                 plot=self.plot,
                 plot_title=self.plot_title,
@@ -528,7 +550,7 @@ class Bias(Step):
             bias, bhead = combine_polynomial(
                 files,
                 self.instrument,
-                self.mode,
+                self.arm,
                 mask=mask,
                 degree=self.degree,
                 plot=self.plot,
@@ -696,8 +718,12 @@ class OrderTracing(CalibrationStep):
         self.min_cluster = config["min_cluster"]
         #:int, float: Minimum width of each cluster after mergin
         self.min_width = config["min_width"]
-        #:int: Size of the gaussian filter for smoothing
-        self.filter_size = config["filter_size"]
+        #:int: Smoothing width along x-axis (dispersion direction)
+        self.filter_x = config.get("filter_x", 0)
+        #:int: Smoothing width along y-axis (cross-dispersion direction)
+        self.filter_y = config["filter_y"]
+        #:str: Type of smoothing filter (boxcar, gaussian, whittaker)
+        self.filter_type = config.get("filter_type", "boxcar")
         #:int: Background noise value threshold
         self.noise = config["noise"]
         #:int: Polynomial degree of the fit to each order
@@ -706,6 +732,7 @@ class OrderTracing(CalibrationStep):
         self.degree_before_merge = config["degree_before_merge"]
         self.regularization = config["regularization"]
         self.closing_shape = config["closing_shape"]
+        self.opening_shape = config["opening_shape"]
         self.auto_merge_threshold = config["auto_merge_threshold"]
         self.merge_min_threshold = config["merge_min_threshold"]
         self.sigma = config["split_sigma"]
@@ -728,6 +755,8 @@ class OrderTracing(CalibrationStep):
             Observation used for order tracing (should only have one element)
         mask : array of shape (nrow, ncol)
             Bad pixel mask
+        bias : tuple or None
+            Bias correction
 
         Returns
         -------
@@ -745,12 +774,15 @@ class OrderTracing(CalibrationStep):
             order_img,
             min_cluster=self.min_cluster,
             min_width=self.min_width,
-            filter_size=self.filter_size,
+            filter_x=self.filter_x,
+            filter_y=self.filter_y,
+            filter_type=self.filter_type,
             noise=self.noise,
-            opower=self.fit_degree,
+            degree=self.fit_degree,
             degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,
             closing_shape=self.closing_shape,
+            opening_shape=self.opening_shape,
             border_width=self.border_width,
             manual=self.manual,
             auto_merge_threshold=self.auto_merge_threshold,
@@ -1105,7 +1137,7 @@ class WavelengthCalibrationInitialize(Step):
         thar, thead = wavecal_master
 
         # Get the initial wavelength guess from the instrument
-        wave_range = self.instrument.get_wavelength_range(thead, self.mode)
+        wave_range = self.instrument.get_wavelength_range(thead, self.arm)
         if wave_range is None:
             raise ValueError(
                 "This instrument is missing an initial wavelength guess for wavecal_init"
@@ -1142,7 +1174,7 @@ class WavelengthCalibrationInitialize(Step):
             # If that fails, load the file provided by PyReduce
             # It usually fails because we want to use this one
             reference = self.instrument.get_wavecal_filename(
-                thead, self.mode, **config["instrument"]
+                thead, self.arm, **config["instrument"]
             )
 
             # This should fail if there is no provided file by PyReduce
@@ -1582,7 +1614,7 @@ class RectifyImage(Step):
         rectified = {}
         for fname in tqdm(files, desc="Files"):
             img, head = self.instrument.load_fits(
-                fname, self.mode, mask=mask, dtype="f8"
+                fname, self.arm, mask=mask, dtype="f8"
             )
 
             images, cr, xwd = rectify_image(
@@ -1648,7 +1680,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         name : str
             science file name
         """
-        return util.swap_extension(name, ".science.ech", path=self.output_dir)
+        return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
     def run(self, files, bias, orders, norm_flat, curvature, scatter, mask):
         """Extract Science spectra from observation
@@ -1917,7 +1949,7 @@ class Finalize(Step):
         out = self.filename.format(
             instrument=self.instrument.name,
             night=self.night,
-            mode=self.mode,
+            arm=self.arm,
             number=number,
             input=name,
         )
@@ -1993,7 +2025,7 @@ class Finalize(Step):
                 plt.plot(wave.T, (spec / blaze).T)
                 if self.plot_title is not None:
                     plt.title(self.plot_title)
-                plt.show()
+                util.show_or_save(f"finalize_{i}")
 
             fname = self.save(i, head, spec, sigma, blaze, wave, column)
             fnames.append(fname)
@@ -2031,175 +2063,3 @@ class Finalize(Step):
         )
         logger.info("Final science file: %s", out_file)
         return out_file
-
-
-class Reducer:
-    step_order = {
-        "bias": 10,
-        "flat": 20,
-        "orders": 30,
-        "curvature": 40,
-        "scatter": 45,
-        "norm_flat": 50,
-        "wavecal_master": 60,
-        "wavecal_init": 64,
-        "wavecal": 67,
-        "freq_comb_master": 70,
-        "freq_comb": 72,
-        "rectify": 75,
-        "science": 80,
-        "continuum": 90,
-        "finalize": 100,
-    }
-
-    modules = {
-        "mask": Mask,
-        "bias": Bias,
-        "flat": Flat,
-        "orders": OrderTracing,
-        "scatter": BackgroundScatter,
-        "norm_flat": NormalizeFlatField,
-        "wavecal_master": WavelengthCalibrationMaster,
-        "wavecal_init": WavelengthCalibrationInitialize,
-        "wavecal": WavelengthCalibrationFinalize,
-        "freq_comb_master": LaserFrequencyCombMaster,
-        "freq_comb": LaserFrequencyCombFinalize,
-        "curvature": SlitCurvatureDetermination,
-        "science": ScienceExtraction,
-        "continuum": ContinuumNormalization,
-        "finalize": Finalize,
-        "rectify": RectifyImage,
-    }
-
-    def __init__(
-        self,
-        files,
-        output_dir,
-        target,
-        instrument,
-        mode,
-        night,
-        config,
-        order_range=None,
-        skip_existing=False,
-    ):
-        """Reduce all observations from a single night and instrument mode
-
-        Parameters
-        ----------
-        files: dict{str:str}
-            Data files for each step
-        output_dir : str
-            directory to place output files in
-        target : str
-            observed targets as used in directory names/fits headers
-        instrument : str
-            instrument used for observations
-        mode : str
-            instrument mode used (e.g. "red" or "blue" for HARPS)
-        night : str
-            Observation night, in the same format as used in the directory structure/file sorting
-        config : dict
-            numeric reduction specific settings, like pixel threshold, which may change between runs
-        info : dict
-            fixed instrument specific values, usually header keywords for gain, readnoise, etc.
-        skip_existing : bool
-            Whether to skip reductions with existing output
-        """
-        #:dict(str:str): Filenames sorted by usecase
-        self.files = files
-        self.output_dir = output_dir.format(
-            instrument=str(instrument), target=target, night=night, mode=mode
-        )
-
-        if isinstance(instrument, str):
-            instrument = load_instrument(instrument)
-
-        self.data = {"files": files, "config": config}
-        self.inputs = (instrument, mode, target, night, output_dir, order_range)
-        self.config = config
-        self.skip_existing = skip_existing
-
-    def run_module(self, step, load=False):
-        # The Module this step is based on (An object of the Step class)
-        module = self.modules[step](*self.inputs, **self.config.get(step, {}))
-
-        # Load the dependencies necessary for loading/running this step
-        dependencies = module.dependsOn if not load else module.loadDependsOn
-        for dependency in dependencies:
-            if dependency not in self.data.keys():
-                self.data[dependency] = self.run_module(dependency, load=True)
-        args = {d: self.data[d] for d in dependencies}
-
-        # Try to load the data, if the step is not specifically given as necessary
-        # If the intermediate data is not available, run it normally instead
-        # But give a warning
-        if load:
-            try:
-                logger.info("Loading data from step '%s'", step)
-                data = module.load(**args)
-            except FileNotFoundError:
-                logger.warning(
-                    "Intermediate File(s) for loading step %s not found. Running it instead.",
-                    step,
-                )
-                data = self.run_module(step, load=False)
-        else:
-            logger.info("Running step '%s'", step)
-            if step in self.files.keys():
-                args["files"] = self.files[step]
-            data = module.run(**args)
-
-        self.data[step] = data
-        return data
-
-    def prepare_output_dir(self):
-        # create output folder structure if necessary
-        output_dir = self.output_dir
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-    def run_steps(self, steps="all"):
-        """
-        Execute the steps as required
-
-        Parameters
-        ----------
-        steps : {tuple(str), "all"}, optional
-            which steps of the reduction process to perform
-            the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "freq_comb",
-            "curvature", "science", "continuum", "finalize"
-            alternatively set steps to "all", which is equivalent to setting all steps
-        """
-        self.prepare_output_dir()
-
-        if steps == "all":
-            steps = list(self.step_order.keys())
-        steps = list(steps)
-
-        if self.skip_existing and "finalize" in steps:
-            module = self.modules["finalize"](
-                *self.inputs, **self.config.get("finalize", {})
-            )
-            exists = [False] * len(self.files["science"])
-            data = {"finalize": [None] * len(self.files["science"])}
-            for i, f in enumerate(self.files["science"]):
-                fname_in = os.path.basename(f)
-                fname_in = os.path.splitext(fname_in)[0]
-                fname_out = module.output_file("?", fname_in)
-                fname_out = glob.glob(fname_out)
-                exists[i] = len(fname_out) != 0
-                if exists[i]:
-                    data["finalize"][i] = fname_out[0]
-            if all(exists):
-                logger.info("All science files already exist, skipping this set")
-                logger.debug("--------------------------------")
-                return data
-
-        steps.sort(key=lambda x: self.step_order[x])
-
-        for step in steps:
-            self.run_module(step)
-
-        logger.debug("--------------------------------")
-        return self.data

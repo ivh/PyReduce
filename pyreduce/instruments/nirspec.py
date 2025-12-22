@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class NIRSPEC(Instrument):
     @staticmethod
-    def get_mode(header):
+    def get_arm(header):
         # TODO figure out the parameters to use for this
         try:
             fil1pos = header["FIL1POS"]
@@ -49,16 +49,16 @@ class NIRSPEC(Instrument):
 
         return setting
 
-    def add_header_info(self, header, mode, **kwargs):
+    def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, mode)
-        # header["e_setting"] = NIRSPEC.get_mode(header)
+        header = super().add_header_info(header, arm)
+        # header["e_setting"] = NIRSPEC.get_arm(header)
         header["EXPTIME"] = header.get("ITIME", 0) * header.get("COADDS", 0)
         return header
 
-    def sort_files(self, input_dir, target, night, mode, calibration_dir, **kwargs):
+    def sort_files(self, input_dir, target, night, arm, calibration_dir, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -71,8 +71,8 @@ class NIRSPEC(Instrument):
             name of the target as in the fits headers
         night : str
             observation night, possibly with wildcards
-        mode : str
-            instrument mode
+        arm : str
+            instrument arm
         Returns
         -------
         files_per_night : list[dict{str:dict{str:list[str]}}]
@@ -84,7 +84,7 @@ class NIRSPEC(Instrument):
 
         # TODO allow several names for the target?
 
-        info = self.load_info()
+        info = self.info
         target = target.casefold()
         instrument = self.__class__.__name__
 
@@ -99,7 +99,7 @@ class NIRSPEC(Instrument):
 
         # find all fits files in the input dir(s)
         input_dir = input_dir.format(
-            instrument=instrument.upper(), target=target, mode=mode, night=night
+            instrument=instrument.upper(), target=target, arm=arm, night=night
         )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
@@ -136,7 +136,7 @@ class NIRSPEC(Instrument):
         cache = {}
 
         for ind_night in tqdm(individual_nights):
-            # Select files for this night, this instrument, this instrument mode
+            # Select files for this night, this instrument, this instrument arm
             selection = (ni == ind_night) & (it == instrument) & (ob == target)
 
             for file in files[selection]:
@@ -193,9 +193,9 @@ class NIRSPEC(Instrument):
 
         return files_per_observation
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, arm, **kwargs):
         """Get the filename of the wavelength calibration config file"""
-        info = self.load_info()
+        info = self.info
         if header[info["id_neon"]] == 1:
             pass
         elif header[info["id_argon"]] == 1:

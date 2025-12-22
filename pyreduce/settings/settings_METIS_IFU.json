@@ -8,7 +8,7 @@
         "degree": 4,
         "degree_before_merge": "best",
         "bias_scaling": "number_of_files",
-        "filter_size": 20,
+        "filter_y": 20,
         "min_cluster": 100,
         "noise": 120,
         "border_width": 6,

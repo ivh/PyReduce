@@ -5,7 +5,7 @@ Loads a sample UVES dataset, and runs the full extraction
 
 from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments.common import create_custom_instrument
-from pyreduce.reduce import Reducer
+from pyreduce.pipeline import Pipeline
 from pyreduce.util import start_logging
 
 # Define the path to support files if possible
@@ -26,7 +26,7 @@ instrument.info["readnoise"] = 1
 instrument.info["prescan_x"] = "PRESCAN X"
 
 # For loading the config we specify pyreduce as the source, since this is the default
-config = get_configuration_for_instrument("pyreduce", plot=1)
+config = get_configuration_for_instrument("pyreduce")
 # Define your own configuration
 config["orders"]["degree"] = 5
 
@@ -45,7 +45,7 @@ start_logging(log_file)
 # Define other parameter for PyReduce
 target = ""
 night = "2019-07-21"
-mode = ""
+arm = ""
 steps = (
     "bias",
     "flat",
@@ -61,15 +61,16 @@ steps = (
 )
 
 # Call the PyReduce algorithm
-reducer = Reducer(
-    files,
-    output_dir,
-    target,
-    instrument,
-    mode,
-    night,
-    config,
+pipe = Pipeline.from_files(
+    files=files,
+    output_dir=output_dir,
+    target=target,
+    instrument=instrument,
+    arm=arm,
+    night=night,
+    config=config,
     # order_range=order_range,
-    # skip_existing=False,
+    steps=steps,
+    plot=1,
 )
-data = reducer.run_steps(steps=steps)
+data = pipe.run()

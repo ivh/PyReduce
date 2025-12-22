@@ -17,6 +17,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 
+from . import util
 from .cwrappers import slitfunc_curved
 from .util import make_index
 
@@ -1214,7 +1215,7 @@ def plot_comparison(
     plt.title(plot_title)
     plt.xlabel("x [pixel]")
     plt.ylabel("order")
-    plt.show()
+    util.show_or_save("extract_rectify")
 
 
 def extract(

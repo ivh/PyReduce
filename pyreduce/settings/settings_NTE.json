@@ -3,7 +3,7 @@
     "__instrument__": "NTE",
     "orders": {
         "degree": 5,
-        "filter_size": 80,
+        "filter_y": 80,
         "min_cluster": 200,
         "noise": 8,
         "manual": false

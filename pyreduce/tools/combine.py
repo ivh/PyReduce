@@ -9,7 +9,7 @@ import numpy as np
 from spectres import spectres
 from tqdm import tqdm
 
-from .. import echelle
+from .. import echelle, util
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def combine(files, output, plot=None):
             plt.plot(wnew[plot], sold[i] / cold[i])
         plt.plot(wnew[plot], snew[plot], "--")
         plt.fill_between(wnew[plot], vmin[plot], vmax[plot], alpha=0.5)
-        plt.show()
+        util.show_or_save("combine_spectra")
 
     e.spec = snew
     e.sig = unew

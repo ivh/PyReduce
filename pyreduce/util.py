@@ -22,6 +22,84 @@ from . import __version__
 
 logger = logging.getLogger(__name__)
 
+# Global plot directory - set by Pipeline/main() to save plots instead of showing
+_plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
+if _plot_dir:
+    os.makedirs(_plot_dir, exist_ok=True)
+
+
+def set_plot_dir(path):
+    """Set directory for saving plots. If None, plots will be shown interactively."""
+    global _plot_dir
+    _plot_dir = path
+    if path:
+        os.makedirs(path, exist_ok=True)
+
+
+def show_or_save(name="plot"):
+    """Show plot interactively or save to file if plot_dir is set.
+
+    Parameters
+    ----------
+    name : str
+        Base name for the saved file (without extension)
+    """
+    if _plot_dir:
+        fname = os.path.join(_plot_dir, f"{name}.png")
+        plt.savefig(fname, dpi=150, bbox_inches="tight")
+        logger.debug("Saved plot to %s", fname)
+        plt.close()
+    else:
+        plt.show()
+
+
+def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):
+    """Plot image with polynomial traces overlaid.
+
+    Parameters
+    ----------
+    im : array[nrow, ncol]
+        2D image to display
+    traces : array or list
+        Polynomial coefficients for traces. Either a 2D array of shape
+        (n_traces, degree+1) or a list of 1D coefficient arrays.
+        Coefficients are in numpy polyval order (highest degree first).
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on. If None, creates new figure.
+    imshow_kwargs : dict, optional
+        Keyword arguments passed to imshow (e.g., vmin, vmax, cmap)
+    **line_kwargs
+        Additional keyword arguments passed to plot for trace lines
+        (e.g., color, linewidth, alpha)
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        The axes with the plot
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+
+    imshow_defaults = {"origin": "lower", "aspect": "auto"}
+    if imshow_kwargs:
+        imshow_defaults.update(imshow_kwargs)
+    ax.imshow(im, **imshow_defaults)
+
+    traces = np.atleast_2d(traces)
+    x = np.arange(im.shape[1])
+
+    line_defaults = {"color": "red", "linewidth": 0.5}
+    line_defaults.update(line_kwargs)
+
+    for coef in traces:
+        y = np.polyval(coef, x)
+        ax.plot(x, y, **line_defaults)
+
+    ax.set_xlim(0, im.shape[1] - 1)
+    ax.set_ylim(0, im.shape[0] - 1)
+
+    return ax
+
 
 def resample(array, new_size):
     x = np.arange(new_size)
@@ -569,7 +647,7 @@ def plot2d(x, y, z, coeff, title=None):
     )
     Z = np.polynomial.polynomial.polyval2d(X, Y, coeff)
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(111, projection="3d")
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
     ax.scatter(x, y, z, c="r", s=50)
     plt.xlabel("X")
@@ -579,7 +657,7 @@ def plot2d(x, y, z, coeff, title=None):
         plt.title(title)
     # ax.axis("equal")
     # ax.axis("tight")
-    plt.show()
+    show_or_save("polyfit2d")
 
 
 def polyfit2d(
@@ -701,7 +779,7 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=Fa
         )
         Z = np.polynomial.polynomial.polyval2d(X, Y, coef)
         fig = plt.figure()
-        ax = fig.gca(projection="3d")
+        ax = fig.add_subplot(111, projection="3d")
         ax.plot_surface(X, Y, Z, rstride=1, cstride=1, alpha=0.2)
         ax.scatter(x, y, z, c="r", s=50)
         plt.xlabel("X")
@@ -709,7 +787,7 @@ def polyfit2d_2(x, y, z, degree=1, x0=None, loss="arctan", method="trf", plot=Fa
         ax.set_zlabel("Z")
         ax.axis("equal")
         ax.axis("tight")
-        plt.show()
+        show_or_save("polyfit2d_2")
     return coef
 
 

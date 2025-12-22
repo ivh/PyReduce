@@ -1,16 +1,17 @@
 """
 Simple usage example for PyReduce
-Loads a sample UVES dataset, and runs the full extraction
+Loads a NEID dataset, and runs the extraction
 """
 
-import pyreduce
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "NEID"
 # target = "HD 152843"
 target = ""
 night = ""
-mode = "NEID"
+arm = "NEID"
 steps = (
     #  "bias",
     # "flat",
@@ -31,25 +32,21 @@ steps = (
 # base_dir = datasets.HARPS("/DATA/PyReduce")
 base_dir = "/home/tom/pipes/neid_data"
 input_dir = "raw"
-output_dir = "reduced_{mode}"
-
-# instrument = HARPS()
-# files = instrument.find_files(base_dir + "/" + input_dir)
-# ev = instrument.get_expected_values(None, None, "red", None, True)
-# files = instrument.apply_filters(files, ev)
+output_dir = "reduced_{arm}"
 
 # Path to the configuration parameters, that are to be used for this reduction
-config = pyreduce.configuration.get_configuration_for_instrument(instrument, plot=1)
+config = get_configuration_for_instrument(instrument)
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    mode,
-    steps,
+    night=night,
+    arm=arm,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
     # order_range=(0, 25),
-)
+    plot=1,
+).run()

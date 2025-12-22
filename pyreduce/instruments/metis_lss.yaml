@@ -1,0 +1,62 @@
+# METIS LSS instrument configuration
+
+__instrument__: METIS_LSS
+instrument: INSTRUME
+id_instrument: METIS_LSS
+telescope: ELT
+
+date: MJD-OBS
+date_format: mjd
+
+arms: [LSS_L, LSS_M, LSS_N]
+kw_arm: INSTMODE
+id_arm: [lss_l, lss_m, lss_n]
+extension: 0
+orientation: [1, 1, 1]
+
+prescan_x: 0
+overscan_x: 0
+prescan_y: 0
+overscan_y: 0
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: 1
+readnoise: 4
+dark: 10
+exposure_time: "HIERARCH OBS_EXPTIME"
+
+ra: RA
+dec: DEC
+jd: MJD-OBS
+longitude: -70
+latitude: -24
+altitude: 3060
+instrument_mode: "HIERARCH ESO INS MODE"
+observation_type: "HIERARCH ESO DPR TYPE"
+observation_category: "HIERARCH ESO DPR CATG"
+target: ""
+object: OBJECT
+
+id_dark: DARK
+id_format: "LAMP,FMTCHK"
+id_tell: "STD,TELLURIC"
+
+# File classification keywords and patterns
+kw_bias: "HIERARCH ESO DPR TYPE"
+kw_flat: "HIERARCH ESO DPR TYPE"
+kw_curvature: "HIERARCH ESO DPR TYPE"
+kw_scatter: "HIERARCH ESO DPR TYPE"
+kw_orders: "HIERARCH ESO DPR TYPE"
+kw_wave: "HIERARCH ESO DPR TYPE"
+kw_comb: null
+kw_spec: "HIERARCH ESO DPR TYPE"
+
+id_bias: DARK
+id_flat: "LAMP,FLAT"
+id_orders: "FLAT,PINHOLE"
+id_curvature: "SKY,WAVE"
+id_scatter: "LAMP,FLAT"
+id_wave: "SKY,WAVE"
+id_comb: null
+id_spec: OBJECT

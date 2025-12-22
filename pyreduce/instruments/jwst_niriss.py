@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 class JWST_NIRISS(Instrument):
-    def add_header_info(self, header, mode, **kwargs):
+    def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, mode)
+        header = super().add_header_info(header, arm)
         self.load_info()
 
         # TODO: this references some files, I dont know where they should be
@@ -34,7 +34,7 @@ class JWST_NIRISS(Instrument):
 
         return header
 
-    def split_observation(self, fname, mode):
+    def split_observation(self, fname, arm):
         hdu = fits.open(fname)
         dirname = os.path.dirname(fname)
         fname = os.path.basename(fname)
@@ -75,24 +75,24 @@ class JWST_NIRISS(Instrument):
         hdu.close()
         return files
 
-    def sort_files(self, input_dir, target, night, mode, allow_calibration_only=False):
+    def sort_files(self, input_dir, target, night, arm, allow_calibration_only=False):
         files = super().sort_files(
             input_dir,
             target,
             night,
-            mode,
+            arm,
             allow_calibration_only=allow_calibration_only,
         )
         for i, (_k, file) in enumerate(files):
             files_split = []
             for f in file["science"]:
-                files_split += self.split_observation(f, mode)
+                files_split += self.split_observation(f, arm)
             files[i][1]["science"] = files_split
         return files
 
-    def get_wavecal_filename(self, header, mode, **kwargs):
+    def get_wavecal_filename(self, header, arm, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = "{instrument}_{mode}_2D.npz".format(instrument="harps", mode=mode)
+        fname = "{instrument}_{arm}_2D.npz".format(instrument="harps", arm=arm)
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
