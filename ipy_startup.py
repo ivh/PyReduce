@@ -5,6 +5,10 @@ from astropy.io import fits
 
 fo = fits.open
 
+from matplotlib import pyplot as plt
+
+plt.ion()
+
 
 class NpzEditor(dict):
     def __init__(self, filename):
