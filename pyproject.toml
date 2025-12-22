@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 
@@ -193,12 +194,16 @@ dev = [
 
 # cibuildwheel configuration for building platform-specific wheels
 [tool.cibuildwheel]
-# Build for Python 3.11, 3.12, 3.13 on common platforms
-build = "cp311-* cp312-* cp313-*"
-
-# Skip musllinux (use manylinux instead) and 32-bit builds
+build = "cp311-* cp312-* cp313-* cp314-*"
 skip = "*-musllinux_* *-win32 *-manylinux_i686"
-
-# Test the built wheels
 test-command = "pytest {project}/test -m unit"
 test-requires = ["pytest"]
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+
+[tool.cibuildwheel.macos]
+archs = ["arm64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
