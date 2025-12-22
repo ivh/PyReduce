@@ -1,6 +1,23 @@
 # Changelog
 
 
+## [0.6.0] - 2025-12-22
+
+### Added
+- JSON schema validation test for instrument configurations
+- GitHub workflow creates GitHub Release on tag push
+
+### Fixed
+- Fix test_wavecal to match WavelengthCalibration.execute() signature
+- Fix spec fixture to match ScienceExtraction.run() signature
+- Fix instrument schema: replace invalid 'value' keyword with standard JSON Schema 'type'
+
+## [0.6.0b5] - 2025-10-04
+
+### Fixed
+- Include *.pyd files for Windows builds
+- Remove redundant build test from workflow
+
 ## [0.6.0b4] - 2025-10-03
 
 ### Changed
