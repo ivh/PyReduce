@@ -196,6 +196,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "sphinx>=7.2.0",
+    "ipython>=9.8.0",
 ]
 
 # cibuildwheel configuration for building platform-specific wheels
