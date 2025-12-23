@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.7a4] - 2025-12-23
+
+### Added
+- `reduce examples --run` flag to download and execute examples directly
+- PEP 723 inline metadata in examples for `uv run` compatibility
+
 ## [0.7a3] - 2025-12-23
 
 ### Added

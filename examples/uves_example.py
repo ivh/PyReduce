@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["pyreduce-astro>=0.7"]
+# ///
 """
 Simple usage example for PyReduce
 Loads a sample UVES dataset, and runs the full extraction

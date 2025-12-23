@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["pyreduce-astro>=0.7"]
+# ///
 import numpy as np
 
 from pyreduce.configuration import get_configuration_for_instrument

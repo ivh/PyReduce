@@ -161,20 +161,25 @@ def download(instrument):
     "--list", "-l", "list_examples", is_flag=True, help="List available examples"
 )
 @click.option("--all", "-a", "download_all", is_flag=True, help="Download all examples")
+@click.option("--run", "-r", is_flag=True, help="Run the example after downloading")
 @click.option("--output", "-o", default=".", help="Output directory")
-def examples(filename, list_examples, download_all, output):
-    """List or download example scripts from GitHub.
+def examples(filename, list_examples, download_all, run, output):
+    """List, download, or run example scripts from GitHub.
 
     Downloads examples matching your installed PyReduce version.
 
     \b
     Examples:
-        reduce examples              # List available examples
-        reduce examples uves_example.py    # Download to current dir
-        reduce examples --all -o ~/scripts # Download all to ~/scripts
+        reduce examples                     # List available examples
+        reduce examples uves_example.py     # Download to current dir
+        reduce examples -r uves_example.py  # Download and run
+        reduce examples --all -o ~/scripts  # Download all to ~/scripts
     """
     import json
     import os
+    import subprocess
+    import sys
+    import tempfile
     import urllib.request
     from urllib.error import HTTPError
 
@@ -211,6 +216,32 @@ def examples(filename, list_examples, download_all, output):
         for name in example_files:
             click.echo(f"  {name}")
         return
+
+    if run and download_all:
+        raise click.ClickException("Cannot use --run with --all")
+
+    # Run mode: download to temp and execute
+    if run:
+        if filename not in example_files:
+            raise click.ClickException(
+                f"Unknown example '{filename}'. Use 'reduce examples --list' to see available."
+            )
+        url = f"{github_raw}/{filename}"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            try:
+                with urllib.request.urlopen(url) as resp:
+                    f.write(resp.read().decode())
+                temp_path = f.name
+            except HTTPError as e:
+                raise click.ClickException(
+                    f"Failed to download {filename}: {e}"
+                ) from None
+        try:
+            click.echo(f"Running {filename}...")
+            result = subprocess.run([sys.executable, temp_path], check=False)
+            sys.exit(result.returncode)
+        finally:
+            os.unlink(temp_path)
 
     # Ensure output directory exists
     os.makedirs(output, exist_ok=True)
