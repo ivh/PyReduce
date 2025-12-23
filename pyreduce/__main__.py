@@ -11,11 +11,6 @@ Usage:
 
 import click
 
-from . import datasets
-from .configuration import get_configuration_for_instrument
-from .reduce import main as reduce_main
-from .tools.combine import combine as tools_combine
-
 ALL_STEPS = (
     "bias",
     "flat",
@@ -89,6 +84,9 @@ def run(
     INSTRUMENT: Name of the instrument (e.g., UVES, HARPS, XSHOOTER)
     TARGET: Target star name or regex pattern
     """
+    from .configuration import get_configuration_for_instrument
+    from .reduce import main as reduce_main
+
     # Parse steps
     if steps:
         steps = tuple(s.strip() for s in steps.split(","))
@@ -128,6 +126,8 @@ def combine(files, output, plot):
 
     FILES: Input .final.fits files to combine
     """
+    from .tools.combine import combine as tools_combine
+
     tools_combine(list(files), output, plot=plot)
 
 
@@ -138,6 +138,8 @@ def download(instrument):
 
     INSTRUMENT: Name of the instrument (e.g., UVES, HARPS)
     """
+    from . import datasets
+
     instrument = instrument.upper()
     dataset_func = getattr(datasets, instrument, None)
     if dataset_func is None:
@@ -151,6 +153,86 @@ def download(instrument):
         )
     path = dataset_func()
     click.echo(f"Dataset downloaded to: {path}")
+
+
+@cli.command()
+@click.argument("filename", required=False)
+@click.option(
+    "--list", "-l", "list_examples", is_flag=True, help="List available examples"
+)
+@click.option("--all", "-a", "download_all", is_flag=True, help="Download all examples")
+@click.option("--output", "-o", default=".", help="Output directory")
+def examples(filename, list_examples, download_all, output):
+    """List or download example scripts from GitHub.
+
+    Downloads examples matching your installed PyReduce version.
+
+    \b
+    Examples:
+        reduce examples              # List available examples
+        reduce examples uves_example.py    # Download to current dir
+        reduce examples --all -o ~/scripts # Download all to ~/scripts
+    """
+    import json
+    import os
+    import urllib.request
+    from urllib.error import HTTPError
+
+    from pyreduce import __version__
+
+    version = __version__.split("+")[0]
+    if version == "unknown":
+        raise click.ClickException(
+            "Cannot determine package version. Install from PyPI or a tagged release."
+        )
+
+    github_api = (
+        f"https://api.github.com/repos/ivh/PyReduce/contents/examples?ref=v{version}"
+    )
+    github_raw = f"https://raw.githubusercontent.com/ivh/PyReduce/v{version}/examples"
+
+    # Fetch list of examples from GitHub API
+    try:
+        with urllib.request.urlopen(github_api) as resp:
+            contents = json.loads(resp.read().decode())
+    except HTTPError as e:
+        if e.code == 404:
+            raise click.ClickException(
+                f"Tag v{version} not found on GitHub. "
+                "Try installing a released version."
+            ) from None
+        raise click.ClickException(f"GitHub API error: {e}") from None
+
+    example_files = sorted(f["name"] for f in contents if f["name"].endswith(".py"))
+
+    # List mode
+    if list_examples or (not filename and not download_all):
+        click.echo(f"Available examples for v{version}:")
+        for name in example_files:
+            click.echo(f"  {name}")
+        return
+
+    # Ensure output directory exists
+    os.makedirs(output, exist_ok=True)
+
+    def download_file(name):
+        url = f"{github_raw}/{name}"
+        dest = os.path.join(output, name)
+        try:
+            urllib.request.urlretrieve(url, dest)
+            click.echo(f"Downloaded: {dest}")
+        except HTTPError as e:
+            click.echo(f"Failed to download {name}: {e}", err=True)
+
+    if download_all:
+        for name in example_files:
+            download_file(name)
+    else:
+        if filename not in example_files:
+            raise click.ClickException(
+                f"Unknown example '{filename}'. Use 'reduce examples --list' to see available."
+            )
+        download_file(filename)
 
 
 @cli.command("list-steps")
@@ -174,6 +256,9 @@ def make_step_command(step_name):
     @click.option("--output-dir", "-o", default="reduced", help="Output directory")
     @click.option("--plot", "-p", default=0, help="Plot level")
     def cmd(instrument, target, night, arm, base_dir, input_dir, output_dir, plot):
+        from .configuration import get_configuration_for_instrument
+        from .reduce import main as reduce_main
+
         config = get_configuration_for_instrument(instrument)
         reduce_main(
             instrument=instrument,

@@ -1,6 +1,14 @@
 # Changelog
 
 
+## [0.7a3] - 2025-12-23
+
+### Added
+- `reduce examples` command to list/download examples from GitHub matching installed version
+
+### Changed
+- CLI startup 12x faster via lazy imports (1.2s -> 0.1s)
+
 ## [0.7a2] - 2025-12-23
 
 ### Added
