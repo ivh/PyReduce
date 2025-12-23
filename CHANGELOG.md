@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [0.7a2] - 2025-12-23
+
+### Added
+- Manual API calls documentation (manual_calls.md)
+
+### Fixed
+- ReadTheDocs build failing due to missing myst_parser
+- Trace module reference in documentation
+
+### Changed
+- Docs Makefile now uses uv
+- pyproject.toml cleanup
+
 ## [0.7a1] - 2025-12-22
 
 ### Added
