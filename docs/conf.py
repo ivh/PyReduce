@@ -13,8 +13,8 @@ sys.path.insert(0, path)
 from pyreduce import __version__
 
 project = "PyReduce"
-copyright = "2019, Ansgar Wehrhahn"
-author = "Ansgar Wehrhahn"
+copyright = "PyReduce contributors"
+author = "now mostly Claude.ai, originally Ansgar Wehrhahn"
 
 version = __version__.split("+")[0]
 release = __version__
