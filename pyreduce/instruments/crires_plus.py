@@ -22,56 +22,46 @@ class CRIRES_PLUS(Instrument):
         super().__init__()
         self.filters["lamp"] = Filter(self.info["id_lamp"])
         self.filters["band"] = Filter(self.info["id_band"])
-        self.filters["decker"] = Filter(self.info["id_decker"])
-        self.shared += ["band", "decker"]
+        self.shared += ["band"]
 
     def add_header_info(self, header, arm, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        band, decker, detector = self.parse_arm(arm)
-        header = super().add_header_info(header, band)
+        setting, detector = self.parse_arm(arm)
+        header = super().add_header_info(header, setting)
         self.load_info()
 
         return header
 
     def get_supported_arms(self):
         settings = self.info["settings"]
-        deckers = self.info["deckers"]
         detectors = self.info["chips"]
-        arms = [
-            "_".join([s, d, c]) for s, d, c in product(settings, deckers, detectors)
-        ]
+        arms = [f"{s}_{c}" for s, c in product(settings, detectors)]
         return arms
 
     def parse_arm(self, arm):
-        pattern = r"([YJHKLM]\d{4})(_(Open|pos1|pos2))?_det(\d)"
+        pattern = r"([YJHKLM]\d{4})_det(\d)"
         match = re.match(pattern, arm, flags=re.IGNORECASE)
         if not match:
-            logger.error("no arm match")
-        else:
-            band = match.group(1).upper()
-        if match.group(3) is not None:
-            decker = match.group(3).lower().capitalize()
-        else:
-            decker = "Open"
-        detector = match.group(4)
-        return band, decker, detector
+            raise ValueError(f"Invalid arm format: {arm}")
+        setting = match.group(1).upper()
+        detector = match.group(2)
+        return setting, detector
 
     def get_expected_values(self, target, night, arm):
         expectations = super().get_expected_values(target, night)
-        band, decker, detector = self.parse_arm(arm)
+        setting, detector = self.parse_arm(arm)
 
         for key in expectations.keys():
             if key == "bias":
                 continue
-            expectations[key]["band"] = band
-            expectations[key]["decker"] = decker
+            expectations[key]["band"] = setting
 
         return expectations
 
     def get_extension(self, header, arm):
-        band, decker, detector = self.parse_arm(arm)
+        setting, detector = self.parse_arm(arm)
         extension = int(detector)
         return extension
 
@@ -84,7 +74,7 @@ class CRIRES_PLUS(Instrument):
 
     def get_mask_filename(self, arm, **kwargs):
         i = self.name.lower()
-        band, decker, detector = self.parse_arm(arm)
+        setting, detector = self.parse_arm(arm)
 
         fname = f"mask_{i}_det{detector}.fits.gz"
         cwd = os.path.dirname(__file__)
