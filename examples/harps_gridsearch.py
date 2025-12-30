@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 import os.path
 
@@ -13,9 +13,9 @@ from pyreduce.wavelength_calibration import (
 )
 
 
-def func_wavecal(deg, thar, instrument, arm, **kwargs):
+def func_wavecal(deg, thar, instrument, channel, **kwargs):
     reference = instruments.instrument_info.get_wavecal_filename(
-        None, instrument, arm, polarimetry=False
+        None, instrument, channel, polarimetry=False
     )
     reference = np.load(reference, allow_pickle=True)
     linelist = reference["cs_lines"]
@@ -40,7 +40,7 @@ def func_freq_comb(deg, comb, wave, **kwargs):
 instrument = "HARPS"
 target = "HD109200"
 night = "2015-04-09"
-arm = "red"
+channel = "red"
 
 # some basic settings
 # Expected Folder Structure: base_dir/datasets/HD132205/*.fits.gz
@@ -49,7 +49,7 @@ arm = "red"
 # load dataset (and save the location)
 base_dir = datasets.HARPS()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
-output_dir = f"reduced_{arm}"
+output_dir = f"reduced_{channel}"
 
 config = configuration.get_configuration_for_instrument(instrument)
 
@@ -82,10 +82,10 @@ for i in np.ndindex(shape):
     grid[i] += 1
 
 # aic = func_freq_comb((3, 6), comb, wave, **kwargs_comb)
-# aic = func_wavecal((3, 6), thar, instrument, arm, **kwargs)
+# aic = func_wavecal((3, 6), thar, instrument, channel, **kwargs)
 
 # matrix = util.gridsearch(
-#     func_wavecal, grid, args=(thar, instrument, arm), kwargs=kwargs
+#     func_wavecal, grid, args=(thar, instrument, channel), kwargs=kwargs
 # )
 # np.save(f"matrix_{ndim}D.npy", matrix)
 # matrix = np.load(f"matrix_{ndim}D.npy")

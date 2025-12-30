@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Simple usage example for PyReduce
@@ -14,7 +14,7 @@ from pyreduce.pipeline import Pipeline
 instrument = "Crires_plus"
 target = ""
 night = ""
-arm = "J1228_Open_det1"
+channel = "J1228_det1"
 steps = (
     # "bias",
     # "flat",
@@ -52,7 +52,7 @@ Pipeline.from_instrument(
     instrument,
     target,
     night=night,
-    arm=arm,
+    channel=channel,
     steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,

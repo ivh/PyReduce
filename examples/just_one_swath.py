@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 import matplotlib.pyplot as plt
 import numpy as np

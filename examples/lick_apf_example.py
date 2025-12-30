@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Simple usage example for PyReduce
@@ -14,7 +14,7 @@ from pyreduce.pipeline import Pipeline
 instrument = "Lick_APF"
 target = "KIC05005618"
 night = None
-arm = ""
+channel = ""
 steps = (
     "bias",
     # "flat",
@@ -43,7 +43,7 @@ Pipeline.from_instrument(
     instrument,
     target,
     night=night,
-    arm=arm,
+    channel=channel,
     steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,

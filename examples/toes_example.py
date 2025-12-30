@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 import numpy as np
 
@@ -134,7 +134,7 @@ start_logging(log_file)
 # Define other parameter for PyReduce
 target = ""
 night = "2024-06-21"
-arm = ""
+channel = ""
 steps = (
     #    "bias",
     #    "flat",
@@ -153,7 +153,7 @@ pipe = Pipeline.from_files(
     output_dir=output_dir,
     target=target,
     instrument=instrument,
-    arm=arm,
+    channel=channel,
     night=night,
     config=config,
     # order_range=[6,8],

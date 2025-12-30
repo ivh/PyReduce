@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Simple usage example for PyReduce
@@ -14,7 +14,7 @@ from pyreduce.pipeline import Pipeline
 instrument = "HARPS"
 target = "HD109200"
 night = None
-arm = "red"
+channel = "red"
 steps = (
     "bias",
     "flat",
@@ -36,13 +36,13 @@ steps = (
 # load dataset (and save the location)
 base_dir = datasets.HARPS()  # Uses $REDUCE_DATA or ~/REDUCE_DATA
 input_dir = "raw"
-output_dir = "reduced_{arm}"
+output_dir = "reduced_{channel}"
 
 Pipeline.from_instrument(
     instrument,
     target,
     night=night,
-    arm=arm,
+    channel=channel,
     steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,

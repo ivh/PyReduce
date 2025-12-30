@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Simple usage example for PyReduce
@@ -13,7 +13,7 @@ import pyreduce
 instrument = "METIS"
 target = ""
 night = ""
-arm = "LSS_M"  # LSS_M (settings_metis.json is now optimized for LSS_M arm)
+channel = "LSS_M"  # LSS_M (settings_metis.json is now optimized for LSS_M channel)
 steps = (
     # "bias",
     "flat",
@@ -70,7 +70,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    arm,
+    channel,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,

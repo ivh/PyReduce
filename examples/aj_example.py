@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 AJ instrument example: Fiber bundle tracing with direct function calls.
@@ -79,16 +79,16 @@ logical_fibers = {
 
 # --- Load instrument ---
 instrument = load_instrument(instrument_name)
-arm = instrument.info["arms"][0]  # Use first arm
-print(f"Instrument: {instrument.name}, arm: {arm}")
+channel = instrument.info["channels"][0]  # Use first channel
+print(f"Instrument: {instrument.name}, channel: {channel}")
 
 # --- Step 1: Load images using instrument class ---
 print(f"\nLoading {file_even}...")
-img_even, head_even = instrument.load_fits(file_even, arm=arm, extension=0)
+img_even, head_even = instrument.load_fits(file_even, channel=channel, extension=0)
 print(f"  Shape: {img_even.shape}, dtype: {img_even.dtype}")
 
 print(f"Loading {file_odd}...")
-img_odd, head_odd = instrument.load_fits(file_odd, arm=arm, extension=0)
+img_odd, head_odd = instrument.load_fits(file_odd, channel=channel, extension=0)
 
 # --- Step 2: Trace each flat independently ---
 print("\nTracing even-illuminated fibers...")

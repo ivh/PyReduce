@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Example showing direct function calls for each step.
@@ -35,7 +35,7 @@ from pyreduce.reduce import (
 instrument_name = "UVES"
 target = "HD[- ]?132205"
 night = "2010-04-01"
-arm = "middle"
+channel = "middle"
 order_range = (1, 21)
 plot = 1
 
@@ -48,7 +48,7 @@ util.set_plot_dir(plot_dir)
 # Load dataset
 base_dir = datasets.UVES()
 input_dir = join(base_dir, "raw/")
-output_dir = join(base_dir, f"reduced/{night}/{arm}")
+output_dir = join(base_dir, f"reduced/{night}/{channel}")
 
 # Create output directory
 os.makedirs(output_dir, exist_ok=True)
@@ -58,21 +58,21 @@ instrument = load_instrument(instrument_name)
 config = load_config(None, instrument_name, 0)
 
 # Common step arguments
-step_args = (instrument, arm, target, night, output_dir, order_range)
+step_args = (instrument, channel, target, night, output_dir, order_range)
 
 # Find and classify files automatically
 file_groups = instrument.sort_files(
     input_dir,
     target,
     night,
-    arm=arm,
+    channel=channel,
     **config["instrument"],
 )
 
 if len(file_groups) == 0:
     raise FileNotFoundError(f"No files found for {target} in {input_dir}")
 
-# Get the first file group (single arm/night)
+# Get the first file group (single channel/night)
 settings, files = file_groups[0]
 print("Settings:", settings)
 

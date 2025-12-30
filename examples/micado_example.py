@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
+# dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
 Simple usage example for PyReduce
@@ -13,7 +13,7 @@ import pyreduce
 instrument = "MICADO"
 target = ""
 night = ""
-arm = ""
+channel = ""
 steps = (
     # "bias",
     "flat",
@@ -60,7 +60,7 @@ pyreduce.reduce.main(
     instrument,
     target,
     night,
-    arm,
+    channel,
     steps,
     base_dir=base_dir,
     input_dir=input_dir,
