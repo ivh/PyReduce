@@ -95,7 +95,7 @@ Defines what the instrument IS - hardware properties and header mappings:
 # Basic identification
 instrument: HARPS
 telescope: ESO-3.6m
-arms: [red, blue]
+channels: [red, blue]
 
 # Detector properties
 naxis: [4096, 4096]
@@ -175,7 +175,7 @@ result = Pipeline.from_instrument(
     instrument="UVES",
     target="HD132205",
     night="2010-04-01",
-    arm="middle",
+    channel="middle",
     steps=("bias", "flat", "orders", "science"),
     base_dir="/data",
     plot=1,
@@ -196,7 +196,7 @@ from pyreduce.pipeline import Pipeline
 pipe = Pipeline(
     instrument="UVES",
     output_dir="/output",
-    arm="middle",
+    channel="middle",
     plot=0,
 )
 pipe.bias(bias_files)

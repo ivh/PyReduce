@@ -12,7 +12,7 @@ def test_science(
     files,
     instr,
     instrument,
-    arm,
+    channel,
     mask,
     bias,
     normflat,
@@ -37,7 +37,7 @@ def test_science(
     im, head = combine_calibrate(
         [f],
         instr,
-        arm,
+        channel,
         mask=mask,
         bias=bias,
         bhead=bhead,

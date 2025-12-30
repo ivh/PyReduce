@@ -24,34 +24,34 @@ class CRIRES_PLUS(Instrument):
         self.filters["band"] = Filter(self.info["id_band"])
         self.shared += ["band"]
 
-    def add_header_info(self, header, arm, **kwargs):
+    def add_header_info(self, header, channel, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        setting, detector = self.parse_arm(arm)
+        setting, detector = self.parse_channel(channel)
         header = super().add_header_info(header, setting)
         self.load_info()
 
         return header
 
-    def get_supported_arms(self):
+    def get_supported_channels(self):
         settings = self.info["settings"]
         detectors = self.info["chips"]
-        arms = [f"{s}_{c}" for s, c in product(settings, detectors)]
-        return arms
+        channels = [f"{s}_{c}" for s, c in product(settings, detectors)]
+        return channels
 
-    def parse_arm(self, arm):
+    def parse_channel(self, channel):
         pattern = r"([YJHKLM]\d{4})_det(\d)"
-        match = re.match(pattern, arm, flags=re.IGNORECASE)
+        match = re.match(pattern, channel, flags=re.IGNORECASE)
         if not match:
-            raise ValueError(f"Invalid arm format: {arm}")
+            raise ValueError(f"Invalid channel format: {channel}")
         setting = match.group(1).upper()
         detector = match.group(2)
         return setting, detector
 
-    def get_expected_values(self, target, night, arm):
+    def get_expected_values(self, target, night, channel):
         expectations = super().get_expected_values(target, night)
-        setting, detector = self.parse_arm(arm)
+        setting, detector = self.parse_channel(channel)
 
         for key in expectations.keys():
             if key == "bias":
@@ -60,28 +60,28 @@ class CRIRES_PLUS(Instrument):
 
         return expectations
 
-    def get_extension(self, header, arm):
-        setting, detector = self.parse_arm(arm)
+    def get_extension(self, header, channel):
+        setting, detector = self.parse_channel(channel)
         extension = int(detector)
         return extension
 
-    def get_wavecal_filename(self, header, arm, **kwargs):
+    def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = os.path.dirname(__file__)
-        fname = f"{self.name}_{arm}.npz"
+        fname = f"{self.name}_{channel}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_mask_filename(self, arm, **kwargs):
+    def get_mask_filename(self, channel, **kwargs):
         i = self.name.lower()
-        setting, detector = self.parse_arm(arm)
+        setting, detector = self.parse_channel(channel)
 
         fname = f"mask_{i}_det{detector}.fits.gz"
         cwd = os.path.dirname(__file__)
         fname = os.path.join(cwd, "..", "masks", fname)
         return fname
 
-    def get_wavelength_range(self, header, arm, **kwargs):
+    def get_wavelength_range(self, header, channel, **kwargs):
         wmin = [header["ESO INS WLEN MIN%i" % i] for i in range(1, 11)]
         wmax = [header["ESO INS WLEN MAX%i" % i] for i in range(1, 11)]
 

@@ -34,7 +34,7 @@ result = Pipeline.from_instrument(
     instrument="UVES",
     target="HD132205",
     night="2010-04-01",
-    arm="middle",
+    channel="middle",
     steps=("bias", "flat", "orders", "science"),
     plot=1,
 ).run()
@@ -55,7 +55,7 @@ from pyreduce.pipeline import Pipeline
 pipe = Pipeline(
     instrument="UVES",
     output_dir="/data/reduced",
-    arm="middle",
+    channel="middle",
 )
 pipe.bias(bias_files)
 pipe.flat(flat_files)

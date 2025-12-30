@@ -64,7 +64,7 @@ mappings, file classification patterns.
 # Identity
 instrument: HARPS
 telescope: ESO-3.6m
-arms: [red, blue]
+channels: [red, blue]
 
 # Detector
 naxis: [4096, 4096]

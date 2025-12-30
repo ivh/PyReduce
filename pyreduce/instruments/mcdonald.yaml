@@ -7,8 +7,8 @@ telescope: OBSERVAT
 
 date: DATE-OBS
 
-arms: [CS21, CS23, TS21, TS23]
-id_arm: [cs21-e2, cs23-e2, ts21-e2, ts23-e2]
+channels: [CS21, CS23, TS21, TS23]
+id_channel: [cs21-e2, cs23-e2, ts21-e2, ts23-e2]
 extension: 0
 orientation: 0
 transpose: false
@@ -36,7 +36,7 @@ target: OBJECT
 instrument_mode: INSTRUME
 
 # File classification keywords and patterns
-kw_arm: INSTRUME
+kw_channel: INSTRUME
 kw_bias: OBJECT
 kw_flat: IMAGETYP
 kw_curvature: OBJECT

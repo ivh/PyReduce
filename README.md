@@ -49,7 +49,7 @@ Pipeline.from_instrument(
     instrument="UVES",
     target="HD132205",
     night="2010-04-01",
-    arm="middle",
+    channel="middle",
 ).run()
 ```
 

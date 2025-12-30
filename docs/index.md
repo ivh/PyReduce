@@ -26,7 +26,7 @@ from pyreduce.pipeline import Pipeline
 Pipeline.from_instrument(
     instrument="UVES",
     target="HD132205",
-    arm="middle",
+    channel="middle",
 ).run()
 ```
 

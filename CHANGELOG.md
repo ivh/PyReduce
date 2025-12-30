@@ -41,7 +41,7 @@
 - `filter_x` and `filter_type` options for order tracing
 
 ### Changed
-- Rename `mode` to `arm` terminology throughout
+- Rename `mode` to `channel` terminology throughout
 - Output extension changed from `.ech` to `.fits`
 - Documentation converted from RST to Markdown
 - Trace detection parameters renamed (`opower` -> `degree`, `filter_size` -> `filter_y`)

@@ -18,7 +18,7 @@ from dateutil import parser
 from tqdm import tqdm
 
 from ..clipnflip import clipnflip
-from .filters import ArmFilter, Filter, InstrumentFilter, NightFilter, ObjectFilter
+from .filters import ChannelFilter, Filter, InstrumentFilter, NightFilter, ObjectFilter
 from .models import InstrumentConfig
 
 logger = logging.getLogger(__name__)
@@ -58,18 +58,18 @@ def observation_date_to_night(observation_date):
 
 
 class getter:
-    """Get data from a header/dict, based on the given arm, and applies replacements"""
+    """Get data from a header/dict, based on the given channel, and applies replacements"""
 
-    def __init__(self, header, info, arm):
+    def __init__(self, header, info, channel):
         self.header = header
         self.info = info.copy()
         try:
-            self.index = find_first_index(info["arms"], arm.upper())
+            self.index = find_first_index(info["channels"], channel.upper())
         except KeyError:
-            logger.warning("No instrument arms found in instrument info")
+            logger.warning("No instrument channels found in instrument info")
             self.index = 0
 
-        # Pick values for the given arm
+        # Pick values for the given channel
         for k, v in self.info.items():
             if isinstance(v, list):
                 self.info[k] = v[self.index]
@@ -133,10 +133,10 @@ class Instrument:
         self.science = "science"
         self.shared = ["instrument", "night"]
 
-        # Add arm filter if kw_arm is defined (for instruments with separate files per arm)
-        if self.config.kw_arm is not None:
-            self.filters["arm"] = ArmFilter(self.config.kw_arm)
-            self.shared.append("arm")
+        # Add channel filter if kw_channel is defined (for instruments with separate files per channel)
+        if self.config.kw_channel is not None:
+            self.filters["channel"] = ChannelFilter(self.config.kw_channel)
+            self.shared.append("channel")
         self.find_closest = [
             "bias",
             "flat",
@@ -151,9 +151,9 @@ class Instrument:
         return self.name
 
     @property
-    def arms(self) -> list[str] | None:
-        """Available instrument arms (detectors/channels)."""
-        return self.config.arms
+    def channels(self) -> list[str] | None:
+        """Available instrument channels."""
+        return self.config.channels
 
     @property
     def extension(self) -> int | str | list:
@@ -170,17 +170,17 @@ class Instrument:
         """Instrument identifier for header matching."""
         return self.config.id_instrument
 
-    def get(self, key, header, arm, alt=None):
-        get = getter(header, self.info, arm)
+    def get(self, key, header, channel, alt=None):
+        get = getter(header, self.info, channel)
         return get(key, alt=alt)
 
-    def get_extension(self, header, arm):
-        arm = arm.upper()
+    def get_extension(self, header, channel):
+        channel = channel.upper()
         ext = self.extension  # Use property
 
         if isinstance(ext, list):
-            iarm = find_first_index(self.arms, arm)
-            ext = ext[iarm]
+            ichannel = find_first_index(self.channels, channel)
+            ext = ext[ichannel]
 
         return ext
 
@@ -197,8 +197,8 @@ class Instrument:
             dictionary of REDUCE names for properties to Header keywords/static values
         """
         # Tips & Tricks:
-        # if several arms are supported, use a list for arms
-        # if a value changes depending on the arm, use a list with the same order as "arms"
+        # if several channels are supported, use a list for channels
+        # if a value changes depending on the channel, use a list with the same order as "channels"
         # you can also use values from this dictionary as placeholders using {name}, just like str.format
 
         this = os.path.dirname(__file__)
@@ -225,13 +225,13 @@ class Instrument:
         return config, info
 
     def load_fits(
-        self, fname, arm, extension=None, mask=None, header_only=False, dtype=None
+        self, fname, channel, extension=None, mask=None, header_only=False, dtype=None
     ):
         """
         load fits file, REDUCE style
 
         primary and extension header are combined
-        arm-specific info is applied to header
+        channel-specific info is applied to header
         data is clipnflipped
         mask is applied
 
@@ -241,8 +241,8 @@ class Instrument:
             filename
         instrument : str
             name of the instrument
-        arm : str
-            instrument arm (detector/channel)
+        channel : str
+            instrument channel
         extension : int
             data extension of the FITS file to load
         mask : array, optional
@@ -257,22 +257,22 @@ class Instrument:
         data : masked_array
             FITS data, clipped and flipped, and with mask
         header : fits.header
-            FITS header (Primary and Extension + arm info)
+            FITS header (Primary and Extension + channel info)
 
         ONLY the header is returned if header_only is True
         """
 
-        arm = arm.upper()
+        channel = channel.upper()
 
         hdu = fits.open(fname)
         h_prime = hdu[0].header
         if extension is None:
-            extension = self.get_extension(h_prime, arm)
+            extension = self.get_extension(h_prime, channel)
 
         header = hdu[extension].header
         if extension != 0:
             header.extend(h_prime, strip=False)
-        header = self.add_header_info(header, arm)
+        header = self.add_header_info(header, channel)
         header["e_input"] = (os.path.basename(fname), "Original input filename")
 
         if header_only:
@@ -289,15 +289,15 @@ class Instrument:
         hdu.close()
         return data, header
 
-    def add_header_info(self, header, arm, **kwargs):
+    def add_header_info(self, header, channel, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header
 
         Parameters
         ----------
         header : fits.header, dict
             header to read/write info from/to
-        arm : str
-            instrument arm (detector/channel)
+        channel : str
+            instrument channel
 
         Returns
         -------
@@ -306,7 +306,7 @@ class Instrument:
         """
 
         info = self.info
-        get = getter(header, info, arm)
+        get = getter(header, info, channel)
 
         # Use HIERARCH prefix only for FITS Header objects to avoid warnings
         # For dict objects, HIERARCH is not needed and would break key access
@@ -386,7 +386,7 @@ class Instrument:
         files = np.array(files)
         return files
 
-    def get_expected_values(self, target, night, arm=None, **kwargs):
+    def get_expected_values(self, target, night, channel=None, **kwargs):
         expectations = {
             "bias": {
                 "instrument": self.config.id_instrument,
@@ -431,13 +431,15 @@ class Instrument:
             },
         }
 
-        # Add arm filter if this instrument has separate files per arm
-        if arm is not None and self.config.kw_arm is not None:
-            id_arm = self.config.id_arm
-            arms = self.config.arms
-            arm_id = id_arm[arms.index(arm)] if arm in arms else arm
+        # Add channel filter if this instrument has separate files per channel
+        if channel is not None and self.config.kw_channel is not None:
+            id_channel = self.config.id_channel
+            channels = self.config.channels
+            channel_id = (
+                id_channel[channels.index(channel)] if channel in channels else channel
+            )
             for key in expectations:
-                expectations[key]["arm"] = arm_id
+                expectations[key]["channel"] = channel_id
 
         return expectations
 
@@ -618,8 +620,8 @@ class Instrument:
             name of the target as in the fits headers
         night : str
             observation night, possibly with wildcards
-        arm : str
-            instrument arm
+        channel : str
+            instrument channel
         Returns
         -------
         files_per_night : list[dict{str:dict{str:list[str]}}]
@@ -638,15 +640,15 @@ class Instrument:
         )
         return files
 
-    def get_wavecal_filename(self, header, arm, **kwargs):
+    def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the pre-existing wavelength solution for the current setting
 
         Parameters
         ----------
         header : fits.header, dict
             header of the wavelength calibration file
-        arm : str
-            instrument arm
+        channel : str
+            instrument channel
 
         Returns
         -------
@@ -658,23 +660,23 @@ class Instrument:
         instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
-        fname = f"{instrument.lower()}_{arm}_{specifier}.npz"
+        fname = f"{instrument.lower()}_{channel}_{specifier}.npz"
         fname = os.path.join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_supported_arms(self):
-        return self.arms
+    def get_supported_channels(self):
+        return self.channels
 
-    def get_mask_filename(self, arm, **kwargs):
+    def get_mask_filename(self, channel, **kwargs):
         i = self.name.lower()
-        a = arm.lower()
-        fname = f"mask_{i}_{a}.fits.gz"
+        c = channel.lower()
+        fname = f"mask_{i}_{c}.fits.gz"
         cwd = os.path.dirname(__file__)
         fname = os.path.join(cwd, "..", "masks", fname)
         return fname
 
-    def get_wavelength_range(self, header, arm, **kwargs):
-        return self.get("wavelength_range", header, arm)
+    def get_wavelength_range(self, header, channel, **kwargs):
+        return self.get("wavelength_range", header, channel)
 
 
 class COMMON(Instrument):
@@ -699,13 +701,13 @@ def create_custom_instrument(
             except:
                 return None, info
 
-        def get_extension(self, header, arm):
+        def get_extension(self, header, channel):
             return extension
 
-        def get_mask_filename(self, arm, **kwargs):
+        def get_mask_filename(self, channel, **kwargs):
             return mask_file
 
-        def get_wavecal_filename(self, header, arm, **kwargs):
+        def get_wavecal_filename(self, header, channel, **kwargs):
             return wavecal_file
 
     return CUSTOM()

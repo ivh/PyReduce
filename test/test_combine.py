@@ -137,7 +137,7 @@ def test_normal_orientation(tempfiles):
         create_file(f, 100, 100, 0)
 
     combine, chead = combine_frames.combine_frames(
-        tempfiles, "CRIRES_PLUS", "J1228_OPEN_det1", 0, window=10
+        tempfiles, "CRIRES_PLUS", "J1228_det1", 0, window=10
     )
     assert combine.shape[0] == 100 - 10  # there is a 5 pixel cutoff on each side
     assert combine.shape[1] == 100 - 10  # there is a 5 pixel cutoff on each side

@@ -6,19 +6,19 @@ from pyreduce import reduce
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_main(instrument, target, night, arm, input_dir, output_dir):
+def test_main(instrument, target, night, channel, input_dir, output_dir):
     output = reduce.main(
         instrument,
         target,
         night,
-        arm,
+        channel,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
         steps=(),
     )
 
-    # reduce.main() returns a list of Pipeline.run() results (one per arm/night combo)
+    # reduce.main() returns a list of Pipeline.run() results (one per channel/night combo)
     assert isinstance(output, list)
     assert len(output) >= 1
     # With steps=(), each result is an empty dict (no steps executed)
@@ -32,12 +32,14 @@ def test_main(instrument, target, night, arm, input_dir, output_dir):
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_run_all(instrument, target, night, arm, input_dir, output_dir, order_range):
+def test_run_all(
+    instrument, target, night, channel, input_dir, output_dir, order_range
+):
     reduce.main(
         instrument,
         target,
         night,
-        arm,
+        channel,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
@@ -50,12 +52,14 @@ def test_run_all(instrument, target, night, arm, input_dir, output_dir, order_ra
 @pytest.mark.instrument
 @pytest.mark.downloads
 @pytest.mark.slow
-def test_load_all(instrument, target, night, arm, input_dir, output_dir, order_range):
+def test_load_all(
+    instrument, target, night, channel, input_dir, output_dir, order_range
+):
     reduce.main(
         instrument,
         target,
         night,
-        arm,
+        channel,
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,

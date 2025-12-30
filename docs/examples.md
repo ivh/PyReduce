@@ -32,7 +32,7 @@ from pyreduce import datasets
 instrument = "UVES"
 target = "HD132205"
 night = "2010-04-01"
-arm = "middle"
+channel = "middle"
 steps = ("bias", "flat", "orders", "science")
 
 # Download/locate data
@@ -43,7 +43,7 @@ Pipeline.from_instrument(
     instrument,
     target,
     night=night,
-    arm=arm,
+    channel=channel,
     steps=steps,
     base_dir=base_dir,
     plot=1,

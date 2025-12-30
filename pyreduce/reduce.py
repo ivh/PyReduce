@@ -66,7 +66,7 @@ def main(
     instrument,
     target,
     night=None,
-    arms=None,
+    channels=None,
     steps="all",
     base_dir=None,
     input_dir=None,
@@ -82,7 +82,7 @@ def main(
     Main entry point for REDUCE scripts.
 
     Default values can be changed as required if reduce is used as a script.
-    Finds input directories, and loops over observation nights and instrument arms.
+    Finds input directories, and loops over observation nights and instrument channels.
 
     .. deprecated::
         Use :meth:`Pipeline.from_instrument` instead.
@@ -95,8 +95,8 @@ def main(
         the observed star, as named in the folder structure/fits headers
     night : str, list[str]
         the observation nights to reduce, as named in the folder structure. Accepts bash wildcards (i.e. \*, ?), but then relies on the folder structure for restricting the nights
-    arms : str, list[str], dict[{instrument}:list], None, optional
-        the instrument arms to use, if None will use all known arms for the current instrument. See instruments for possible options
+    channels : str, list[str], dict[{instrument}:list], None, optional
+        the instrument channels to use, if None will use all known channels for the current instrument. See instruments for possible options
     steps : tuple(str), "all", optional
         which steps of the reduction process to perform
         the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
@@ -105,9 +105,9 @@ def main(
     base_dir : str, optional
         base data directory that Reduce should work in, is prefixxed on input_dir and output_dir (default: use settings_pyreduce.json)
     input_dir : str, optional
-        input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {arm} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+        input directory containing raw files. Can contain placeholders {instrument}, {target}, {night}, {channel} as well as wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     output_dir : str, optional
-        output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {arm}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
+        output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {channel}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
         configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
     """
@@ -157,14 +157,14 @@ def main(
     input_dir = join(base_dir, input_dir)
     output_dir = join(base_dir, output_dir)
 
-    if arms is None:
-        arms = info["arms"]
-    if np.isscalar(arms):
-        arms = [arms]
+    if channels is None:
+        channels = info["channels"]
+    if np.isscalar(channels):
+        channels = [channels]
 
-    for t, n, a in product(target, night, arms):
+    for t, n, c in product(target, night, channels):
         log_file = join(
-            base_dir.format(instrument=str(instrument), arm=arms, target=t),
+            base_dir.format(instrument=str(instrument), channel=channels, target=t),
             f"logs/{t}.log",
         )
         util.start_logging(log_file)
@@ -173,17 +173,17 @@ def main(
             input_dir,
             t,
             n,
-            arm=a,
+            channel=c,
             **config["instrument"],
             allow_calibration_only=allow_calibration_only,
         )
         if len(files) == 0:
             logger.warning(
-                "No files found for instrument: %s, target: %s, night: %s, arm: %s in folder: %s",
+                "No files found for instrument: %s, target: %s, night: %s, channel: %s in folder: %s",
                 instrument,
                 t,
                 n,
-                a,
+                c,
                 input_dir,
             )
             continue
@@ -200,7 +200,7 @@ def main(
                 output_dir=output_dir,
                 target=k.get("target"),
                 instrument=instrument,
-                arm=a,
+                channel=c,
                 night=k.get("night"),
                 config=config,
                 order_range=order_range,
@@ -217,14 +217,14 @@ class Step:
     """Parent class for all steps"""
 
     def __init__(
-        self, instrument, arm, target, night, output_dir, order_range, **config
+        self, instrument, channel, target, night, output_dir, order_range, **config
     ):
         self._dependsOn = []
         self._loadDependsOn = []
         #:str: Name of the instrument
         self.instrument = instrument
-        #:str: Name of the instrument arm
-        self.arm = arm
+        #:str: Name of the instrument channel
+        self.channel = channel
         #:str: Name of the observation target
         self.target = target
         #:str: Date of the observation (as a string)
@@ -296,21 +296,21 @@ class Step:
 
     @property
     def output_dir(self):
-        """str: output directory, may contain tags {instrument}, {night}, {target}, {arm}"""
+        """str: output directory, may contain tags {instrument}, {night}, {target}, {channel}"""
         return self._output_dir.format(
             instrument=self.instrument.name.upper(),
             target=self.target,
             night=self.night,
-            arm=self.arm,
+            channel=self.channel,
         )
 
     @property
     def prefix(self):
         """str: temporary file prefix"""
         i = self.instrument.name.lower()
-        if self.arm is not None and self.arm != "":
-            a = self.arm.lower()
-            return f"{i}_{a}"
+        if self.channel is not None and self.channel != "":
+            c = self.channel.lower()
+            return f"{i}_{c}"
         else:
             return i
 
@@ -331,7 +331,7 @@ class CalibrationStep(Step):
         orig, thead = combine_calibrate(
             files,
             self.instrument,
-            self.arm,
+            self.channel,
             mask,
             bias=bias,
             bhead=bhead,
@@ -459,7 +459,7 @@ class FitsIOStep(Step):
 
 
 class Mask(Step):
-    """Load the bad pixel mask for the given instrument/arm"""
+    """Load the bad pixel mask for the given instrument/channel"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
@@ -482,9 +482,9 @@ class Mask(Step):
         mask : array of shape (nrow, ncol)
             Bad pixel mask for this setting
         """
-        mask_file = self.instrument.get_mask_filename(arm=self.arm)
+        mask_file = self.instrument.get_mask_filename(channel=self.channel)
         try:
-            mask, _ = self.instrument.load_fits(mask_file, self.arm, extension=0)
+            mask, _ = self.instrument.load_fits(mask_file, self.channel, extension=0)
             mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
             logger.info("Bad pixel mask file: %s", mask_file)
         except (FileNotFoundError, ValueError):
@@ -537,7 +537,7 @@ class Bias(Step):
             bias, bhead = combine_bias(
                 files,
                 self.instrument,
-                self.arm,
+                self.channel,
                 mask=mask,
                 plot=self.plot,
                 plot_title=self.plot_title,
@@ -550,7 +550,7 @@ class Bias(Step):
             bias, bhead = combine_polynomial(
                 files,
                 self.instrument,
-                self.arm,
+                self.channel,
                 mask=mask,
                 degree=self.degree,
                 plot=self.plot,
@@ -1137,7 +1137,7 @@ class WavelengthCalibrationInitialize(Step):
         thar, thead = wavecal_master
 
         # Get the initial wavelength guess from the instrument
-        wave_range = self.instrument.get_wavelength_range(thead, self.arm)
+        wave_range = self.instrument.get_wavelength_range(thead, self.channel)
         if wave_range is None:
             raise ValueError(
                 "This instrument is missing an initial wavelength guess for wavecal_init"
@@ -1174,7 +1174,7 @@ class WavelengthCalibrationInitialize(Step):
             # If that fails, load the file provided by PyReduce
             # It usually fails because we want to use this one
             reference = self.instrument.get_wavecal_filename(
-                thead, self.arm, **config["instrument"]
+                thead, self.channel, **config["instrument"]
             )
 
             # This should fail if there is no provided file by PyReduce
@@ -1614,7 +1614,7 @@ class RectifyImage(Step):
         rectified = {}
         for fname in tqdm(files, desc="Files"):
             img, head = self.instrument.load_fits(
-                fname, self.arm, mask=mask, dtype="f8"
+                fname, self.channel, mask=mask, dtype="f8"
             )
 
             images, cr, xwd = rectify_image(
@@ -1949,7 +1949,7 @@ class Finalize(Step):
         out = self.filename.format(
             instrument=self.instrument.name,
             night=self.night,
-            arm=self.arm,
+            channel=self.channel,
             number=number,
             input=name,
         )

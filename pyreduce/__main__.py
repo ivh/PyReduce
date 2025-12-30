@@ -40,7 +40,7 @@ def cli():
 @click.argument("instrument")
 @click.argument("target")
 @click.option("--night", "-n", default=None, help="Observation night (YYYY-MM-DD)")
-@click.option("--arm", "-a", default=None, help="Instrument arm/detector")
+@click.option("--channel", "-c", default=None, help="Instrument channel")
 @click.option(
     "--steps",
     "-s",
@@ -71,7 +71,7 @@ def run(
     instrument,
     target,
     night,
-    arm,
+    channel,
     steps,
     base_dir,
     input_dir,
@@ -106,7 +106,7 @@ def run(
         instrument=instrument,
         target=target,
         night=night,
-        arms=arm,
+        channels=channel,
         steps=steps,
         base_dir=base_dir or "",
         input_dir=input_dir,
@@ -281,12 +281,12 @@ def make_step_command(step_name):
     @click.argument("instrument")
     @click.argument("target")
     @click.option("--night", "-n", default=None, help="Observation night")
-    @click.option("--arm", "-a", default=None, help="Instrument arm")
+    @click.option("--channel", "-c", default=None, help="Instrument channel")
     @click.option("--base-dir", "-b", default=None, help="Base directory")
     @click.option("--input-dir", "-i", default="raw", help="Input directory")
     @click.option("--output-dir", "-o", default="reduced", help="Output directory")
     @click.option("--plot", "-p", default=0, help="Plot level")
-    def cmd(instrument, target, night, arm, base_dir, input_dir, output_dir, plot):
+    def cmd(instrument, target, night, channel, base_dir, input_dir, output_dir, plot):
         from .configuration import get_configuration_for_instrument
         from .reduce import main as reduce_main
 
@@ -295,7 +295,7 @@ def make_step_command(step_name):
             instrument=instrument,
             target=target,
             night=night,
-            arms=arm,
+            channels=channel,
             steps=(step_name,),
             base_dir=base_dir or "",
             input_dir=input_dir,

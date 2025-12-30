@@ -13,12 +13,12 @@ def mask_dir():
     return mask_dir
 
 
-def test_load_mask(instr, arm, mask_dir):
+def test_load_mask(instr, channel, mask_dir):
     # mask_file = join(
-    #     mask_dir, "mask_{}_{}.fits.gz".format(instr.name.lower(), arm.lower())
+    #     mask_dir, "mask_{}_{}.fits.gz".format(instr.name.lower(), channel.lower())
     # )
-    mask_file = instr.get_mask_filename(arm=arm)
-    mask, _ = instr.load_fits(mask_file, arm, extension=0)
+    mask_file = instr.get_mask_filename(channel=channel)
+    mask, _ = instr.load_fits(mask_file, channel, extension=0)
     mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
 
     assert isinstance(mask, np.ndarray)

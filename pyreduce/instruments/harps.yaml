@@ -10,8 +10,8 @@ telescope: TELESCOP
 date: DATE-OBS
 date_format: fits
 
-arms: [BLUE, RED]
-arms_id: [HARPS, HARPS]
+channels: [BLUE, RED]
+channels_id: [HARPS, HARPS]
 modes_id_polarimetry: [HARPSpol, HARPSpol]
 extension: [1, 2]
 id: [[1, 1], [1, 2]]

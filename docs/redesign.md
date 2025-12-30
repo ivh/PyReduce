@@ -51,7 +51,7 @@ Instrument
 │   ├── name, dimensions, orientation
 │   └── Amplifiers[]
 │       └── gain, readnoise, region
-├── OpticalPaths[] (fibers, beam arms)
+├── OpticalPaths[] (fibers, beam channels)
 │   ├── name
 │   └── traces_per_order (1 normally, 2 with beam-splitter)
 ├── Modes[] (operational configurations)
@@ -89,7 +89,7 @@ class Detector:
 
 @dataclass
 class BeamArm:
-    """One arm of a beam-splitter or polarimeter"""
+    """One channel of a beam-splitter or polarimeter"""
     name: str  # "ordinary", "extraordinary", "beam_upper", etc.
     polarization: str | None  # "O", "E", "circular_L", "circular_R", etc.
     wavelength_shift: float = 0.0  # If beam-splitter introduces wavelength offset
@@ -100,7 +100,7 @@ class OpticalPath:
     """A light path through the instrument (fiber, slit position, etc.)"""
     name: str  # "fiber_a", "fiber_b", "slit_center", etc.
     beam_arms: list[BeamArm] | None  # None = no beam-splitter, just 1 trace
-    # If beam_arms is set, each arm produces its own trace per order
+    # If beam_arms is set, each channel produces its own trace per order
 ```
 
 **Processing hierarchy:**
@@ -607,9 +607,9 @@ Combine: Merge wavelength-calibrated spectra across detectors
 For each detector:
     For each optical_path illuminating detector:
         For each beam_arm in optical_path.beam_arms:
-            - Trace this specific (path, arm) combination
+            - Trace this specific (path, channel) combination
             - Extract spectrum
-            - Tag with (order, path.name, arm.name, arm.polarization)
+            - Tag with (order, path.name, channel.name, channel.polarization)
 
 Output: 4 spectra per order (fiber_a_O, fiber_a_E, fiber_b_O, fiber_b_E)
         Pipeline can then compute Stokes parameters from O/E pairs
@@ -727,7 +727,7 @@ rewriting all YAML files and is deferred until there's a concrete need.
 
 Replace `self.info["field"]` with `self.config.field` throughout the codebase:
 - `self.info["instrument"]` → `self.config.instrument`
-- `self.info["arms"]` → `self.config.arms`
+- `self.info["channels"]` → `self.config.channels`
 - `self.info.get("gain", 1)` → `self.config.gain`
 - etc.
 

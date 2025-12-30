@@ -8,9 +8,9 @@ telescope: ELT
 date: MJD-OBS
 date_format: mjd
 
-arms: [NIR]
-kw_arm: "ESO DET CHIP*NAME"
-id_arm: [Hawaii4RG]
+channels: [NIR]
+kw_channel: "ESO DET CHIP*NAME"
+id_channel: [Hawaii4RG]
 extension: 0
 orientation: [1]
 

@@ -19,13 +19,13 @@ required inputs.
 from pyreduce.reduce import Bias, Flat, OrderTracing, ...
 
 # Create step instance
-bias_step = Bias(instrument, arm, target, night, output_dir, order_range, **config)
+bias_step = Bias(instrument, channel, target, night, output_dir, order_range, **config)
 
 # Run the step
 bias_result = bias_step.run(bias_files, mask)
 
 # Use the result in subsequent steps
-flat_step = Flat(instrument, arm, target, night, output_dir, order_range, **config)
+flat_step = Flat(instrument, channel, target, night, output_dir, order_range, **config)
 flat_result = flat_step.run(flat_files, bias_result, mask)
 ```
 
@@ -59,14 +59,14 @@ from pyreduce.reduce import (
 instrument_name = "UVES"
 target = "HD132205"
 night = "2010-04-01"
-arm = "middle"
+channel = "middle"
 order_range = (1, 21)
 plot = 1
 
 # Paths
 base_dir = datasets.UVES()
 input_dir = join(base_dir, "raw/")
-output_dir = join(base_dir, f"reduced/{night}/{arm}")
+output_dir = join(base_dir, f"reduced/{night}/{channel}")
 os.makedirs(output_dir, exist_ok=True)
 
 # Load instrument and configuration
@@ -74,14 +74,14 @@ instrument = load_instrument(instrument_name)
 config = load_config(None, instrument_name, 0)
 
 # Common arguments for all steps
-step_args = (instrument, arm, target, night, output_dir, order_range)
+step_args = (instrument, channel, target, night, output_dir, order_range)
 
 # Find and classify files
 file_groups = instrument.sort_files(
     input_dir,
     target,
     night,
-    arm=arm,
+    channel=channel,
     **config["instrument"],
 )
 settings, files = file_groups[0]

@@ -75,7 +75,7 @@ class HARPN(Instrument):
         ]
 
     def get_expected_values(
-        self, target, night, arm=None, mode=None, fiber=None, **kwargs
+        self, target, night, channel=None, mode=None, fiber=None, **kwargs
     ):
         """Determine the default expected values in the headers for a given observation configuration
 
@@ -139,8 +139,8 @@ class HARPN(Instrument):
         }
         return expectations
 
-    def get_extension(self, header, arm):
-        extension = super().get_extension(header, arm)
+    def get_extension(self, header, channel):
+        extension = super().get_extension(header, channel)
 
         try:
             if (
@@ -154,11 +154,11 @@ class HARPN(Instrument):
 
         return extension
 
-    def add_header_info(self, header, arm, **kwargs):
+    def add_header_info(self, header, channel, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, arm)
+        header = super().add_header_info(header, channel)
 
         try:
             header["e_ra"] /= 15
@@ -173,14 +173,14 @@ class HARPN(Instrument):
                 and header["NAXIS1"] == 4296
                 and header["NAXIS2"] == 4096
             ):
-                # both arms are in the same image
+                # both channels are in the same image
                 prescan_x = 50
                 overscan_x = 50
                 naxis_x = 2148
-                if arm == "BLUE":
+                if channel == "BLUE":
                     header["e_xlo"] = prescan_x
                     header["e_xhi"] = naxis_x - overscan_x
-                elif arm == "RED":
+                elif channel == "RED":
                     header["e_xlo"] = naxis_x + prescan_x
                     header["e_xhi"] = 2 * naxis_x - overscan_x
         except KeyError:
@@ -188,15 +188,15 @@ class HARPN(Instrument):
 
         return header
 
-    def get_wavecal_filename(self, header, arm, **kwargs):
+    def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         cwd = dirname(__file__)
-        fname = f"harpn_{arm.lower()}_2D.npz"
+        fname = f"harpn_{channel.lower()}_2D.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
 
-    def get_wavelength_range(self, header, arm, **kwargs):
-        wave_range = super().get_wavelength_range(header, arm, **kwargs)
+    def get_wavelength_range(self, header, channel, **kwargs):
+        wave_range = super().get_wavelength_range(header, channel, **kwargs)
         # The wavelength orders are in inverse order in the .json file
         # because I was to lazy to invert them in the file
         wave_range = wave_range[::-1]

@@ -10,8 +10,8 @@ telescope: Lick
 date: DATE
 date_format: fits
 
-arms: [""]
-arms_id: [""]
+channels: [""]
+channels_id: [""]
 extension: [0]
 orientation: 3
 transpose: false

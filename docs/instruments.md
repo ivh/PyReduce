@@ -36,7 +36,7 @@ Create a YAML file defining your instrument:
 # myinstrument.yaml
 instrument: MyInstrument
 telescope: MyTelescope
-arms: [default]
+channels: [default]
 
 # Detector
 naxis: [2048, 2048]
@@ -84,9 +84,9 @@ class MyInstrument(Instrument):
         header["MJD_MID"] = header["MJD_OBS"] + header["EXPTIME"] / 86400 / 2
         return header
 
-    def get_wavecal_filename(self, header, arm, **kwargs):
+    def get_wavecal_filename(self, header, channel, **kwargs):
         # Return path to wavelength calibration file
-        return f"wavecal_{arm}.npz"
+        return f"wavecal_{channel}.npz"
 ```
 
 Place the YAML in `pyreduce/instruments/` and the Python file alongside it.
@@ -99,7 +99,7 @@ Place the YAML in `pyreduce/instruments/` and the Python file alongside it.
 |-------|-------------|
 | `instrument` | Instrument name |
 | `telescope` | Telescope name |
-| `arms` | List of instrument arms/modes |
+| `channels` | List of instrument channels/modes |
 | `naxis` | Detector dimensions [x, y] |
 
 ### Detector Properties

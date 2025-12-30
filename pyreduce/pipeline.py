@@ -12,7 +12,7 @@ Example usage:
         instrument="UVES",
         target="HD132205",
         night="2010-04-01",
-        arm="middle",
+        channel="middle",
         base_dir="/data",
     ).run()
 
@@ -108,7 +108,7 @@ class Pipeline:
         instrument: Instrument | str,
         output_dir: str,
         target: str = "",
-        arm: str = "",
+        channel: str = "",
         night: str = "",
         config: dict | None = None,
         order_range: tuple[int, int] | None = None,
@@ -125,8 +125,8 @@ class Pipeline:
             Directory for output files
         target : str, optional
             Target name for output file naming
-        arm : str, optional
-            Instrument arm (e.g., "RED", "BLUE")
+        channel : str, optional
+            Instrument channel (e.g., "RED", "BLUE")
         night : str, optional
             Observation night string
         config : dict, optional
@@ -146,10 +146,10 @@ class Pipeline:
             instrument=instrument.name.upper(),
             target=target,
             night=night,
-            arm=arm,
+            channel=channel,
         )
         self.target = target
-        self.arm = arm
+        self.channel = channel
         self.night = night
         self.config = config or {}
         self.order_range = order_range
@@ -268,7 +268,7 @@ class Pipeline:
         """Get the standard inputs for Step classes."""
         return (
             self.instrument,
-            self.arm,
+            self.channel,
             self.target,
             self.night,
             self.output_dir,
@@ -360,7 +360,7 @@ class Pipeline:
         output_dir: str,
         target: str,
         instrument,
-        arm: str,
+        channel: str,
         night: str,
         config: dict,
         order_range=None,
@@ -382,8 +382,8 @@ class Pipeline:
             Target name
         instrument : Instrument or str
             Instrument instance or name
-        arm : str
-            Instrument arm
+        channel : str
+            Instrument channel
         night : str
             Observation night
         config : dict
@@ -406,7 +406,7 @@ class Pipeline:
             instrument=instrument,
             output_dir=output_dir,
             target=target,
-            arm=arm,
+            channel=channel,
             night=night,
             config=config,
             order_range=order_range,
@@ -478,7 +478,7 @@ class Pipeline:
         instrument: str,
         target: str,
         night: str | None = None,
-        arm: str | None = None,
+        channel: str | None = None,
         steps: tuple | list | str = "all",
         base_dir: str | None = None,
         input_dir: str | None = None,
@@ -503,9 +503,9 @@ class Pipeline:
             Target name or regex pattern to match in headers
         night : str, optional
             Observation night (YYYY-MM-DD format or regex)
-        arm : str, optional
-            Instrument arm (e.g., "RED", "BLUE", "middle"). If None,
-            uses all available arms for the instrument.
+        channel : str, optional
+            Instrument channel (e.g., "RED", "BLUE", "middle"). If None,
+            uses all available channels for the instrument.
         steps : tuple, list, or "all"
             Steps to run. Default "all" runs all applicable steps.
         base_dir : str, optional
@@ -536,7 +536,7 @@ class Pipeline:
         ...     instrument="UVES",
         ...     target="HD132205",
         ...     night="2010-04-01",
-        ...     arm="middle",
+        ...     channel="middle",
         ...     steps=("bias", "flat", "orders", "science"),
         ... ).run()
         """
@@ -567,35 +567,35 @@ class Pipeline:
         full_input_dir = join(base_dir, input_dir)
         full_output_dir = join(base_dir, output_dir)
 
-        # Get arms to process
-        if arm is None:
-            arms = info["arms"]
+        # Get channels to process
+        if channel is None:
+            channels = info["channels"]
         else:
-            arms = [arm] if isinstance(arm, str) else arm
+            channels = [channel] if isinstance(channel, str) else channel
 
         # Find and sort files
         files = inst.sort_files(
             full_input_dir,
             target,
             night,
-            arm=arms[0] if len(arms) == 1 else arms[0],
+            channel=channels[0] if len(channels) == 1 else channels[0],
             **config["instrument"],
             allow_calibration_only=allow_calibration_only,
         )
 
         if len(files) == 0:
             logger.warning(
-                "No files found for instrument: %s, target: %s, night: %s, arm: %s",
+                "No files found for instrument: %s, target: %s, night: %s, channel: %s",
                 instrument,
                 target,
                 night,
-                arm,
+                channel,
             )
             raise FileNotFoundError(
-                f"No files found for {instrument} / {target} / {night} / {arm}"
+                f"No files found for {instrument} / {target} / {night} / {channel}"
             )
 
-        # Use the first file set (for single arm)
+        # Use the first file set (for single channel)
         k, f = files[0]
         logger.info("Pipeline settings:")
         for key, value in k.items():
@@ -607,7 +607,7 @@ class Pipeline:
             output_dir=full_output_dir,
             target=k.get("target", target),
             instrument=inst,
-            arm=arms[0],
+            channel=channels[0],
             night=k.get("night", night or ""),
             config=config,
             order_range=order_range,

@@ -11,8 +11,8 @@ date: DATE-OBS
 date_format: iso
 
 instrument_mode: PUPIL
-arms: [GR700XD]
-arms_id: [GR700XD]
+channels: [GR700XD]
+channels_id: [GR700XD]
 extension: [SCI]
 orientation: 0
 transpose: false

@@ -56,7 +56,7 @@ def get_instrument_info(instrument):
     return instrument.info
 
 
-def sort_files(input_dir, target, night, instrument, arm, **kwargs):
+def sort_files(input_dir, target, night, instrument, channel, **kwargs):
     """Sort a list of files into different categories and discard files that are not used
 
     Parameters
@@ -69,8 +69,8 @@ def sort_files(input_dir, target, night, instrument, arm, **kwargs):
         observation night of interest, as found in the files
     instrument : str
         instrument name
-    arm : str
-        instrument arm (e.g. BLUE/RED for HARPS)
+    channel : str
+        instrument channel (e.g. BLUE/RED for HARPS)
 
     Returns
     -------
@@ -87,15 +87,15 @@ def sort_files(input_dir, target, night, instrument, arm, **kwargs):
     """
 
     instrument = load_instrument(instrument)
-    return instrument.sort_files(input_dir, target, night, arm, **kwargs)
+    return instrument.sort_files(input_dir, target, night, channel, **kwargs)
 
 
-def get_supported_arms(instrument):
+def get_supported_channels(instrument):
     instrument = load_instrument(instrument)
-    return instrument.get_supported_arms()
+    return instrument.get_supported_channels()
 
 
-def arminfo(header, instrument, arm, **kwargs):
+def channelinfo(header, instrument, channel, **kwargs):
     """Add instrument specific information to a header/dict
 
     Parameters
@@ -104,8 +104,8 @@ def arminfo(header, instrument, arm, **kwargs):
         header to add information to
     instrument : str
         instrument name
-    arm : str
-        instrument arm (e.g. BLUE/RED for HARPS)
+    channel : str
+        instrument channel (e.g. BLUE/RED for HARPS)
 
     Returns
     -------
@@ -114,11 +114,11 @@ def arminfo(header, instrument, arm, **kwargs):
     """
 
     instrument = load_instrument(instrument)
-    header = instrument.add_header_info(header, arm, **kwargs)
+    header = instrument.add_header_info(header, channel, **kwargs)
     return header
 
 
-def get_wavecal_filename(header, instrument, arm, **kwargs):
+def get_wavecal_filename(header, instrument, channel, **kwargs):
     """Get the filename of the pre-existing wavelength solution for the current settings
 
     Parameters
@@ -127,8 +127,8 @@ def get_wavecal_filename(header, instrument, arm, **kwargs):
         header of the wavelength calibration file
     instrument : str
         instrument name
-    arm : str
-        instrument arm (e.g. BLUE/RED for HARPS)
+    channel : str
+        instrument channel (e.g. BLUE/RED for HARPS)
 
     Returns
     -------
@@ -137,4 +137,4 @@ def get_wavecal_filename(header, instrument, arm, **kwargs):
     """
 
     instrument = load_instrument(instrument)
-    return instrument.get_wavecal_filename(header, arm, **kwargs)
+    return instrument.get_wavecal_filename(header, channel, **kwargs)

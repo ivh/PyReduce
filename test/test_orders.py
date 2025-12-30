@@ -8,11 +8,11 @@ pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
 @pytest.mark.slow
-def test_orders(instr, instrument, arm, files, settings, mask):
+def test_orders(instr, instrument, channel, files, settings, mask):
     if len(files["orders"]) == 0:
         pytest.skip(f"No order definition files found for instrument {instrument}")
 
-    order_img, _ = combine_frames(files["orders"], instrument, arm, mask=mask)
+    order_img, _ = combine_frames(files["orders"], instrument, channel, mask=mask)
     settings = settings["orders"]
 
     orders, column_range = trace(

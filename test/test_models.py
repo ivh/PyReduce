@@ -71,25 +71,25 @@ class TestInstrumentConfigValidation:
 
     @pytest.mark.unit
     def test_arms_as_list(self):
-        """Test arms field accepts list."""
+        """Test channels field accepts list."""
         data = {
             "instrument": "INSTRUME",
             "id_instrument": "TEST",
-            "arms": ["BLUE", "RED"],
+            "channels": ["BLUE", "RED"],
         }
         config = InstrumentConfig(**data)
-        assert config.arms == ["BLUE", "RED"]
+        assert config.channels == ["BLUE", "RED"]
 
     @pytest.mark.unit
     def test_arms_as_single_string(self):
-        """Test arms field converts single string to list."""
+        """Test channels field converts single string to list."""
         data = {
             "instrument": "INSTRUME",
             "id_instrument": "TEST",
-            "arms": "SINGLE",
+            "channels": "SINGLE",
         }
         config = InstrumentConfig(**data)
-        assert config.arms == ["SINGLE"]
+        assert config.channels == ["SINGLE"]
 
     @pytest.mark.unit
     def test_extension_as_int(self):

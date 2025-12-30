@@ -10,7 +10,7 @@ target: OBJECT
 date: DATE-OBS
 date_format: fits
 
-arms: [VIS, NIR]
+channels: [VIS, NIR]
 extension: 0
 orientation: 0
 

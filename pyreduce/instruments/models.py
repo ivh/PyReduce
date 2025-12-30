@@ -67,11 +67,11 @@ class InstrumentConfig(BaseModel):
     date: str = "DATE-OBS"
     date_format: str = "fits"
 
-    # Arm system (detectors/channels)
-    arms: list[str] | None = None
-    arms_id: list[str] | None = None
-    kw_arm: str | None = None
-    id_arm: list[str] | None = None
+    # Channel system (detectors/optical paths)
+    channels: list[str] | None = None
+    channels_id: list[str] | None = None
+    kw_channel: str | None = None
+    id_channel: list[str] | None = None
     extension: int | str | list[int | str] = 0
     orientation: int | list[int] = 0
     transpose: bool = False
@@ -137,7 +137,7 @@ class InstrumentConfig(BaseModel):
         populate_by_name=True,
     )
 
-    @field_validator("arms", "arms_id", "id_arm", mode="before")
+    @field_validator("channels", "channels_id", "id_channel", mode="before")
     @classmethod
     def ensure_list(cls, v):
         """Convert single values to lists."""

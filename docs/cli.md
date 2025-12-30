@@ -34,7 +34,7 @@ uv run reduce run INSTRUMENT TARGET [OPTIONS]
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--night` | `-n` | Observation night (YYYY-MM-DD format) |
-| `--arm` | `-a` | Instrument arm/detector (e.g., RED, BLUE, middle) |
+| `--channel` | `-a` | Instrument channel/detector (e.g., RED, BLUE, middle) |
 | `--steps` | `-s` | Comma-separated steps to run (default: all) |
 | `--base-dir` | `-b` | Base data directory (default: $REDUCE_DATA or ~/REDUCE_DATA) |
 | `--input-dir` | `-i` | Input directory relative to base (default: raw) |
@@ -48,8 +48,8 @@ uv run reduce run INSTRUMENT TARGET [OPTIONS]
 # Basic reduction
 uv run reduce run UVES HD132205
 
-# Specify night and arm
-uv run reduce run UVES HD132205 --night 2010-04-01 --arm middle
+# Specify night and channel
+uv run reduce run UVES HD132205 --night 2010-04-01 --channel middle
 
 # Run specific steps
 uv run reduce run UVES HD132205 --steps bias,flat,orders,science

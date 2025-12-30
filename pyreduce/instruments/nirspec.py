@@ -49,16 +49,16 @@ class NIRSPEC(Instrument):
 
         return setting
 
-    def add_header_info(self, header, arm, **kwargs):
+    def add_header_info(self, header, channel, **kwargs):
         """read data from header and add it as REDUCE keyword back to the header"""
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, arm)
+        header = super().add_header_info(header, channel)
         # header["e_setting"] = NIRSPEC.get_arm(header)
         header["EXPTIME"] = header.get("ITIME", 0) * header.get("COADDS", 0)
         return header
 
-    def sort_files(self, input_dir, target, night, arm, calibration_dir, **kwargs):
+    def sort_files(self, input_dir, target, night, channel, calibration_dir, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -71,8 +71,8 @@ class NIRSPEC(Instrument):
             name of the target as in the fits headers
         night : str
             observation night, possibly with wildcards
-        arm : str
-            instrument arm
+        channel : str
+            instrument channel
         Returns
         -------
         files_per_night : list[dict{str:dict{str:list[str]}}]
@@ -99,7 +99,7 @@ class NIRSPEC(Instrument):
 
         # find all fits files in the input dir(s)
         input_dir = input_dir.format(
-            instrument=instrument.upper(), target=target, arm=arm, night=night
+            instrument=instrument.upper(), target=target, channel=channel, night=night
         )
         files = glob.glob(input_dir + "/*.fits")
         files += glob.glob(input_dir + "/*.fits.gz")
@@ -136,7 +136,7 @@ class NIRSPEC(Instrument):
         cache = {}
 
         for ind_night in tqdm(individual_nights):
-            # Select files for this night, this instrument, this instrument arm
+            # Select files for this night, this instrument, this instrument channel
             selection = (ni == ind_night) & (it == instrument) & (ob == target)
 
             for file in files[selection]:
@@ -193,7 +193,7 @@ class NIRSPEC(Instrument):
 
         return files_per_observation
 
-    def get_wavecal_filename(self, header, arm, **kwargs):
+    def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the wavelength calibration config file"""
         info = self.info
         if header[info["id_neon"]] == 1:

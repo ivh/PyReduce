@@ -8,12 +8,12 @@ pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
 @pytest.mark.slow
-def test_flat(instrument, arm, files, mask):
+def test_flat(instrument, channel, files, mask):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
     flat, fhead = combine_calibrate(
-        files["flat"], instrument, arm, mask=mask, window=50
+        files["flat"], instrument, channel, mask=mask, window=50
     )
 
     assert isinstance(flat, np.ma.masked_array)
@@ -25,7 +25,7 @@ def test_flat(instrument, arm, files, mask):
 
 
 @pytest.mark.slow
-def test_flat_with_bias(instrument, arm, files, mask, bias):
+def test_flat_with_bias(instrument, channel, files, mask, bias):
     if len(files["flat"]) == 0:
         pytest.skip(f"No flat files for instrument {instrument}")
 
@@ -34,7 +34,7 @@ def test_flat_with_bias(instrument, arm, files, mask, bias):
     flat, fhead = combine_calibrate(
         files["flat"],
         instrument,
-        arm,
+        channel,
         window=window,
         bias=bias,
         bhead=bhead,

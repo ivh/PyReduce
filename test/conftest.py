@@ -176,9 +176,9 @@ def night(dataset):
 
 
 @pytest.fixture
-def arm(instrument, info):
+def channel(instrument, info):
     """
-    Instrument arm (detector/channel)
+    Instrument channel (detector/channel)
 
     Parameters
     ----------
@@ -187,8 +187,8 @@ def arm(instrument, info):
 
     Returns
     -------
-    arm : str
-        Instrument arm
+    channel : str
+        Instrument channel
     """
 
     if instrument == "UVES":
@@ -196,10 +196,10 @@ def arm(instrument, info):
     elif instrument == "XSHOOTER":
         return "NIR"
 
-    arms = info["arms"]
-    if isinstance(arms, list):
-        return arms[0]
-    return arms
+    channels = info["channels"]
+    if isinstance(channels, list):
+        return channels[0]
+    return channels
 
 
 @pytest.fixture
@@ -230,7 +230,7 @@ def order_range(instrument):
 
 
 @pytest.fixture
-def data(dataset, settings, target, night, arm):
+def data(dataset, settings, target, night, channel):
     """
     Load dataset data from the web if necessary, and return data folder
 
@@ -261,7 +261,7 @@ def data(dataset, settings, target, night, arm):
         raise ValueError("Dataset not recognised")
     yield folder
 
-    odir = _odir(folder, settings, instrument, target, night, arm)
+    odir = _odir(folder, settings, instrument, target, night, channel)
     rmtree(odir, ignore_errors=True)
 
 
@@ -287,7 +287,7 @@ def settings(instrument):
 
 
 @pytest.fixture
-def input_dir(data, target, instrument, settings, night, arm):
+def input_dir(data, target, instrument, settings, night, channel):
     """Input data directory
 
     Parameters
@@ -304,19 +304,23 @@ def input_dir(data, target, instrument, settings, night, arm):
     """
 
     odir = settings["reduce"]["input_dir"]
-    odir = odir.format(instrument=instrument, target=target, night=night, arm=arm)
+    odir = odir.format(
+        instrument=instrument, target=target, night=night, channel=channel
+    )
     return join(data, odir)
 
 
-def _odir(data, settings, instrument, target, night, arm):
+def _odir(data, settings, instrument, target, night, channel):
     odir = settings["reduce"]["output_dir"]
-    odir = odir.format(instrument=instrument, target=target, night=night, arm=arm)
+    odir = odir.format(
+        instrument=instrument, target=target, night=night, channel=channel
+    )
     odir = join(data, odir)
     return odir
 
 
 @pytest.fixture
-def output_dir(data, settings, instrument, target, night, arm):
+def output_dir(data, settings, instrument, target, night, channel):
     """Output data directory
     Also creates that directory if necessary
 
@@ -332,21 +336,21 @@ def output_dir(data, settings, instrument, target, night, arm):
         observation target
     night : str
         observation night
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
 
     Returns
     -------
     output_dir : str
         output directory
     """
-    odir = _odir(data, settings, instrument, target, night, arm)
+    odir = _odir(data, settings, instrument, target, night, channel)
     os.makedirs(odir, exist_ok=True)
     return odir
 
 
 @pytest.fixture
-def files(input_dir, instrument, target, night, arm, settings, instr):
+def files(input_dir, instrument, target, night, channel, settings, instr):
     """Find and sort all files for this dataset
 
     Parameters
@@ -359,8 +363,8 @@ def files(input_dir, instrument, target, night, arm, settings, instr):
         observation target name
     night : str
         observing night
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
     settings : dict(str:obj)
         run settings
 
@@ -370,22 +374,24 @@ def files(input_dir, instrument, target, night, arm, settings, instr):
         filenames sorted by usecase (e.g. wavelength calibration files)
     """
 
-    print(input_dir, target, night, instrument, arm, *settings["instrument"])
-    files = instr.sort_files(input_dir, target, night, arm, **settings["instrument"])
+    print(input_dir, target, night, instrument, channel, *settings["instrument"])
+    files = instr.sort_files(
+        input_dir, target, night, channel, **settings["instrument"]
+    )
     files = files[0][1]
     return files
 
 
 @pytest.fixture
-def prefix(instrument, arm):
+def prefix(instrument, channel):
     """Prefix for the output files
 
     Parameters
     ----------
     instrument : str
         instrument name
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
 
     Returns
     -------
@@ -393,25 +399,25 @@ def prefix(instrument, arm):
         instrument_arm
     """
 
-    prefix = f"{instrument.lower()}_{arm.lower()}"
+    prefix = f"{instrument.lower()}_{channel.lower()}"
     return prefix
 
 
 @pytest.fixture
-def step_args(instr, arm, target, night, output_dir, order_range):
-    return instr, arm, target, night, output_dir, order_range
+def step_args(instr, channel, target, night, output_dir, order_range):
+    return instr, channel, target, night, output_dir, order_range
 
 
 @pytest.fixture
 def mask(step_args, settings):
-    """Load the bad pixel mask for this instrument/arm
+    """Load the bad pixel mask for this instrument/channel
 
     Parameters
     ----------
     instrument : str
         instrument name
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
 
     Returns
     -------
@@ -440,8 +446,8 @@ def bias(step_args, settings, files, mask):
     ----------
     instrument : str
         instrument name
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
     files : dict(str:str)
         calibration files
     extension : int
@@ -599,8 +605,8 @@ def wave_master(step_args, settings, files, orders, mask, curvature, bias, normf
         calibration file names
     instrument : str
         instrument name
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
     extension : int
         fits data extension
     mask : array(bool)
@@ -657,8 +663,8 @@ def wave(step_args, settings, wave_master, wave_init):
         calibration file names
     instrument : str
         instrument name
-    arm : str
-        instrument arm
+    channel : str
+        instrument channel
     extension : int
         fits data extension
     mask : array(bool)
