@@ -1,0 +1,16 @@
+default_parameters:
+  is_default: yes
+  recipe_parameters:
+    bias:
+      reduce.reduce_bias.degree: "0"
+      reduce.reduce_bias.combine-method: "median"
+    flat:
+      reduce.reduce_flat.combine-method: "median"
+
+science_parameters:
+  is_default: no
+  recipe_parameters:
+    bias:
+      reduce.reduce_bias.degree: "0"
+    flat:
+      reduce.reduce_flat.combine-method: "median"

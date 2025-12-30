@@ -58,6 +58,25 @@ class CRIRES_PLUS(Instrument):
         detector = match.group(4)
         return band, decker, detector
 
+    def get_arm_from_header(self, header, detector=1):
+        """Determine arm string from FITS header.
+
+        Parameters
+        ----------
+        header : fits.Header
+            FITS header
+        detector : int
+            Detector number (1, 2, or 3)
+
+        Returns
+        -------
+        str
+            Arm string like "J1228_Open_det1"
+        """
+        band = header.get(self.info["id_band"], "")
+        decker = header.get(self.info["id_decker"], "Open")
+        return f"{band}_{decker}_det{detector}"
+
     def get_expected_values(self, target, night, arm):
         expectations = super().get_expected_values(target, night)
         band, decker, detector = self.parse_arm(arm)

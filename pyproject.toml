@@ -59,6 +59,24 @@ dev = [
     "myst-parser",
 ]
 
+[project.optional-dependencies]
+edps = [
+    "edps>=1.6.0",
+    "pycpl>=1.0.3",
+    "pyesorex>=1.0.3",
+]
+
+[tool.uv.sources]
+pycpl = { index = "pycpl" }
+
+[[tool.uv.index]]
+name = "pycpl"
+url = "https://ivh.github.io/pycpl/simple/"
+
+[[tool.uv.index]]
+name = "eso"
+url = "https://ftp.eso.org/pub/dfs/pipelines/libraries/"
+
 [project.urls]
 Homepage = "https://github.com/ivh/PyReduce"
 Documentation = "https://pyreduce-astro.readthedocs.io"
