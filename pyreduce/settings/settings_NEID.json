@@ -1,13 +1,10 @@
 {
-    "__instrument__": "HARPN",
-    "instrument": {
-        "fiber": "A"
-    },
+    "__instrument__": "NEID",
     "orders": {
-        "degree": 4,
+        "degree": 6,
         "filter_y": 80,
-        "min_cluster": 2000,
-        "noise": 8,
+        "min_cluster": 500,
+        "noise": 50,
         "manual": false
     },
     "scatter": {
@@ -23,8 +20,8 @@
     },
     "wavecal_master": {
         "extraction_width": 5,
-        "collapse_function" : "median",
-        "bias_scaling" : "number_of_files"
+        "collapse_function": "median",
+        "bias_scaling": "number_of_files"
     },
     "wavecal_init": {
         "element": "thar",
@@ -33,10 +30,7 @@
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [
-            5,
-            5
-        ],
+        "degree": [5, 5],
         "manual": false,
         "element": "thar",
         "medium": "vac",
@@ -49,10 +43,7 @@
         "threshold": 100,
         "dimensionality": "2D",
         "nstep": 7,
-        "degree": [
-            9,
-            7
-        ]
+        "degree": [9, 7]
     },
     "curvature": {
         "extraction_width": 10,

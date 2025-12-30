@@ -24,6 +24,29 @@ from .models import InstrumentConfig
 logger = logging.getLogger(__name__)
 
 
+def parse_iraf_section(section_str):
+    """Parse IRAF-style section string into pixel coordinates.
+
+    IRAF format: [x1:x2,y1:y2] where coordinates are 1-based inclusive.
+
+    Parameters
+    ----------
+    section_str : str
+        Section string like "[28:1179,1:4616]"
+
+    Returns
+    -------
+    x1, x2, y1, y2 : int
+        1-based inclusive pixel coordinates
+    """
+    # Remove brackets and split
+    s = section_str.strip("[]")
+    x_part, y_part = s.split(",")
+    x1, x2 = map(int, x_part.split(":"))
+    y1, y2 = map(int, y_part.split(":"))
+    return x1, x2, y1, y2
+
+
 def find_first_index(arr, value):
     """find the first element equal to value in the array arr"""
     try:
@@ -224,6 +247,147 @@ class Instrument:
 
         return config, info
 
+    def get_amplifier_extensions(self, header):
+        """Get list of amplifier extensions if multi-amp mode is configured.
+
+        Parameters
+        ----------
+        header : fits.Header
+            Primary FITS header
+
+        Returns
+        -------
+        list or None
+            List of extension names/indices if multi-amp, None otherwise
+        """
+        if self.config.amplifiers is None:
+            return None
+
+        amp_config = self.config.amplifiers
+        # Get number of amplifiers
+        if isinstance(amp_config.count, int):
+            n_amps = amp_config.count
+        else:
+            n_amps = header.get(amp_config.count)
+            if n_amps is None:
+                logger.warning(
+                    "Amplifier count keyword '%s' not found in header",
+                    amp_config.count,
+                )
+                return None
+
+        # Generate extension names from template
+        extensions = []
+        for n in range(1, n_amps + 1):
+            ext_name = amp_config.extension_template.format(n=n)
+            extensions.append(ext_name)
+
+        return extensions
+
+    def assemble_amplifiers(self, hdu, amp_extensions, channel):
+        """Assemble multi-amplifier readout into single frame.
+
+        Reads data from multiple FITS extensions, each representing one
+        amplifier's readout region, and assembles them into a single frame
+        using DATASEC/DETSEC mappings.
+
+        Parameters
+        ----------
+        hdu : HDUList
+            Open FITS file
+        amp_extensions : list
+            List of extension names to read
+        channel : str
+            Instrument channel
+
+        Returns
+        -------
+        data : ndarray
+            Assembled frame (float32)
+        header : fits.Header
+            Combined header with per-amplifier e_gain{n}, e_readn{n}
+        """
+        amp_config = self.config.amplifiers
+        h_prime = hdu[0].header
+
+        # First pass: determine output size and collect amp info
+        xmax, ymax = 0, 0
+        amp_info = []
+
+        for ext in amp_extensions:
+            h = hdu[ext].header
+            datasec = parse_iraf_section(h[amp_config.datasec])
+            detsec = parse_iraf_section(h[amp_config.detsec])
+
+            # DETSEC gives the destination in the assembled image
+            xmax = max(xmax, detsec[1])
+            ymax = max(ymax, detsec[3])
+
+            amp_info.append(
+                {
+                    "ext": ext,
+                    "datasec": datasec,
+                    "detsec": detsec,
+                    "gain": h.get(amp_config.gain, 1.0),
+                    "readnoise": h.get(amp_config.readnoise, 0.0),
+                }
+            )
+
+        # Allocate output array
+        assembled = np.zeros((ymax, xmax), dtype=np.float32)
+
+        # Second pass: place each amplifier's data
+        for info in amp_info:
+            # Extract valid data region (DATASEC is 1-based inclusive)
+            dx1, dx2, dy1, dy2 = info["datasec"]
+            raw = hdu[info["ext"]].data[dy1 - 1 : dy2, dx1 - 1 : dx2]
+
+            # Place into output at DETSEC location (1-based inclusive)
+            ox1, ox2, oy1, oy2 = info["detsec"]
+            assembled[oy1 - 1 : oy2, ox1 - 1 : ox2] = raw
+
+        # Build combined header
+        header = hdu[amp_extensions[0]].header.copy()
+        header.extend(h_prime, strip=False)
+
+        # Add standard header info first (sets e_orient, e_transpose, etc.)
+        header = self.add_header_info(header, channel)
+        header["e_input"] = (
+            os.path.basename(hdu.filename()),
+            "Original input filename",
+        )
+
+        # Store per-amplifier calibration values
+        # Use e_namps (not e_ampl) to avoid triggering clipnflip's multi-amp path
+        # since we've already assembled the frame
+        header["e_namps"] = (len(amp_info), "Number of amplifiers in raw data")
+        for i, info in enumerate(amp_info, 1):
+            header[f"HIERARCH e_gain{i}"] = (
+                info["gain"],
+                f"Gain for amplifier {i}",
+            )
+            header[f"HIERARCH e_readn{i}"] = (
+                info["readnoise"],
+                f"Readnoise for amplifier {i}",
+            )
+
+        # Override e_gain/e_readn with median across amplifiers
+        gains = [info["gain"] for info in amp_info]
+        readnoises = [info["readnoise"] for info in amp_info]
+        header["e_gain"] = (float(np.median(gains)), "Median gain across amplifiers")
+        header["e_readn"] = (
+            float(np.median(readnoises)),
+            "Median readnoise across amplifiers",
+        )
+
+        # Override bounds for assembled frame (full frame, no prescan/overscan)
+        header["e_xlo"] = 0
+        header["e_xhi"] = xmax
+        header["e_ylo"] = 0
+        header["e_yhi"] = ymax
+
+        return assembled, header
+
     def load_fits(
         self, fname, channel, extension=None, mask=None, header_only=False, dtype=None
     ):
@@ -234,6 +398,9 @@ class Instrument:
         channel-specific info is applied to header
         data is clipnflipped
         mask is applied
+
+        For multi-amplifier instruments, data from multiple extensions
+        is assembled into a single frame before clipnflip.
 
         Parameters
         ----------
@@ -266,20 +433,39 @@ class Instrument:
 
         hdu = fits.open(fname)
         h_prime = hdu[0].header
-        if extension is None:
-            extension = self.get_extension(h_prime, channel)
 
-        header = hdu[extension].header
-        if extension != 0:
-            header.extend(h_prime, strip=False)
-        header = self.add_header_info(header, channel)
-        header["e_input"] = (os.path.basename(fname), "Original input filename")
+        # Check for multi-amplifier mode
+        amp_extensions = self.get_amplifier_extensions(h_prime)
 
-        if header_only:
-            hdu.close()
-            return header
+        if amp_extensions is not None:
+            # Multi-amplifier path: assemble from multiple extensions
+            if header_only:
+                # For header_only, just return first extension header + primary
+                header = hdu[amp_extensions[0]].header.copy()
+                header.extend(h_prime, strip=False)
+                header = self.add_header_info(header, channel)
+                header["e_input"] = (os.path.basename(fname), "Original input filename")
+                hdu.close()
+                return header
 
-        data = clipnflip(hdu[extension].data, header)
+            data, header = self.assemble_amplifiers(hdu, amp_extensions, channel)
+            data = clipnflip(data, header)
+        else:
+            # Single extension path (original behavior)
+            if extension is None:
+                extension = self.get_extension(h_prime, channel)
+
+            header = hdu[extension].header
+            if extension != 0:
+                header.extend(h_prime, strip=False)
+            header = self.add_header_info(header, channel)
+            header["e_input"] = (os.path.basename(fname), "Original input filename")
+
+            if header_only:
+                hdu.close()
+                return header
+
+            data = clipnflip(hdu[extension].data, header)
 
         if dtype is not None:
             data = data.astype(dtype)

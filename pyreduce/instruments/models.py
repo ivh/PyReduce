@@ -48,6 +48,27 @@ class FileClassification(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class AmplifiersConfig(BaseModel):
+    """Configuration for multi-amplifier readout assembly.
+
+    Used when detector data is split across multiple FITS extensions,
+    each with its own gain/readnoise and region mapping.
+    """
+
+    # Extension naming: template with {n} placeholder, e.g. "AMPLIFIER {n:02d}"
+    extension_template: str
+    # Number of amplifiers: header keyword or literal int
+    count: str | int
+    # Header keywords in each extension for calibration values
+    gain: str = "GAIN"
+    readnoise: str = "RDNOISE"
+    # Header keywords for region mapping (IRAF section format)
+    datasec: str = "DATASEC"
+    detsec: str = "DETSEC"
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class InstrumentConfig(BaseModel):
     """Configuration for an astronomical instrument.
 
@@ -75,6 +96,9 @@ class InstrumentConfig(BaseModel):
     extension: int | str | list[int | str] = 0
     orientation: int | list[int] = 0
     transpose: bool = False
+
+    # Multi-amplifier readout (optional)
+    amplifiers: AmplifiersConfig | None = None
 
     # Detector dimensions
     naxis_x: str | int = "NAXIS1"

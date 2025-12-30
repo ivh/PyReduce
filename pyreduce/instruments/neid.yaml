@@ -1,6 +1,11 @@
 # NEID instrument configuration
-# Note: red and middle are in the same fits file, with different extensions,
-# i.e. share the same mode identifier, but have different extensions
+# NEID is a fiber-fed, high-resolution spectrograph on WIYN 3.5m at Kitt Peak.
+# L0 data has 16 amplifiers stored in separate extensions.
+#
+# Three fibers:
+# - Science fiber (SCI-OBJ): Target or calibration light
+# - Calibration fiber (CAL-OBJ): Simultaneous calibration (Etalon, LFC)
+# - Sky fiber (SKY-OBJ): Sky background or calibration
 
 __instrument__: NEID
 id_instrument: NEID
@@ -11,51 +16,45 @@ date: DATE-OBS
 date_format: fits
 
 channels: [HR]
-channels_id: [HR]
-namps: NAMPS
-extension: "AMPLIFIER {amp}"
 orientation: 0
 transpose: false
 
-prescan_y: 0
-overscan_y: 0
-naxis_x: NAXIS1
-naxis_y: NAXIS2
+# Multi-amplifier configuration (16 amps in L0 data)
+amplifiers:
+  extension_template: "AMPLIFIER {n:02d}"
+  count: NAMPS
+  gain: CCDGAIN
+  readnoise: CCDRN
+  datasec: DATASEC
+  detsec: DETSEC
 
-gain: CCDGAIN
-readnoise: CCDRN
 exposure_time: EXPTIME
 
-image_type: "HIERARCH TNG OBS TARG NAME"
-category: "HIERARCH TNG DPR CATG"
 ra: RA
 dec: DEC
-longitude: GEOLON
-latitude: GEOLAT
-altitude: GEOELEV
+longitude: OBSLON
+latitude: OBSLAT
+altitude: OBSALT
 target: OBJECT
 instrument_mode: OBS-MODE
-observation_type: "TNG DPR TYPE"
+observation_type: OBSTYPE
 
-id_fiber_sci: "LAMP,DARK,TUN"
-id_fiber_cal: "DARK,LAMP,TUN"
-id_fiber_sky: "DARK,LAMP,TUN"
+# File classification uses SCI-OBJ to identify what's in the science fiber
+# The neid.py get_expected_values() uses these filters
+kw_bias: SCI-OBJ
+kw_flat: SCI-OBJ
+kw_curvature: SCI-OBJ
+kw_scatter: SCI-OBJ
+kw_orders: SCI-OBJ
+kw_wave: SCI-OBJ
+kw_comb: SCI-OBJ
+kw_spec: OBSTYPE
 
-# File classification keywords and patterns
-kw_bias: OBJECT
-kw_flat: OBJECT
-kw_curvature: OBJECT
-kw_scatter: OBJECT
-kw_orders: OBJECT
-kw_wave: OBJECT
-kw_comb: OBJECT
-kw_spec: OBJECT
-
-id_bias: "BIAS,BIAS"
-id_flat: "LAMP,LAMP,TUN"
-id_orders: "LAMP,LAMP,TUN"
-id_curvature: "WAVE,WAVE,THAR2"
-id_scatter: "LAMP,LAMP,TUN"
-id_wave: "WAVE,WAVE,THAR2"
-id_comb: "WAVE,WAVE,COMB"
-id_spec: "STAR,*"
+id_bias: "Bias"
+id_flat: "Flat"
+id_orders: "Flat"
+id_curvature: "LFC"
+id_scatter: "Flat"
+id_wave: "(ThAr|UNe).*"
+id_comb: "LFC"
+id_spec: "Sci"

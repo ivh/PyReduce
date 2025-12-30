@@ -1,5 +1,13 @@
 """
 Handles instrument specific info for the NEID spectrograph
+
+NEID is a fiber-fed, high-resolution (R~110,000) spectrograph on the
+WIYN 3.5m telescope at Kitt Peak. It has three fibers:
+- Science fiber (SCI-OBJ): Target or calibration light
+- Calibration fiber (CAL-OBJ): Simultaneous calibration (Etalon, LFC, etc.)
+- Sky fiber (SKY-OBJ): Sky background or calibration
+
+L0 data has 16 amplifiers stored in separate FITS extensions.
 """
 
 import logging
@@ -18,20 +26,16 @@ class NEID(Instrument):
         self.filters = {
             "instrument": InstrumentFilter(self.config.instrument),
             "night": NightFilter(self.config.date),
-            # "branch": Filter(, regex=True),
             "mode": Filter(
                 self.config.instrument_mode, regex=True, flags=re.IGNORECASE
             ),
-            "type": Filter(self.config.observation_type),
+            "obstype": Filter(self.config.observation_type),
             "target": ObjectFilter(self.config.target, regex=True),
+            "sci_obj": Filter("SCI-OBJ", regex=True),
         }
         self.night = "night"
         self.science = "science"
-        self.shared = [
-            "instrument",
-            "night",
-            "mode",
-        ]
+        self.shared = ["instrument", "night", "mode"]
         self.find_closest = [
             "bias",
             "flat",
@@ -39,118 +43,86 @@ class NEID(Instrument):
             "freq_comb_master",
             "orders",
             "scatter",
+            "curvature",
         ]
 
-    def get_expected_values(
-        self, target, night, channel=None, mode=None, fiber=None, **kwargs
-    ):
-        """Determine the default expected values in the headers for a given observation configuration
-
-        Any parameter may be None, to indicate that all values are allowed
+    def get_expected_values(self, target, night, channel=None, mode="HR", **kwargs):
+        """Determine the expected header values for file classification.
 
         Parameters
         ----------
         target : str
-            Name of the star / observation target
+            Name of the observation target
         night : str
-            Observation night/nights
+            Observation night(s)
+        channel : str
+            Instrument channel (HR mode only for now)
+        mode : str
+            Observation mode (HR or HE)
+
         Returns
         -------
-        expectations: dict
-            Dictionary of expected header values, with one entry per step.
-            The entries for each step refer to the filters defined in self.filters
-
-        Raises
-        ------
-        ValueError
-            Invalid combination of parameters
+        expectations : dict
+            Expected header values per reduction step
         """
         if target is not None:
             target = target.replace(" ", r"(?:\s*|-)")
         else:
             target = ".*"
 
-        id_orddef = "LAMP,DARK,TUN"
-        id_spec = "STAR,WAVE"
-
         expectations = {
-            "flat": {"instrument": "NEID", "night": night, "type": r"LAMP,LAMP,TUN"},
+            "bias": {
+                "instrument": "NEID",
+                "night": night,
+                "sci_obj": "Bias",
+            },
+            "flat": {
+                "instrument": "NEID",
+                "night": night,
+                "sci_obj": "Flat",
+            },
             "orders": {
                 "instrument": "NEID",
                 "night": night,
-                "type": id_orddef,
+                "sci_obj": "Flat",
             },
             "scatter": {
                 "instrument": "NEID",
                 "night": night,
-                "type": id_orddef,  # Same as orders or same as flat?
+                "sci_obj": "Flat",
+            },
+            "curvature": {
+                "instrument": "NEID",
+                "night": night,
+                "sci_obj": "LFC",
             },
             "wavecal_master": {
                 "instrument": "NEID",
                 "night": night,
-                "type": r"WAVE,WAVE,THAR2",
+                "sci_obj": r"(ThAr|UNe).*",
             },
             "freq_comb_master": {
                 "instrument": "NEID",
                 "night": night,
-                "type": r"WAVE,WAVE,COMB",
+                "sci_obj": "LFC",
             },
             "science": {
                 "instrument": "NEID",
                 "night": night,
                 "mode": mode,
-                "type": id_spec,
+                "obstype": "Sci",
                 "target": target,
             },
         }
         return expectations
 
-    def get_extension(self, header, channel):
-        extension = super().get_extension(header, channel)
-
-        return extension
-
-    def add_header_info(self, header, channel, **kwargs):
-        """read data from header and add it as REDUCE keyword back to the header"""
-        # "Normal" stuff is handled by the general version, specific changes to values happen here
-        # alternatively you can implement all of it here, whatever works
-        header = super().add_header_info(header, channel)
-
-        try:
-            header["e_ra"] /= 15
-            header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
-
-        except:
-            pass
-
-        try:
-            if (
-                header["NAXIS"] == 2
-                and header["NAXIS1"] == 4296
-                and header["NAXIS2"] == 4096
-            ):
-                # both channels are in the same image
-                prescan_x = 50
-                overscan_x = 50
-                naxis_x = 2148
-                if channel == "BLUE":
-                    header["e_xlo"] = prescan_x
-                    header["e_xhi"] = naxis_x - overscan_x
-                elif channel == "RED":
-                    header["e_xlo"] = naxis_x + prescan_x
-                    header["e_xhi"] = 2 * naxis_x - overscan_x
-        except KeyError:
-            pass
-
-        return header
-
     def get_wavecal_filename(self, header, channel, **kwargs):
-        """Get the filename of the wavelength calibration config file"""
+        """Get the filename of the wavelength calibration config file."""
         cwd = dirname(__file__)
-        fname = f"NEID_{channel.lower()}_2D.npz"
+        fname = f"wavecal_neid_{channel.lower()}.npz"
         fname = join(cwd, "..", "wavecal", fname)
         return fname
 
     def get_wavelength_range(self, header, channel, **kwargs):
-        wave_range = super().get_wavelength_range(header, channel, **kwargs)
-        return wave_range
+        """NEID covers ~380-930 nm."""
+        return [[3800, 9300]]

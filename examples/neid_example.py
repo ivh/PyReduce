@@ -3,54 +3,63 @@
 # dependencies = ["pyreduce-astro>=0.7a5"]
 # ///
 """
-Simple usage example for PyReduce
-Loads a NEID dataset, and runs the extraction
+NEID reduction example
+
+NEID is a fiber-fed, high-resolution (R~110,000) spectrograph on the
+WIYN 3.5m telescope at Kitt Peak. L0 data has 16 amplifiers that are
+automatically assembled during loading.
+
+This example reduces HD 4628 observations from night 2024-09-19.
+Note: Observations before 12:00 UTC belong to the previous night.
 """
+
+import os
 
 from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.pipeline import Pipeline
 
-# define parameters
+# Define parameters
 instrument = "NEID"
-# target = "HD 152843"
-target = ""
-night = ""
-channel = "NEID"
+target = "HD 4628"
+night = "2024-09-19"  # Observations before 12:00 UTC belong to previous night
+channel = "HR"
+
+# Reduction steps to run
+# Start with basic steps; add wavecal/science once calibration files are set up
 steps = (
-    #  "bias",
-    # "flat",
-    # "orders",
+    "flat",
+    "orders",
+    # "curvature",
     # "norm_flat",
     # "wavecal_master",
-    "wavecal",
-    #    "science",
-    #    "continuum",
-    #    "finalize",
+    # "wavecal_init",
+    # "wavecal",
+    # "science",
+    # "continuum",
+    # "finalize",
 )
 
-# some basic settings
-# Expected Folder Structure: base_dir/datasets/HD132205/*.fits.gz
-# Feel free to change this to your own preference, values in curly brackets will be replaced with the actual values {}
+# Data paths
+# Set REDUCE_DATA environment variable or modify base_dir
+base_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+base_dir = os.path.join(base_dir, "NEID")
+input_dir = ""  # Files directly in base_dir
+output_dir = "reduced"
 
-# load dataset (and save the location)
-# base_dir = datasets.HARPS("/DATA/PyReduce")
-base_dir = "/home/tom/pipes/neid_data"
-input_dir = "raw"
-output_dir = "reduced_{channel}"
-
-# Path to the configuration parameters, that are to be used for this reduction
+# Load default configuration
 config = get_configuration_for_instrument(instrument)
 
-Pipeline.from_instrument(
-    instrument,
-    target,
-    night=night,
-    channel=channel,
-    steps=steps,
-    base_dir=base_dir,
-    input_dir=input_dir,
-    output_dir=output_dir,
-    configuration=config,
-    # order_range=(0, 25),
-    plot=1,
-).run()
+# Run the pipeline
+if __name__ == "__main__":
+    Pipeline.from_instrument(
+        instrument,
+        target,
+        night=night,
+        channel=channel,
+        steps=steps,
+        base_dir=base_dir,
+        input_dir=input_dir,
+        output_dir=output_dir,
+        configuration=config,
+        plot=1,
+    ).run()

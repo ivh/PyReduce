@@ -305,6 +305,14 @@ def combine_frames(
     if instrument is None or isinstance(instrument, str):
         instrument = load_instrument(instrument)
 
+    # For multi-amplifier instruments, use simple combination since the
+    # row-by-row approach doesn't work with multi-extension assembly
+    if instrument.config.amplifiers is not None:
+        logger.debug("Multi-amplifier instrument detected, using simple combination")
+        return combine_frames_simple(
+            files, instrument, channel, extension=extension, dtype=dtype, **kwargs
+        )
+
     # summarize file info
     logger.debug("Files:")
     for i, fname in zip(range(len(files)), files, strict=False):
