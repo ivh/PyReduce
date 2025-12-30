@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [0.7a5] - 2025-12-30
+
+### Changed
+- Rename `arm` to `channel` throughout codebase (API, CLI, configs)
+- Remove decker from CRIRES+ channel format (`J1228_det1` instead of `J1228_Open_det1`)
+- Example scripts now use `$REDUCE_DATA` env var instead of hardcoded paths
+
 ## [0.7a4] - 2025-12-23
 
 ### Added

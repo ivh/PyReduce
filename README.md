@@ -1,6 +1,6 @@
 [![CI](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml/badge.svg)](https://github.com/ivh/PyReduce/actions/workflows/python-publish.yml)
 [![Documentation Status](https://readthedocs.org/projects/pyreduce-astro/badge/?version=latest)](https://pyreduce-astro.readthedocs.io/en/latest/?badge=latest)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 
 # PyReduce
 
