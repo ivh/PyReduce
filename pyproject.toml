@@ -1,7 +1,7 @@
 [project]
 name = "pyreduce-astro"
 version = "0.7a4"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"
 authors = [
@@ -19,8 +19,6 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: C",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Astronomy",
@@ -193,7 +191,7 @@ exclude_lines = [
 
 # cibuildwheel configuration for building platform-specific wheels
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-* cp314-*"
+build = "cp313-* cp314-*"
 skip = "*-musllinux_* *-win32 *-manylinux_i686"
 test-command = "pytest {project}/test -m unit"
 test-requires = ["pytest"]
