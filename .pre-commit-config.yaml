@@ -29,5 +29,7 @@ repos:
     # Run the linter
     -   id: ruff
         args: [--fix]
+        stages: [pre-push]
     # Run the formatter
     -   id: ruff-format
+        stages: [pre-push]
