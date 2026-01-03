@@ -64,7 +64,7 @@ def test_read_config():
 
 def test_validation():
     config = conf.get_configuration_for_instrument("UVES")
-    config["orders"]["degree"] = -1
+    config["trace"]["degree"] = -1
 
     with pytest.raises(ValueError):
         conf.validate_config(config)

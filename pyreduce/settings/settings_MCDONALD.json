@@ -1,7 +1,7 @@
 {
     "__instrument__": "MCDONALD",
     "instrument": {},
-    "orders": {
+    "trace": {
         "degree": 4,
         "degree_before_merge": 2,
         "regularization": 0,

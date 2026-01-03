@@ -1,7 +1,7 @@
 {
     "__instrument__": "JWST_MIRI",
     "instrument": {},
-    "orders": {
+    "trace": {
         "degree": 4,
         "filter_y": 1,
         "min_cluster": 0,

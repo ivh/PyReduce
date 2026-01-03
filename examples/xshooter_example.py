@@ -19,7 +19,7 @@ channel = "NIR"
 steps = (
     # "bias",
     # "flat",
-    # "orders",
+    # "trace",
     # "scatter",
     # "norm_flat",
     # "curvature",

@@ -20,7 +20,7 @@ channel = "J1228_det1"
 steps = (
     # "bias",
     # "flat",
-    # "orders",
+    # "trace",
     # "curvature",
     # "scatter",
     # "norm_flat",

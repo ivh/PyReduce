@@ -1,6 +1,6 @@
 {
   "__instrument__": "AJ",
-  "orders": {
+  "trace": {
     "degree": 4,
     "noise": 0,
     "min_cluster": 2000,

@@ -41,7 +41,7 @@ class NEID(Instrument):
             "flat",
             "wavecal_master",
             "freq_comb_master",
-            "orders",
+            "trace",
             "scatter",
             "curvature",
         ]
@@ -81,7 +81,7 @@ class NEID(Instrument):
                 "night": night,
                 "sci_obj": "Flat",
             },
-            "orders": {
+            "trace": {
                 "instrument": "NEID",
                 "night": night,
                 "sci_obj": "Flat",

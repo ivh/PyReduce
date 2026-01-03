@@ -1,6 +1,6 @@
 {
     "__instrument__": "NEID",
-    "orders": {
+    "trace": {
         "degree": 6,
         "filter_y": 80,
         "min_cluster": 500,

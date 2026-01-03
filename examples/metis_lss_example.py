@@ -20,7 +20,7 @@ channel = "LSS_M"
 steps = (
     # "bias",
     "flat",
-    "orders",
+    "trace",
     "curvature",
     # "scatter",
     # "norm_flat",

@@ -19,7 +19,7 @@ channel = "CS23"
 steps = (
     # "bias",
     # "flat",
-    # "orders",
+    # "trace",
     # "curvature",
     "scatter",
     # "norm_flat",

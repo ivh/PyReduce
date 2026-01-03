@@ -3,7 +3,7 @@
     "flat":{
         "bias_scaling": "number_of_files"
     },
-    "orders": {
+    "trace": {
         "degree": 5,
         "degree_before_merge": "best",
         "bias_scaling": "exposure_time",

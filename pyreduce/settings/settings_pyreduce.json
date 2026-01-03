@@ -19,7 +19,7 @@
         "plot": true,
         "plot_title": "Flat"
     },
-    "orders": {
+    "trace": {
         "degree": 4,
         "degree_before_merge": 2,
         "bias_scaling": "number_of_files",

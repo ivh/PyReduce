@@ -507,7 +507,7 @@ def flat(step_args, settings, files, bias, mask):
 @pytest.fixture
 def orders(step_args, settings, files, mask, bias):
     """Load or if necessary calculate the order traces"""
-    name = "orders"
+    name = "trace"
     settings = settings[name]
     files = files[name]
     settings["plot"] = False

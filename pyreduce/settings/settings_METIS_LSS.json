@@ -4,7 +4,7 @@
         "bias_scaling": "number_of_files",
         "plot": false
     },
-    "orders": {
+    "trace": {
         "degree": 4,
         "degree_before_merge": "best",
         "bias_scaling": "number_of_files",

@@ -18,7 +18,7 @@ channel = "red"
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "curvature",
     "scatter",
     "norm_flat",

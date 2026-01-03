@@ -20,7 +20,7 @@ channel = "IFU_NOMINAL"
 steps = (
     # "bias",
     # "flat",
-    "orders",
+    "trace",
     "curvature",
     # "scatter",
     # "norm_flat",

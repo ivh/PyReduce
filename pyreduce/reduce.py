@@ -99,7 +99,7 @@ def main(
         the instrument channels to use, if None will use all known channels for the current instrument. See instruments for possible options
     steps : tuple(str), "all", optional
         which steps of the reduction process to perform
-        the possible steps are: "bias", "flat", "orders", "norm_flat", "wavecal", "science"
+        the possible steps are: "bias", "flat", "trace", "norm_flat", "wavecal", "science"
         alternatively set steps to "all", which is equivalent to setting all steps
         Note that the later steps require the previous intermediary products to exist and raise an exception otherwise
     base_dir : str, optional
@@ -349,7 +349,7 @@ class ExtractionStep(Step):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += [
-            "orders",
+            "trace",
         ]
 
         #:{'arc', 'optimal'}: Extraction method to use
@@ -831,7 +831,7 @@ class BackgroundScatter(CalibrationStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["orders"]
+        self._dependsOn += ["trace"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
@@ -901,7 +901,7 @@ class NormalizeFlatField(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "orders", "scatter", "curvature"]
+        self._dependsOn += ["flat", "trace", "scatter", "curvature"]
 
         #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -1595,7 +1595,7 @@ class RectifyImage(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["files", "orders", "curvature", "mask", "freq_comb"]
+        self._dependsOn += ["files", "trace", "curvature", "mask", "freq_comb"]
         # self._loadDependsOn += []
 
         self.extraction_width = config["extraction_width"]

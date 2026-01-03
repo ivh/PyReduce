@@ -287,7 +287,7 @@ def run(config_file: str, steps: str, skip_existing: bool, plot: int):
         pipe = pipe.flat(_expand_globs(files["flat"]))
 
     if "trace" in config_steps:
-        trace_files = files.get("orders") or files.get("flat")
+        trace_files = files.get("trace") or files.get("flat")
         pipe = pipe.trace_orders(_expand_globs(trace_files) if trace_files else None)
 
     if "scatter" in config_steps:

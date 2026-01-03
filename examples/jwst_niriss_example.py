@@ -18,7 +18,7 @@ channel = "GR700XD"
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "norm_flat",
     # "wavecal",
     # "curvature",

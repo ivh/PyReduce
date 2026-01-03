@@ -5,7 +5,7 @@
     },
     "flat": {
     },
-    "orders": {
+    "trace": {
         "degree": 4,
         "filter_y": 15,
         "min_cluster": 700,

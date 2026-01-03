@@ -144,7 +144,7 @@ class Instrument:
             "target": ObjectFilter(self.config.target, regex=True),
             "bias": Filter(self.config.kw_bias),
             "flat": Filter(self.config.kw_flat),
-            "orders": Filter(self.config.kw_orders),
+            "trace": Filter(self.config.kw_orders),
             "curvature": Filter(self.config.kw_curvature),
             "scatter": Filter(self.config.kw_scatter),
             "wave": Filter(self.config.kw_wave),
@@ -165,7 +165,7 @@ class Instrument:
             "flat",
             "wavecal_master",
             "freq_comb_master",
-            "orders",
+            "trace",
             "scatter",
             "curvature",
         ]
@@ -584,10 +584,10 @@ class Instrument:
                 "night": night,
                 "flat": self.config.id_flat,
             },
-            "orders": {
+            "trace": {
                 "instrument": self.config.id_instrument,
                 "night": night,
-                "orders": self.config.id_orders,
+                "trace": self.config.id_orders,
             },
             "scatter": {
                 "instrument": self.config.id_instrument,

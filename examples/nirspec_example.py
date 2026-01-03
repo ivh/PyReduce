@@ -18,7 +18,7 @@ channel = "NIRSPEC"
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "norm_flat",
     "wavecal",
     "freq_comb",

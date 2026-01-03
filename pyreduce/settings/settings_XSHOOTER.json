@@ -6,7 +6,7 @@
     "flat":{
         "bias_scaling": "exposure_time"
     },
-    "orders": {
+    "trace": {
         "degree": 5,
         "degree_before_merge": 2,
         "bias_scaling": "exposure_time",

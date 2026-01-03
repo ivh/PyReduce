@@ -77,12 +77,12 @@ settings, files = file_groups[0]
 print("Settings:", settings)
 
 # Files are now accessible as a dict with keys:
-#   bias, flat, orders, curvature, scatter, wavecal_master, freq_comb_master, science
+#   bias, flat, trace, curvature, scatter, wavecal_master, freq_comb_master, science
 # Each is a list/array of file paths
 
 bias_files = files.get("bias", [])
 flat_files = files.get("flat", [])
-order_files = files.get("orders", flat_files)  # Use flat if no dedicated order files
+order_files = files.get("trace", flat_files)  # Use flat if no dedicated order files
 curvature_files = files.get("curvature", files.get("wavecal_master", []))
 wavecal_files = files.get("wavecal_master", [])
 science_files = files.get("science", [])
@@ -119,8 +119,8 @@ flat_step = Flat(*step_args, **step_config("flat"))
 flat = flat_step.run(flat_files, bias, mask)
 
 # Step 4: Order tracing
-print("\n=== ORDERS ===")
-orders_step = OrderTracing(*step_args, **step_config("orders"))
+print("\n=== TRACE ===")
+orders_step = OrderTracing(*step_args, **step_config("trace"))
 orders = orders_step.run(order_files, mask, bias)
 
 # Step 5: Curvature

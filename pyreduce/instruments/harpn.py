@@ -70,7 +70,7 @@ class HARPN(Instrument):
             "flat",
             "wavecal_master",
             "freq_comb_master",
-            "orders",
+            "trace",
             "scatter",
         ]
 
@@ -109,7 +109,7 @@ class HARPN(Instrument):
         expectations = {
             "bias": {"instrument": "HARPN", "night": night, "type": r"BIAS,BIAS"},
             "flat": {"instrument": "HARPN", "night": night, "type": r"LAMP,LAMP,TUN"},
-            "orders": {
+            "trace": {
                 "instrument": "HARPN",
                 "night": night,
                 "type": id_orddef,

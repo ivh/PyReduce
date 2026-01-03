@@ -51,7 +51,7 @@ class TestPipelineConstruction:
         step_names = [s[0] for s in pipe._steps]
         assert "bias" in step_names
         assert "flat" in step_names
-        assert "orders" in step_names
+        assert "trace" in step_names
         assert "science" in step_names
 
     @pytest.mark.unit
@@ -126,7 +126,7 @@ class TestPipelineExecution:
     @pytest.mark.slow
     def test_pipeline_trace_orders(self, instr, channel, files, settings, tmp_path):
         """Test order tracing through Pipeline."""
-        order_files = files.get("orders", [])
+        order_files = files.get("trace", [])
         if len(order_files) == 0:
             pytest.skip("No order tracing files for this instrument")
 
@@ -137,8 +137,8 @@ class TestPipelineExecution:
         pipe = pipe.trace_orders(list(order_files))
         result = pipe.run()
 
-        assert "orders" in result
-        orders, column_range = result["orders"]
+        assert "trace" in result
+        orders, column_range = result["trace"]
         assert orders is not None
 
     @pytest.mark.instrument

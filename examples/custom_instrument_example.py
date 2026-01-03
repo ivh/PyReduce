@@ -32,7 +32,7 @@ instrument.info["prescan_x"] = "PRESCAN X"
 # For loading the config we specify pyreduce as the source, since this is the default
 config = get_configuration_for_instrument("pyreduce")
 # Define your own configuration
-config["orders"]["degree"] = 5
+config["trace"]["degree"] = 5
 
 # Since we can't find the files ourselves (at least not without defining the criteria we are looking for)
 # We need to manually define which files go where
@@ -53,7 +53,7 @@ channel = ""
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "curvature",
     "scatter",
     "norm_flat",

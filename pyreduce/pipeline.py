@@ -69,7 +69,7 @@ class Pipeline:
         "mask": Mask,
         "bias": Bias,
         "flat": Flat,
-        "orders": OrderTracing,
+        "trace": OrderTracing,
         "scatter": BackgroundScatter,
         "norm_flat": NormalizeFlatField,
         "wavecal_master": WavelengthCalibrationMaster,
@@ -88,7 +88,7 @@ class Pipeline:
         "mask": 5,
         "bias": 10,
         "flat": 20,
-        "orders": 30,
+        "trace": 30,
         "curvature": 40,
         "scatter": 45,
         "norm_flat": 50,
@@ -189,7 +189,7 @@ class Pipeline:
 
         If files not provided, uses flat from previous step.
         """
-        return self._add_step("orders", files)
+        return self._add_step("trace", files)
 
     def curvature(self, files: list[str] | None = None) -> Pipeline:
         """Determine slit curvature (tilt/shear)."""
@@ -422,7 +422,7 @@ class Pipeline:
         for key in [
             "bias",
             "flat",
-            "orders",
+            "trace",
             "curvature",
             "scatter",
             "wavecal_master",
@@ -441,7 +441,7 @@ class Pipeline:
             "flat": lambda: pipe.flat(files.get("flat", []))
             if len(files.get("flat", []))
             else pipe,
-            "orders": lambda: pipe.trace_orders(files.get("orders")),
+            "trace": lambda: pipe.trace_orders(files.get("trace")),
             "curvature": lambda: pipe.curvature(files.get("curvature")),
             "scatter": lambda: pipe.scatter(files.get("scatter")),
             "norm_flat": lambda: pipe.normalize_flat(),
@@ -537,7 +537,7 @@ class Pipeline:
         ...     target="HD132205",
         ...     night="2010-04-01",
         ...     channel="middle",
-        ...     steps=("bias", "flat", "orders", "science"),
+        ...     steps=("bias", "flat", "trace", "science"),
         ... ).run()
         """
         # Environment variable overrides for plot

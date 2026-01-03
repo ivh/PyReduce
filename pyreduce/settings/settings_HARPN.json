@@ -3,7 +3,7 @@
     "instrument": {
         "fiber": "A"
     },
-    "orders": {
+    "trace": {
         "degree": 4,
         "filter_y": 80,
         "min_cluster": 2000,

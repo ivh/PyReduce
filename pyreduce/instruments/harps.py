@@ -111,7 +111,7 @@ class HARPS(Instrument):
             "flat",
             "wavecal_master",
             "freq_comb_master",
-            "orders",
+            "trace",
             "scatter",
             "curvature",
         ]
@@ -202,7 +202,7 @@ class HARPS(Instrument):
         expectations = {
             "bias": {"instrument": "HARPS", "night": night, "type": r"BIAS,BIAS"},
             "flat": {"instrument": "HARPS", "night": night, "type": r"(LAMP,LAMP),.*"},
-            "orders": {
+            "trace": {
                 "instrument": "HARPS",
                 "night": night,
                 "fiber": fiber,

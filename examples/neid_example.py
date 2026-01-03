@@ -28,7 +28,7 @@ channel = "HR"
 # Start with basic steps; add wavecal/science once calibration files are set up
 steps = (
     "flat",
-    "orders",
+    "trace",
     # "curvature",
     # "norm_flat",
     # "wavecal_master",

@@ -1,7 +1,7 @@
 {
     "__instrument__": "JWST_NIRISS",
     "instrument": {},
-    "orders": {
+    "trace": {
         "degree": 4,
         "filter_y": 50,
         "min_cluster": 500,

@@ -20,7 +20,7 @@ channel = "HARPN"
 steps = (
     # "bias",
     # "flat",
-    # "orders",
+    # "trace",
     # "norm_flat",
     # "wavecal_master",
     "wavecal",

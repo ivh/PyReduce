@@ -18,7 +18,7 @@ channel = "middle"
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "norm_flat",
     "curvature",
     "wavecal",

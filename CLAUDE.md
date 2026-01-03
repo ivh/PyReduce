@@ -19,7 +19,7 @@ uv run reduce download UVES
 PYREDUCE_PLOT=0 uv run python examples/uves_example.py
 
 # Or use CLI
-uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+uv run reduce run UVES HD132205 --steps bias,flat,trace,science
 ```
 
 ## Package Structure
@@ -63,7 +63,7 @@ The reduction pipeline consists of these steps (in typical order):
 | `mask` | `Mask` | Load bad pixel mask for detector |
 | `bias` | `Bias` | Combine bias frames into master bias |
 | `flat` | `Flat` | Combine flat frames, subtract bias |
-| `orders` | `OrderTracing` | Trace echelle order positions on flat |
+| `trace` | `OrderTracing` | Trace echelle order positions on flat |
 | `curvature` | `SlitCurvatureDetermination` | Measure slit tilt/shear from arc lamp |
 | `scatter` | `BackgroundScatter` | Model inter-order scattered light |
 | `norm_flat` | `NormalizeFlatField` | Normalize flat, extract blaze function |
@@ -138,7 +138,7 @@ Defines HOW to reduce - algorithm parameters per step:
   "bias": {
     "degree": 0
   },
-  "orders": {
+  "trace": {
     "degree": 4,
     "noise": 100,
     "min_cluster": 500,
@@ -176,7 +176,7 @@ result = Pipeline.from_instrument(
     target="HD132205",
     night="2010-04-01",
     channel="middle",
-    steps=("bias", "flat", "orders", "science"),
+    steps=("bias", "flat", "trace", "science"),
     base_dir="/data",
     plot=1,
 ).run()
@@ -221,11 +221,11 @@ pyreduce.reduce.main(
 
 ```bash
 # Full pipeline
-uv run reduce run UVES HD132205 --steps bias,flat,orders
+uv run reduce run UVES HD132205 --steps bias,flat,trace
 
 # Individual steps (top-level commands)
 uv run reduce bias UVES HD132205
-uv run reduce orders UVES HD132205
+uv run reduce trace UVES HD132205
 uv run reduce wavecal UVES HD132205
 
 # Combine reduced spectra

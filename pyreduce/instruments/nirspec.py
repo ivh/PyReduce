@@ -175,7 +175,7 @@ class NIRSPEC(Instrument):
                 files_this_observation = {
                     "bias": caliblist[tp == "bias"],
                     "flat": caliblist[tp == "flat"],
-                    "orders": caliblist[tp == "flat"],
+                    "trace": caliblist[tp == "flat"],
                     "wavecal_master": caliblist[tp == "wavecal"],
                     "freq_comb_master": caliblist[tp == "freq_comb"],
                     "science": [file],
@@ -185,7 +185,7 @@ class NIRSPEC(Instrument):
                     if len(files_this_observation["freq_comb_master"]) != 0
                     else files_this_observation["wavecal_master"]
                 )
-                files_this_observation["scatter"] = files_this_observation["orders"]
+                files_this_observation["scatter"] = files_this_observation["trace"]
 
                 files_per_observation.append(
                     ({"night": ind_night, "target": target}, files_this_observation)

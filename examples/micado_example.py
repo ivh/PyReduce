@@ -17,7 +17,7 @@ channel = ""
 steps = (
     # "bias",
     "flat",
-    "orders",
+    "trace",
     "curvature",
     # # "scatter",
     # "norm_flat",
@@ -47,7 +47,7 @@ config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 # Once you are satisfied with a certain parameter, you can update it in settings_MICADO.json.
 
 
-# config["orders"]["noise"] = 100
+# config["trace"]["noise"] = 100
 # config["curvature"]["extraction_width"] = 350 # curvature can still be improved with this and the following parameters
 # config["curvature"]["peak_threshold"] =10
 # config["curvature"]["peak_width"] =2 #CHECK 6 also works and detects one less line

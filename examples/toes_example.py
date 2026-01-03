@@ -81,13 +81,13 @@ instrument.info["wavelength_range"] = [
 # For loading the config we specify pyreduce as the source, since this is the default
 config = get_configuration_for_instrument("pyreduce")
 # Define your own configuration
-config["orders"]["filter_y"] = 20  # smoothing along cross-dispersion
-config["orders"]["degree"] = 4
-config["orders"]["degree_before_merge"] = 2
-config["orders"]["noise"] = 5.5
-config["orders"]["min_cluster"] = 3000
-config["orders"]["min_width"] = 200
-config["orders"]["manual"] = True
+config["trace"]["filter_y"] = 20  # smoothing along cross-dispersion
+config["trace"]["degree"] = 4
+config["trace"]["degree_before_merge"] = 2
+config["trace"]["noise"] = 5.5
+config["trace"]["min_cluster"] = 3000
+config["trace"]["min_width"] = 200
+config["trace"]["manual"] = True
 config["norm_flat"]["oversampling"] = 8  # Subpixel scale for slit function modelling
 config["norm_flat"]["swath_width"] = 400  # Extraction swath width (columns)
 config["wavecal_master"]["extraction_width"] = 2
@@ -110,7 +110,7 @@ config["science"]["bias_scaling"] = "number_of_files"
 files = {
     "bias": ["Bias_0s_20240621_221716-%d.fit" % i for i in np.arange(1, 11)],
     "flat": ["Flat_5s_20240621_222912-%d.fit" % i for i in np.arange(1, 5)],
-    "orders": [flat_file],
+    "trace": [flat_file],
     "science": ["Vega_Object_25s_20240621_224908-%d.fit" % i for i in np.arange(1, 2)],
     "wavecal_master": [
         "Sun_Calibration_35s_20240621_184136-%d.fit" % i for i in np.arange(1, 2)
@@ -138,7 +138,7 @@ channel = ""
 steps = (
     #    "bias",
     #    "flat",
-    #    "orders",
+    #    "trace",
     #    "norm_flat",
     "wavecal_master",
     "wavecal",
