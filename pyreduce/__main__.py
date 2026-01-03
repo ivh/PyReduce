@@ -4,8 +4,8 @@ PyReduce command-line interface.
 Usage:
     uv run reduce --help
     uv run reduce run UVES HD132205 --night 2010-04-01
-    uv run reduce run UVES HD132205 --steps bias,flat,orders
-    uv run reduce bias UVES HD132205
+    uv run reduce run UVES HD132205 --steps bias,flat,trace
+    uv run reduce trace UVES HD132205
     uv run reduce combine --output combined.fits *.final.fits
 """
 
@@ -14,7 +14,7 @@ import click
 ALL_STEPS = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     "curvature",
     "scatter",
     "norm_flat",
@@ -279,30 +279,94 @@ def make_step_command(step_name):
 
     @click.command(name=step_name)
     @click.argument("instrument")
-    @click.argument("target")
+    @click.argument("target", required=False, default="")
     @click.option("--night", "-n", default=None, help="Observation night")
     @click.option("--channel", "-c", default=None, help="Instrument channel")
     @click.option("--base-dir", "-b", default=None, help="Base directory")
     @click.option("--input-dir", "-i", default="raw", help="Input directory")
     @click.option("--output-dir", "-o", default="reduced", help="Output directory")
     @click.option("--plot", "-p", default=0, help="Plot level")
-    def cmd(instrument, target, night, channel, base_dir, input_dir, output_dir, plot):
+    @click.option(
+        "--file",
+        "-f",
+        default=None,
+        help="Specific input file (bypasses file discovery)",
+    )
+    def cmd(
+        instrument, target, night, channel, base_dir, input_dir, output_dir, plot, file
+    ):
         from .configuration import get_configuration_for_instrument
         from .reduce import main as reduce_main
 
-        config = get_configuration_for_instrument(instrument)
-        reduce_main(
-            instrument=instrument,
-            target=target,
-            night=night,
-            channels=channel,
-            steps=(step_name,),
-            base_dir=base_dir or "",
-            input_dir=input_dir,
-            output_dir=output_dir,
-            configuration=config,
-            plot=plot,
-        )
+        if file:
+            # Direct file mode: run step on specific file
+            import os
+
+            import numpy as np
+
+            from . import reduce as reduce_module
+            from .configuration import get_configuration_for_instrument
+            from .instruments.instrument_info import load_instrument
+
+            inst = load_instrument(instrument)
+            channel = channel or (inst.channels[0] if inst.channels else "")
+            output_dir_full = output_dir
+            if base_dir:
+                output_dir_full = os.path.join(base_dir, output_dir)
+            os.makedirs(output_dir_full, exist_ok=True)
+
+            # Load configuration for this step
+            config = get_configuration_for_instrument(instrument)
+            step_config = config.get(step_name, {})
+            step_config["plot"] = plot
+
+            # Get the step class
+            step_classes = {
+                "bias": reduce_module.Bias,
+                "flat": reduce_module.Flat,
+                "trace": reduce_module.OrderTracing,
+                "curvature": reduce_module.SlitCurvatureDetermination,
+                "scatter": reduce_module.BackgroundScatter,
+                "norm_flat": reduce_module.NormalizeFlatField,
+                "wavecal_master": reduce_module.WavelengthCalibrationMaster,
+                "wavecal_init": reduce_module.WavelengthCalibrationInitialize,
+                "wavecal": reduce_module.WavelengthCalibrationFinalize,
+                "freq_comb_master": reduce_module.LaserFrequencyCombMaster,
+                "freq_comb": reduce_module.LaserFrequencyCombFinalize,
+                "science": reduce_module.ScienceExtraction,
+                "continuum": reduce_module.ContinuumNormalization,
+            }
+
+            if step_name not in step_classes:
+                raise click.ClickException(
+                    f"Step '{step_name}' does not support --file option"
+                )
+
+            step_class = step_classes[step_name]
+            step = step_class(
+                inst,
+                channel,
+                target=target or "",
+                night=night,
+                output_dir=output_dir_full,
+                order_range=None,
+                **step_config,
+            )
+            step.run(files=np.array([file]), mask=None, bias=None)
+        else:
+            config = get_configuration_for_instrument(instrument)
+            reduce_main(
+                instrument=instrument,
+                target=target,
+                night=night,
+                channels=channel,
+                steps=(step_name,),
+                base_dir=base_dir or "",
+                input_dir=input_dir,
+                output_dir=output_dir,
+                configuration=config,
+                plot=plot,
+            )
 
     cmd.__doc__ = f"Run the '{step_name}' step."
     return cmd
