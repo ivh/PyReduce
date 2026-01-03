@@ -22,7 +22,7 @@ This document describes the fiber bundle tracing feature for instruments with ma
 
 ```javascript
 {
-  "orders": {
+  "trace": {
     "fiber_bundle": {
       "count": 75,
       "order_centers": [377, 1217, 1442, ...],  // y-position at x=ncols/2

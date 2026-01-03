@@ -17,7 +17,7 @@ uv run python examples/uves_example.py
 Or use the CLI directly:
 
 ```bash
-uv run reduce run UVES "HD[- ]?132205" --steps bias,flat,orders,science
+uv run reduce run UVES "HD[- ]?132205" --steps bias,flat,trace,science
 ```
 
 ## Example Structure
@@ -33,7 +33,7 @@ instrument = "UVES"
 target = "HD132205"
 night = "2010-04-01"
 channel = "middle"
-steps = ("bias", "flat", "orders", "science")
+steps = ("bias", "flat", "trace", "science")
 
 # Download/locate data
 base_dir = datasets.UVES()
@@ -58,7 +58,7 @@ Edit the `steps` tuple to control which reduction steps run:
 steps = (
     "bias",
     "flat",
-    "orders",
+    "trace",
     # "curvature",    # Skip curvature
     # "scatter",      # Skip scatter
     "norm_flat",

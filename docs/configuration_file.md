@@ -17,11 +17,11 @@ extraction parameters, etc.
   "bias": {
     "degree": 0
   },
-  "orders": {
+  "trace": {
     "degree": 4,
     "noise": 100,
     "min_cluster": 500,
-    "filter_size": 120
+    "filter_y": 120
   },
   "science": {
     "extraction_method": "optimal",
@@ -43,7 +43,7 @@ To override settings at runtime:
 from pyreduce.configuration import get_configuration_for_instrument
 
 config = get_configuration_for_instrument("UVES")
-config["orders"]["degree"] = 5
+config["trace"]["degree"] = 5
 config["science"]["oversampling"] = 8
 
 Pipeline.from_instrument(
@@ -90,14 +90,14 @@ See `pyreduce/instruments/models.py` for the full schema.
 
 ## Common Settings
 
-### Orders (Order Tracing)
+### Trace (Order Tracing)
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `degree` | Polynomial degree for trace fitting | 4 |
 | `noise` | Noise threshold for detection | 100 |
 | `min_cluster` | Minimum pixels for valid order | 500 |
-| `filter_size` | Median filter size | 120 |
+| `filter_y` | Median filter size | 120 |
 | `border_width` | Pixels to ignore at edges | 10 |
 
 ### Science (Extraction)

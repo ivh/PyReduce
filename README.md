@@ -34,7 +34,7 @@ uv sync
 uv run reduce download UVES
 
 # Run reduction
-uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+uv run reduce run UVES HD132205 --steps bias,flat,trace,science
 
 # Or run individual steps
 uv run reduce bias UVES HD132205

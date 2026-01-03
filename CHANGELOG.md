@@ -1,6 +1,18 @@
 # Changelog
 
 
+## [0.7a6] - 2026-01-03
+
+### Added
+- `--file` option for CLI step commands to bypass file discovery
+- NEID instrument with multi-amplifier support
+
+### Changed
+- Rename `orders` step to `trace` throughout codebase (CLI, API, configs)
+
+### Fixed
+- test_normflat to use column_range returned by extract
+
 ## [0.7a5] - 2025-12-30
 
 ### Changed

@@ -52,7 +52,7 @@ uv run reduce run UVES HD132205
 uv run reduce run UVES HD132205 --night 2010-04-01 --channel middle
 
 # Run specific steps
-uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+uv run reduce run UVES HD132205 --steps bias,flat,trace,science
 
 # Custom directories
 uv run reduce run HARPS "HD 12345" --base-dir /data --output-dir processed
@@ -68,7 +68,7 @@ Each reduction step can be run individually:
 ```bash
 uv run reduce bias INSTRUMENT TARGET [OPTIONS]
 uv run reduce flat INSTRUMENT TARGET [OPTIONS]
-uv run reduce orders INSTRUMENT TARGET [OPTIONS]
+uv run reduce trace INSTRUMENT TARGET [OPTIONS]
 uv run reduce curvature INSTRUMENT TARGET [OPTIONS]
 uv run reduce scatter INSTRUMENT TARGET [OPTIONS]
 uv run reduce norm_flat INSTRUMENT TARGET [OPTIONS]
@@ -82,7 +82,18 @@ uv run reduce continuum INSTRUMENT TARGET [OPTIONS]
 uv run reduce finalize INSTRUMENT TARGET [OPTIONS]
 ```
 
-These accept the same options as `run` except `--steps`.
+These accept the same options as `run` except `--steps`, plus:
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--file` | `-f` | Specific input file (bypasses file discovery) |
+
+**Example with --file:**
+
+```bash
+# Run trace on a specific flat file
+uv run reduce trace UVES HD132205 --file /path/to/flat.fits
+```
 
 ### download - Sample Data
 
@@ -139,7 +150,7 @@ Output:
 Available reduction steps:
   - bias
   - flat
-  - orders
+  - trace
   - curvature
   - scatter
   - norm_flat

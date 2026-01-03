@@ -13,11 +13,11 @@ Quick start:
 uv run reduce download UVES
 
 # Run full pipeline
-uv run reduce run UVES HD132205 --steps bias,flat,orders,science
+uv run reduce run UVES HD132205 --steps bias,flat,trace,science
 
 # Run individual steps
 uv run reduce bias UVES HD132205
-uv run reduce orders UVES HD132205
+uv run reduce trace UVES HD132205
 
 # List available steps
 uv run reduce list-steps
@@ -35,7 +35,7 @@ result = Pipeline.from_instrument(
     target="HD132205",
     night="2010-04-01",
     channel="middle",
-    steps=("bias", "flat", "orders", "science"),
+    steps=("bias", "flat", "trace", "science"),
     plot=1,
 ).run()
 ```
@@ -80,7 +80,7 @@ Steps are run in dependency order. Available steps:
 |------|-------------|
 | `bias` | Combine bias frames |
 | `flat` | Combine flat frames |
-| `orders` | Trace echelle orders on flat |
+| `trace` | Trace echelle orders on flat |
 | `curvature` | Measure slit tilt/shear |
 | `scatter` | Model inter-order background |
 | `norm_flat` | Normalize flat, extract blaze |
