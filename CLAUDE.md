@@ -283,3 +283,41 @@ uv run ruff check --fix .            # Lint and fix
 | `pyreduce/instruments/models.py` | Pydantic config models |
 | `pyreduce/clib/*.c` | C code for slit function decomposition |
 | `hatch_build.py` | CFFI extension build hook |
+
+## Release Process
+
+To release a new version (e.g., `0.7a6`):
+
+1. **Update documentation** for any renamed steps, new CLI options, etc:
+   - `README.md` - Quick start examples
+   - `docs/cli.md` - CLI reference
+   - `docs/index.md`, `docs/howto.md`, `docs/examples.md` - Usage examples
+   - `docs/configuration_file.md` - Config key names
+
+2. **Update CHANGELOG.md** with release date and changes
+
+3. **Update version** in `pyproject.toml`
+
+4. **Update example headers** - all `examples/*.py` have PEP 723 metadata:
+   ```python
+   # /// script
+   # dependencies = ["pyreduce-astro>=0.7a6"]
+   # ///
+   ```
+
+5. **Commit, tag, and push**:
+   ```bash
+   git add -A && git commit -m "Release v0.7a6"
+   git tag v0.7a6
+   git push && git push --tags
+   ```
+
+6. **Monitor GitHub Actions** - the tag push triggers:
+   - Tests on Python 3.13
+   - Wheel builds (Linux, Windows, macOS)
+   - PyPI upload
+   - GitHub Release creation
+
+   ```bash
+   gh run watch  # watch the triggered workflow
+   ```
