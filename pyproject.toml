@@ -55,6 +55,7 @@ dev = [
     "sphinx>=7.2.0",
     "ipython>=9.8.0",
     "myst-parser",
+    "setuptools>=60.0.0",
 ]
 
 [project.urls]
