@@ -108,20 +108,20 @@ def test_class_swath():
             assert tmp[j] is None
 
 
-def test_extend_orders():
+def test_extend_traces():
     # Test normal case
-    orders = np.array([[0.1, 5], [0.1, 7]])
-    extended = extract.extend_orders(orders, 10)
+    traces = np.array([[0.1, 5], [0.1, 7]])
+    extended = extract.extend_traces(traces, 10)
 
-    assert np.array_equal(orders, extended[1:-1])
+    assert np.array_equal(traces, extended[1:-1])
     assert np.array_equal(extended[0], [0.1, 3])
     assert np.array_equal(extended[-1], [0.1, 9])
 
-    # Test just one order
-    orders = np.array([0.1, 5], ndmin=2)
-    extended = extract.extend_orders(orders, 10)
+    # Test just one trace
+    traces = np.array([0.1, 5], ndmin=2)
+    extended = extract.extend_traces(traces, 10)
 
-    assert np.array_equal(orders, extended[1:-1])
+    assert np.array_equal(traces, extended[1:-1])
     assert np.array_equal(extended[0], [0, 0])
     assert np.array_equal(extended[-1], [0, 10])
 

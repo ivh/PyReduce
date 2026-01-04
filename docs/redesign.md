@@ -622,7 +622,43 @@ Output: 4 spectra per order (fiber_a_O, fiber_a_E, fiber_b_O, fiber_b_E)
 
 ---
 
-## Implementation Plan
+## Implementation Status
+
+### Completed (v0.7a6)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Step 1: Pipeline Class | ✅ Done | `pipeline.py` with fluent API |
+| Step 2: YAML Loader | ✅ Done | All 18 instruments in YAML |
+| Step 3: Convert Instruments | ✅ Done | JSON files deleted |
+| Step 4: Pydantic Models | ✅ Done | `InstrumentConfig` in `models.py` |
+| Step 5: Update Instrument Class | ✅ Done | Uses Pydantic config |
+| Step 6: CLI with Click | ✅ Done | `__main__.py` and `cli.py` |
+| Step 7: Deprecate Old Reducer | ✅ Done | `reduce.main()` shows deprecation warning |
+
+### Deferred (V2 Architecture)
+
+The nested V2 structure (`detectors[]`, `optical_paths[]`, `dimensions{}`) is defined in
+`models.py` as `InstrumentConfigV2` but not yet used. Current instruments use the flat
+`InstrumentConfig` structure with `channels` for detector/arm selection.
+
+**Terminology mapping:**
+- `channels` in current configs = detector/arm selection (BLUE/RED, UVB/VIS/NIR)
+- Multi-fiber handling (HARPS A/B, NEID SCI/CAL/SKY) = handled via `fiber` parameter and file classification patterns
+- Beam-splitter/polarimetry = handled via dedicated patterns (HARPSpol)
+
+**Multi-fiber tracing is implemented** (`trace.py`):
+- `merge_traces()` - merges even/odd illumination traces
+- `group_and_refit()` - groups physical fibers into logical fibers
+- See `examples/aj_example.py` for fiber bundle workflow
+
+**Multi-fiber extraction output is NOT implemented**:
+- Current `.fits` output has one spectrum per order (no fiber dimension)
+- Need to extend `echelle.py` for multi-fiber output (see "Output Format" section below)
+
+---
+
+## Original Implementation Plan
 
 ### Guiding Principle
 Each step should result in a working state. Add new code alongside old, validate it works, then switch over.
@@ -850,7 +886,7 @@ result = (
     .trace_orders()                # → instrument_orders.npz
     .normalize_flat()              # → instrument_norm_flat.npz
     .wavelength_calibration(files["wavecal"])
-    .extract(files["science"])     # → instrument_science_001.ech
+    .extract(files["science"])     # → instrument_science_001.fits
     .run()
 )
 
@@ -998,9 +1034,9 @@ result = (
 
 ## Output Format
 
-### Current: .ech Files
+### Current: .fits Files
 
-Currently outputs `.ech` files (FITS with binary table extension). One file per science frame with columns for wavelength, flux, uncertainty per order.
+Currently outputs `.fits` files (FITS with binary table extension). One file per science frame with columns for wavelength, flux, uncertainty per order.
 
 ### Challenge: Multiple Fibers/Beams
 
@@ -1035,11 +1071,11 @@ HDU 1: SPECTRA
 Option C: **Separate files with consistent naming**
 ```
 output/
-  harps_science_001_fiber_a.ech
-  harps_science_001_fiber_b.ech
+  harps_science_001_fiber_a.fits
+  harps_science_001_fiber_b.fits
   # or
-  harps_science_001_ord_O.ech  # ordinary beam
-  harps_science_001_ext_E.ech  # extraordinary beam
+  harps_science_001_ord_O.fits  # ordinary beam
+  harps_science_001_ext_E.fits  # extraordinary beam
 ```
 
 **Recommendation**: Option A (hierarchical extensions) - keeps related data together, self-documenting via HDU names, standard FITS viewers can browse structure.

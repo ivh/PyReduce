@@ -247,24 +247,24 @@ class Swath:
         self.info[key] = value[5]
 
 
-def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False):
+def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False):
     """Fix extraction width and column range, so that all pixels used are within the image.
     I.e. the column range is cut so that the everything is within the image
 
     Parameters
     ----------
     xwd : float, array
-        Extraction width, either one value for all orders, or the whole array
+        Extraction width, either one value for all traces, or the whole array
     cr : 2-tuple(int), array
-        Column range, either one value for all orders, or the whole array
-    orders : array
-        polynomial coefficients that describe each order
+        Column range, either one value for all traces, or the whole array
+    traces : array
+        polynomial coefficients that describe each trace
     nrow : int
         Number of rows in the image
     ncol : int
         Number of columns in the image
     nord : int
-        Number of orders in the image
+        Number of traces in the image
     ignore_column_range : bool, optional
         if true does not change the column range, however this may lead to problems with the extraction, by default False
 
@@ -274,8 +274,8 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False)
         fixed extraction width
     cr : array
         fixed column range
-    orders : array
-        the same orders as before
+    traces : array
+        the same traces as before
     """
 
     if xwd is None:
@@ -294,60 +294,60 @@ def fix_parameters(xwd, cr, orders, nrow, ncol, nord, ignore_column_range=False)
         if cr.ndim == 1:
             cr = np.tile(cr, (nord, 1))
 
-    orders = np.asarray(orders)
+    traces = np.asarray(traces)
 
     xwd = np.array([xwd[0], *xwd, xwd[-1]])
     cr = np.array([cr[0], *cr, cr[-1]])
-    orders = extend_orders(orders, nrow)
+    traces = extend_traces(traces, nrow)
 
-    xwd = fix_extraction_width(xwd, orders, cr, ncol)
+    xwd = fix_extraction_width(xwd, traces, cr, ncol)
     if not ignore_column_range:
-        cr, orders = fix_column_range(cr, orders, xwd, nrow, ncol)
+        cr, traces = fix_column_range(cr, traces, xwd, nrow, ncol)
 
-    orders = orders[1:-1]
+    traces = traces[1:-1]
     xwd = xwd[1:-1]
     cr = cr[1:-1]
 
-    return xwd, cr, orders
+    return xwd, cr, traces
 
 
-def extend_orders(orders, nrow):
-    """Extrapolate extra orders above and below the existing ones
+def extend_traces(traces, nrow):
+    """Extrapolate extra traces above and below the existing ones
 
     Parameters
     ----------
-    orders : array[nord, degree]
-        order tracing coefficients
+    traces : array[nord, degree]
+        trace polynomial coefficients
     nrow : int
         number of rows in the image
 
     Returns
     -------
-    orders : array[nord + 2, degree]
-        extended orders
+    traces : array[nord + 2, degree]
+        extended traces
     """
 
-    nord, ncoef = orders.shape
+    nord, ncoef = traces.shape
 
     if nord > 1:
-        order_low = 2 * orders[0] - orders[1]
-        order_high = 2 * orders[-1] - orders[-2]
+        trace_low = 2 * traces[0] - traces[1]
+        trace_high = 2 * traces[-1] - traces[-2]
     else:
-        order_low = [0 for _ in range(ncoef)]
-        order_high = [0 for _ in range(ncoef - 1)] + [nrow]
+        trace_low = [0 for _ in range(ncoef)]
+        trace_high = [0 for _ in range(ncoef - 1)] + [nrow]
 
-    return np.array([order_low, *orders, order_high])
+    return np.array([trace_low, *traces, trace_high])
 
 
-def fix_extraction_width(xwd, orders, cr, ncol):
+def fix_extraction_width(xwd, traces, cr, ncol):
     """Convert fractional extraction width to pixel range
 
     Parameters
     ----------
     extraction_width : array[nord, 2]
         current extraction width, in pixels or fractions (for values below 1.5)
-    orders : array[nord, degree]
-        order tracing coefficients
+    traces : array[nord, degree]
+        trace polynomial coefficients
     column_range : array[nord, 2]
         column range to use
     ncol : int
@@ -371,11 +371,11 @@ def fix_extraction_width(xwd, orders, cr, ncol):
 
                     if right < left:
                         raise ValueError(
-                            f"Check your column ranges. Orders {i} and {k} are weird"
+                            f"Check your column ranges. Traces {i} and {k} are weird"
                         )
 
-                    current = np.polyval(orders[i], x[left:right])
-                    below = np.polyval(orders[k], x[left:right])
+                    current = np.polyval(traces[i], x[left:right])
+                    below = np.polyval(traces[k], x[left:right])
                     xwd[i, j] *= np.min(np.abs(current - below))
 
         xwd[0] = xwd[1]
@@ -386,15 +386,15 @@ def fix_extraction_width(xwd, orders, cr, ncol):
     return xwd
 
 
-def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
+def fix_column_range(column_range, traces, extraction_width, nrow, ncol):
     """Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
 
     Parameters
     ----------
     img : array[nrow, ncol]
         image
-    orders : array[nord, degree]
-        order tracing coefficients
+    traces : array[nord, degree]
+        trace polynomial coefficients
     extraction_width : array[nord, 2]
         extraction width in pixels, (below, above)
     column_range : array[nord, 2]
@@ -406,16 +406,16 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
     -------
     column_range : array[nord, 2]
         updated column range
-    orders : array[nord, degree]
-        order tracing coefficients (may have rows removed if no valid pixels)
+    traces : array[nord, degree]
+        trace polynomial coefficients (may have rows removed if no valid pixels)
     """
 
     ix = np.arange(ncol)
     to_remove = []
-    # Loop over non extension orders
-    for i, order in zip(range(1, len(orders) - 1), orders[1:-1], strict=False):
-        # Shift order trace up/down by extraction_width
-        coeff_bot, coeff_top = np.copy(order), np.copy(order)
+    # Loop over non extension traces
+    for i, trace in zip(range(1, len(traces) - 1), traces[1:-1], strict=False):
+        # Shift trace up/down by extraction_width
+        coeff_bot, coeff_top = np.copy(trace), np.copy(trace)
         coeff_bot[-1] -= extraction_width[i, 0]
         coeff_top[-1] += extraction_width[i, 1]
 
@@ -423,14 +423,14 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
         y_top = np.polyval(coeff_top, ix)  # high edge of arc
 
         # find regions of pixels inside the image
-        # then use the region that most closely resembles the existing column range (from order tracing)
-        # but clip it to the existing column range (order tracing polynomials are not well defined outside the original range)
+        # then use the region that most closely resembles the existing column range (from tracing)
+        # but clip it to the existing column range (trace polynomials are not well defined outside the original range)
         points_in_image = np.where((y_bot >= 0) & (y_top < nrow))[0]
 
         if len(points_in_image) == 0:
             # print(y_bot, y_top,nrow, ncol, points_in_image)
             logger.warning(
-                f"No pixels are completely within the extraction width for order {i}, removing it."
+                f"No pixels are completely within the extraction width for trace {i}, removing it."
             )
             to_remove += [i]
             continue
@@ -457,9 +457,9 @@ def fix_column_range(column_range, orders, extraction_width, nrow, ncol):
 
     if to_remove:
         column_range = np.delete(column_range, to_remove, axis=0)
-        orders = np.delete(orders, to_remove, axis=0)
+        traces = np.delete(traces, to_remove, axis=0)
 
-    return column_range, orders
+    return column_range, traces
 
 
 def make_bins(swath_width, xlow, xhigh, ycen):
@@ -880,7 +880,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 
 def optimal_extraction(
     img,
-    orders,
+    traces,
     extraction_width,
     column_range,
     tilt,
@@ -891,14 +891,14 @@ def optimal_extraction(
 ):
     """Use optimal extraction to get spectra
 
-    This functions just loops over the orders, the actual work is done in extract_spectrum
+    This functions just loops over the traces, the actual work is done in extract_spectrum
 
     Parameters
     ----------
     img : array[nrow, ncol]
         image to extract
-    orders : array[nord, degree]
-        order tracing coefficients
+    traces : array[nord, degree]
+        trace polynomial coefficients
     extraction_width : array[nord, 2]
         extraction width in pixels
     column_range : array[nord, 2]
@@ -921,7 +921,7 @@ def optimal_extraction(
     logger.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
-    nord = len(orders)
+    nord = len(traces)
 
     spectrum = np.zeros((nord, ncol))
     uncertainties = np.zeros((nord, ncol))
@@ -948,11 +948,11 @@ def optimal_extraction(
     else:
         progress = None
 
-    for i in tqdm(range(nord), desc="Order"):
-        logger.debug("Extracting relative order %i out of %i", i + 1, nord)
+    for i in tqdm(range(nord), desc="Trace"):
+        logger.debug("Extracting trace %i out of %i", i + 1, nord)
 
-        # Define a fixed height area containing one spectral order
-        ycen = np.polyval(orders[i], ix)
+        # Define a fixed height area containing one trace
+        ycen = np.polyval(traces[i], ix)
         yrange = get_y_scale(ycen, column_range[i], extraction_width[i], nrow)
 
         osample = kwargs.get("osample", 1)
@@ -985,7 +985,7 @@ def optimal_extraction(
     if plot:  # pragma: no cover
         plot_comparison(
             img,
-            orders,
+            traces,
             spectrum,
             slitfunction,
             extraction_width,
@@ -1042,7 +1042,7 @@ def get_mask(img, model):
 
 def arc_extraction(
     img,
-    orders,
+    traces,
     extraction_width,
     column_range,
     gain=1,
@@ -1056,7 +1056,7 @@ def arc_extraction(
     **kwargs,
 ):
     """Use "simple" arc extraction to get a spectrum
-    Arc extraction simply takes the sum orthogonal to the order for extraction width pixels
+    Arc extraction simply takes the sum orthogonal to the trace for extraction width pixels
 
     This extraction makes a few rough assumptions and does not provide the most accurate results,
     but rather a good approximation
@@ -1065,8 +1065,8 @@ def arc_extraction(
     ----------
     img : array[nrow, ncol]
         image to extract
-    orders : array[nord, order]
-        order tracing coefficients
+    traces : array[nord, degree]
+        trace polynomial coefficients
     extraction_width : array[nord, 2]
         extraction width in pixels
     column_range : array[nord, 2]
@@ -1090,7 +1090,7 @@ def arc_extraction(
 
     logger.info("Using arc extraction to produce spectrum")
     _, ncol = img.shape
-    nord, _ = orders.shape
+    nord, _ = traces.shape
 
     spectrum = np.zeros((nord, ncol))
     uncertainties = np.zeros((nord, ncol))
@@ -1104,26 +1104,26 @@ def arc_extraction(
 
     x = np.arange(ncol)
 
-    for i in tqdm(range(nord), desc="Order"):
-        logger.debug("Calculating order %i out of %i", i + 1, nord)
+    for i in tqdm(range(nord), desc="Trace"):
+        logger.debug("Extracting trace %i out of %i", i + 1, nord)
 
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
 
-        # Rectify the image, i.e. remove the shape of the order
-        # Then the center of the order is within one pixel variations
-        ycen = np.polyval(orders[i], x).astype(int)
+        # Rectify the image, i.e. remove the shape of the trace
+        # Then the center of the trace is within one pixel variations
+        ycen = np.polyval(traces[i], x).astype(int)
         yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
         extraction_width[i, 0] + extraction_width[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
-        img_order = img[index]
+        img_trace = img[index]
 
         # Correct for tilt and shear
-        # For each row of the rectified order, interpolate onto the shifted row
+        # For each row of the rectified trace, interpolate onto the shifted row
         # Masked pixels are set to 0, similar to the summation
         if tilt is not None and shear is not None:
-            img_order = correct_for_curvature(
-                img_order,
+            img_trace = correct_for_curvature(
+                img_trace,
                 tilt[i, x_left_lim:x_right_lim],
                 shear[i, x_left_lim:x_right_lim],
                 extraction_width[i],
@@ -1131,11 +1131,11 @@ def arc_extraction(
 
         # Sum over the prepared image
         if collapse_function == "sum":
-            arc = np.ma.sum(img_order, axis=0)
+            arc = np.ma.sum(img_trace, axis=0)
         elif collapse_function == "mean":
-            arc = np.ma.mean(img_order, axis=0) * img_order.shape[0]
+            arc = np.ma.mean(img_trace, axis=0) * img_trace.shape[0]
         elif collapse_function == "median":
-            arc = np.ma.median(img_order, axis=0) * img_order.shape[0]
+            arc = np.ma.median(img_trace, axis=0) * img_trace.shape[0]
         else:
             raise ValueError(
                 f"Could not determine the arc method, expected one of ('sum', 'mean', 'median'), but got {collapse_function}"
@@ -1150,7 +1150,7 @@ def arc_extraction(
     if plot:  # pragma: no cover
         plot_comparison(
             img,
-            orders,
+            traces,
             spectrum,
             None,
             extraction_width,
@@ -1162,15 +1162,15 @@ def arc_extraction(
 
 
 def plot_comparison(
-    original, orders, spectrum, slitf, extraction_width, column_range, title=None
+    original, traces, spectrum, slitf, extraction_width, column_range, title=None
 ):  # pragma: no cover
     nrow, ncol = original.shape
-    nord = len(orders)
+    nord = len(traces)
     output = np.zeros((np.sum(extraction_width) + nord, ncol))
     pos = [0]
     x = np.arange(ncol)
     for i in range(nord):
-        ycen = np.polyval(orders[i], x)
+        ycen = np.polyval(traces[i], x)
         yb = ycen - extraction_width[i, 0]
         yt = ycen + extraction_width[i, 1]
         xl, xr = column_range[i]
@@ -1214,13 +1214,13 @@ def plot_comparison(
         plot_title = f"{title}\n{plot_title}"
     plt.title(plot_title)
     plt.xlabel("x [pixel]")
-    plt.ylabel("order")
+    plt.ylabel("trace")
     util.show_or_save("extract_rectify")
 
 
 def extract(
     img,
-    orders,
+    traces,
     column_range=None,
     order_range=None,
     extraction_width=0.5,
@@ -1237,14 +1237,14 @@ def extract(
     ----------
     img : array[nrow, ncol](float)
         observation to extract
-    orders : array[nord, degree](float)
-        polynomial coefficients of the order tracing
+    traces : array[nord, degree](float)
+        polynomial coefficients of the trace positions
     column_range : array[nord, 2](int), optional
-        range of pixels to use for each order (default: use all)
+        range of pixels to use for each trace (default: use all)
     order_range : array[2](int), optional
-        range of orders to extract, orders have to be consecutive (default: use all)
+        range of traces to extract, traces have to be consecutive (default: use all)
     extraction_width : array[nord, 2]({float, int}), optional
-        extraction width above and below each order, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
+        extraction width above and below each trace, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
     extraction_type : {"optimal", "arc", "normalize"}, optional
         which extracttion algorithm to use, "optimal" uses optimal extraction, "arc" uses simple arc extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
     tilt : float or array[nord, ncol], optional
@@ -1252,14 +1252,14 @@ def extract(
     shear : float or array[nord, ncol], optional
         The shear (2nd order curvature) of the slit for curved extraction (default: None, i.e. shear = 0)
     polarization : bool, optional
-        if true, pairs of orders are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
+        if true, pairs of traces are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
     **kwargs, optional
         parameters for extraction functions
 
     Returns
     -------
     spec : array[nord, ncol](float)
-        extracted spectrum for each order
+        extracted spectrum for each trace
     uncertainties : array[nord, ncol](float)
         uncertainties on the spectrum
 
@@ -1268,13 +1268,13 @@ def extract(
     im_norm : array[nrow, ncol](float)
         normalized image
     im_ordr : array[nrow, ncol](float)
-        image with just the orders
+        image with just the traces
     blaze : array[nord, ncol](float)
         extracted spectrum (equals blaze if img was the flat field)
     """
 
     nrow, ncol = img.shape
-    nord, _ = orders.shape
+    nord, _ = traces.shape
     if order_range is None:
         order_range = (0, nord)
     if np.isscalar(tilt):
@@ -1285,12 +1285,12 @@ def extract(
         shear = np.full((n, ncol), shear)
 
     # Fix the input parameters
-    extraction_width, column_range, orders = fix_parameters(
-        extraction_width, column_range, orders, nrow, ncol, nord
+    extraction_width, column_range, traces = fix_parameters(
+        extraction_width, column_range, traces, nrow, ncol, nord
     )
-    # Limit orders (and related properties) to orders in range
+    # Limit traces (and related properties) to traces in range
     nord = order_range[1] - order_range[0]
-    orders = orders[order_range[0] : order_range[1]]
+    traces = traces[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_width = extraction_width[order_range[0] : order_range[1]]
 
@@ -1311,7 +1311,7 @@ def extract(
         # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
-            orders,
+            traces,
             extraction_width,
             column_range,
             tilt=tilt,
@@ -1328,7 +1328,7 @@ def extract(
 
         blaze, _, _ = optimal_extraction(
             img,
-            orders,
+            traces,
             extraction_width,
             column_range,
             tilt=tilt,
@@ -1343,10 +1343,10 @@ def extract(
         im_ordr[im_ordr <= threshold_lower] = 1
         return im_norm, im_ordr, blaze, column_range
     elif extraction_type == "arc":
-        # Simpler extraction, just summing along the arc of the order
+        # Simpler extraction, just summing along the arc of the trace
         spectrum, uncertainties = arc_extraction(
             img,
-            orders,
+            traces,
             extraction_width,
             column_range,
             tilt=tilt,

@@ -59,4 +59,4 @@ Full documentation at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/).
 
 ## Output
 
-PyReduce creates `.ech` files (standard FITS with binary table extension). Headers include original keywords plus PyReduce-specific ones prefixed with `e_`.
+PyReduce creates `.fits` files (standard FITS with binary table extension). Headers include original keywords plus PyReduce-specific ones prefixed with `e_`.

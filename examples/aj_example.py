@@ -26,6 +26,7 @@ import os
 
 import numpy as np
 
+from pyreduce.extract import extract
 from pyreduce.instruments.instrument_info import load_instrument
 from pyreduce.trace import group_and_refit, merge_traces, trace
 
@@ -41,6 +42,7 @@ orders_file = os.path.join(raw_dir, "ANDES_75fibre_J_orders.npz")
 # Output
 output_dir = os.path.expanduser("~/REDUCE_DATA/AJ/reduced")
 output_file = os.path.join(output_dir, "fiber_traces.npz")
+output_blaze = os.path.join(output_dir, "fiber_blaze.npz")
 
 # Load order centers from npz file
 orders_data = np.load(orders_file)
@@ -65,7 +67,7 @@ trace_params = {
     "border_width": 0,
     "manual": False,
     "auto_merge_threshold": 1.0,
-    "merge_min_threshold": 0.1,
+    "merge_min_threshold": 1.0,  # 1.0 disables merging entirely
     "sigma": 0,
     "plot": 1,
 }
@@ -89,6 +91,10 @@ print(f"  Shape: {img_even.shape}, dtype: {img_even.dtype}")
 
 print(f"Loading {file_odd}...")
 img_odd, head_odd = instrument.load_fits(file_odd, channel=channel, extension=0)
+
+# Combine even and odd flats for extraction
+img_combined = img_even.astype(np.float64) + img_odd.astype(np.float64)
+print(f"Combined flat shape: {img_combined.shape}")
 
 # --- Step 2: Trace each flat independently ---
 print("\nTracing even-illuminated fibers...")
@@ -166,4 +172,38 @@ else:
     save_dict["column_range"] = all_cr
 
 np.savez(output_file, **save_dict)
-print(f"\nSaved to: {output_file}")
+print(f"\nSaved traces to: {output_file}")
+
+# --- Step 6: Extract spectra from all fiber traces ---
+# Flatten all traces into a single orders array for extraction
+all_traces = np.vstack([traces_by_order[k] for k in sorted(traces_by_order.keys())])
+all_cr = np.vstack([cr_by_order[k] for k in sorted(cr_by_order.keys())])
+print(f"\nExtracting {len(all_traces)} fiber traces...")
+
+# Extraction parameters
+extract_params = {
+    "extraction_width": 0.5,
+    "lambda_sf": 0.1,  # smooth_slitfunction
+    "lambda_sp": 0,  # smooth_spectrum
+    "osample": 10,  # oversampling
+    "swath_width": 200,
+    "plot": 1,
+}
+
+norm, spec, blaze, unc = extract(
+    img_combined,
+    all_traces,
+    column_range=all_cr,
+    extraction_type="normalize",
+    gain=1.0,
+    readnoise=0.0,
+    dark=0.0,
+    **extract_params,
+)
+
+print(f"  Extracted blaze shape: {blaze.shape}")
+print(f"  Normalized flat shape: {norm.shape}")
+
+# Save extraction results
+np.savez(output_blaze, blaze=blaze, norm=norm, spec=spec, unc=unc)
+print(f"Saved blaze to: {output_blaze}")
