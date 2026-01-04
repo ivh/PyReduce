@@ -1,75 +1,80 @@
 #!/usr/bin/env python3
-"""Builds the C library that contains the extraction algorithm
+"""Build script for CFFI C extensions (development only).
 
-This module prepares and builds the C libary containing the curved
-(and vertical) extraction algorithm using CFFI.
-It also prepares the ffibuilder objects for setup.py,
-so that the library is compiled on installation.
+Usage:
+    uv run reduce-build    # compile extensions
+    uv run reduce-clean    # remove compiled files
 
-
-The user can also call the Module as a script to compile the
-C libraries again.
-
-Attributes
-----------
-ffi_builder_vertical : FFI
-    CFFI Builder for the vertical extraction algorithm
-ffi_builder_curved : FFI
-    CFFI Builder for the curved extraction algorithm
+This compiles the C extraction libraries in-place for development.
+For production, extensions are built automatically during wheel creation
+via hatch_build.py.
 """
 
-import logging
+import glob
 import os
 
 from cffi import FFI
-
-logger = logging.getLogger(__name__)
-
 
 CWD = os.path.dirname(__file__)
 CWD = os.path.abspath(CWD)
 release_path = os.path.join(CWD, "Release")
 
-print("Include dir: ", CWD)
-print("Release dir: ", release_path)
 
-
-ffibuilder_vertical = FFI()
-with open(os.path.join(CWD, "slit_func_bd.h")) as f:
-    ffibuilder_vertical.cdef(f.read())
-with open(os.path.join(CWD, "slit_func_bd.c")) as f:
-    ffibuilder_vertical.set_source(
-        "_slitfunc_bd",
-        f.read(),
-        include_dirs=[CWD, release_path],
-        depends=["slit_func_bd.h"],
-    )
-
-ffibuilder_curved = FFI()
-with open(os.path.join(CWD, "slit_func_2d_xi_zeta_bd.h")) as f:
-    ffibuilder_curved.cdef(f.read())
-with open(os.path.join(CWD, "slit_func_2d_xi_zeta_bd.c")) as f:
-    ffibuilder_curved.set_source(
-        "_slitfunc_2d",
-        f.read(),
-        include_dirs=[CWD, release_path],
-        depends=["slit_func_2d_xi_zeta_bd.h"],
-    )
+def clean():
+    """Remove compiled extension files."""
+    patterns = ["*.so", "*.o", "*.pyd"]
+    removed = []
+    for pattern in patterns:
+        for f in glob.glob(os.path.join(CWD, pattern)):
+            os.remove(f)
+            removed.append(os.path.basename(f))
+    if removed:
+        print(f"Removed: {', '.join(removed)}")
+    else:
+        print("Nothing to clean.")
 
 
 def build():
-    """Builds the C slitfunc library"""
-    logger.info("Building required C libraries, this might take a few seconds")
+    """Build the C slitfunc libraries in-place."""
+    print("Building CFFI extensions for development...")
+    print(f"  Source dir: {CWD}")
 
     old_cwd = os.getcwd()
-    path = os.path.abspath(CWD)
-    os.chdir(path)
+    os.chdir(CWD)
 
-    ffibuilder_vertical.compile(verbose=True, debug=False)
-    ffibuilder_curved.compile(verbose=True, debug=False)
+    try:
+        # Vertical extraction
+        ffibuilder_vertical = FFI()
+        with open("slit_func_bd.h") as f:
+            ffibuilder_vertical.cdef(f.read())
+        with open("slit_func_bd.c") as f:
+            ffibuilder_vertical.set_source(
+                "_slitfunc_bd",
+                f.read(),
+                include_dirs=[CWD, release_path],
+                depends=["slit_func_bd.h"],
+            )
+        ffibuilder_vertical.compile(verbose=True)
+        print("[OK] _slitfunc_bd")
 
-    os.chdir(old_cwd)
+        # Curved extraction
+        ffibuilder_curved = FFI()
+        with open("slit_func_2d_xi_zeta_bd.h") as f:
+            ffibuilder_curved.cdef(f.read())
+        with open("slit_func_2d_xi_zeta_bd.c") as f:
+            ffibuilder_curved.set_source(
+                "_slitfunc_2d",
+                f.read(),
+                include_dirs=[CWD, release_path],
+                depends=["slit_func_2d_xi_zeta_bd.h"],
+            )
+        ffibuilder_curved.compile(verbose=True)
+        print("[OK] _slitfunc_2d")
+
+        print("Done.")
+    finally:
+        os.chdir(old_cwd)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     build()

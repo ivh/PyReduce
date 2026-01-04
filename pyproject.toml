@@ -55,6 +55,7 @@ dev = [
     "sphinx>=7.2.0",
     "ipython>=9.8.0",
     "myst-parser",
+    "setuptools",
 ]
 
 [project.urls]
@@ -65,6 +66,8 @@ Issues = "https://github.com/ivh/PyReduce/issues"
 
 [project.scripts]
 reduce = "pyreduce.__main__:main"
+reduce-build = "pyreduce.clib.build_extract:build"
+reduce-clean = "pyreduce.clib.build_extract:clean"
 
 [build-system]
 requires = ["hatchling>=1.25.0", "cffi>=1.17.1", "setuptools"]

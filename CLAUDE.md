@@ -260,11 +260,15 @@ uv run reduce list-steps
 
 ```bash
 uv sync                              # Install dependencies
+uv run reduce-build                  # Compile C extensions
+uv run reduce-clean                  # Remove compiled extensions
 uv run pre-commit install            # Setup hooks (once)
 uv run pytest -m unit                # Fast unit tests
 uv run pytest --instrument=UVES      # Test single instrument
 uv run ruff check --fix .            # Lint and fix
 ```
+
+After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to set up.
 
 ### Adding Instruments
 

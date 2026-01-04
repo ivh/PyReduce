@@ -14,23 +14,9 @@ from scipy.ndimage import median_filter
 
 logger = logging.getLogger(__name__)
 
-try:
-    from .clib._slitfunc_2d import ffi
-    from .clib._slitfunc_2d import lib as slitfunc_2dlib
-    from .clib._slitfunc_bd import lib as slitfunclib
-except ImportError:  # pragma: no cover
-    logger.error(
-        "C libraries could not be found. Compiling them by running build_extract.py"
-    )
-    from .clib import build_extract
-
-    build_extract.build()
-    del build_extract
-
-    from .clib._slitfunc_2d import ffi
-    from .clib._slitfunc_2d import lib as slitfunc_2dlib
-    from .clib._slitfunc_bd import lib as slitfunclib
-
+from .clib._slitfunc_2d import ffi
+from .clib._slitfunc_2d import lib as slitfunc_2dlib
+from .clib._slitfunc_bd import lib as slitfunclib
 
 c_double = ctypes.c_double
 c_int = ctypes.c_int
