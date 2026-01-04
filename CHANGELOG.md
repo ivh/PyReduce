@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [0.7a7] - 2026-01-04
+
+### Added
+- `--settings` option for CLI to override reduction parameters from JSON file
+
+### Changed
+- Rename `extraction_width` to `extraction_height` in settings (clarifies coordinate system)
+- Rename `orders` to `traces` in extract.py internal API
+
 ## [0.7a6] - 2026-01-03
 
 ### Added
