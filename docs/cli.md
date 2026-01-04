@@ -34,13 +34,14 @@ uv run reduce run INSTRUMENT TARGET [OPTIONS]
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--night` | `-n` | Observation night (YYYY-MM-DD format) |
-| `--channel` | `-a` | Instrument channel/detector (e.g., RED, BLUE, middle) |
+| `--channel` | `-c` | Instrument channel/detector (e.g., RED, BLUE, middle) |
 | `--steps` | `-s` | Comma-separated steps to run (default: all) |
 | `--base-dir` | `-b` | Base data directory (default: $REDUCE_DATA or ~/REDUCE_DATA) |
 | `--input-dir` | `-i` | Input directory relative to base (default: raw) |
 | `--output-dir` | `-o` | Output directory relative to base (default: reduced) |
 | `--plot` | `-p` | Plot level: 0=none, 1=save, 2=interactive |
 | `--order-range` | | Order range to process (e.g., "1,21") |
+| `--settings` | | JSON file with settings overrides |
 
 **Examples:**
 
@@ -87,12 +88,27 @@ These accept the same options as `run` except `--steps`, plus:
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--file` | `-f` | Specific input file (bypasses file discovery) |
+| `--settings` | | JSON file with settings overrides |
 
 **Example with --file:**
 
 ```bash
 # Run trace on a specific flat file
 uv run reduce trace UVES HD132205 --file /path/to/flat.fits
+
+# Override settings for a step
+uv run reduce trace UVES HD132205 --settings my_settings.json
+```
+
+The settings file can contain partial overrides:
+
+```json
+{
+  "trace": {
+    "degree": 6,
+    "noise": 50
+  }
+}
 ```
 
 ### download - Sample Data

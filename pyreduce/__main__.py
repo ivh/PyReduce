@@ -67,6 +67,12 @@ def cli():
     default=None,
     help="Order range to process (e.g., '1,21')",
 )
+@click.option(
+    "--settings",
+    default=None,
+    type=click.Path(exists=True),
+    help="JSON file with settings overrides",
+)
 def run(
     instrument,
     target,
@@ -78,13 +84,14 @@ def run(
     output_dir,
     plot,
     order_range,
+    settings,
 ):
     """Run the reduction pipeline.
 
     INSTRUMENT: Name of the instrument (e.g., UVES, HARPS, XSHOOTER)
     TARGET: Target star name or regex pattern
     """
-    from .configuration import get_configuration_for_instrument
+    from .configuration import get_configuration_for_instrument, load_settings_override
     from .reduce import main as reduce_main
 
     # Parse steps
@@ -100,6 +107,8 @@ def run(
 
     # Load configuration
     config = get_configuration_for_instrument(instrument)
+    if settings:
+        config = load_settings_override(config, settings)
 
     # Run reduction
     reduce_main(
@@ -292,10 +301,28 @@ def make_step_command(step_name):
         default=None,
         help="Specific input file (bypasses file discovery)",
     )
+    @click.option(
+        "--settings",
+        default=None,
+        type=click.Path(exists=True),
+        help="JSON file with settings overrides",
+    )
     def cmd(
-        instrument, target, night, channel, base_dir, input_dir, output_dir, plot, file
+        instrument,
+        target,
+        night,
+        channel,
+        base_dir,
+        input_dir,
+        output_dir,
+        plot,
+        file,
+        settings,
     ):
-        from .configuration import get_configuration_for_instrument
+        from .configuration import (
+            get_configuration_for_instrument,
+            load_settings_override,
+        )
         from .reduce import main as reduce_main
 
         if file:
@@ -305,7 +332,6 @@ def make_step_command(step_name):
             import numpy as np
 
             from . import reduce as reduce_module
-            from .configuration import get_configuration_for_instrument
             from .instruments.instrument_info import load_instrument
 
             inst = load_instrument(instrument)
@@ -317,6 +343,8 @@ def make_step_command(step_name):
 
             # Load configuration for this step
             config = get_configuration_for_instrument(instrument)
+            if settings:
+                config = load_settings_override(config, settings)
             step_config = config.get(step_name, {})
             step_config["plot"] = plot
 
@@ -355,6 +383,8 @@ def make_step_command(step_name):
             step.run(files=np.array([file]), mask=None, bias=None)
         else:
             config = get_configuration_for_instrument(instrument)
+            if settings:
+                config = load_settings_override(config, settings)
             reduce_main(
                 instrument=instrument,
                 target=target,

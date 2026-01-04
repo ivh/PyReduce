@@ -43,6 +43,26 @@ def get_configuration_for_instrument(instrument, **kwargs):
     return config
 
 
+def load_settings_override(config, settings_file):
+    """Apply settings overrides from a JSON file.
+
+    Parameters
+    ----------
+    config : dict
+        Base configuration to override
+    settings_file : str
+        Path to JSON file with override settings
+
+    Returns
+    -------
+    config : dict
+        Updated configuration
+    """
+    with open(settings_file) as f:
+        overrides = json.load(f)
+    return update(config, overrides, check=False)
+
+
 def load_config(configuration, instrument, j=0):
     if configuration is None:
         logger.info(
