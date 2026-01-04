@@ -298,6 +298,8 @@ To release a new version (e.g., `0.7a6`):
 
 3. **Update version** in `pyproject.toml`
 
+3a. **sync** - run `uv sync` to get the new version into uv.lock
+
 4. **Update example headers** - all `examples/*.py` have PEP 723 metadata:
    ```python
    # /// script
