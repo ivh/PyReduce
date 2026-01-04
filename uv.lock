@@ -1173,7 +1173,6 @@ dependencies = [
     { name = "scipy" },
     { name = "spectres" },
     { name = "tqdm" },
-    { name = "wget" },
 ]
 
 [package.dev-dependencies]
@@ -1208,7 +1207,6 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "spectres", specifier = ">=2.2.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
-    { name = "wget", specifier = ">=3.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -1763,9 +1761,3 @@ sdist = { url = "https://files.pythonhosted.org/packages/24/30/6b0809f4510673dc7
 wheels = [
     { url = "https://files.pythonhosted.org/packages/af/b5/123f13c975e9f27ab9c0770f514345bd406d0e8d3b7a0723af9d43f710af/wcwidth-0.2.14-py2.py3-none-any.whl", hash = "sha256:a7bb560c8aee30f9957e5f9895805edd20602f2d7f720186dfd906e82b4982e1", size = 37286, upload-time = "2025-09-22T16:29:51.641Z" },
 ]
-
-[[package]]
-name = "wget"
-version = "3.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/47/6a/62e288da7bcda82b935ff0c6cfe542970f04e29c756b0e147251b2fb251f/wget-3.2.zip", hash = "sha256:35e630eca2aa50ce998b9b1a127bb26b30dfee573702782aa982f875e3f16061", size = 10857, upload-time = "2015-10-22T15:26:37.51Z" }
