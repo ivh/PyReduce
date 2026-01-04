@@ -96,7 +96,7 @@ class Curvature:
     def __init__(
         self,
         orders,
-        extraction_width=0.5,
+        extraction_height=0.5,
         column_range=None,
         order_range=None,
         window_width=9,
@@ -111,7 +111,7 @@ class Curvature:
         curv_degree=2,
     ):
         self.orders = orders
-        self.extraction_width = extraction_width
+        self.extraction_height = extraction_height
         self.column_range = column_range
         if order_range is None:
             order_range = (0, self.nord)
@@ -158,18 +158,18 @@ class Curvature:
 
     def _fix_inputs(self, original):
         orders = self.orders
-        extraction_width = self.extraction_width
+        extraction_height = self.extraction_height
         column_range = self.column_range
 
         nrow, ncol = original.shape
         nord = len(orders)
 
-        extraction_width, column_range, orders = fix_parameters(
-            extraction_width, column_range, orders, nrow, ncol, nord
+        extraction_height, column_range, orders = fix_parameters(
+            extraction_height, column_range, orders, nrow, ncol, nord
         )
 
         self.column_range = column_range[self.order_range[0] : self.order_range[1]]
-        self.extraction_width = extraction_width[
+        self.extraction_height = extraction_height[
             self.order_range[0] : self.order_range[1]
         ]
         self.orders = orders[self.order_range[0] : self.order_range[1]]
@@ -356,7 +356,7 @@ class Curvature:
             logger.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
-            xwd = self.extraction_width[j]
+            xwd = self.extraction_height[j]
             ycen = np.polyval(self.orders[j], np.arange(ncol))
             ycen_int = ycen.astype(int)
             ycen -= ycen_int
@@ -518,13 +518,13 @@ class Curvature:
 
     def plot_comparison(self, original, tilt, shear, peaks):  # pragma: no cover
         _, ncol = original.shape
-        output = np.zeros((np.sum(self.extraction_width) + self.nord, ncol))
+        output = np.zeros((np.sum(self.extraction_height) + self.nord, ncol))
         pos = [0]
         x = np.arange(ncol)
         for i in range(self.nord):
             ycen = np.polyval(self.orders[i], x)
-            yb = ycen - self.extraction_width[i, 0]
-            yt = ycen + self.extraction_width[i, 1]
+            yb = ycen - self.extraction_height[i, 0]
+            yt = ycen + self.extraction_height[i, 1]
             xl, xr = self.column_range[i]
             index = make_index(yb, yt, xl, xr)
             yl = pos[i]
@@ -537,7 +537,7 @@ class Curvature:
 
         for i in range(self.nord):
             for p in peaks[i]:
-                ew = self.extraction_width[i]
+                ew = self.extraction_height[i]
                 x = np.zeros(ew[0] + ew[1] + 1)
                 y = np.arange(-ew[0], ew[1] + 1)
                 for j, yt in enumerate(y):
@@ -545,7 +545,7 @@ class Curvature:
                 y += pos[i] + ew[0]
                 plt.plot(x, y, "r")
 
-        locs = np.sum(self.extraction_width, axis=1) + 1
+        locs = np.sum(self.extraction_height, axis=1) + 1
         locs = np.array([0, *np.cumsum(locs)[:-1]])
         locs[:-1] += (np.diff(locs) * 0.5).astype(int)
         locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)

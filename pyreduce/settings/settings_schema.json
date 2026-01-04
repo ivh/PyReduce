@@ -225,7 +225,7 @@
                                 "minimum": 0
                             }
                         },
-                        "extraction_width": {
+                        "extraction_height": {
                             "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
                             "type": [
                                 "integer",
@@ -560,7 +560,7 @@
                 {
                     "type": "object",
                     "properties": {
-                        "extraction_width": {
+                        "extraction_height": {
                             "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
                             "type": [
                                 "integer",
@@ -590,7 +590,7 @@
                         }
                     },
                     "required": [
-                        "extraction_width"
+                        "extraction_height"
                     ]
                 }
             ]
@@ -703,7 +703,7 @@
                             "type": "integer",
                             "minimum": 3
                         },
-                        "extraction_width": {
+                        "extraction_height": {
                             "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
                             "type": [
                                 "integer",
@@ -729,7 +729,7 @@
                         "smooth_slitfunction",
                         "smooth_spectrum",
                         "swath_width",
-                        "extraction_width",
+                        "extraction_height",
                         "extraction_cutoff"
                     ]
                 },
@@ -743,7 +743,7 @@
                                 "arc"
                             ]
                         },
-                        "extraction_width": {
+                        "extraction_height": {
                             "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
                             "type": [
                                 "integer",
@@ -774,7 +774,7 @@
                     },
                     "required": [
                         "extraction_method",
-                        "extraction_width",
+                        "extraction_height",
                         "extraction_cutoff",
                         "collapse_function"
                     ]

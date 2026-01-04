@@ -29,7 +29,7 @@ def test_wavecal(
         extraction_type="arc",
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings[name]["extraction_width"],
+        extraction_height=settings[name]["extraction_height"],
         plot=False,
     )
 

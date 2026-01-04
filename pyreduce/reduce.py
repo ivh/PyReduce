@@ -357,13 +357,13 @@ class ExtractionStep(Step):
         if self.extraction_method == "arc":
             #:dict: arguments for the extraction
             self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
+                "extraction_height": config["extraction_height"],
                 "sigma_cutoff": config["extraction_cutoff"],
                 "collapse_function": config["collapse_function"],
             }
         elif self.extraction_method == "optimal":
             self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
+                "extraction_height": config["extraction_height"],
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
@@ -835,7 +835,7 @@ class BackgroundScatter(CalibrationStep):
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
-        self.extraction_width = config["extraction_width"]
+        self.extraction_height = config["extraction_height"]
         self.sigma_cutoff = config["scatter_cutoff"]
         self.border_width = config["border_width"]
 
@@ -854,7 +854,7 @@ class BackgroundScatter(CalibrationStep):
             scatter_img,
             orders,
             column_range=column_range,
-            extraction_width=self.extraction_width,
+            extraction_height=self.extraction_height,
             scatter_degree=self.scatter_degree,
             sigma_cutoff=self.sigma_cutoff,
             border_width=self.border_width,
@@ -908,7 +908,7 @@ class NormalizeFlatField(Step):
         if self.extraction_method == "normalize":
             #:dict: arguments for the extraction
             self.extraction_kwargs = {
-                "extraction_width": config["extraction_width"],
+                "extraction_height": config["extraction_height"],
                 "lambda_sf": config["smooth_slitfunction"],
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
@@ -1488,7 +1488,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["curvature_cutoff"]
         #:float: width of the orders in the extraction
-        self.extraction_width = config["extraction_width"]
+        self.extraction_height = config["extraction_height"]
         #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
@@ -1538,7 +1538,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         module = CurvatureModule(
             orders,
             column_range=column_range,
-            extraction_width=self.extraction_width,
+            extraction_height=self.extraction_height,
             order_range=self.order_range,
             fit_degree=self.fit_degree,
             curv_degree=self.curv_degree,
@@ -1598,7 +1598,7 @@ class RectifyImage(Step):
         self._dependsOn += ["files", "trace", "curvature", "mask", "freq_comb"]
         # self._loadDependsOn += []
 
-        self.extraction_width = config["extraction_width"]
+        self.extraction_height = config["extraction_height"]
         self.input_files = config["input_files"]
 
     def filename(self, name):
@@ -1621,7 +1621,7 @@ class RectifyImage(Step):
                 img,
                 orders,
                 column_range,
-                self.extraction_width,
+                self.extraction_height,
                 self.order_range,
                 tilt,
                 shear,

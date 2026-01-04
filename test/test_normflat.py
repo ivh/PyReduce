@@ -25,7 +25,7 @@ def test_normflat(flat, orders, settings, order_range, scatter, instrument):
         column_range=column_range,
         order_range=order_range,
         extraction_type="normalize",
-        extraction_width=settings["extraction_width"],
+        extraction_height=settings["extraction_height"],
         threshold=settings["threshold"],
         lambda_sf=settings["smooth_slitfunction"],
         lambda_sp=settings["smooth_spectrum"],

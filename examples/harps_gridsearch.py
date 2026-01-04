@@ -71,7 +71,7 @@ kwargs_comb["nstep"] = 0
 kwargs["plot"] = False
 
 
-for key in ["extraction_method", "extraction_width", "extraction_cutoff"]:
+for key in ["extraction_method", "extraction_height", "extraction_cutoff"]:
     del kwargs_comb[key]
     del kwargs[key]
 

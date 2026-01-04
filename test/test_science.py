@@ -55,7 +55,7 @@ def test_science(
         column_range=column_range,
         order_range=order_range,
         extraction_type=settings["extraction_method"],
-        extraction_width=settings["extraction_width"],
+        extraction_height=settings["extraction_height"],
         lambda_sf=settings["smooth_slitfunction"],
         lambda_sp=settings["smooth_spectrum"],
         osample=settings["oversampling"],

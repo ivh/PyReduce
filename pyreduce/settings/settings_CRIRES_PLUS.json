@@ -20,21 +20,21 @@
         "bias_scaling": "exposure_time"
     },
     "scatter": {
-        "extraction_width": 0.45,
+        "extraction_height": 0.45,
         "border_width": 50,
         "bias_scaling": "exposure_time"
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_width": 100,
+        "extraction_height": 100,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
     },
     "wavecal_master": {
         "extraction_method": "optimal",
-        "extraction_width": 100,
+        "extraction_height": 100,
         "oversampling": 5,
         "swath_width": 2000,
         "smooth_slitfunction": 1,
@@ -57,7 +57,7 @@
         "manual": false
     },
     "freq_comb_master": {
-        "extraction_width": 10,
+        "extraction_height": 10,
         "bias_scaling": "exposure_time"
     },
     "freq_comb": {
@@ -68,7 +68,7 @@
     "curvature": {
         "peak_threshold": 1,
         "window_width": 15,
-        "extraction_width": 100,
+        "extraction_height": 100,
         "dimensionality": "2D",
         "degree": [
             1,
@@ -80,7 +80,7 @@
     },
     "science": {
         "oversampling": 1,
-        "extraction_width": 10,
+        "extraction_height": 10,
         "swath_width": 300,
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 0,

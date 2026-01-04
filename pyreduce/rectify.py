@@ -7,20 +7,20 @@ from .extract import correct_for_curvature, fix_parameters
 
 
 def rectify_image(
-    img, orders, column_range, extraction_width, order_range, tilt=None, shear=None
+    img, orders, column_range, extraction_height, order_range, tilt=None, shear=None
 ):
     nord, _ = orders.shape
     nrow, ncol = img.shape
     x = np.arange(ncol)
 
-    extraction_width, column_range, orders = fix_parameters(
-        extraction_width, column_range, orders, nrow, ncol, nord
+    extraction_height, column_range, orders = fix_parameters(
+        extraction_height, column_range, orders, nrow, ncol, nord
     )
 
     nord = order_range[1] - order_range[0]
     orders = orders[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
-    extraction_width = extraction_width[order_range[0] : order_range[1]]
+    extraction_height = extraction_height[order_range[0] : order_range[1]]
 
     images = {}
     for i in tqdm(range(nord), desc="Order"):
@@ -30,8 +30,8 @@ def rectify_image(
         # Rectify the image, i.e. remove the shape of the order
         # Then the center of the order is within one pixel variations
         ycen = np.polyval(orders[i], x).astype(int)
-        yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-        extraction_width[i, 0] + extraction_width[i, 1] + 1
+        yb, yt = ycen - extraction_height[i, 0], ycen + extraction_height[i, 1]
+        extraction_height[i, 0] + extraction_height[i, 1] + 1
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
@@ -43,14 +43,14 @@ def rectify_image(
                 img_order,
                 tilt[i, x_left_lim:x_right_lim],
                 shear[i, x_left_lim:x_right_lim],
-                extraction_width[i],
+                extraction_height[i],
             )
         images[i] = img_order
 
-    return images, column_range, extraction_width
+    return images, column_range, extraction_height
 
 
-def merge_images(images, wave, column_range, extraction_width):
+def merge_images(images, wave, column_range, extraction_height):
     x_total = sum(img.shape[1] for img in images.values())
     y_max = max(*[img.shape[0] for img in images.values()])
     y_mid = y_max // 2
@@ -64,7 +64,7 @@ def merge_images(images, wave, column_range, extraction_width):
         img0 = images[iord0]
         img1 = images[iord1]
 
-        xwd0, xwd1 = extraction_width[iord0], extraction_width[iord1]
+        xwd0, xwd1 = extraction_height[iord0], extraction_height[iord1]
         y0_low = y_mid - xwd0[0]
         y0_high = y_mid + xwd0[1] + 1
 

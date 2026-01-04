@@ -206,7 +206,7 @@ def test_fix_parameters():
             assert orders.shape[0] == nord
             assert orders.shape[1] == 3
 
-    # Test that extraction_width=100 results in no valid pixels,
+    # Test that extraction_height=100 results in no valid pixels,
     # which now logs a warning and removes the order instead of raising ValueError
     xwd, cr, orders_out = extract.fix_parameters(100, None, orders, ncol, nrow, nord)
     # The order should be removed, resulting in an empty array
@@ -216,7 +216,7 @@ def test_fix_parameters():
 def test_arc_extraction(sample_data, orders, width, oversample):
     img, spec, slitf = sample_data
 
-    extraction_width = np.array([[10, 10]])
+    extraction_height = np.array([[10, 10]])
     column_range = np.array([[0, width]])
 
     nord = len(orders)
@@ -224,7 +224,7 @@ def test_arc_extraction(sample_data, orders, width, oversample):
     shear = np.zeros((nord, width))
 
     spec_out, unc_out = extract.arc_extraction(
-        img, orders, extraction_width, column_range, tilt=tilt, shear=shear
+        img, orders, extraction_height, column_range, tilt=tilt, shear=shear
     )
 
     assert isinstance(spec_out, np.ndarray)
@@ -314,9 +314,9 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
     img, spec, slitf = sample_data
 
     column_range = np.array([[20, width]])
-    extraction_width = np.array([[10, 10]])
+    extraction_height = np.array([[10, 10]])
 
-    yrange = extract.get_y_scale(ycen, column_range[0], extraction_width[0], height)
+    yrange = extract.get_y_scale(ycen, column_range[0], extraction_height[0], height)
     xrange = column_range[0]
 
     out_spec = np.zeros(width)

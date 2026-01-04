@@ -300,7 +300,7 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
     cr = np.array([cr[0], *cr, cr[-1]])
     traces = extend_traces(traces, nrow)
 
-    xwd = fix_extraction_width(xwd, traces, cr, ncol)
+    xwd = fix_extraction_height(xwd, traces, cr, ncol)
     if not ignore_column_range:
         cr, traces = fix_column_range(cr, traces, xwd, nrow, ncol)
 
@@ -339,12 +339,12 @@ def extend_traces(traces, nrow):
     return np.array([trace_low, *traces, trace_high])
 
 
-def fix_extraction_width(xwd, traces, cr, ncol):
+def fix_extraction_height(xwd, traces, cr, ncol):
     """Convert fractional extraction width to pixel range
 
     Parameters
     ----------
-    extraction_width : array[nord, 2]
+    extraction_height : array[nord, 2]
         current extraction width, in pixels or fractions (for values below 1.5)
     traces : array[nord, degree]
         trace polynomial coefficients
@@ -355,7 +355,7 @@ def fix_extraction_width(xwd, traces, cr, ncol):
 
     Returns
     -------
-    extraction_width : array[nord, 2]
+    extraction_height : array[nord, 2]
         updated extraction width in pixels
     """
 
@@ -386,7 +386,7 @@ def fix_extraction_width(xwd, traces, cr, ncol):
     return xwd
 
 
-def fix_column_range(column_range, traces, extraction_width, nrow, ncol):
+def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
     """Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
 
     Parameters
@@ -395,7 +395,7 @@ def fix_column_range(column_range, traces, extraction_width, nrow, ncol):
         image
     traces : array[nord, degree]
         trace polynomial coefficients
-    extraction_width : array[nord, 2]
+    extraction_height : array[nord, 2]
         extraction width in pixels, (below, above)
     column_range : array[nord, 2]
         current column range
@@ -414,10 +414,10 @@ def fix_column_range(column_range, traces, extraction_width, nrow, ncol):
     to_remove = []
     # Loop over non extension traces
     for i, trace in zip(range(1, len(traces) - 1), traces[1:-1], strict=False):
-        # Shift trace up/down by extraction_width
+        # Shift trace up/down by extraction_height
         coeff_bot, coeff_top = np.copy(trace), np.copy(trace)
-        coeff_bot[-1] -= extraction_width[i, 0]
-        coeff_top[-1] += extraction_width[i, 1]
+        coeff_bot[-1] -= extraction_height[i, 0]
+        coeff_top[-1] += extraction_height[i, 1]
 
         y_bot = np.polyval(coeff_bot, ix)  # low edge of arc
         y_top = np.polyval(coeff_top, ix)  # high edge of arc
@@ -837,7 +837,7 @@ def model(spec, slitf):
     return spec[None, :] * slitf[:, None]
 
 
-def get_y_scale(ycen, xrange, extraction_width, nrow):
+def get_y_scale(ycen, xrange, extraction_height, nrow):
     """Calculate the y limits of the order
     This is especially important at the edges
 
@@ -847,7 +847,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
         order trace
     xrange : tuple(int, int)
         column range
-    extraction_width : tuple(int, int)
+    extraction_height : tuple(int, int)
         extraction width in pixels below and above the order
     nrow : int
         number of rows in the image, defines upper edge
@@ -859,14 +859,14 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
     """
     ycen = ycen[xrange[0] : xrange[1]]
 
-    ymin = ycen - extraction_width[0]
+    ymin = ycen - extraction_height[0]
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
     if max(ymin) >= nrow:
         ymin = ymin - max(ymin) + nrow - 1  # helps at edge
 
-    ymax = ycen + extraction_width[1]
+    ymax = ycen + extraction_height[1]
     ymax = np.ceil(ymax)
     if max(ymax) >= nrow:
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
@@ -881,7 +881,7 @@ def get_y_scale(ycen, xrange, extraction_width, nrow):
 def optimal_extraction(
     img,
     traces,
-    extraction_width,
+    extraction_height,
     column_range,
     tilt,
     shear,
@@ -899,7 +899,7 @@ def optimal_extraction(
         image to extract
     traces : array[nord, degree]
         trace polynomial coefficients
-    extraction_width : array[nord, 2]
+    extraction_height : array[nord, 2]
         extraction width in pixels
     column_range : array[nord, 2]
         column range to use
@@ -942,7 +942,7 @@ def optimal_extraction(
     ix = np.arange(ncol)
     if plot >= 2:  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
-        nrow_swath = np.sum(extraction_width, axis=1).max()
+        nrow_swath = np.sum(extraction_height, axis=1).max()
         nslitf_swath = (nrow_swath + 2) * kwargs.get("osample", 1) + 1
         progress = ProgressPlot(nrow_swath, ncol_swath, nslitf_swath, title=plot_title)
     else:
@@ -953,7 +953,7 @@ def optimal_extraction(
 
         # Define a fixed height area containing one trace
         ycen = np.polyval(traces[i], ix)
-        yrange = get_y_scale(ycen, column_range[i], extraction_width[i], nrow)
+        yrange = get_y_scale(ycen, column_range[i], extraction_height[i], nrow)
 
         osample = kwargs.get("osample", 1)
         slitfunction[i] = np.zeros(osample * (sum(yrange) + 2) + 1)
@@ -988,7 +988,7 @@ def optimal_extraction(
             traces,
             spectrum,
             slitfunction,
-            extraction_width,
+            extraction_height,
             column_range,
             title=plot_title,
         )
@@ -1043,7 +1043,7 @@ def get_mask(img, model):
 def arc_extraction(
     img,
     traces,
-    extraction_width,
+    extraction_height,
     column_range,
     gain=1,
     readnoise=0,
@@ -1067,7 +1067,7 @@ def arc_extraction(
         image to extract
     traces : array[nord, degree]
         trace polynomial coefficients
-    extraction_width : array[nord, 2]
+    extraction_height : array[nord, 2]
         extraction width in pixels
     column_range : array[nord, 2]
         column range to use
@@ -1113,8 +1113,8 @@ def arc_extraction(
         # Rectify the image, i.e. remove the shape of the trace
         # Then the center of the trace is within one pixel variations
         ycen = np.polyval(traces[i], x).astype(int)
-        yb, yt = ycen - extraction_width[i, 0], ycen + extraction_width[i, 1]
-        extraction_width[i, 0] + extraction_width[i, 1] + 1
+        yb, yt = ycen - extraction_height[i, 0], ycen + extraction_height[i, 1]
+        extraction_height[i, 0] + extraction_height[i, 1] + 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
         img_trace = img[index]
 
@@ -1126,7 +1126,7 @@ def arc_extraction(
                 img_trace,
                 tilt[i, x_left_lim:x_right_lim],
                 shear[i, x_left_lim:x_right_lim],
-                extraction_width[i],
+                extraction_height[i],
             )
 
         # Sum over the prepared image
@@ -1153,7 +1153,7 @@ def arc_extraction(
             traces,
             spectrum,
             None,
-            extraction_width,
+            extraction_height,
             column_range,
             title=plot_title,
         )
@@ -1162,17 +1162,17 @@ def arc_extraction(
 
 
 def plot_comparison(
-    original, traces, spectrum, slitf, extraction_width, column_range, title=None
+    original, traces, spectrum, slitf, extraction_height, column_range, title=None
 ):  # pragma: no cover
     nrow, ncol = original.shape
     nord = len(traces)
-    output = np.zeros((np.sum(extraction_width) + nord, ncol))
+    output = np.zeros((np.sum(extraction_height) + nord, ncol))
     pos = [0]
     x = np.arange(ncol)
     for i in range(nord):
         ycen = np.polyval(traces[i], x)
-        yb = ycen - extraction_width[i, 0]
-        yt = ycen + extraction_width[i, 1]
+        yb = ycen - extraction_height[i, 0]
+        yt = ycen + extraction_height[i, 1]
         xl, xr = column_range[i]
         index = make_index(yb, yt, xl, xr)
         yl = pos[i]
@@ -1203,7 +1203,7 @@ def plot_comparison(
         except:
             pass
 
-    locs = np.sum(extraction_width, axis=1) + 1
+    locs = np.sum(extraction_height, axis=1) + 1
     locs = np.array([0, *np.cumsum(locs)[:-1]])
     locs[:-1] += (np.diff(locs) * 0.5).astype(int)
     locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
@@ -1223,7 +1223,7 @@ def extract(
     traces,
     column_range=None,
     order_range=None,
-    extraction_width=0.5,
+    extraction_height=0.5,
     extraction_type="optimal",
     tilt=None,
     shear=None,
@@ -1243,7 +1243,7 @@ def extract(
         range of pixels to use for each trace (default: use all)
     order_range : array[2](int), optional
         range of traces to extract, traces have to be consecutive (default: use all)
-    extraction_width : array[nord, 2]({float, int}), optional
+    extraction_height : array[nord, 2]({float, int}), optional
         extraction width above and below each trace, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
     extraction_type : {"optimal", "arc", "normalize"}, optional
         which extracttion algorithm to use, "optimal" uses optimal extraction, "arc" uses simple arc extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
@@ -1285,14 +1285,14 @@ def extract(
         shear = np.full((n, ncol), shear)
 
     # Fix the input parameters
-    extraction_width, column_range, traces = fix_parameters(
-        extraction_width, column_range, traces, nrow, ncol, nord
+    extraction_height, column_range, traces = fix_parameters(
+        extraction_height, column_range, traces, nrow, ncol, nord
     )
     # Limit traces (and related properties) to traces in range
     nord = order_range[1] - order_range[0]
     traces = traces[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
-    extraction_width = extraction_width[order_range[0] : order_range[1]]
+    extraction_height = extraction_height[order_range[0] : order_range[1]]
 
     # if sigma_cutoff > 0:
     #     # Blur the image and mask outliers
@@ -1312,7 +1312,7 @@ def extract(
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
             traces,
-            extraction_width,
+            extraction_height,
             column_range,
             tilt=tilt,
             shear=shear,
@@ -1329,7 +1329,7 @@ def extract(
         blaze, _, _ = optimal_extraction(
             img,
             traces,
-            extraction_width,
+            extraction_height,
             column_range,
             tilt=tilt,
             shear=shear,
@@ -1347,7 +1347,7 @@ def extract(
         spectrum, uncertainties = arc_extraction(
             img,
             traces,
-            extraction_width,
+            extraction_height,
             column_range,
             tilt=tilt,
             shear=shear,

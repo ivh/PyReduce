@@ -7,13 +7,13 @@ from .util import make_index
 logger = logging.getLogger(__name__)
 
 
-def estimate_extraction_width(
+def estimate_extraction_height(
     img, orders, column_range, plot=False
 ):  # pragma: no cover
     raise NotImplementedError
     nrow, ncol = img.shape
     nord, _ = orders.shape
-    extraction_width = np.zeros((nord, 2), dtype=int)
+    extraction_height = np.zeros((nord, 2), dtype=int)
 
     for i in range(nord):
         # first guess, half way to the next order
@@ -72,6 +72,6 @@ def estimate_extraction_width(
         # plt.imshow(np.log(img[index]), aspect="auto", origin="lower")
         # plt.show()
         width = 0.5
-        extraction_width[i] = [width, width]
+        extraction_height[i] = [width, width]
 
-    return extraction_width
+    return extraction_height

@@ -48,11 +48,11 @@ config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
 
 # config["trace"]["noise"] = 100
-# config["curvature"]["extraction_width"] = 350 # curvature can still be improved with this and the following parameters
+# config["curvature"]["extraction_height"] = 350 # curvature can still be improved with this and the following parameters
 # config["curvature"]["peak_threshold"] =10
 # config["curvature"]["peak_width"] =2 #CHECK 6 also works and detects one less line
 # config["curvature"]["window_width"] = 5
-# config["wavecal"]["extraction_width"] = 350
+# config["wavecal"]["extraction_height"] = 350
 
 # NOTE: micado.thar_master.fits (created and controlled by wavecal_master) is NOT overwritten if any parameter in the steps in or before it are changed. Thus it has to be deleted before running PyReduce again.
 

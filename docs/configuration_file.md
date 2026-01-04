@@ -25,7 +25,7 @@ extraction parameters, etc.
   },
   "science": {
     "extraction_method": "optimal",
-    "extraction_width": 0.5,
+    "extraction_height": 0.5,
     "oversampling": 10
   }
 }
@@ -105,7 +105,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `extraction_method` | "optimal" or "arc" | "optimal" |
-| `extraction_width` | Width in order widths | 0.5 |
+| `extraction_height` | Width in order widths | 0.5 |
 | `oversampling` | Slit function oversampling | 10 |
 | `smooth_slitfunction` | Smoothing factor | 1 |
 | `swath_width` | Width of extraction swaths | 300 |

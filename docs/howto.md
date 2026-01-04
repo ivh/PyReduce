@@ -2,6 +2,17 @@
 
 PyReduce offers two ways to run reductions: the command-line interface (CLI) and the Python API.
 
+## Image Coordinate Convention
+
+PyReduce uses the convention that **dispersion runs horizontally (along x-axis)** and **cross-dispersion runs vertically (along y-axis)**. The `clipnflip()` function rotates and flips raw images from each instrument to ensure this standard orientation.
+
+This means:
+
+- **Columns (x)** = wavelength/dispersion direction
+- **Rows (y)** = spatial/cross-dispersion direction
+- **Traces** are polynomial functions of x, giving y-position
+- **`extraction_height`** refers to pixels above/below each trace (in y)
+
 ## Command Line Interface
 
 The CLI is the simplest way to run reductions. See [CLI Reference](cli.md) for full details.

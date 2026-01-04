@@ -38,7 +38,7 @@ def extracted(original, orders, order_range, settings):
         column_range=column_range,
         order_range=order_range,
         plot=False,
-        extraction_width=settings["extraction_width"],
+        extraction_height=settings["extraction_height"],
     )
     return extracted
 
@@ -56,7 +56,7 @@ def test_shear(original, extracted, orders, order_range, settings):
         orders,
         column_range=column_range,
         order_range=order_range,
-        extraction_width=settings["extraction_width"],
+        extraction_height=settings["extraction_height"],
         window_width=settings["window_width"],
         peak_threshold=settings["peak_threshold"],
         peak_width=settings["peak_width"],
@@ -87,7 +87,7 @@ def test_shear(original, extracted, orders, order_range, settings):
     module = CurvatureModule(
         orders,
         column_range=column_range,
-        extraction_width=settings["extraction_width"],
+        extraction_height=settings["extraction_height"],
         window_width=settings["window_width"],
         peak_threshold=settings["peak_threshold"],
         peak_width=settings["peak_width"],

@@ -13,7 +13,7 @@
   },
   "science": {
     "extraction_method": "optimal",
-    "extraction_width": 0.5,
+    "extraction_height": 0.5,
     "oversampling": 6
   }
 }

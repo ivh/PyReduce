@@ -54,6 +54,16 @@ pyreduce/
     └── slit_func_2d_xi_zeta_bd.c
 ```
 
+## Image Coordinate Convention
+
+PyReduce uses the convention that **dispersion runs horizontally (along x-axis)** and **cross-dispersion runs vertically (along y-axis)**. The `clipnflip()` function in `instruments/common.py` rotates and flips raw images to ensure this orientation.
+
+This means:
+- **Columns (x)** = wavelength/dispersion direction
+- **Rows (y)** = spatial/cross-dispersion direction
+- **Traces** are polynomial functions of x, giving y-position
+- **`extraction_height`** refers to pixels above/below each trace (in y)
+
 ## Pipeline Steps
 
 The reduction pipeline consists of these steps (in typical order):
@@ -145,7 +155,7 @@ Defines HOW to reduce - algorithm parameters per step:
     "filter_size": 120
   },
   "norm_flat": {
-    "extraction_width": 0.5,
+    "extraction_height": 0.5,
     "smooth_slitfunction": 1,
     "oversampling": 10
   },
@@ -156,7 +166,7 @@ Defines HOW to reduce - algorithm parameters per step:
   },
   "science": {
     "extraction_method": "optimal",
-    "extraction_width": 0.5,
+    "extraction_height": 0.5,
     "oversampling": 10
   }
 }

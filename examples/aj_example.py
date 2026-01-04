@@ -182,7 +182,7 @@ print(f"\nExtracting {len(all_traces)} fiber traces...")
 
 # Extraction parameters
 extract_params = {
-    "extraction_width": 0.5,
+    "extraction_height": 0.5,
     "lambda_sf": 0.1,  # smooth_slitfunction
     "lambda_sp": 0,  # smooth_spectrum
     "osample": 10,  # oversampling

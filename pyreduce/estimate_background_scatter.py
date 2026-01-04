@@ -18,7 +18,7 @@ def estimate_background_scatter(
     img,
     orders,
     column_range=None,
-    extraction_width=0.1,
+    extraction_height=0.1,
     scatter_degree=4,
     sigma_cutoff=2,
     border_width=10,
@@ -38,7 +38,7 @@ def estimate_background_scatter(
         order polynomial coefficients
     column_range : array[nord, 2], optional
         range of columns to use in each order (default: None == all columns)
-    extraction_width : float, array[nord, 2], optional
+    extraction_height : float, array[nord, 2], optional
         extraction width for each order, values below 1.5 are considered fractional, others as number of pixels (default: 0.1)
     scatter_degree : int, optional
         polynomial degree of the 2d fit for the background scatter (default: 4)
@@ -56,8 +56,8 @@ def estimate_background_scatter(
     nrow, ncol = img.shape
     nord, _ = orders.shape
 
-    extraction_width, column_range, orders = fix_parameters(
-        extraction_width,
+    extraction_height, column_range, orders = fix_parameters(
+        extraction_height,
         column_range,
         orders,
         nrow,
@@ -73,16 +73,16 @@ def estimate_background_scatter(
         mask[:bw] = mask[-bw:] = mask[:, :bw] = mask[:, -bw:] = False
     for i in range(nord):
         left, right = column_range[i]
-        left -= extraction_width[i, 1] * 2
-        right += extraction_width[i, 0] * 2
+        left -= extraction_height[i, 1] * 2
+        right += extraction_height[i, 0] * 2
         left = max(0, left)
         right = min(ncol, right)
 
         x_order = np.arange(left, right)
         y_order = np.polyval(orders[i], x_order)
 
-        y_above = y_order + extraction_width[i, 1]
-        y_below = y_order - extraction_width[i, 0]
+        y_above = y_order + extraction_height[i, 1]
+        y_below = y_order - extraction_height[i, 0]
 
         y_above = np.floor(y_above)
         y_below = np.ceil(y_below)
