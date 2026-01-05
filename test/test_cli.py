@@ -19,6 +19,8 @@ from click.testing import CliRunner
 
 from pyreduce.__main__ import cli, ALL_STEPS
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def runner():
@@ -307,6 +309,53 @@ class TestRunCommand:
         )
         assert result.exit_code != 0
 
+    @patch("pyreduce.reduce.main")
+    def test_run_with_empty_steps(self, mock_main, runner):
+        """Test run command with empty steps argument."""
+        mock_main.return_value = None
+        result = runner.invoke(cli, ["run", "UVES", "HD132205", "--steps", ""])
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        # Empty steps string defaults to "all"
+        assert call_kwargs["steps"] == "all"
+
+    @patch("pyreduce.reduce.main")
+    def test_run_with_multiple_steps(self, mock_main, runner):
+        """Test run command with multiple steps."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli, ["run", "UVES", "HD132205", "-s", "bias,flat,trace,science"]
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        assert call_kwargs["steps"] == ("bias", "flat", "trace", "science")
+
+    @patch("pyreduce.reduce.main")
+    def test_run_with_step_order_preserved(self, mock_main, runner):
+        """Test run command preserves step order."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli, ["run", "UVES", "HD132205", "-s", "science,bias,flat"]
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        # Order should be preserved as given
+        assert call_kwargs["steps"] == ("science", "bias", "flat")
+
+    @patch("pyreduce.reduce.main")
+    def test_run_with_whitespace_in_steps(self, mock_main, runner):
+        """Test run command handles whitespace in steps."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli, ["run", "UVES", "HD132205", "-s", "bias, flat , trace"]
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        # Whitespace should be stripped
+        assert "bias" in call_kwargs["steps"]
+        assert "flat" in call_kwargs["steps"]
+        assert "trace" in call_kwargs["steps"]
+
 
 class TestIndividualStepCommands:
     """Test individual step commands (bias, flat, trace, etc.)."""
@@ -371,6 +420,70 @@ class TestIndividualStepCommands:
         assert result.exit_code != 0
         assert "does not accept raw files" in result.output
 
+    @patch("pyreduce.reduce.main")
+    def test_step_with_settings_file(self, mock_main, runner):
+        """Test step command with settings override."""
+        mock_main.return_value = None
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"bias": {"degree": 2}}, f)
+            settings_file = f.name
+
+        try:
+            with patch(
+                "pyreduce.configuration.load_settings_override"
+            ) as mock_override:
+                mock_override.return_value = {}
+                result = runner.invoke(
+                    cli, ["bias", "UVES", "--settings", settings_file]
+                )
+                assert result.exit_code == 0
+                mock_override.assert_called_once()
+        finally:
+            os.unlink(settings_file)
+
+    @patch("pyreduce.reduce.main")
+    def test_step_with_plot_levels(self, mock_main, runner):
+        """Test step commands with different plot levels."""
+        mock_main.return_value = None
+        for plot_level in [0, 1, 2]:
+            result = runner.invoke(cli, ["bias", "UVES", "-p", str(plot_level)])
+            assert result.exit_code == 0
+            call_kwargs = mock_main.call_args[1]
+            # plot option can be either int or str depending on Click's type conversion
+            assert call_kwargs["plot"] in [str(plot_level), plot_level]
+
+    @patch("pyreduce.reduce.main")
+    def test_step_with_all_long_options(self, mock_main, runner):
+        """Test step command with all long option names."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli,
+            [
+                "flat",
+                "XSHOOTER",
+                "UX-Ori",
+                "--night",
+                "2015-10-15",
+                "--channel",
+                "NIR",
+                "--base-dir",
+                "/data",
+                "--input-dir",
+                "raw",
+                "--output-dir",
+                "products",
+                "--plot",
+                "1",
+            ],
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        assert call_kwargs["night"] == "2015-10-15"
+        assert call_kwargs["channels"] == "NIR"
+        assert call_kwargs["base_dir"] == "/data"
+        assert call_kwargs["input_dir"] == "raw"
+        assert call_kwargs["output_dir"] == "products"
+
 
 class TestExamplesCommand:
     """Test the examples command."""
@@ -421,6 +534,69 @@ class TestExamplesCommand:
                 result = runner.invoke(cli, ["examples"])
                 assert result.exit_code != 0
                 assert "Cannot determine" in result.output or "version" in result.output
+
+    def test_examples_download_single_file(self, runner):
+        """Test downloading a single example file."""
+        with patch("urllib.request.urlopen") as mock_urlopen, \
+             patch("urllib.request.urlretrieve") as mock_retrieve, \
+             patch("os.makedirs"):
+            mock_response = MagicMock()
+            mock_response.__enter__.return_value.read.return_value = json.dumps(
+                [{"name": "uves_example.py"}]
+            ).encode()
+            mock_urlopen.return_value = mock_response
+            mock_retrieve.return_value = None
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = runner.invoke(
+                    cli, ["examples", "uves_example.py", "-o", tmpdir]
+                )
+                assert result.exit_code == 0
+                assert "Downloaded" in result.output
+
+    def test_examples_download_all(self, runner):
+        """Test downloading all example files."""
+        with patch("urllib.request.urlopen") as mock_urlopen, \
+             patch("urllib.request.urlretrieve") as mock_retrieve, \
+             patch("os.makedirs"):
+            mock_response = MagicMock()
+            mock_response.__enter__.return_value.read.return_value = json.dumps(
+                [{"name": "uves_example.py"}, {"name": "xshooter_example.py"}]
+            ).encode()
+            mock_urlopen.return_value = mock_response
+            mock_retrieve.return_value = None
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = runner.invoke(cli, ["examples", "--all", "-o", tmpdir])
+                assert result.exit_code == 0
+                # Should download both files
+                assert mock_retrieve.call_count == 2
+
+    def test_examples_run_with_all_flag_error(self, runner):
+        """Test that --run and --all flags together produce error."""
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.__enter__.return_value.read.return_value = json.dumps(
+                [{"name": "uves_example.py"}]
+            ).encode()
+            mock_urlopen.return_value = mock_response
+
+            result = runner.invoke(cli, ["examples", "--all", "-r"])
+            assert result.exit_code != 0
+            assert "Cannot use --run with --all" in result.output
+
+    def test_examples_unknown_file(self, runner):
+        """Test downloading unknown example file shows error."""
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.__enter__.return_value.read.return_value = json.dumps(
+                [{"name": "uves_example.py"}]
+            ).encode()
+            mock_urlopen.return_value = mock_response
+
+            result = runner.invoke(cli, ["examples", "nonexistent.py"])
+            assert result.exit_code != 0
+            assert "Unknown example" in result.output
 
 
 class TestConfigurationLoading:
