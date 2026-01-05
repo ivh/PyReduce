@@ -113,12 +113,3 @@ def test_sort_files(supported_instrument, supported_channels, config):
         # assert "science" in f.keys()
 
 
-@pytest.mark.skip(
-    reason="No wavelength calibration files for most instruments present at the moment"
-)
-@pytest.mark.unit
-def test_get_wavecal_name(supported_instrument, supported_channels):
-    for channel in supported_channels:
-        wname = instrument_info.get_wavecal_filename({}, supported_instrument, channel)
-        assert isinstance(wname, str)
-        assert exists(wname)
