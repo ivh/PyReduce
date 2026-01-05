@@ -345,31 +345,96 @@ def make_step_command(step_name):
             config = get_configuration_for_instrument(instrument)
             if settings:
                 config = load_settings_override(config, settings)
-            step_config = config.get(step_name, {})
-            step_config["plot"] = plot
 
-            # Get the step class
+            # Step classes that support --file (take raw files as input)
             step_classes = {
                 "bias": reduce_module.Bias,
                 "flat": reduce_module.Flat,
                 "trace": reduce_module.OrderTracing,
                 "curvature": reduce_module.SlitCurvatureDetermination,
                 "scatter": reduce_module.BackgroundScatter,
-                "norm_flat": reduce_module.NormalizeFlatField,
                 "wavecal_master": reduce_module.WavelengthCalibrationMaster,
-                "wavecal_init": reduce_module.WavelengthCalibrationInitialize,
-                "wavecal": reduce_module.WavelengthCalibrationFinalize,
                 "freq_comb_master": reduce_module.LaserFrequencyCombMaster,
-                "freq_comb": reduce_module.LaserFrequencyCombFinalize,
                 "science": reduce_module.ScienceExtraction,
-                "continuum": reduce_module.ContinuumNormalization,
             }
+
+            # Steps that don't take raw files - --file makes no sense
+            no_file_steps = {
+                "mask",
+                "norm_flat",
+                "wavecal_init",
+                "wavecal",
+                "freq_comb",
+                "continuum",
+                "finalize",
+                "rectify",
+            }
+
+            if step_name in no_file_steps:
+                raise click.ClickException(
+                    f"Step '{step_name}' does not accept raw files. "
+                    f"Run without --file to use the pipeline."
+                )
 
             if step_name not in step_classes:
                 raise click.ClickException(
                     f"Step '{step_name}' does not support --file option"
                 )
 
+            def make_step(name):
+                """Create a step instance."""
+                step_class = {
+                    "mask": reduce_module.Mask,
+                    "bias": reduce_module.Bias,
+                    "flat": reduce_module.Flat,
+                    "trace": reduce_module.OrderTracing,
+                    "curvature": reduce_module.SlitCurvatureDetermination,
+                    "scatter": reduce_module.BackgroundScatter,
+                    "norm_flat": reduce_module.NormalizeFlatField,
+                    "wavecal_master": reduce_module.WavelengthCalibrationMaster,
+                    "freq_comb_master": reduce_module.LaserFrequencyCombMaster,
+                    "science": reduce_module.ScienceExtraction,
+                }.get(name)
+                if not step_class:
+                    return None
+                step_config = config.get(name, {}).copy()
+                step_config["plot"] = 0  # No plots for dependency loading
+                return step_class(
+                    inst,
+                    channel,
+                    target=target or "",
+                    night=night,
+                    output_dir=output_dir_full,
+                    order_range=None,
+                    **step_config,
+                )
+
+            def load_dependency(name, loaded):
+                """Load a dependency from disk."""
+                if name in loaded:
+                    return loaded[name]
+                if name == "config":
+                    loaded["config"] = config
+                    return config
+                dep_step = make_step(name)
+                if dep_step is None:
+                    return None
+                # Load this step's dependencies first
+                for sub_dep in dep_step.loadDependsOn:
+                    load_dependency(sub_dep, loaded)
+                # Build kwargs for load()
+                load_kwargs = {
+                    d: loaded[d] for d in dep_step.loadDependsOn if d in loaded
+                }
+                try:
+                    loaded[name] = dep_step.load(**load_kwargs)
+                except FileNotFoundError:
+                    loaded[name] = None
+                return loaded[name]
+
+            # Create the target step
+            step_config = config.get(step_name, {}).copy()
+            step_config["plot"] = plot
             step_class = step_classes[step_name]
             step = step_class(
                 inst,
@@ -380,7 +445,17 @@ def make_step_command(step_name):
                 order_range=None,
                 **step_config,
             )
-            step.run(files=np.array([file]), mask=None, bias=None)
+
+            # Load all dependencies
+            loaded = {}
+            for dep in step.dependsOn:
+                load_dependency(dep, loaded)
+
+            # Build kwargs for run()
+            run_kwargs = {d: loaded.get(d) for d in step.dependsOn}
+            run_kwargs["files"] = np.array([file])
+
+            step.run(**run_kwargs)
         else:
             config = get_configuration_for_instrument(instrument)
             if settings:

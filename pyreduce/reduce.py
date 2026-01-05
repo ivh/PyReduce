@@ -376,8 +376,8 @@ class ExtractionStep(Step):
                 f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
             )
 
-    def extract(self, img, head, orders, curvature, scatter=None):
-        orders, column_range = orders if orders is not None else (None, None)
+    def extract(self, img, head, trace, curvature, scatter=None):
+        orders, column_range = trace if trace is not None else (None, None)
         tilt, shear = curvature if curvature is not None else (None, None)
 
         data, unc, slitfu, cr = extract(
@@ -844,12 +844,12 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, files, mask, bias, orders):
+    def run(self, files, mask, bias, trace):
         logger.info("Background scatter files: %s", files)
 
         scatter_img, shead = self.calibrate(files, mask, bias)
 
-        orders, column_range = orders
+        orders, column_range = trace
         scatter = estimate_background_scatter(
             scatter_img,
             orders,
@@ -929,14 +929,14 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, orders, scatter, curvature):
+    def run(self, flat, trace, scatter, curvature):
         """Calculate the 'normalized' flat field
 
         Parameters
         ----------
         flat : tuple(array, header)
             Master flat, and its FITS header
-        orders : tuple(array, array)
+        trace : tuple(array, array)
             Polynomial coefficients for each order, and the first and last(+1) column containing signal
 
         Returns
@@ -947,7 +947,7 @@ class NormalizeFlatField(Step):
             Continuum level as determined from the flat field for each order
         """
         flat, fhead = flat
-        orders, column_range = orders
+        orders, column_range = trace
         tilt, shear = curvature
 
         # if threshold is smaller than 1, assume percentage value is given
@@ -1029,7 +1029,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_master.fits")
 
-    def run(self, files, orders, mask, curvature, bias, norm_flat):
+    def run(self, files, trace, mask, curvature, bias, norm_flat):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -1039,7 +1039,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         ----------
         files : list(str)
             wavelength calibration files
-        orders : tuple(array, array)
+        trace : tuple(array, array)
             Polynomial coefficients of each order, and columns with signal of each order
         mask : array of shape (nrow, ncol)
             Bad pixel mask
@@ -1061,7 +1061,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
         # Extract wavecal spectrum
-        thar, _, _, _ = self.extract(orig, thead, orders, curvature)
+        thar, _, _, _ = self.extract(orig, thead, trace, curvature)
         self.save(thar, thead)
         return thar, thead
 
@@ -1307,14 +1307,14 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".comb_master.fits")
 
-    def run(self, files, orders, mask, curvature, bias, norm_flat):
+    def run(self, files, trace, mask, curvature, bias, norm_flat):
         """Improve the wavelength calibration with a laser frequency comb (or similar)
 
         Parameters
         ----------
         files : list(str)
             observation files
-        orders : tuple
+        trace : tuple
             results from the order tracing step
         mask : array of shape (nrow, ncol)
             Bad pixel mask
@@ -1338,7 +1338,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         # Combine the input files and calibrate
         orig, chead = self.calibrate(files, mask, bias, norm_flat)
         # Extract the spectrum
-        comb, _, _, _ = self.extract(orig, chead, orders, curvature)
+        comb, _, _, _ = self.extract(orig, chead, trace, curvature)
         self.save(comb, chead)
         return comb, chead
 
@@ -1509,14 +1509,14 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         """str: Name of the tilt/shear save file"""
         return join(self.output_dir, self.prefix + ".shear.npz")
 
-    def run(self, files, orders, mask, bias):
+    def run(self, files, trace, mask, bias):
         """Determine the curvature of the slit
 
         Parameters
         ----------
         files : list(str)
             files to use for this
-        orders : tuple
+        trace : tuple
             results of the order tracing
         mask : array of shape (nrow, ncol)
             Bad pixel mask
@@ -1532,9 +1532,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         logger.info("Slit curvature files: %s", files)
 
         orig, thead = self.calibrate(files, mask, bias, None)
-        extracted, _, _, _ = self.extract(orig, thead, orders, None)
+        extracted, _, _, _ = self.extract(orig, thead, trace, None)
 
-        orders, column_range = orders
+        orders, column_range = trace
         module = CurvatureModule(
             orders,
             column_range=column_range,
@@ -1604,8 +1604,8 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(self, files, orders, curvature, mask, freq_comb):
-        orders, column_range = orders
+    def run(self, files, trace, curvature, mask, freq_comb):
+        orders, column_range = trace
         tilt, shear = curvature
         wave = freq_comb
 
@@ -1682,7 +1682,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
-    def run(self, files, bias, orders, norm_flat, curvature, scatter, mask):
+    def run(self, files, bias, trace, norm_flat, curvature, scatter, mask):
         """Extract Science spectra from observation
 
         Parameters
@@ -1691,7 +1691,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             list of observations
         bias : tuple
             results from master bias step
-        orders : tuple
+        trace : tuple
             results from order tracing step
         norm_flat : tuple
             results from flat normalization
@@ -1720,7 +1720,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
             spec, sigma, slitfu, cr = self.extract(
-                im, head, orders, curvature, scatter=scatter
+                im, head, trace, curvature, scatter=scatter
             )
 
             # make slitfus from swaths into one
