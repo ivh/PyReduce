@@ -17,9 +17,9 @@ night = None
 channel = ""
 steps = (
     "bias",
-    # "flat",
-    # "trace",
-    # "norm_flat",
+    "flat",
+    "trace",
+    "norm_flat",
     # "wavecal",
     # "curvature",
     "science",
@@ -42,5 +42,5 @@ Pipeline.from_instrument(
     input_dir=input_dir,
     output_dir=output_dir,
     # order_range=(0, 25),
-    plot=0,
+    plot=1,
 ).run()

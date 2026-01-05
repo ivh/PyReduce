@@ -7,14 +7,15 @@
     },
     "trace": {
         "degree": 4,
-        "filter_y": 15,
+        "filter_y": 25,
         "min_cluster": 700,
+        "min_width": 0.5,
         "border_width": 0,
-        "noise": 10,
+        "noise": 17,
         "merge_min_threshold": 0.01,
-        "auto_merge_threshold": 0.1,
-        "closing_shape": [3, 10],
-        "manual": true
+        "auto_merge_threshold": 0.01,
+        "closing_shape": [3, 3],
+        "manual": false
     },
     "scatter": {
         "extraction_height": [9, 9]
