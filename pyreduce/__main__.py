@@ -38,7 +38,7 @@ def cli():
 
 @cli.command()
 @click.argument("instrument")
-@click.argument("target")
+@click.option("--target", "-t", default=None, help="Target star name or regex pattern")
 @click.option("--night", "-n", default=None, help="Observation night (YYYY-MM-DD)")
 @click.option("--channel", "-c", default=None, help="Instrument channel")
 @click.option(
@@ -89,7 +89,6 @@ def run(
     """Run the reduction pipeline.
 
     INSTRUMENT: Name of the instrument (e.g., UVES, HARPS, XSHOOTER)
-    TARGET: Target star name or regex pattern
     """
     from .configuration import get_configuration_for_instrument, load_settings_override
     from .reduce import main as reduce_main

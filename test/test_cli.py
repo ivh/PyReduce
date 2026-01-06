@@ -11,13 +11,12 @@ Tests cover:
 import json
 import os
 import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
-from pyreduce.__main__ import cli, ALL_STEPS
+from pyreduce.__main__ import ALL_STEPS, cli
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +48,11 @@ class TestCLIBasic:
         result = runner.invoke(cli, [])
         # Click returns exit code 2 for missing required command
         assert result.exit_code in [0, 2]
-        assert "Usage" in result.output or "error" in result.output.lower() or "Commands" in result.output
+        assert (
+            "Usage" in result.output
+            or "error" in result.output.lower()
+            or "Commands" in result.output
+        )
 
 
 class TestListStepsCommand:
@@ -71,7 +74,10 @@ class TestListStepsCommand:
         """Test list-steps --help."""
         result = runner.invoke(cli, ["list-steps", "--help"])
         assert result.exit_code == 0
-        assert "Available reduction steps" in result.output or "list-steps" in result.output
+        assert (
+            "Available reduction steps" in result.output
+            or "list-steps" in result.output
+        )
 
 
 class TestDownloadCommand:
@@ -156,9 +162,7 @@ class TestCombineCommand:
     def test_combine_with_plot_option(self, mock_combine, runner):
         """Test combine with --plot option."""
         mock_combine.return_value = None
-        result = runner.invoke(
-            cli, ["combine", "-p", "5", "file1.fits", "file2.fits"]
-        )
+        result = runner.invoke(cli, ["combine", "-p", "5", "file1.fits", "file2.fits"])
         assert result.exit_code == 0
         mock_combine.assert_called_once()
         # Check that plot argument was passed
@@ -179,16 +183,20 @@ class TestRunCommand:
         result = runner.invoke(cli, ["run"])
         assert result.exit_code != 0
 
-    def test_run_missing_target(self, runner):
-        """Test run with only instrument argument shows error."""
+    @patch("pyreduce.reduce.main")
+    def test_run_no_target(self, mock_main, runner):
+        """Test run with only instrument argument succeeds (target optional)."""
+        mock_main.return_value = None
         result = runner.invoke(cli, ["run", "UVES"])
-        assert result.exit_code != 0
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        assert call_kwargs["target"] is None
 
     @patch("pyreduce.reduce.main")
     def test_run_basic(self, mock_main, runner):
         """Test run command with basic arguments."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205"])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205"])
         assert result.exit_code == 0
         mock_main.assert_called_once()
 
@@ -196,7 +204,9 @@ class TestRunCommand:
     def test_run_with_night(self, mock_main, runner):
         """Test run command with --night option."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "--night", "2010-04-01"])
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--night", "2010-04-01"]
+        )
         assert result.exit_code == 0
         mock_main.assert_called_once()
         call_kwargs = mock_main.call_args[1]
@@ -206,7 +216,7 @@ class TestRunCommand:
     def test_run_with_channel(self, mock_main, runner):
         """Test run command with --channel option."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "-c", "MIDDLE"])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205", "-c", "MIDDLE"])
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         assert call_kwargs["channels"] == "MIDDLE"
@@ -216,7 +226,7 @@ class TestRunCommand:
         """Test run command with --steps option."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "--steps", "bias,flat,trace"]
+            cli, ["run", "UVES", "-t", "HD132205", "--steps", "bias,flat,trace"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -226,7 +236,7 @@ class TestRunCommand:
     def test_run_with_steps_all(self, mock_main, runner):
         """Test run command without --steps runs all steps."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205"])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205"])
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         assert call_kwargs["steps"] == "all"
@@ -236,7 +246,7 @@ class TestRunCommand:
         """Test run command with --base-dir option."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-b", "/tmp/data"]
+            cli, ["run", "UVES", "-t", "HD132205", "-b", "/tmp/data"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -247,7 +257,7 @@ class TestRunCommand:
         """Test run command with --input-dir option."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-i", "raw_frames"]
+            cli, ["run", "UVES", "-t", "HD132205", "-i", "raw_frames"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -258,7 +268,7 @@ class TestRunCommand:
         """Test run command with --output-dir option."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-o", "processed"]
+            cli, ["run", "UVES", "-t", "HD132205", "-o", "processed"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -268,7 +278,7 @@ class TestRunCommand:
     def test_run_with_plot(self, mock_main, runner):
         """Test run command with --plot option."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "-p", "2"])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205", "-p", "2"])
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         # plot is passed as string to reduce_main (which then converts it)
@@ -278,7 +288,9 @@ class TestRunCommand:
     def test_run_with_order_range(self, mock_main, runner):
         """Test run command with --order-range option."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "--order-range", "3,21"])
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--order-range", "3,21"]
+        )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         assert call_kwargs["order_range"] == (3, 21)
@@ -291,10 +303,12 @@ class TestRunCommand:
             settings_file = f.name
 
         try:
-            with patch("pyreduce.configuration.load_settings_override") as mock_override:
+            with patch(
+                "pyreduce.configuration.load_settings_override"
+            ) as mock_override:
                 mock_override.return_value = {}
                 result = runner.invoke(
-                    cli, ["run", "UVES", "HD132205", "--settings", settings_file]
+                    cli, ["run", "UVES", "-t", "HD132205", "--settings", settings_file]
                 )
                 assert result.exit_code == 0
                 mock_override.assert_called_once()
@@ -305,7 +319,7 @@ class TestRunCommand:
     def test_run_with_nonexistent_settings_file(self, mock_main, runner):
         """Test run command rejects nonexistent settings file."""
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "--settings", "/nonexistent.json"]
+            cli, ["run", "UVES", "-t", "HD132205", "--settings", "/nonexistent.json"]
         )
         assert result.exit_code != 0
 
@@ -313,7 +327,7 @@ class TestRunCommand:
     def test_run_with_empty_steps(self, mock_main, runner):
         """Test run command with empty steps argument."""
         mock_main.return_value = None
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "--steps", ""])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205", "--steps", ""])
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         # Empty steps string defaults to "all"
@@ -324,7 +338,7 @@ class TestRunCommand:
         """Test run command with multiple steps."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-s", "bias,flat,trace,science"]
+            cli, ["run", "UVES", "-t", "HD132205", "-s", "bias,flat,trace,science"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -335,7 +349,7 @@ class TestRunCommand:
         """Test run command preserves step order."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-s", "science,bias,flat"]
+            cli, ["run", "UVES", "-t", "HD132205", "-s", "science,bias,flat"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -347,7 +361,7 @@ class TestRunCommand:
         """Test run command handles whitespace in steps."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "HD132205", "-s", "bias, flat , trace"]
+            cli, ["run", "UVES", "-t", "HD132205", "-s", "bias, flat , trace"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
@@ -414,9 +428,7 @@ class TestIndividualStepCommands:
     def test_step_with_file_option_on_unsupported_step(self, mock_main, runner):
         """Test --file option on step that doesn't support it."""
         # wavecal_init is in the no_file_steps list
-        result = runner.invoke(
-            cli, ["wavecal_init", "UVES", "--file", "test.fits"]
-        )
+        result = runner.invoke(cli, ["wavecal_init", "UVES", "--file", "test.fits"])
         assert result.exit_code != 0
         assert "does not accept raw files" in result.output
 
@@ -527,9 +539,7 @@ class TestExamplesCommand:
         from urllib.error import HTTPError
 
         with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = HTTPError(
-                "url", 404, "Not Found", {}, None
-            )
+            mock_urlopen.side_effect = HTTPError("url", 404, "Not Found", {}, None)
             with patch("pyreduce.__version__", "unknown"):
                 result = runner.invoke(cli, ["examples"])
                 assert result.exit_code != 0
@@ -537,9 +547,11 @@ class TestExamplesCommand:
 
     def test_examples_download_single_file(self, runner):
         """Test downloading a single example file."""
-        with patch("urllib.request.urlopen") as mock_urlopen, \
-             patch("urllib.request.urlretrieve") as mock_retrieve, \
-             patch("os.makedirs"):
+        with (
+            patch("urllib.request.urlopen") as mock_urlopen,
+            patch("urllib.request.urlretrieve") as mock_retrieve,
+            patch("os.makedirs"),
+        ):
             mock_response = MagicMock()
             mock_response.__enter__.return_value.read.return_value = json.dumps(
                 [{"name": "uves_example.py"}]
@@ -556,9 +568,11 @@ class TestExamplesCommand:
 
     def test_examples_download_all(self, runner):
         """Test downloading all example files."""
-        with patch("urllib.request.urlopen") as mock_urlopen, \
-             patch("urllib.request.urlretrieve") as mock_retrieve, \
-             patch("os.makedirs"):
+        with (
+            patch("urllib.request.urlopen") as mock_urlopen,
+            patch("urllib.request.urlretrieve") as mock_retrieve,
+            patch("os.makedirs"),
+        ):
             mock_response = MagicMock()
             mock_response.__enter__.return_value.read.return_value = json.dumps(
                 [{"name": "uves_example.py"}, {"name": "xshooter_example.py"}]
@@ -610,7 +624,7 @@ class TestConfigurationLoading:
         mock_get_config.return_value = mock_config
         mock_main.return_value = None
 
-        result = runner.invoke(cli, ["run", "UVES", "HD132205"])
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205"])
         assert result.exit_code == 0
         mock_get_config.assert_called_with("UVES")
 
@@ -631,7 +645,7 @@ class TestConfigurationLoading:
 
         try:
             result = runner.invoke(
-                cli, ["run", "UVES", "HD132205", "--settings", settings_file]
+                cli, ["run", "UVES", "-t", "HD132205", "--settings", settings_file]
             )
             assert result.exit_code == 0
             mock_override.assert_called_once()
@@ -658,7 +672,9 @@ class TestErrorHandling:
     @patch("pyreduce.reduce.main")
     def test_step_with_invalid_order_range(self, mock_main, runner):
         """Test step command with malformed order range."""
-        result = runner.invoke(cli, ["run", "UVES", "HD132205", "--order-range", "invalid"])
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--order-range", "invalid"]
+        )
         # May either fail to parse or raise during execution
         # Just verify it's handled appropriately
         assert result.exit_code != 0
@@ -676,7 +692,11 @@ class TestStepFileMode:
         try:
             result = runner.invoke(cli, ["bias", "UVES", "--file", test_file])
             # Should either succeed or fail gracefully (depending on data availability)
-            assert result.exit_code in [0, 1, 2]  # 0=success, 1=runtime error, 2=usage error
+            assert result.exit_code in [
+                0,
+                1,
+                2,
+            ]  # 0=success, 1=runtime error, 2=usage error
         finally:
             os.unlink(test_file)
 
