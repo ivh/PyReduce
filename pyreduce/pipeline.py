@@ -192,7 +192,7 @@ class Pipeline:
         return self._add_step("trace", files)
 
     def curvature(self, files: list[str] | None = None) -> Pipeline:
-        """Determine slit curvature (tilt/shear)."""
+        """Determine slit curvature (p1/p2)."""
         return self._add_step("curvature", files)
 
     def scatter(self, files: list[str] | None = None) -> Pipeline:

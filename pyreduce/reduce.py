@@ -46,8 +46,8 @@ from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, fix_parameters
-from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
+from .slit_curve import Curvature as CurvatureModule
 from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
@@ -394,7 +394,7 @@ class ExtractionStep(Step):
 
     def extract(self, img, head, trace, curvature, scatter=None):
         orders, column_range = trace if trace is not None else (None, None)
-        tilt, shear = curvature if curvature is not None else (None, None)
+        p1, p2 = curvature if curvature is not None else (None, None)
 
         data, unc, slitfu, cr = extract(
             img,
@@ -407,8 +407,8 @@ class ExtractionStep(Step):
             order_range=self.order_range,
             plot=self.plot,
             plot_title=self.plot_title,
-            tilt=tilt,
-            shear=shear,
+            p1=p1,
+            p2=p2,
             scatter=scatter,
             **self.extraction_kwargs,
         )
@@ -964,7 +964,7 @@ class NormalizeFlatField(Step):
         """
         flat, fhead = flat
         orders, column_range = trace
-        tilt, shear = curvature
+        p1, p2 = curvature
 
         # if threshold is smaller than 1, assume percentage value is given
         if self.threshold <= 1:
@@ -984,8 +984,8 @@ class NormalizeFlatField(Step):
             threshold=threshold,
             threshold_lower=self.threshold_lower,
             extraction_type=self.extraction_method,
-            tilt=tilt,
-            shear=shear,
+            p1=p1,
+            p2=p2,
             plot=self.plot,
             plot_title=self.plot_title,
             **self.extraction_kwargs,
@@ -1524,8 +1524,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
     @property
     def savefile(self):
-        """str: Name of the tilt/shear save file"""
-        return join(self.output_dir, self.prefix + ".shear.npz")
+        """str: Name of the curvature save file"""
+        return join(self.output_dir, self.prefix + ".curve.npz")
 
     def run(self, files, trace, mask, bias):
         """Determine the curvature of the slit
@@ -1541,9 +1541,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        tilt : array of shape (nord, ncol)
+        p1 : array of shape (nord, ncol)
             first order slit curvature at each point
-        shear : array of shape (nord, ncol)
+        p2 : array of shape (nord, ncol)
             second order slit curvature at each point
         """
 
@@ -1576,21 +1576,21 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             plot=self.plot,
             plot_title=self.plot_title,
         )
-        tilt, shear = module.execute(orig)
-        self.save(tilt, shear)
-        return tilt, shear
+        p1, p2 = module.execute(orig)
+        self.save(p1, p2)
+        return p1, p2
 
-    def save(self, tilt, shear):
+    def save(self, p1, p2):
         """Save results from the curvature
 
         Parameters
         ----------
-        tilt : array of shape (nord, ncol)
+        p1 : array of shape (nord, ncol)
             first order slit curvature at each point
-        shear : array of shape (nord, ncol)
+        p2 : array of shape (nord, ncol)
             second order slit curvature at each point
         """
-        np.savez(self.savefile, tilt=tilt, shear=shear)
+        np.savez(self.savefile, p1=p1, p2=p2)
         logger.info("Created slit curvature file: %s", self.savefile)
 
     def load(self):
@@ -1598,9 +1598,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        tilt : array of shape (nord, ncol)
+        p1 : array of shape (nord, ncol)
             first order slit curvature at each point
-        shear : array of shape (nord, ncol)
+        p2 : array of shape (nord, ncol)
             second order slit curvature at each point
         """
         try:
@@ -1608,11 +1608,11 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             logger.info("Slit curvature file: %s", self.savefile)
         except FileNotFoundError:
             logger.warning("No data for slit curvature found, setting it to 0.")
-            data = {"tilt": None, "shear": None}
+            data = {"p1": None, "p2": None}
 
-        tilt = data["tilt"]
-        shear = data["shear"]
-        return tilt, shear
+        p1 = data["p1"]
+        p2 = data["p2"]
+        return p1, p2
 
 
 class RectifyImage(Step):
@@ -1631,7 +1631,7 @@ class RectifyImage(Step):
 
     def run(self, files, trace, curvature, mask, freq_comb):
         orders, column_range = trace
-        tilt, shear = curvature
+        p1, p2 = curvature
         wave = freq_comb
 
         files = files[self.input_files]
@@ -1648,8 +1648,8 @@ class RectifyImage(Step):
                 column_range,
                 self.extraction_height,
                 self.order_range,
-                tilt,
-                shear,
+                p1,
+                p2,
             )
             wavelength, image = merge_images(images, wave, cr, xwd)
 

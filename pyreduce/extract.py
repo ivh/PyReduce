@@ -585,8 +585,8 @@ def extract_spectrum(
     scatter=None,
     normalize=False,
     threshold=0,
-    tilt=None,
-    shear=None,
+    p1=None,
+    p2=None,
     plot=False,
     plot_title=None,
     im_norm=None,
@@ -654,10 +654,10 @@ def extract_spectrum(
         whether to create a normalized image. If true, im_norm and im_ordr are used as output (default: False)
     threshold : int, optional
         threshold for normalization (default: 0)
-    tilt : array[ncol], optional
-        The tilt (1st order curvature) of the slit in this order for the curved extraction (default: None, i.e. tilt = 0)
-    shear : array[ncol], optional
-        The shear (2nd order curvature) of the slit in this order for the curved extraction (default: None, i.e. shear = 0)
+    p1 : array[ncol], optional
+        The 1st order curvature of the slit in this order for the curved extraction (default: None, i.e. p1 = 0)
+    p2 : array[ncol], optional
+        The 2nd order curvature of the slit in this order for the curved extraction (default: None, i.e. p2 = 0)
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional
@@ -732,13 +732,13 @@ def extract_spectrum(
             swath_img -= scatter_correction + telluric_correction
 
             # Do Slitfunction extraction
-            swath_tilt = tilt[ibeg:iend] if tilt is not None else 0
-            swath_shear = shear[ibeg:iend] if shear is not None else 0
+            swath_p1 = p1[ibeg:iend] if p1 is not None else 0
+            swath_p2 = p2[ibeg:iend] if p2 is not None else 0
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
-                swath_tilt,
-                swath_shear,
+                swath_p1,
+                swath_p2,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,
@@ -778,7 +778,7 @@ def extract_spectrum(
                     iend,
                 )
 
-    # Remove points at the border of the each swath, if order has tilt
+    # Remove points at the border of the each swath, if order has curvature
     # as those pixels have bad information
     for i in range(nswath):
         margin[i, :] = int(swath.info[i][4]) + 1
@@ -883,8 +883,8 @@ def optimal_extraction(
     traces,
     extraction_height,
     column_range,
-    tilt,
-    shear,
+    p1,
+    p2,
     plot=False,
     plot_title=None,
     **kwargs,
@@ -927,10 +927,10 @@ def optimal_extraction(
     uncertainties = np.zeros((nord, ncol))
     slitfunction = [None for _ in range(nord)]
 
-    if tilt is None:
-        tilt = [None for _ in range(nord)]
-    if shear is None:
-        shear = [None for _ in range(nord)]
+    if p1 is None:
+        p1 = [None for _ in range(nord)]
+    if p2 is None:
+        p2 = [None for _ in range(nord)]
 
     # Add mask as defined by column ranges
     mask = np.full((nord, ncol), True)
@@ -959,15 +959,15 @@ def optimal_extraction(
         slitfunction[i] = np.zeros(osample * (sum(yrange) + 2) + 1)
 
         # Return values are set by reference, as the out parameters
-        # Also column_range is adjusted depending on the shear
+        # Also column_range is adjusted depending on the curvature
         # This is to avoid large chunks of memory of essentially duplicates
         extract_spectrum(
             img,
             ycen,
             yrange,
             column_range[i],
-            tilt=tilt[i],
-            shear=shear[i],
+            p1=p1[i],
+            p2=p2[i],
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
             out_slitf=slitfunction[i],
@@ -996,13 +996,13 @@ def optimal_extraction(
     return spectrum, slitfunction, uncertainties
 
 
-def correct_for_curvature(img_order, tilt, shear, xwd):
+def correct_for_curvature(img_order, p1, p2, xwd):
     # img_order = np.ma.filled(img_order, np.nan)
     mask = ~np.ma.getmaskarray(img_order)
 
     xt = np.arange(img_order.shape[1])
     for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1]), strict=False):
-        xi = xt + yt * tilt + yt**2 * shear
+        xi = xt + yt * p1 + yt**2 * p2
         img_order[y] = np.interp(
             xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0
         )
@@ -1016,10 +1016,10 @@ def correct_for_curvature(img_order, tilt, shear, xwd):
     return img_order
 
 
-def model_image(img, xwd, tilt, shear):
+def model_image(img, xwd, p1, p2):
     # Correct image for curvature
     img.shape[0]
-    img = correct_for_curvature(img, tilt, shear, xwd)
+    img = correct_for_curvature(img, p1, p2, xwd)
     # Find slitfunction using the median to avoid outliers
     slitf = np.ma.median(img, axis=1)
     slitf /= np.ma.sum(slitf)
@@ -1028,7 +1028,7 @@ def model_image(img, xwd, tilt, shear):
     # Create model from slitfunction and spectrum
     model = spec[None, :] * slitf[:, None]
     # Reapply curvature to the model
-    model = correct_for_curvature(model, -tilt, -shear, xwd)
+    model = correct_for_curvature(model, -p1, -p2, xwd)
     return model, spec, slitf
 
 
@@ -1050,8 +1050,8 @@ def simple_extraction(
     dark=0,
     plot=False,
     plot_title=None,
-    tilt=None,
-    shear=None,
+    p1=None,
+    p2=None,
     collapse_function="median",
     **kwargs,
 ):
@@ -1118,14 +1118,14 @@ def simple_extraction(
         index = make_index(yb, yt, x_left_lim, x_right_lim)
         img_trace = img[index]
 
-        # Correct for tilt and shear
+        # Correct for curvature (p1 and p2)
         # For each row of the rectified trace, interpolate onto the shifted row
         # Masked pixels are set to 0, similar to the summation
-        if tilt is not None and shear is not None:
+        if p1 is not None and p2 is not None:
             img_trace = correct_for_curvature(
                 img_trace,
-                tilt[i, x_left_lim:x_right_lim],
-                shear[i, x_left_lim:x_right_lim],
+                p1[i, x_left_lim:x_right_lim],
+                p2[i, x_left_lim:x_right_lim],
                 extraction_height[i],
             )
 
@@ -1225,8 +1225,8 @@ def extract(
     order_range=None,
     extraction_height=0.5,
     extraction_type="optimal",
-    tilt=None,
-    shear=None,
+    p1=None,
+    p2=None,
     sigma_cutoff=0,
     **kwargs,
 ):
@@ -1247,10 +1247,10 @@ def extract(
         extraction width above and below each trace, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
     extraction_type : {"optimal", "simple", "normalize"}, optional
         which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
-    tilt : float or array[nord, ncol], optional
-        The tilt (1st order curvature) of the slit for curved extraction. Will use vertical extraction if no tilt is set. (default: None, i.e. tilt = 0)
-    shear : float or array[nord, ncol], optional
-        The shear (2nd order curvature) of the slit for curved extraction (default: None, i.e. shear = 0)
+    p1 : float or array[nord, ncol], optional
+        The 1st order curvature of the slit for curved extraction. Will use vertical extraction if not set. (default: None, i.e. p1 = 0)
+    p2 : float or array[nord, ncol], optional
+        The 2nd order curvature of the slit for curved extraction (default: None, i.e. p2 = 0)
     polarization : bool, optional
         if true, pairs of traces are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
     **kwargs, optional
@@ -1277,12 +1277,12 @@ def extract(
     nord, _ = traces.shape
     if order_range is None:
         order_range = (0, nord)
-    if np.isscalar(tilt):
+    if np.isscalar(p1):
         n = order_range[1] - order_range[0]
-        tilt = np.full((n, ncol), tilt)
-    if np.isscalar(shear):
+        p1 = np.full((n, ncol), p1)
+    if np.isscalar(p2):
         n = order_range[1] - order_range[0]
-        shear = np.full((n, ncol), shear)
+        p2 = np.full((n, ncol), p2)
 
     # Fix the input parameters
     extraction_height, column_range, traces = fix_parameters(
@@ -1314,8 +1314,8 @@ def extract(
             traces,
             extraction_height,
             column_range,
-            tilt=tilt,
-            shear=shear,
+            p1=p1,
+            p2=p2,
             **kwargs,
         )
     elif extraction_type == "normalize":
@@ -1331,8 +1331,8 @@ def extract(
             traces,
             extraction_height,
             column_range,
-            tilt=tilt,
-            shear=shear,
+            p1=p1,
+            p2=p2,
             normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,
@@ -1348,8 +1348,8 @@ def extract(
             traces,
             extraction_height,
             column_range,
-            tilt=tilt,
-            shear=shear,
+            p1=p1,
+            p2=p2,
             **kwargs,
         )
         slitfunction = None

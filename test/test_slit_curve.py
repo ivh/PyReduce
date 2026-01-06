@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from pyreduce.combine_frames import combine_frames
-from pyreduce.make_shear import Curvature as CurvatureModule
+from pyreduce.slit_curve import Curvature as CurvatureModule
 
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
@@ -19,7 +19,7 @@ def original(files, instrument, channel, mask):
 
 
 @pytest.mark.slow
-def test_shear(original, orders, order_range, settings):
+def test_curvature(original, orders, order_range, settings):
     original, chead = original
     orders, column_range = orders
     settings = settings["curvature"]
@@ -44,17 +44,17 @@ def test_shear(original, orders, order_range, settings):
         plot=False,
         plot_title=None,
     )
-    tilt, shear = module.execute(original)
+    p1, p2 = module.execute(original)
 
-    assert isinstance(tilt, np.ndarray)
-    assert tilt.ndim == 2
-    assert tilt.shape[0] == order_range[1] - order_range[0]
-    assert tilt.shape[1] == original.shape[1]
+    assert isinstance(p1, np.ndarray)
+    assert p1.ndim == 2
+    assert p1.shape[0] == order_range[1] - order_range[0]
+    assert p1.shape[1] == original.shape[1]
 
-    assert isinstance(shear, np.ndarray)
-    assert shear.ndim == 2
-    assert shear.shape[0] == order_range[1] - order_range[0]
-    assert shear.shape[1] == original.shape[1]
+    assert isinstance(p2, np.ndarray)
+    assert p2.ndim == 2
+    assert p2.shape[0] == order_range[1] - order_range[0]
+    assert p2.shape[1] == original.shape[1]
 
     # Reduce the number of orders this way
     orders = orders[order_range[0] : order_range[1]]
@@ -76,21 +76,21 @@ def test_shear(original, orders, order_range, settings):
         plot=False,
         plot_title=None,
     )
-    tilt, shear = module.execute(original)
+    p1, p2 = module.execute(original)
 
-    assert isinstance(tilt, np.ndarray)
-    assert tilt.ndim == 2
-    assert tilt.shape[0] == order_range[1] - order_range[0]
-    assert tilt.shape[1] == original.shape[1]
+    assert isinstance(p1, np.ndarray)
+    assert p1.ndim == 2
+    assert p1.shape[0] == order_range[1] - order_range[0]
+    assert p1.shape[1] == original.shape[1]
 
-    assert isinstance(shear, np.ndarray)
-    assert shear.ndim == 2
-    assert shear.shape[0] == order_range[1] - order_range[0]
-    assert shear.shape[1] == original.shape[1]
+    assert isinstance(p2, np.ndarray)
+    assert p2.ndim == 2
+    assert p2.shape[0] == order_range[1] - order_range[0]
+    assert p2.shape[1] == original.shape[1]
 
 
 @pytest.mark.slow
-def test_shear_exception(original, orders, order_range):
+def test_curvature_exception(original, orders, order_range):
     original, chead = original
     orders, column_range = orders
 
@@ -107,18 +107,18 @@ def test_shear_exception(original, orders, order_range):
         module = CurvatureModule(
             orders, column_range=column_range, plot=False, curve_degree=3
         )
-        tilt, shear = module.execute(original)
+        p1, p2 = module.execute(original)
 
     # Wrong mode
     with pytest.raises(ValueError):
         module = CurvatureModule(
             orders, column_range=column_range, plot=False, mode="3D"
         )
-        tilt, shear = module.execute(original)
+        p1, p2 = module.execute(original)
 
 
 @pytest.mark.slow
-def test_shear_zero(original, orders, order_range):
+def test_curvature_zero(original, orders, order_range):
     original, chead = original
     orders, column_range = orders
 
@@ -133,4 +133,4 @@ def test_shear_zero(original, orders, order_range):
     module = CurvatureModule(
         orders, column_range=column_range, plot=False, sigma_cutoff=0
     )
-    tilt, shear = module.execute(original)
+    p1, p2 = module.execute(original)

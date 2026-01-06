@@ -115,7 +115,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
 
 def slitfunc_curved(
-    img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1
+    img, ycen, p1, p2, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1
 ):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
@@ -125,10 +125,10 @@ def slitfunc_curved(
         input image
     ycen : array[n]
         traces the center of the order
-    tilt : array[n]
-        tilt (1st order curvature) of the order along the image, set to 0 if order straight
-    shear : array[n]
-        shear (2nd order curvature) of the order along the image, set to 0 if order straight
+    p1 : array[n]
+        1st order curvature of the order along the image, set to 0 if order straight
+    p2 : array[n]
+        2nd order curvature of the order along the image, set to 0 if order straight
     osample : int
         Subpixel ovsersampling factor (the default is 1, no oversampling)
     lambda_sp : float
@@ -161,23 +161,23 @@ def slitfunc_curved(
     assert ycen.ndim == 1, "Ycen must be 1 dimensional"
     assert maxiter > 0, "Maximum iterations must be positive"
 
-    if np.isscalar(tilt):
-        tilt = np.full(img.shape[1], tilt, dtype=c_double)
+    if np.isscalar(p1):
+        p1 = np.full(img.shape[1], p1, dtype=c_double)
     else:
-        tilt = np.asarray(tilt, dtype=c_double)
-    if np.isscalar(shear):
-        shear = np.full(img.shape[1], shear, dtype=c_double)
+        p1 = np.asarray(p1, dtype=c_double)
+    if np.isscalar(p2):
+        p2 = np.full(img.shape[1], p2, dtype=c_double)
     else:
-        shear = np.asarray(shear, dtype=c_double)
+        p2 = np.asarray(p2, dtype=c_double)
 
     assert img.shape[1] == ycen.size, (
         f"Image and Ycen shapes are incompatible, got {img.shape} and {ycen.shape}"
     )
-    assert img.shape[1] == tilt.size, (
-        f"Image and Tilt shapes are incompatible, got {img.shape} and {tilt.shape}"
+    assert img.shape[1] == p1.size, (
+        f"Image and p1 shapes are incompatible, got {img.shape} and {p1.shape}"
     )
-    assert img.shape[1] == shear.size, (
-        f"Image and Shear shapes are incompatible, got {img.shape} and {shear.shape}"
+    assert img.shape[1] == p2.size, (
+        f"Image and p2 shapes are incompatible, got {img.shape} and {p2.shape}"
     )
 
     assert osample > 0, f"Oversample rate must be positive, but got {osample}"
@@ -188,8 +188,8 @@ def slitfunc_curved(
 
     # assert np.ma.all(np.isfinite(img)), "All values in the image must be finite"
     assert np.all(np.isfinite(ycen)), "All values in ycen must be finite"
-    assert np.all(np.isfinite(tilt)), "All values in tilt must be finite"
-    assert np.all(np.isfinite(shear)), "All values in shear must be finite"
+    assert np.all(np.isfinite(p1)), "All values in p1 must be finite"
+    assert np.all(np.isfinite(p2)), "All values in p2 must be finite"
 
     assert yrange.ndim == 1, "Yrange must be 1 dimensional"
     assert yrange.size == 2, "Yrange must have 2 elements"
@@ -237,8 +237,8 @@ def slitfunc_curved(
     pix_unc[pix_unc < 1] = 1
 
     psf_curve = np.zeros((ncols, 3), dtype=c_double)
-    psf_curve[:, 1] = tilt
-    psf_curve[:, 2] = shear
+    psf_curve[:, 1] = p1
+    psf_curve[:, 2] = p2
 
     # Initialize arrays and ensure the correct datatype for C
     requirements = ["C", "A", "W", "O"]
@@ -319,8 +319,8 @@ def xi_zeta_tensors(
     ycen: np.ndarray,
     yrange,  # (int, int)
     osample: int,
-    tilt: np.ndarray,
-    shear: np.ndarray,
+    p1: np.ndarray,
+    p2: np.ndarray,
 ):
     ncols = int(ncols)
     nrows = int(nrows)
@@ -332,8 +332,8 @@ def xi_zeta_tensors(
     y_lower_lim = int(yrange[0])
 
     psf_curve = np.zeros((ncols, 3), dtype=c_double)
-    psf_curve[:, 1] = tilt
-    psf_curve[:, 2] = shear
+    psf_curve[:, 1] = p1
+    psf_curve[:, 2] = p2
 
     requirements = ["C", "A", "W", "O"]
     ycen_int = np.require(ycen_int, dtype=c_double, requirements=requirements)

@@ -7,7 +7,7 @@ from .extract import correct_for_curvature, fix_parameters
 
 
 def rectify_image(
-    img, orders, column_range, extraction_height, order_range, tilt=None, shear=None
+    img, orders, column_range, extraction_height, order_range, p1=None, p2=None
 ):
     nord, _ = orders.shape
     nrow, ncol = img.shape
@@ -35,14 +35,14 @@ def rectify_image(
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
-        # Correct for tilt and shear
+        # Correct for curvature
         # For each row of the rectified order, interpolate onto the shifted row
         # Masked pixels are set to 0, similar to the summation
-        if tilt is not None and shear is not None:
+        if p1 is not None and p2 is not None:
             img_order = correct_for_curvature(
                 img_order,
-                tilt[i, x_left_lim:x_right_lim],
-                shear[i, x_left_lim:x_right_lim],
+                p1[i, x_left_lim:x_right_lim],
+                p2[i, x_left_lim:x_right_lim],
                 extraction_height[i],
             )
         images[i] = img_order

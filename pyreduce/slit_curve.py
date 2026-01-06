@@ -1,5 +1,5 @@
 """
-Calculate the tilt based on a reference spectrum with high SNR, e.g. Wavelength calibration image
+Calculate slit curvature based on a reference spectrum with high SNR, e.g. Wavelength calibration image
 
 Authors
 -------
@@ -68,7 +68,7 @@ class ProgressPlot:  # pragma: no cover
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-    def update_plot2(self, img, model, tilt, shear, peak):
+    def update_plot2(self, img, model, p1, p2, peak):
         self.ax2.clear()
         self.ax3.clear()
 
@@ -78,7 +78,7 @@ class ProgressPlot:  # pragma: no cover
         nrows, _ = img.shape
         middle = nrows // 2
         y = np.arange(-middle, -middle + nrows)
-        x = peak + (tilt + shear * y) * y
+        x = peak + (p1 + p2 * y) * y
         y += middle
 
         self.ax2.plot(x, y, "r")
@@ -353,9 +353,9 @@ class Curvature:
         return peaks, positions
 
     def _fit_curvature_from_positions(self, peaks, positions, offsets):
-        """Fit tilt and shear from peak position vs y-offset.
+        """Fit p1 and p2 from peak position vs y-offset.
 
-        For each peak: x(y) = x0 + tilt*y + shear*y^2
+        For each peak: x(y) = x0 + p1*y + p2*y^2
 
         Parameters
         ----------
@@ -368,14 +368,14 @@ class Curvature:
 
         Returns
         -------
-        tilt : array of shape (n_peaks,)
+        p1 : array of shape (n_peaks,)
             Linear curvature coefficient for each peak
-        shear : array of shape (n_peaks,)
+        p2 : array of shape (n_peaks,)
             Quadratic curvature coefficient for each peak
         """
         n_peaks = len(peaks)
-        tilt = np.zeros(n_peaks)
-        shear = np.zeros(n_peaks)
+        p1 = np.zeros(n_peaks)
+        p2 = np.zeros(n_peaks)
 
         for i in range(n_peaks):
             pos = positions[i]
@@ -392,57 +392,57 @@ class Curvature:
             dx = x - x0
 
             if self.curve_degree == 1:
-                # Linear fit: dx = tilt * y
+                # Linear fit: dx = p1 * y
                 if np.sum(valid) >= 2:
                     try:
                         coef = np.polyfit(y, dx, 1)
-                        tilt[i] = coef[0]
+                        p1[i] = coef[0]
                     except Exception:
                         pass
             elif self.curve_degree == 2:
-                # Quadratic fit: dx = shear * y^2 + tilt * y
+                # Quadratic fit: dx = p2 * y^2 + p1 * y
                 if np.sum(valid) >= 3:
                     try:
                         coef = np.polyfit(y, dx, 2)
-                        shear[i] = coef[0]
-                        tilt[i] = coef[1]
+                        p2[i] = coef[0]
+                        p1[i] = coef[1]
                     except Exception:
                         pass
 
-        return tilt, shear
+        return p1, p2
 
-    def _fit_curvature_single_order(self, peaks, tilt, shear):
+    def _fit_curvature_single_order(self, peaks, p1, p2):
         try:
-            middle = np.median(tilt)
-            sigma = np.percentile(tilt, (32, 68))
+            middle = np.median(p1)
+            sigma = np.percentile(p1, (32, 68))
             sigma = middle - sigma[0], sigma[1] - middle
-            mask = (tilt >= middle - 5 * sigma[0]) & (tilt <= middle + 5 * sigma[1])
-            peaks, tilt, shear = peaks[mask], tilt[mask], shear[mask]
+            mask = (p1 >= middle - 5 * sigma[0]) & (p1 <= middle + 5 * sigma[1])
+            peaks, p1, p2 = peaks[mask], p1[mask], p2[mask]
 
-            coef_tilt = np.zeros(self.fit_degree + 1)
+            coef_p1 = np.zeros(self.fit_degree + 1)
             res = least_squares(
-                lambda coef: np.polyval(coef, peaks) - tilt,
-                x0=coef_tilt,
+                lambda coef: np.polyval(coef, peaks) - p1,
+                x0=coef_p1,
                 loss="arctan",
             )
-            coef_tilt = res.x
+            coef_p1 = res.x
 
-            coef_shear = np.zeros(self.fit_degree + 1)
+            coef_p2 = np.zeros(self.fit_degree + 1)
             res = least_squares(
-                lambda coef: np.polyval(coef, peaks) - shear,
-                x0=coef_shear,
+                lambda coef: np.polyval(coef, peaks) - p2,
+                x0=coef_p2,
                 loss="arctan",
             )
-            coef_shear = res.x
+            coef_p2 = res.x
 
         except:
             logger.error(
                 "Could not fit the curvature of this order. Using no curvature instead"
             )
-            coef_tilt = np.zeros(self.fit_degree + 1)
-            coef_shear = np.zeros(self.fit_degree + 1)
+            coef_p1 = np.zeros(self.fit_degree + 1)
+            coef_p2 = np.zeros(self.fit_degree + 1)
 
-        return coef_tilt, coef_shear, peaks
+        return coef_p1, coef_p2, peaks
 
     def _determine_curvature_all_lines(self, original):
         """Determine curvature for all lines using row-tracking method.
@@ -459,20 +459,20 @@ class Curvature:
         -------
         all_peaks : list of arrays
             Peak columns for each order
-        all_tilt : list of arrays
+        all_p1 : list of arrays
             Tilt values for each peak in each order
-        all_shear : list of arrays
+        all_p2 : list of arrays
             Shear values for each peak in each order
         plot_vec : list of arrays
             Middle spectrum for each order (for plotting)
         """
         all_peaks = []
-        all_tilt = []
-        all_shear = []
+        all_p1 = []
+        all_p2 = []
         plot_vec = []
 
         for j in tqdm(range(self.n), desc="Order"):
-            logger.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
+            logger.debug("Calculating curvature of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
 
@@ -490,60 +490,60 @@ class Curvature:
 
             if len(peaks) == 0:
                 all_peaks.append(np.array([]))
-                all_tilt.append(np.array([]))
-                all_shear.append(np.array([]))
+                all_p1.append(np.array([]))
+                all_p2.append(np.array([]))
                 plot_vec.append(vec)
                 continue
 
             # Fit curvature from peak positions
-            tilt, shear = self._fit_curvature_from_positions(peaks, positions, offsets)
+            p1, p2 = self._fit_curvature_from_positions(peaks, positions, offsets)
 
             if self.plot >= 2:  # pragma: no cover
                 for peak in peaks:
                     self.progress.update_plot1(vec, peak, cr[0])
 
             all_peaks.append(peaks)
-            all_tilt.append(tilt)
-            all_shear.append(shear)
+            all_p1.append(p1)
+            all_p2.append(p2)
             plot_vec.append(vec)
 
-        return all_peaks, all_tilt, all_shear, plot_vec
+        return all_peaks, all_p1, all_p2, plot_vec
 
-    def fit(self, peaks, tilt, shear):
+    def fit(self, peaks, p1, p2):
         if self.mode == "1D":
-            coef_tilt = np.zeros((self.n, self.fit_degree + 1))
-            coef_shear = np.zeros((self.n, self.fit_degree + 1))
+            coef_p1 = np.zeros((self.n, self.fit_degree + 1))
+            coef_p2 = np.zeros((self.n, self.fit_degree + 1))
             for j in range(self.n):
-                coef_tilt[j], coef_shear[j], _ = self._fit_curvature_single_order(
-                    peaks[j], tilt[j], shear[j]
+                coef_p1[j], coef_p2[j], _ = self._fit_curvature_single_order(
+                    peaks[j], p1[j], p2[j]
                 )
         elif self.mode == "2D":
             x = np.concatenate(peaks)
             y = [np.full(len(p), i) for i, p in enumerate(peaks)]
             y = np.concatenate(y)
-            z = np.concatenate(tilt)
-            coef_tilt = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
+            z = np.concatenate(p1)
+            coef_p1 = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
 
-            z = np.concatenate(shear)
-            coef_shear = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
+            z = np.concatenate(p2)
+            coef_p2 = polyfit2d(x, y, z, degree=self.fit_degree, loss="arctan")
 
-        return coef_tilt, coef_shear
+        return coef_p1, coef_p2
 
-    def eval(self, peaks, order, coef_tilt, coef_shear):
+    def eval(self, peaks, order, coef_p1, coef_p2):
         if self.mode == "1D":
-            tilt = np.zeros(peaks.shape)
-            shear = np.zeros(peaks.shape)
+            p1 = np.zeros(peaks.shape)
+            p2 = np.zeros(peaks.shape)
             for i in np.unique(order):
                 idx = order == i
-                tilt[idx] = np.polyval(coef_tilt[i], peaks[idx])
-                shear[idx] = np.polyval(coef_shear[i], peaks[idx])
+                p1[idx] = np.polyval(coef_p1[i], peaks[idx])
+                p2[idx] = np.polyval(coef_p2[i], peaks[idx])
         elif self.mode == "2D":
-            tilt = polyval2d(peaks, order, coef_tilt)
-            shear = polyval2d(peaks, order, coef_shear)
-        return tilt, shear
+            p1 = polyval2d(peaks, order, coef_p1)
+            p2 = polyval2d(peaks, order, coef_p2)
+        return p1, p2
 
     def plot_results(
-        self, ncol, plot_peaks, plot_vec, plot_tilt, plot_shear, tilt_x, shear_x
+        self, ncol, plot_peaks, plot_vec, plot_p1, plot_p2, p1_x, p2_x
     ):  # pragma: no cover
         fig, axes = plt.subplots(nrows=self.n // 2 + self.n % 2, ncols=2, squeeze=False)
 
@@ -581,7 +581,7 @@ class Curvature:
             cr = self.column_range[j]
             x = np.arange(cr[0], cr[1])
             order = np.full(len(x), j)
-            t[j], s[j] = self.eval(x, order, tilt_x, shear_x)
+            t[j], s[j] = self.eval(x, order, p1_x, p2_x)
 
         t_lower = min(t.min() * (0.5 if t.min() > 0 else 1.5) for t in t)
         t_upper = max(t.max() * (1.5 if t.max() > 0 else 0.5) for t in t)
@@ -593,8 +593,8 @@ class Curvature:
             cr = self.column_range[j]
             peaks = plot_peaks[j]
             vec = np.clip(plot_vec[j], 0, None)
-            tilt = plot_tilt[j]
-            shear = plot_shear[j]
+            p1 = plot_p1[j]
+            p2 = plot_p2[j]
             x = np.arange(cr[0], cr[1])
             # Figure Peaks found (and used)
             axes[j // 2, j % 2].plot(np.arange(cr[0], cr[1]), vec)
@@ -605,7 +605,7 @@ class Curvature:
                 axes[j // 2, j % 2].get_xaxis().set_ticks([])
 
             # Figure 1st order
-            axes1[j // 2, j % 2].plot(peaks, tilt, "rX")
+            axes1[j // 2, j % 2].plot(peaks, p1, "rX")
             axes1[j // 2, j % 2].plot(x, t[j])
             axes1[j // 2, j % 2].set_xlim(0, ncol)
 
@@ -615,10 +615,10 @@ class Curvature:
             else:
                 axes1[j // 2, j % 2].set_xlabel("x [pixel]")
             if j == self.n // 2 + 1:
-                axes1[j // 2, j % 2].set_ylabel("tilt [pixel/pixel]")
+                axes1[j // 2, j % 2].set_ylabel("p1 [pixel/pixel]")
 
             # Figure 2nd order
-            axes2[j // 2, j % 2].plot(peaks, shear, "rX")
+            axes2[j // 2, j % 2].plot(peaks, p2, "rX")
             axes2[j // 2, j % 2].plot(x, s[j])
             axes2[j // 2, j % 2].set_xlim(0, ncol)
 
@@ -628,14 +628,14 @@ class Curvature:
             else:
                 axes2[j // 2, j % 2].set_xlabel("x [pixel]")
             if j == self.n // 2 + 1:
-                axes2[j // 2, j % 2].set_ylabel("shear [pixel/pixel**2]")
+                axes2[j // 2, j % 2].set_ylabel("p2 [pixel/pixel**2]")
 
         axes1 = trim_axs(axes1, self.n)
         axes2 = trim_axs(axes2, self.n)
 
         util.show_or_save("curvature_fit")
 
-    def plot_comparison(self, original, tilt, shear, peaks):  # pragma: no cover
+    def plot_comparison(self, original, p1, p2, peaks):  # pragma: no cover
         _, ncol = original.shape
         output = np.zeros((np.sum(self.curve_height) + self.nord, ncol))
         pos = [0]
@@ -660,7 +660,7 @@ class Curvature:
                 x = np.zeros(ew[0] + ew[1] + 1)
                 y = np.arange(-ew[0], ew[1] + 1)
                 for j, yt in enumerate(y):
-                    x[j] = p + yt * tilt[i, p] + yt**2 * shear[i, p]
+                    x[j] = p + yt * p1[i, p] + yt**2 * p2[i, p]
                 y += pos[i] + ew[0]
                 plt.plot(x, y, "r")
 
@@ -686,9 +686,9 @@ class Curvature:
 
         Returns
         -------
-        tilt : array of shape (nord, ncol)
+        p1 : array of shape (nord, ncol)
             First order slit curvature at each point
-        shear : array of shape (nord, ncol)
+        p2 : array of shape (nord, ncol)
             Second order slit curvature at each point
         """
         logger.info("Determining the Slit Curvature")
@@ -700,24 +700,24 @@ class Curvature:
         if self.plot >= 2:  # pragma: no cover
             self.progress = ProgressPlot(ncol, self.window_width, title=self.plot_title)
 
-        peaks, tilt, shear, vec = self._determine_curvature_all_lines(original)
+        peaks, p1, p2, vec = self._determine_curvature_all_lines(original)
 
-        coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
+        coef_p1, coef_p2 = self.fit(peaks, p1, p2)
 
         if self.plot >= 2:  # pragma: no cover
             self.progress.close()
 
         if self.plot:  # pragma: no cover
-            self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)
+            self.plot_results(ncol, peaks, vec, p1, p2, coef_p1, coef_p2)
 
         # Create output arrays (nord, ncol)
         iorder, ipeaks = np.indices((self.n, ncol))
-        tilt, shear = self.eval(ipeaks, iorder, coef_tilt, coef_shear)
+        p1, p2 = self.eval(ipeaks, iorder, coef_p1, coef_p2)
 
         if self.plot:  # pragma: no cover
-            self.plot_comparison(original, tilt, shear, peaks)
+            self.plot_comparison(original, p1, p2, peaks)
 
-        return tilt, shear
+        return p1, p2
 
 
 # TODO allow other line shapes

@@ -76,10 +76,10 @@ pyreduce.extract module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.make\_shear module
+pyreduce.slit\_curve module
 ---------------------------
 
-.. automodule:: pyreduce.make_shear
+.. automodule:: pyreduce.slit_curve
     :members:
     :undoc-members:
     :show-inheritance:
