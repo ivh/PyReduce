@@ -74,7 +74,7 @@ The reduction pipeline consists of these steps (in typical order):
 | `bias` | `Bias` | Combine bias frames into master bias |
 | `flat` | `Flat` | Combine flat frames, subtract bias |
 | `trace` | `OrderTracing` | Trace echelle order positions on flat |
-| `curvature` | `SlitCurvatureDetermination` | Measure slit tilt/shear from arc lamp |
+| `curvature` | `SlitCurvatureDetermination` | Measure slit curvature from arc lamp |
 | `scatter` | `BackgroundScatter` | Model inter-order scattered light |
 | `norm_flat` | `NormalizeFlatField` | Normalize flat, extract blaze function |
 | `wavecal_master` | `WavelengthCalibrationMaster` | Extract wavelength calibration spectrum |

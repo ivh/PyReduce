@@ -1205,13 +1205,13 @@ test/
 extract.extend_orders(orders, height) -> array
 extract.fix_column_range(cr, orders, ew, nrow, ncol) -> (cr, orders)
 extract.make_bins(swath_width, xlow, xhigh, ycen) -> (nbin, starts, ends)
-extract.simple_extraction(img, orders, ew, cr, tilt, shear) -> (spec, unc)
-extract.optimal_extraction(img, orders, xwd, cr, tilt, shear) -> (spec, slitf, unc)
+extract.simple_extraction(img, orders, ew, cr, p1, p2) -> (spec, unc)
+extract.optimal_extraction(img, orders, xwd, cr, p1, p2) -> (spec, slitf, unc)
 extract.extract(img, orders, ...) -> (spec, unc, slitf, ...)
 
 # C wrappers (test_cwrappers.py) - PRESERVE SIGNATURES
 slitfunc(img, ycen, lambda_sp, lambda_sf, osample) -> (spec, slitf, ...)
-slitfunc_curved(img, ycen, tilt, shear, ...) -> (spec, slitf, ...)
+slitfunc_curved(img, ycen, p1, p2, ...) -> (spec, slitf, ...)
 ```
 
 **Integration fixtures need refactoring** - Currently coupled to Step classes:

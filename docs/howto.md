@@ -92,7 +92,7 @@ Steps are run in dependency order. Available steps:
 | `bias` | Combine bias frames |
 | `flat` | Combine flat frames |
 | `trace` | Trace echelle orders on flat |
-| `curvature` | Measure slit tilt/shear |
+| `curvature` | Measure slit curvature |
 | `scatter` | Model inter-order background |
 | `norm_flat` | Normalize flat, extract blaze |
 | `wavecal_master` | Extract wavelength calibration spectrum |

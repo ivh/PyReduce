@@ -66,7 +66,7 @@ def orders(width, ycen):
 
 
 @pytest.fixture
-def sample_data(width, height, spec, slitf, oversample, ycen, tilt=0):
+def sample_data(width, height, spec, slitf, oversample, ycen, p1=0):
     img = spec[None, :] * slitf[:, None]
     # TODO more sophisticated sample data creation
     out = np.zeros((height, width))
@@ -214,11 +214,11 @@ def test_simple_extraction(sample_data, orders, width, oversample):
     column_range = np.array([[0, width]])
 
     nord = len(orders)
-    tilt = np.zeros((nord, width))
-    shear = np.zeros((nord, width))
+    p1 = np.zeros((nord, width))
+    p2 = np.zeros((nord, width))
 
     spec_out, unc_out = extract.simple_extraction(
-        img, orders, extraction_height, column_range, tilt=tilt, shear=shear
+        img, orders, extraction_height, column_range, p1=p1, p2=p2
     )
 
     assert isinstance(spec_out, np.ndarray)
@@ -264,11 +264,11 @@ def test_vertical_extraction(sample_data, orders, width, height, oversample):
 def test_curved_equal_vertical_extraction(sample_data, orders):
     # Currently extract always uses the vertical extraction, making this kind of useless
     img, spec, slitf = sample_data
-    tilt = 0
-    shear = 0
+    p1 = 0
+    p2 = 0
 
     spec_curved, sunc_curved, slitf_curved, _ = extract.extract(
-        img, orders, tilt=tilt, shear=shear
+        img, orders, p1=p1, p2=p2
     )
     spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
@@ -281,10 +281,10 @@ def test_optimal_extraction(sample_data, orders, height, width):
     img, spec, slitf = sample_data
     xwd = np.array([[height // 2, height // 2]])
     cr = np.array([[0, width]])
-    tilt = shear = np.zeros((1, width))
+    p1 = p2 = np.zeros((1, width))
 
     res_spec, res_slitf, res_unc = extract.optimal_extraction(
-        img, orders, xwd, cr, tilt, shear
+        img, orders, xwd, cr, p1, p2
     )
 
     assert isinstance(res_spec, np.ndarray)

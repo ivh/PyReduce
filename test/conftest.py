@@ -589,10 +589,10 @@ def curvature(step_args, settings, files, orders, mask):
     step = SlitCurvatureDetermination(*step_args, **settings)
 
     try:
-        tilt, shear = step.load()
+        p1, p2 = step.load()
     except FileNotFoundError:
-        tilt, shear = step.run(files, orders, mask)
-    return tilt, shear
+        p1, p2 = step.run(files, orders, mask)
+    return p1, p2
 
 
 @pytest.fixture

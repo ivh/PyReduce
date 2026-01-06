@@ -56,68 +56,62 @@ def test_slitfunc_vert():
 def test_slitfunc_curved():
     img = np.full((100, 100), 1)
     ycen = np.full(100, 50)
-    tilt = np.full(100, 0)
-    shear = np.full(100, 0)
+    p1 = np.full(100, 0)
+    p2 = np.full(100, 0)
     lambda_sp = 0
     lambda_sf = 0.1
     osample = 1
     yrange = (49, 50)
 
     # Run it once the way it is supposed to
-    slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+    slitfunc_curved(img, ycen, p1, p2, lambda_sp, lambda_sf, osample, yrange)
     slitfunc_curved(img, ycen, 1, 0.01, lambda_sp, lambda_sf, osample, yrange)
 
     # Then try different incompatible inputs, which have to be caught before going to the C code
     with pytest.raises(AssertionError):
-        slitfunc_curved(None, ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(None, ycen, p1, p2, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved("bla", ycen, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved("bla", ycen, p1, p2, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, None, tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(img, None, p1, p2, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, "blub", tilt, shear, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(img, "blub", p1, p2, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, None, lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(img, ycen, p1, None, lambda_sp, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, "boo", lambda_sp, lambda_sf, osample, yrange)
+        slitfunc_curved(img, ycen, p1, "boo", lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, None, lambda_sf, osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, None, lambda_sf, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, "bla", lambda_sf, osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, "bla", lambda_sf, osample, yrange)
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, None, osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, None, osample, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, "bla", osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, "bla", osample, yrange)
     with pytest.raises(TypeError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, None, yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, lambda_sf, None, yrange)
     with pytest.raises(ValueError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, "bla", yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, lambda_sf, "bla", yrange)
 
     # Then try different sizes for img and ycen
     with pytest.raises(AssertionError):
         ycen_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(
-            img, ycen_bad, tilt, shear, lambda_sp, lambda_sf, osample, yrange
-        )
+        slitfunc_curved(img, ycen_bad, p1, p2, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        tilt_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(
-            img, ycen, tilt_bad, shear, lambda_sp, lambda_sf, osample, yrange
-        )
+        p1_bad = np.full(50, 0, dtype=float)
+        slitfunc_curved(img, ycen, p1_bad, p2, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        shear_bad = np.full(50, 0, dtype=float)
-        slitfunc_curved(
-            img, ycen, tilt, shear_bad, lambda_sp, lambda_sf, osample, yrange
-        )
+        p2_bad = np.full(50, 0, dtype=float)
+        slitfunc_curved(img, ycen, p1, p2_bad, lambda_sp, lambda_sf, osample, yrange)
 
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, lambda_sf, 0, yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, lambda_sf, 0, yrange)
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, lambda_sp, -1, osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, lambda_sp, -1, osample, yrange)
     with pytest.raises(AssertionError):
-        slitfunc_curved(img, ycen, tilt, shear, -1, lambda_sf, osample, yrange)
+        slitfunc_curved(img, ycen, p1, p2, -1, lambda_sf, osample, yrange)
