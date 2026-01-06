@@ -11,7 +11,7 @@
         "degree": 3,
         "degree_before_merge": 1,
         "filter_y": 100,
-        "min_cluster": 200000,
+        "min_cluster": 330000,
         "border_width": 0,
         "noise": 0,
         "manual": false,
@@ -68,7 +68,7 @@
     "curvature": {
         "peak_threshold": 1,
         "window_width": 15,
-        "extraction_height": 20,
+        "extraction_height": 10,
         "curve_height": 90,
         "dimensionality": "1D",
         "degree": 2,
