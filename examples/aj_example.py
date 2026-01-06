@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7a7"]
+# dependencies = ["pyreduce-astro>=0.7b1"]
 # ///
 """
 AJ instrument example: Fiber bundle tracing with direct function calls.

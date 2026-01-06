@@ -1,6 +1,28 @@
 # Changelog
 
 
+## [0.7b1] - 2026-01-06
+
+### Changed
+- **Curvature algorithm rewrite**: Replace 2D model fitting with row-tracking method for better robustness
+- Rename `make_shear.py` to `slit_curve.py`
+- Rename curvature coefficients: `tilt`/`shear` → `p1`/`p2` throughout codebase
+- Rename `arc_extraction` to `simple_extraction`
+- Split curvature `extraction_height` into separate `extraction_height` and `curve_height` parameters
+- Save file renamed from `.shear.npz` to `.curve.npz`
+
+### Added
+- `discover_channels()` for automatic channel detection from data files
+- CLI: `--target` is now optional; loops over all targets if not specified
+- CLI: Uses `$REDUCE_DATA` for base_dir, reads default input_dir from config
+- Comprehensive CLI test coverage
+
+### Fixed
+- Curvature step index error when traces are removed during processing
+- Validate base_dir and input_dir exist with clear error messages
+- File sorting to correctly loop over all nights when not specified
+- CLI dynamic dependency loading for step commands
+
 ## [0.7a7] - 2026-01-04
 
 ### Added

@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7a7"]
+# dependencies = ["pyreduce-astro>=0.7b1"]
 # ///
 """
 Simple usage example for PyReduce
