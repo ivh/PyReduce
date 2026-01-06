@@ -157,7 +157,7 @@ def main(
     output_dir = join(base_dir, output_dir)
 
     if channels is None:
-        channels = info["channels"]
+        channels = info.get("channels") or instrument.discover_channels(input_dir)
     if np.isscalar(channels):
         channels = [channels]
 

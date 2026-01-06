@@ -1,8 +1,11 @@
+import tempfile
 from glob import glob
-from os.path import basename, dirname, exists, join
+from os.path import basename, dirname, join
 
+import numpy as np
 import pytest
 import yaml
+from astropy.io import fits
 
 from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments import common, instrument_info
@@ -113,3 +116,50 @@ def test_sort_files(supported_instrument, supported_channels, config):
         # assert "science" in f.keys()
 
 
+@pytest.mark.unit
+def test_discover_channels_base_class():
+    """Base class discover_channels returns [None]."""
+    instr = instrument_info.load_instrument(None)
+    channels = instr.discover_channels("/nonexistent")
+    assert channels == [None]
+
+
+@pytest.mark.unit
+def test_discover_channels_crires_plus():
+    """CRIRES_PLUS discover_channels extracts channels from file headers."""
+    instr = instrument_info.load_instrument("CRIRES_PLUS")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create mock CRIRES+ FITS files with different settings
+        for wlen_id in ["J1228", "K2148"]:
+            primary = fits.PrimaryHDU()
+            primary.header["ESO INS WLEN ID"] = wlen_id
+
+            hdus = [primary]
+            for chip in [1, 2, 3]:
+                data = np.zeros((10, 10), dtype=np.float32)
+                ext = fits.ImageHDU(data, name=f"CHIP{chip}.INT1")
+                hdus.append(ext)
+
+            hdul = fits.HDUList(hdus)
+            hdul.writeto(join(tmpdir, f"CRIRE.{wlen_id}.fits"))
+
+        channels = instr.discover_channels(tmpdir)
+
+        assert len(channels) == 6
+        assert "J1228_det1" in channels
+        assert "J1228_det2" in channels
+        assert "J1228_det3" in channels
+        assert "K2148_det1" in channels
+        assert "K2148_det2" in channels
+        assert "K2148_det3" in channels
+
+
+@pytest.mark.unit
+def test_discover_channels_empty_directory():
+    """discover_channels returns [None] for empty directory."""
+    instr = instrument_info.load_instrument("CRIRES_PLUS")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        channels = instr.discover_channels(tmpdir)
+        assert channels == [None]

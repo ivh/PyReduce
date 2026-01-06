@@ -825,6 +825,24 @@ class Instrument:
         files = self.apply_filters(files, ev)
         return files
 
+    def discover_channels(self, input_dir):
+        """Discover available channels from files in the input directory.
+
+        Override in subclasses for instruments that require channel specification.
+        The base implementation returns [None] which means no channel filtering.
+
+        Parameters
+        ----------
+        input_dir : str
+            Directory containing input files
+
+        Returns
+        -------
+        channels : list
+            List of channel identifiers found in the data
+        """
+        return [None]
+
     def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the pre-existing wavelength solution for the current setting
 
