@@ -1552,21 +1552,18 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         orig, thead = self.calibrate(files, mask, bias, None)
 
         # Pre-filter traces using curve_height (the relevant height for curvature fitting)
-        # This ensures extraction and curvature use the same valid traces
         orders, column_range = trace
         nrow, ncol = orig.shape
         nord = len(orders)
         _, column_range, orders = fix_parameters(
             self.curve_height, column_range, orders, nrow, ncol, nord
         )
-        trace = (orders, column_range)
-
-        extracted, _, _, _ = self.extract(orig, thead, trace, None)
 
         module = CurvatureModule(
             orders,
             column_range=column_range,
             curve_height=self.curve_height,
+            extraction_height=self.extraction_height,
             order_range=self.order_range,
             fit_degree=self.fit_degree,
             curve_degree=self.curve_degree,
@@ -1579,7 +1576,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             plot=self.plot,
             plot_title=self.plot_title,
         )
-        tilt, shear = module.execute(extracted, orig)
+        tilt, shear = module.execute(orig)
         self.save(tilt, shear)
         return tilt, shear
 

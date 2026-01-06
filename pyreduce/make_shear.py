@@ -97,6 +97,7 @@ class Curvature:
         self,
         orders,
         curve_height=0.5,
+        extraction_height=0.2,
         column_range=None,
         order_range=None,
         window_width=9,
@@ -112,6 +113,7 @@ class Curvature:
     ):
         self.orders = orders
         self.curve_height = curve_height
+        self.extraction_height = extraction_height
         self.column_range = column_range
         if order_range is None:
             order_range = (0, self.nord)
@@ -126,6 +128,9 @@ class Curvature:
         self.plot_title = plot_title
         self.curve_degree = curve_degree
         self.peak_function = peak_function
+
+        if self.curve_degree not in (1, 2):
+            raise ValueError("Only curvature degrees 1 and 2 are supported")
 
         if self.mode == "1D":
             # fit degree is an integer
@@ -159,6 +164,7 @@ class Curvature:
     def _fix_inputs(self, original):
         orders = self.orders
         curve_height = self.curve_height
+        extraction_height = self.extraction_height
         column_range = self.column_range
 
         nrow, ncol = original.shape
@@ -167,9 +173,15 @@ class Curvature:
         curve_height, column_range, orders = fix_parameters(
             curve_height, column_range, orders, nrow, ncol, nord
         )
+        extraction_height, _, _ = fix_parameters(
+            extraction_height, column_range, orders, nrow, ncol, nord
+        )
 
         self.column_range = column_range[self.order_range[0] : self.order_range[1]]
         self.curve_height = curve_height[self.order_range[0] : self.order_range[1]]
+        self.extraction_height = extraction_height[
+            self.order_range[0] : self.order_range[1]
+        ]
         self.orders = orders[self.order_range[0] : self.order_range[1]]
         self.order_range = (0, self.nord)
 
@@ -191,121 +203,211 @@ class Curvature:
         peaks += cr[0]
         return vec, peaks
 
-    def _determine_curvature_single_line(self, original, peak, ycen, ycen_int, xwd):
-        """
-        Fit the curvature of a single peak in the spectrum
-
-        This is achieved by fitting a model, that consists of gaussians
-        in spectrum direction, that are shifted by the curvature in each row.
+    def _extract_offset_spectra(self, original, order_idx):
+        """Extract N spectra at different y-offsets from the trace.
 
         Parameters
         ----------
-        original : array of shape (nrows, ncols)
-            whole input image
-        peak : int
-            column position of the peak
-        ycen : array of shape (ncols,)
-            row center of the order of the peak
-        xwd : 2 tuple
-            extraction width above and below the order center to use
+        original : array of shape (nrow, ncol)
+            Original image
+        order_idx : int
+            Index of the order in self.orders
 
         Returns
         -------
-        tilt : float
-            first order curvature
-        shear : float
-            second order curvature
+        spectra : array of shape (n_offsets, ncol)
+            Extracted spectra at each offset
+        offsets : array of shape (n_offsets,)
+            Y-offset of each spectrum center relative to trace
         """
-        _, ncol = original.shape
+        nrow, ncol = original.shape
+        cr = self.column_range[order_idx]
+        xwd = self.extraction_height[order_idx]
+        curve_xwd = self.curve_height[order_idx]
 
-        # look at +- width pixels around the line
-        # Extract short horizontal strip for each row in extraction width
-        # Then fit a gaussian to each row, to find the center of the line
-        x = peak + np.arange(-self.window_width, self.window_width + 1)
-        x = x[(x >= 0) & (x < ncol)]
-        xmin, xmax = x[0], x[-1] + 1
+        # Number of spectra to extract
+        total_extraction = xwd[0] + xwd[1]
+        total_curve = curve_xwd[0] + curve_xwd[1]
+        n_offsets = max(1, int(total_curve // total_extraction))
 
-        # Look above and below the line center
-        y = np.arange(-xwd[0], xwd[1] + 1)[:, None] - ycen[xmin:xmax][None, :]
+        # Compute offset centers, symmetric around trace
+        offsets = (np.arange(n_offsets) - (n_offsets - 1) / 2) * total_extraction
 
-        x = x[None, :]
-        idx = make_index(ycen_int - xwd[0], ycen_int + xwd[1], xmin, xmax)
-        img = original[idx]
-        img_compressed = np.ma.compressed(img)
+        # Get trace position
+        x = np.arange(ncol)
+        ycen = np.polyval(self.orders[order_idx], x)
+        ycen_int = ycen.astype(int)
 
-        img -= np.percentile(img_compressed, 1)
-        img /= np.percentile(img_compressed, 99)
-        img = np.ma.clip(img, 0, 1)
+        spectra = np.ma.zeros((n_offsets, ncol))
+        spectra[:, :] = np.ma.masked
 
-        sl = np.ma.mean(img, axis=1)
-        sl = sl[:, None]
+        for i, offset in enumerate(offsets):
+            # Y bounds for this offset spectrum
+            yb = ycen_int + int(offset) - xwd[0]
+            yt = ycen_int + int(offset) + xwd[1]
+
+            # Check bounds
+            if np.any(yb < 0) or np.any(yt >= nrow):
+                continue
+
+            # Extract and collapse
+            idx = make_index(yb, yt, cr[0], cr[1])
+            img_slice = original[idx]
+            spectra[i, cr[0] : cr[1]] = np.ma.median(img_slice, axis=0)
+
+        return spectra, offsets
+
+    def _fit_subpixel_peak(self, vec, peak_col):
+        """Fit a peak function to find sub-pixel peak position.
+
+        Parameters
+        ----------
+        vec : array
+            1D spectrum
+        peak_col : int
+            Approximate column of the peak
+
+        Returns
+        -------
+        position : float
+            Sub-pixel peak position, or NaN if fit fails
+        """
+        hw = self.window_width
+        xmin = max(0, peak_col - hw)
+        xmax = min(len(vec), peak_col + hw + 1)
+
+        x = np.arange(xmin, xmax)
+        y = np.ma.filled(vec[xmin:xmax], 0)
+
+        if np.sum(y > 0) < 3:
+            return np.nan
 
         peak_func = {"gaussian": gaussian, "lorentzian": lorentzian}
-        peak_func = peak_func[self.peak_function]
+        func = peak_func[self.peak_function]
 
-        def model(coef):
-            A, middle, sig, *curv = coef
-            mu = middle + shift(curv)
-            mod = peak_func(x, A, mu, sig)
-            mod *= sl
-            return (mod - img).ravel()
+        try:
+            A = np.max(y)
+            mu = peak_col
+            sig = hw / 2
 
-        def model_compressed(coef):
-            return np.ma.compressed(model(coef))
+            def residual(coef):
+                return func(x, coef[0], coef[1], coef[2]) - y
 
-        A = np.nanpercentile(img_compressed, 95)
-        sig = (xmax - xmin) / 4  # TODO
-        if self.curve_degree == 1:
+            res = least_squares(residual, x0=[A, mu, sig], method="lm")
+            return res.x[1]
+        except Exception:
+            return np.nan
 
-            def shift(curv):
-                return curv[0] * y
-        elif self.curve_degree == 2:
+    def _find_peaks_in_spectra(self, spectra, offsets, cr):
+        """Find peaks in each spectrum and track across offsets.
 
-            def shift(curv):
-                return (curv[0] + curv[1] * y) * y
-        else:
-            raise ValueError("Only curvature degrees 1 and 2 are supported")
-        # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
-        x0 = [A, peak, sig] + [0] * self.curve_degree
-        res = least_squares(
-            model_compressed, x0=x0, method="trf", loss="soft_l1", f_scale=0.1
-        )
+        Parameters
+        ----------
+        spectra : array of shape (n_offsets, ncol)
+            Extracted spectra at different offsets
+        offsets : array of shape (n_offsets,)
+            Y-offset of each spectrum
+        cr : array of shape (2,)
+            Column range for this order
 
-        if self.curve_degree == 1:
-            tilt, shear = res.x[3], 0
-        elif self.curve_degree == 2:
-            tilt, shear = res.x[3], res.x[4]
-        else:
-            tilt, shear = 0, 0
+        Returns
+        -------
+        peaks : array
+            Peak columns (from middle spectrum)
+        positions : array of shape (n_peaks, n_offsets)
+            Sub-pixel x-position of each peak at each offset
+        """
+        n_offsets = len(offsets)
+        mid_idx = n_offsets // 2
 
-        # model = model(res.x).reshape(img.shape) + img
-        # vmin = 0
-        # vmax = np.max(model)
+        # Find peaks in the middle spectrum (closest to trace, highest S/N)
+        mid_spectrum = spectra[mid_idx, cr[0] : cr[1]]
+        _, peaks = self._find_peaks(mid_spectrum, cr)
 
-        # y = y.ravel()
-        # x = res.x[1] - xmin + (tilt + shear * y) * y
-        # y += xwd[0]
+        if len(peaks) == 0:
+            return np.array([]), np.array([]).reshape(0, n_offsets)
 
-        # plt.subplot(121)
-        # plt.imshow(img, vmin=vmin, vmax=vmax, origin="lower")
-        # plt.plot(xwd[0] + ycen[xmin:xmax], "r")
-        # plt.title("Input Image")
-        # plt.xlabel("x [pixel]")
-        # plt.ylabel("y [pixel]")
+        # Track each peak across all spectra
+        positions = np.full((len(peaks), n_offsets), np.nan)
 
-        # plt.subplot(122)
-        # plt.imshow(model, vmin=vmin, vmax=vmax, origin="lower")
-        # plt.plot(x, y, "r", label="curvature")
-        # plt.ylim((-0.5, model.shape[0] - 0.5))
-        # plt.title("Model")
-        # plt.xlabel("x [pixel]")
-        # plt.ylabel("y [pixel]")
+        for i_offset in range(n_offsets):
+            spec = spectra[i_offset]
+            if np.ma.count(spec[cr[0] : cr[1]]) == 0:
+                continue
 
-        # plt.show()
+            for i_peak, peak in enumerate(peaks):
+                # Search for the peak in a window around expected position
+                search_min = max(cr[0], peak - self.window_width)
+                search_max = min(cr[1], peak + self.window_width + 1)
 
-        if self.plot >= 2:
-            model = res.fun.reshape(img.shape) + img
-            self.progress.update_plot2(img, model, tilt, shear, res.x[1] - xmin)
+                window = spec[search_min:search_max]
+                if np.ma.count(window) == 0:
+                    continue
+
+                # Find local maximum
+                local_max = search_min + np.ma.argmax(window)
+
+                # Fit sub-pixel position
+                positions[i_peak, i_offset] = self._fit_subpixel_peak(spec, local_max)
+
+        return peaks, positions
+
+    def _fit_curvature_from_positions(self, peaks, positions, offsets):
+        """Fit tilt and shear from peak position vs y-offset.
+
+        For each peak: x(y) = x0 + tilt*y + shear*y^2
+
+        Parameters
+        ----------
+        peaks : array
+            Peak columns
+        positions : array of shape (n_peaks, n_offsets)
+            X-position of each peak at each offset
+        offsets : array of shape (n_offsets,)
+            Y-offset of each spectrum
+
+        Returns
+        -------
+        tilt : array of shape (n_peaks,)
+            Linear curvature coefficient for each peak
+        shear : array of shape (n_peaks,)
+            Quadratic curvature coefficient for each peak
+        """
+        n_peaks = len(peaks)
+        tilt = np.zeros(n_peaks)
+        shear = np.zeros(n_peaks)
+
+        for i in range(n_peaks):
+            pos = positions[i]
+            valid = ~np.isnan(pos)
+
+            if np.sum(valid) < 2:
+                continue
+
+            y = offsets[valid]
+            x = pos[valid]
+
+            # Subtract mean x to get relative shift
+            x0 = np.mean(x)
+            dx = x - x0
+
+            if self.curve_degree == 1:
+                # Linear fit: dx = tilt * y
+                if np.sum(valid) >= 2:
+                    try:
+                        coef = np.polyfit(y, dx, 1)
+                        tilt[i] = coef[0]
+                    except Exception:
+                        pass
+            elif self.curve_degree == 2:
+                # Quadratic fit: dx = shear * y^2 + tilt * y
+                if np.sum(valid) >= 3:
+                    try:
+                        coef = np.polyfit(y, dx, 2)
+                        shear[i] = coef[0]
+                        tilt[i] = coef[1]
+                    except Exception:
+                        pass
 
         return tilt, shear
 
@@ -342,9 +444,28 @@ class Curvature:
 
         return coef_tilt, coef_shear, peaks
 
-    def _determine_curvature_all_lines(self, original, extracted):
-        ncol = original.shape[1]
-        # Store data from all orders
+    def _determine_curvature_all_lines(self, original):
+        """Determine curvature for all lines using row-tracking method.
+
+        Extracts N spectra at different y-offsets, finds peaks in each,
+        and fits curvature from how peak positions shift with y-offset.
+
+        Parameters
+        ----------
+        original : array of shape (nrow, ncol)
+            Original image
+
+        Returns
+        -------
+        all_peaks : list of arrays
+            Peak columns for each order
+        all_tilt : list of arrays
+            Tilt values for each peak in each order
+        all_shear : list of arrays
+            Shear values for each peak in each order
+        plot_vec : list of arrays
+            Middle spectrum for each order (for plotting)
+        """
         all_peaks = []
         all_tilt = []
         all_shear = []
@@ -354,38 +475,38 @@ class Curvature:
             logger.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
-            xwd = self.curve_height[j]
-            ycen = np.polyval(self.orders[j], np.arange(ncol))
-            ycen_int = ycen.astype(int)
-            ycen -= ycen_int
 
-            # Find peaks
-            vec = extracted[j, cr[0] : cr[1]]
-            vec, peaks = self._find_peaks(vec, cr)
+            # Extract spectra at different y-offsets
+            spectra, offsets = self._extract_offset_spectra(original, j)
 
-            npeaks = len(peaks)
+            # Find peaks and track across offsets
+            peaks, positions = self._find_peaks_in_spectra(spectra, offsets, cr)
 
-            # Determine curvature for each line seperately
-            tilt = np.zeros(npeaks)
-            shear = np.zeros(npeaks)
-            mask = np.full(npeaks, True)
-            for ipeak, peak in tqdm(
-                enumerate(peaks), total=len(peaks), desc="Peak", leave=False
-            ):
-                if self.plot >= 2:  # pragma: no cover
+            # For plotting, use middle spectrum
+            mid_idx = len(offsets) // 2
+            vec = spectra[mid_idx, cr[0] : cr[1]]
+            vec = np.ma.filled(vec - np.ma.median(vec), 0)
+            vec = np.clip(vec, 0, None)
+
+            if len(peaks) == 0:
+                all_peaks.append(np.array([]))
+                all_tilt.append(np.array([]))
+                all_shear.append(np.array([]))
+                plot_vec.append(vec)
+                continue
+
+            # Fit curvature from peak positions
+            tilt, shear = self._fit_curvature_from_positions(peaks, positions, offsets)
+
+            if self.plot >= 2:  # pragma: no cover
+                for peak in peaks:
                     self.progress.update_plot1(vec, peak, cr[0])
-                try:
-                    tilt[ipeak], shear[ipeak] = self._determine_curvature_single_line(
-                        original, peak, ycen, ycen_int, xwd
-                    )
-                except RuntimeError:  # pragma: no cover
-                    mask[ipeak] = False
 
-            # Store results
-            all_peaks += [peaks[mask]]
-            all_tilt += [tilt[mask]]
-            all_shear += [shear[mask]]
-            plot_vec += [vec]
+            all_peaks.append(peaks)
+            all_tilt.append(tilt)
+            all_shear.append(shear)
+            plot_vec.append(vec)
+
         return all_peaks, all_tilt, all_shear, plot_vec
 
     def fit(self, peaks, tilt, shear):
@@ -555,7 +676,21 @@ class Curvature:
         plt.ylabel("order")
         util.show_or_save("curvature_comparison")
 
-    def execute(self, extracted, original):
+    def execute(self, original):
+        """Execute curvature determination using row-tracking method.
+
+        Parameters
+        ----------
+        original : array of shape (nrow, ncol)
+            Original image
+
+        Returns
+        -------
+        tilt : array of shape (nord, ncol)
+            First order slit curvature at each point
+        shear : array of shape (nord, ncol)
+            Second order slit curvature at each point
+        """
         logger.info("Determining the Slit Curvature")
 
         _, ncol = original.shape
@@ -565,9 +700,7 @@ class Curvature:
         if self.plot >= 2:  # pragma: no cover
             self.progress = ProgressPlot(ncol, self.window_width, title=self.plot_title)
 
-        peaks, tilt, shear, vec = self._determine_curvature_all_lines(
-            original, extracted
-        )
+        peaks, tilt, shear, vec = self._determine_curvature_all_lines(original)
 
         coef_tilt, coef_shear = self.fit(peaks, tilt, shear)
 
@@ -577,7 +710,8 @@ class Curvature:
         if self.plot:  # pragma: no cover
             self.plot_results(ncol, peaks, vec, tilt, shear, coef_tilt, coef_shear)
 
-        iorder, ipeaks = np.indices(extracted.shape)
+        # Create output arrays (nord, ncol)
+        iorder, ipeaks = np.indices((self.n, ncol))
         tilt, shear = self.eval(ipeaks, iorder, coef_tilt, coef_shear)
 
         if self.plot:  # pragma: no cover
