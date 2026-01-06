@@ -154,8 +154,22 @@ def main(
     if output_dir is None:
         output_dir = config["reduce"]["output_dir"]
 
+    # Validate base_dir exists
+    if not os.path.isdir(base_dir):
+        source = "$REDUCE_DATA" if os.environ.get("REDUCE_DATA") else "config"
+        raise FileNotFoundError(
+            f"Base directory does not exist: {base_dir} (from {source})"
+        )
+
     input_dir = join(base_dir, input_dir)
     output_dir = join(base_dir, output_dir)
+
+    # Validate input_dir exists
+    if not os.path.isdir(input_dir):
+        raise FileNotFoundError(
+            f"Input directory does not exist: {input_dir}\n"
+            f"  base_dir={base_dir}, input_dir setting={config['reduce']['input_dir']}"
+        )
 
     if channels is None:
         channels = info.get("channels") or instrument.discover_channels(input_dir)

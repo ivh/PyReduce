@@ -110,19 +110,22 @@ def run(
         config = load_settings_override(config, settings)
 
     # Run reduction
-    reduce_main(
-        instrument=instrument,
-        target=target,
-        night=night,
-        channels=channel,
-        steps=steps,
-        base_dir=base_dir,
-        input_dir=input_dir,
-        output_dir=output_dir,
-        configuration=config,
-        order_range=order_range,
-        plot=plot,
-    )
+    try:
+        reduce_main(
+            instrument=instrument,
+            target=target,
+            night=night,
+            channels=channel,
+            steps=steps,
+            base_dir=base_dir,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            configuration=config,
+            order_range=order_range,
+            plot=plot,
+        )
+    except FileNotFoundError as e:
+        raise click.ClickException(str(e)) from None
 
 
 @cli.command()
