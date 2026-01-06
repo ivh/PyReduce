@@ -734,13 +734,13 @@
                     ]
                 },
                 {
-                    "title": "Arc Extraction",
+                    "title": "Simple Extraction",
                     "properties": {
                         "extraction_method": {
                             "description": "The method to use for extraction",
                             "type": "string",
                             "enum": [
-                                "arc"
+                                "simple"
                             ]
                         },
                         "extraction_height": {

@@ -72,7 +72,7 @@
         "plot_title": "Normalized Flat"
     },
     "wavecal_master": {
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 0.5,
         "extraction_cutoff": 20,
@@ -113,7 +113,7 @@
         "plot_title": "Wavelength Calibration"
     },
     "freq_comb_master":{
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 0.5,
         "extraction_cutoff": 20,
@@ -138,7 +138,7 @@
         "dimensionality": "1D",
         "degree": 2,
         "curv_degree": 2,
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 0.2,
         "curvature_cutoff": 3,

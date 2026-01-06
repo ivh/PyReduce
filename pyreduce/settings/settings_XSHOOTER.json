@@ -43,7 +43,7 @@
         ]
     },
     "wavecal_master": {
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "bias_scaling": "exposure_time"
     },
     "wavecal": {

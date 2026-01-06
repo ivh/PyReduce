@@ -365,9 +365,12 @@ class ExtractionStep(Step):
             "trace",
         ]
 
-        #:{'arc', 'optimal'}: Extraction method to use
+        #:{'simple', 'optimal'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
-        if self.extraction_method == "arc":
+        if self.extraction_method in (
+            "simple",
+            "arc",
+        ):  # "arc" for backwards compatibility
             #:dict: arguments for the extraction
             self.extraction_kwargs = {
                 "extraction_height": config["extraction_height"],

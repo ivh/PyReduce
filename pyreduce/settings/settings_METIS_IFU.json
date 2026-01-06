@@ -32,7 +32,7 @@
         "threshold": 1000
     },
     "curvature": {
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "dimensionality": "1D",
         "curv_degree": 2,
         "collapse_function": "mean",
@@ -47,7 +47,7 @@
         "degree": 2
     },
     "wavecal_master": {
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 0.7825,
         "extraction_cutoff": 10,

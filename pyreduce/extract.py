@@ -1040,7 +1040,7 @@ def get_mask(img, model):
     return residual > vmax
 
 
-def arc_extraction(
+def simple_extraction(
     img,
     traces,
     extraction_height,
@@ -1055,8 +1055,8 @@ def arc_extraction(
     collapse_function="median",
     **kwargs,
 ):
-    """Use "simple" arc extraction to get a spectrum
-    Arc extraction simply takes the sum orthogonal to the trace for extraction width pixels
+    """Use simple extraction to get a spectrum
+    Simple extraction takes the sum/mean/median orthogonal to the trace for extraction_height pixels
 
     This extraction makes a few rough assumptions and does not provide the most accurate results,
     but rather a good approximation
@@ -1088,7 +1088,7 @@ def arc_extraction(
         uncertainties on extracted spectrum
     """
 
-    logger.info("Using arc extraction to produce spectrum")
+    logger.info("Using simple extraction to produce spectrum")
     _, ncol = img.shape
     nord, _ = traces.shape
 
@@ -1245,8 +1245,8 @@ def extract(
         range of traces to extract, traces have to be consecutive (default: use all)
     extraction_height : array[nord, 2]({float, int}), optional
         extraction width above and below each trace, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
-    extraction_type : {"optimal", "arc", "normalize"}, optional
-        which extracttion algorithm to use, "optimal" uses optimal extraction, "arc" uses simple arc extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
+    extraction_type : {"optimal", "simple", "normalize"}, optional
+        which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
     tilt : float or array[nord, ncol], optional
         The tilt (1st order curvature) of the slit for curved extraction. Will use vertical extraction if no tilt is set. (default: None, i.e. tilt = 0)
     shear : float or array[nord, ncol], optional
@@ -1342,9 +1342,8 @@ def extract(
         im_norm[im_norm <= threshold_lower] = 1
         im_ordr[im_ordr <= threshold_lower] = 1
         return im_norm, im_ordr, blaze, column_range
-    elif extraction_type == "arc":
-        # Simpler extraction, just summing along the arc of the trace
-        spectrum, uncertainties = arc_extraction(
+    elif extraction_type in ("simple", "arc"):  # "arc" for backwards compatibility
+        spectrum, uncertainties = simple_extraction(
             img,
             traces,
             extraction_height,
@@ -1356,7 +1355,7 @@ def extract(
         slitfunction = None
     else:
         raise ValueError(
-            f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'arc' bug got {extraction_type}."
+            f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'simple' but got {extraction_type}."
         )
 
     return spectrum, uncertainties, slitfunction, column_range

@@ -1205,7 +1205,7 @@ test/
 extract.extend_orders(orders, height) -> array
 extract.fix_column_range(cr, orders, ew, nrow, ncol) -> (cr, orders)
 extract.make_bins(swath_width, xlow, xhigh, ycen) -> (nbin, starts, ends)
-extract.arc_extraction(img, orders, ew, cr, tilt, shear) -> (spec, unc)
+extract.simple_extraction(img, orders, ew, cr, tilt, shear) -> (spec, unc)
 extract.optimal_extraction(img, orders, xwd, cr, tilt, shear) -> (spec, slitf, unc)
 extract.extract(img, orders, ...) -> (spec, unc, slitf, ...)
 

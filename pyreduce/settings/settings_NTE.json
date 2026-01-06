@@ -43,7 +43,7 @@
     "freq_comb": {
     },
     "curvature": {
-        "extraction_method": "arc",
+        "extraction_method": "simple",
         "collapse_function": "sum",
         "extraction_height": 0.5,
         "peak_threshold": 0.1,

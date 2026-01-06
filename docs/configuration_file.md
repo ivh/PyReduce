@@ -104,7 +104,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `extraction_method` | "optimal" or "arc" | "optimal" |
+| `extraction_method` | "optimal" or "simple" | "optimal" |
 | `extraction_height` | Width in order widths | 0.5 |
 | `oversampling` | Slit function oversampling | 10 |
 | `smooth_slitfunction` | Smoothing factor | 1 |

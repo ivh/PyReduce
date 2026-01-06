@@ -207,7 +207,7 @@ def test_fix_parameters():
     assert len(orders_out) == 0
 
 
-def test_arc_extraction(sample_data, orders, width, oversample):
+def test_simple_extraction(sample_data, orders, width, oversample):
     img, spec, slitf = sample_data
 
     extraction_height = np.array([[10, 10]])
@@ -217,7 +217,7 @@ def test_arc_extraction(sample_data, orders, width, oversample):
     tilt = np.zeros((nord, width))
     shear = np.zeros((nord, width))
 
-    spec_out, unc_out = extract.arc_extraction(
+    spec_out, unc_out = extract.simple_extraction(
         img, orders, extraction_height, column_range, tilt=tilt, shear=shear
     )
 

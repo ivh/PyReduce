@@ -26,7 +26,7 @@ def test_wavecal(
         gain=thead["e_gain"],
         readnoise=thead["e_readn"],
         dark=thead["e_drk"],
-        extraction_type="arc",
+        extraction_type="simple",
         column_range=column_range,
         order_range=order_range,
         extraction_height=settings[name]["extraction_height"],

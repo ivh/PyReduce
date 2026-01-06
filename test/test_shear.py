@@ -34,7 +34,7 @@ def extracted(original, orders, order_range, settings):
         gain=chead["e_gain"],
         readnoise=chead["e_readn"],
         dark=chead["e_drk"],
-        extraction_type="arc",
+        extraction_type="simple",
         column_range=column_range,
         order_range=order_range,
         plot=False,
