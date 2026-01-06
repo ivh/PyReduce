@@ -34,7 +34,7 @@
     "curvature": {
         "extraction_method": "simple",
         "dimensionality": "1D",
-        "curv_degree": 2,
+        "curve_degree": 2,
         "collapse_function": "mean",
         "extraction_height": 0.77,
         "extraction_cutoff": 20,

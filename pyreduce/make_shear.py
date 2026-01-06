@@ -96,7 +96,7 @@ class Curvature:
     def __init__(
         self,
         orders,
-        extraction_height=0.5,
+        curve_height=0.5,
         column_range=None,
         order_range=None,
         window_width=9,
@@ -108,10 +108,10 @@ class Curvature:
         plot=False,
         plot_title=None,
         peak_function="gaussian",
-        curv_degree=2,
+        curve_degree=2,
     ):
         self.orders = orders
-        self.extraction_height = extraction_height
+        self.curve_height = curve_height
         self.column_range = column_range
         if order_range is None:
             order_range = (0, self.nord)
@@ -124,7 +124,7 @@ class Curvature:
         self.mode = mode
         self.plot = plot
         self.plot_title = plot_title
-        self.curv_degree = curv_degree
+        self.curve_degree = curve_degree
         self.peak_function = peak_function
 
         if self.mode == "1D":
@@ -158,20 +158,18 @@ class Curvature:
 
     def _fix_inputs(self, original):
         orders = self.orders
-        extraction_height = self.extraction_height
+        curve_height = self.curve_height
         column_range = self.column_range
 
         nrow, ncol = original.shape
         nord = len(orders)
 
-        extraction_height, column_range, orders = fix_parameters(
-            extraction_height, column_range, orders, nrow, ncol, nord
+        curve_height, column_range, orders = fix_parameters(
+            curve_height, column_range, orders, nrow, ncol, nord
         )
 
         self.column_range = column_range[self.order_range[0] : self.order_range[1]]
-        self.extraction_height = extraction_height[
-            self.order_range[0] : self.order_range[1]
-        ]
+        self.curve_height = curve_height[self.order_range[0] : self.order_range[1]]
         self.orders = orders[self.order_range[0] : self.order_range[1]]
         self.order_range = (0, self.nord)
 
@@ -257,25 +255,25 @@ class Curvature:
 
         A = np.nanpercentile(img_compressed, 95)
         sig = (xmax - xmin) / 4  # TODO
-        if self.curv_degree == 1:
+        if self.curve_degree == 1:
 
             def shift(curv):
                 return curv[0] * y
-        elif self.curv_degree == 2:
+        elif self.curve_degree == 2:
 
             def shift(curv):
                 return (curv[0] + curv[1] * y) * y
         else:
             raise ValueError("Only curvature degrees 1 and 2 are supported")
         # res = least_squares(model, x0=[A, middle, sig, 0], loss="soft_l1", bounds=([0, xmin, 1, -10],[np.inf, xmax, xmax, 10]))
-        x0 = [A, peak, sig] + [0] * self.curv_degree
+        x0 = [A, peak, sig] + [0] * self.curve_degree
         res = least_squares(
             model_compressed, x0=x0, method="trf", loss="soft_l1", f_scale=0.1
         )
 
-        if self.curv_degree == 1:
+        if self.curve_degree == 1:
             tilt, shear = res.x[3], 0
-        elif self.curv_degree == 2:
+        elif self.curve_degree == 2:
             tilt, shear = res.x[3], res.x[4]
         else:
             tilt, shear = 0, 0
@@ -356,7 +354,7 @@ class Curvature:
             logger.debug("Calculating tilt of order %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
-            xwd = self.extraction_height[j]
+            xwd = self.curve_height[j]
             ycen = np.polyval(self.orders[j], np.arange(ncol))
             ycen_int = ycen.astype(int)
             ycen -= ycen_int
@@ -518,13 +516,13 @@ class Curvature:
 
     def plot_comparison(self, original, tilt, shear, peaks):  # pragma: no cover
         _, ncol = original.shape
-        output = np.zeros((np.sum(self.extraction_height) + self.nord, ncol))
+        output = np.zeros((np.sum(self.curve_height) + self.nord, ncol))
         pos = [0]
         x = np.arange(ncol)
         for i in range(self.nord):
             ycen = np.polyval(self.orders[i], x)
-            yb = ycen - self.extraction_height[i, 0]
-            yt = ycen + self.extraction_height[i, 1]
+            yb = ycen - self.curve_height[i, 0]
+            yt = ycen + self.curve_height[i, 1]
             xl, xr = self.column_range[i]
             index = make_index(yb, yt, xl, xr)
             yl = pos[i]
@@ -537,7 +535,7 @@ class Curvature:
 
         for i in range(self.nord):
             for p in peaks[i]:
-                ew = self.extraction_height[i]
+                ew = self.curve_height[i]
                 x = np.zeros(ew[0] + ew[1] + 1)
                 y = np.arange(-ew[0], ew[1] + 1)
                 for j, yt in enumerate(y):
@@ -545,7 +543,7 @@ class Curvature:
                 y += pos[i] + ew[0]
                 plt.plot(x, y, "r")
 
-        locs = np.sum(self.extraction_height, axis=1) + 1
+        locs = np.sum(self.curve_height, axis=1) + 1
         locs = np.array([0, *np.cumsum(locs)[:-1]])
         locs[:-1] += (np.diff(locs) * 0.5).astype(int)
         locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)

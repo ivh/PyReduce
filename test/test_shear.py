@@ -64,7 +64,7 @@ def test_shear(original, extracted, orders, order_range, settings):
         sigma_cutoff=settings["curvature_cutoff"],
         peak_function=settings["peak_function"],
         mode="1D",
-        curv_degree=2,
+        curve_degree=2,
         plot=False,
         plot_title=None,
     )
@@ -95,7 +95,7 @@ def test_shear(original, extracted, orders, order_range, settings):
         sigma_cutoff=settings["curvature_cutoff"],
         peak_function=settings["peak_function"],
         mode="2D",
-        curv_degree=1,
+        curve_degree=1,
         plot=False,
         plot_title=None,
     )
@@ -125,10 +125,10 @@ def test_shear_exception(original, extracted, orders, order_range):
 
     original = np.copy(original)
 
-    # Wrong curv_degree input
+    # Wrong curve_degree input
     with pytest.raises(ValueError):
         module = CurvatureModule(
-            orders, column_range=column_range, plot=False, curv_degree=3
+            orders, column_range=column_range, plot=False, curve_degree=3
         )
         tilt, shear = module.execute(extracted, original)
 

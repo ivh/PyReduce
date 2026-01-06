@@ -32,7 +32,7 @@
     "curvature": {
         "extraction_method": "simple",
         "dimensionality": "2D",
-        "curv_degree": 1,
+        "curve_degree": 1,
         "collapse_function": "mean",
         "extraction_height": 350,
         "extraction_cutoff": 10,

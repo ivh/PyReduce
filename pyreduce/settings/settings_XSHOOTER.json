@@ -35,7 +35,7 @@
     "curvature": {
         "bias_scaling": "exposure_time",
         "dimensionality": "2D",
-        "curv_degree": 1,
+        "curve_degree": 1,
         "extraction_height": 0.45,
         "degree": [
             1,

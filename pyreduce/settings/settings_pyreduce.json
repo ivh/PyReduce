@@ -137,10 +137,11 @@
     "curvature": {
         "dimensionality": "1D",
         "degree": 2,
-        "curv_degree": 2,
+        "curve_degree": 2,
         "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 0.2,
+        "curve_height": 0.5,
         "curvature_cutoff": 3,
         "extraction_cutoff": 20,
         "peak_threshold": 10,

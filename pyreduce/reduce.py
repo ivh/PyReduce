@@ -45,7 +45,7 @@ from .combine_frames import (
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
-from .extract import extract
+from .extract import extract, fix_parameters
 from .make_shear import Curvature as CurvatureModule
 from .rectify import merge_images, rectify_image
 from .trace import trace as mark_orders
@@ -1503,12 +1503,14 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["curvature_cutoff"]
-        #:float: width of the orders in the extraction
+        #:float: extraction height for peak finding spectrum
         self.extraction_height = config["extraction_height"]
+        #:float: height of the 2D cutout for curvature fitting
+        self.curve_height = config["curve_height"]
         #:int: Polynomial degree of the overall fit
         self.fit_degree = config["degree"]
         #:int: Orders of the curvature to fit, currently supports only 1 and 2
-        self.curv_degree = config["curv_degree"]
+        self.curve_degree = config["curve_degree"]
         #:{'1D', '2D'}: Whether to use 1d or 2d polynomials
         self.curvature_mode = config["dimensionality"]
         #:float: peak finding noise threshold
@@ -1548,16 +1550,26 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         logger.info("Slit curvature files: %s", files)
 
         orig, thead = self.calibrate(files, mask, bias, None)
+
+        # Pre-filter traces using curve_height (the relevant height for curvature fitting)
+        # This ensures extraction and curvature use the same valid traces
+        orders, column_range = trace
+        nrow, ncol = orig.shape
+        nord = len(orders)
+        _, column_range, orders = fix_parameters(
+            self.curve_height, column_range, orders, nrow, ncol, nord
+        )
+        trace = (orders, column_range)
+
         extracted, _, _, _ = self.extract(orig, thead, trace, None)
 
-        orders, column_range = trace
         module = CurvatureModule(
             orders,
             column_range=column_range,
-            extraction_height=self.extraction_height,
+            curve_height=self.curve_height,
             order_range=self.order_range,
             fit_degree=self.fit_degree,
-            curv_degree=self.curv_degree,
+            curve_degree=self.curve_degree,
             sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             peak_threshold=self.peak_threshold,

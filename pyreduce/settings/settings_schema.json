@@ -501,11 +501,25 @@
                 {
                     "type": "object",
                     "properties": {
-                        "curv_degree": {
+                        "curve_degree": {
                             "description": "Number of orders of the curvature to fit. I.e. 1: only linear curvature, 2: second order curvature",
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 2
+                        },
+                        "curve_height": {
+                            "description": "Height of the 2D cutout for curvature fitting (per side). If a value under 1.5 is given it will be understood as the fractional difference to the next order.",
+                            "type": [
+                                "integer",
+                                "number",
+                                "array"
+                            ],
+                            "items": {
+                                "type": [
+                                    "integer",
+                                    "number"
+                                ]
+                            }
                         },
                         "peak_threshold": {
                             "description": "Peak detection noise threshold. This much times * 10% noise must be the prominence of the peaks",
@@ -547,7 +561,7 @@
                         "window_width",
                         "peak_width",
                         "peak_threshold",
-                        "curv_degree"
+                        "curve_degree"
                     ]
                 }
             ]

@@ -51,7 +51,7 @@
         "window_width": 5,
         "dimensionality": "2D",
         "degree": [1, 1],
-        "curv_degree": 1,
+        "curve_degree": 1,
         "peak_function": "gaussian",
         "bias_scaling": "exposure_time"
     },

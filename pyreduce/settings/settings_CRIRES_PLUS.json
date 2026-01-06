@@ -68,13 +68,11 @@
     "curvature": {
         "peak_threshold": 1,
         "window_width": 15,
-        "extraction_height": 100,
-        "dimensionality": "2D",
-        "degree": [
-            1,
-            1
-        ],
-        "curv_degree": 1,
+        "extraction_height": 20,
+        "curve_height": 90,
+        "dimensionality": "1D",
+        "degree": 2,
+        "curve_degree": 1,
         "peak_function": "lorentzian",
         "bias_scaling": "exposure_time"
     },
