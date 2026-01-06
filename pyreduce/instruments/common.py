@@ -654,7 +654,7 @@ class Instrument:
 
         return self.filters
 
-    def apply_filters(self, files, expected, allow_calibration_only=False):
+    def apply_filters(self, files, expected):
         """
         Determine the relevant files for a given set of expected values.
 
@@ -702,21 +702,12 @@ class Instrument:
                 f = files[mask]
                 result[step].append((d, f))
 
-        # Filter for only nights that have a science observation
         # files = [{setting: value}, {step: files}]
         files = []
-        if allow_calibration_only:
-            # Use all unique nights
-            settings = {}
-            for shared in self.shared:
-                keys = [k for k in set(self.filters[shared].data) if k is not None]
-                settings[shared] = keys
-        else:
-            # Or use only science nights
-            settings = {}
-            for shared in self.shared:
-                keys = [key[shared] for key, _ in result[self.science]]
-                settings[shared] = keys
+        settings = {}
+        for shared in self.shared:
+            keys = [k for k in set(self.filters[shared].data) if k is not None]
+            settings[shared] = keys
 
         values = [settings[k] for k in self.shared]
         for setting in product(*values):
@@ -791,9 +782,7 @@ class Instrument:
             )
         return files
 
-    def sort_files(
-        self, input_dir, target, night, *args, allow_calibration_only=False, **kwargs
-    ):
+    def sort_files(self, input_dir, target, night, *args, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -821,9 +810,7 @@ class Instrument:
         )
         files = self.find_files(input_dir)
         ev = self.get_expected_values(target, night, *args, **kwargs)
-        files = self.apply_filters(
-            files, ev, allow_calibration_only=allow_calibration_only
-        )
+        files = self.apply_filters(files, ev)
         return files
 
     def get_wavecal_filename(self, header, channel, **kwargs):

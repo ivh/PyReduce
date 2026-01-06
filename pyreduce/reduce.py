@@ -73,7 +73,6 @@ def main(
     output_dir=None,
     configuration=None,
     order_range=None,
-    allow_calibration_only=False,
     skip_existing=False,
     plot=0,
     plot_dir=None,
@@ -175,7 +174,6 @@ def main(
             n,
             channel=c,
             **config["instrument"],
-            allow_calibration_only=allow_calibration_only,
         )
         if len(files) == 0:
             logger.warning(

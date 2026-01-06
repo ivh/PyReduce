@@ -485,7 +485,6 @@ class Pipeline:
         output_dir: str | None = None,
         configuration: dict | None = None,
         order_range: tuple[int, int] | None = None,
-        allow_calibration_only: bool = False,
         plot: int = 0,
         plot_dir: str | None = None,
     ) -> Pipeline:
@@ -518,8 +517,6 @@ class Pipeline:
             Configuration overrides. Default: instrument defaults
         order_range : tuple, optional
             (first, last+1) orders to process
-        allow_calibration_only : bool
-            If True, allow running without science files
         plot : int
             Plot level (0=off, 1=basic, 2=detailed)
         plot_dir : str, optional
@@ -580,7 +577,6 @@ class Pipeline:
             night,
             channel=channels[0] if len(channels) == 1 else channels[0],
             **config["instrument"],
-            allow_calibration_only=allow_calibration_only,
         )
 
         if len(files) == 0:
