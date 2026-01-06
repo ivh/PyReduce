@@ -430,7 +430,7 @@ def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
         if len(points_in_image) == 0:
             # print(y_bot, y_top,nrow, ncol, points_in_image)
             logger.warning(
-                f"No pixels are completely within the extraction width for trace {i}, removing it."
+                f"No columns are completely within the extraction height for trace {i - 1}, removing it."
             )
             to_remove += [i]
             continue

@@ -173,7 +173,7 @@ class Curvature:
             self.order_range[0] : self.order_range[1]
         ]
         self.orders = orders[self.order_range[0] : self.order_range[1]]
-        self.order_range = (0, self.n)
+        self.order_range = (0, self.nord)
 
     def _find_peaks(self, vec, cr):
         # This should probably be the same as in the wavelength calibration
