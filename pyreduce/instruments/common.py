@@ -683,6 +683,10 @@ class Instrument:
             result[step] = []
             data = {}
             for name, value in values.items():
+                # For 'night', don't filter during classification
+                # - get all nights so find_closest can work
+                if name == self.night:
+                    value = None
                 if isinstance(value, list):
                     for v in value:
                         data[name] = self.filters[name].classify(v)
@@ -706,7 +710,15 @@ class Instrument:
         files = []
         settings = {}
         for shared in self.shared:
-            keys = [k for k in set(self.filters[shared].data) if k is not None]
+            # Check if user specified a value for this shared parameter
+            sample_expected = expected.get(self.science, {}).get(shared)
+            if sample_expected is not None and sample_expected != "":
+                # User specified a value - use only matching values from data
+                keys = self.filters[shared].classify(sample_expected)
+                keys = [k for k, _ in keys if k is not None]
+            else:
+                # No filter - use all unique values
+                keys = [k for k in set(self.filters[shared].data) if k is not None]
             settings[shared] = keys
 
         values = [settings[k] for k in self.shared]
