@@ -146,8 +146,9 @@ def main(
     info = instrument.info
 
     # load default settings from settings_pyreduce.json
+    # $REDUCE_DATA overrides config for base_dir
     if base_dir is None:
-        base_dir = config["reduce"]["base_dir"]
+        base_dir = os.environ.get("REDUCE_DATA") or config["reduce"]["base_dir"]
     if input_dir is None:
         input_dir = config["reduce"]["input_dir"]
     if output_dir is None:

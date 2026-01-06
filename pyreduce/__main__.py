@@ -54,7 +54,7 @@ def cli():
     help="Base directory for data (default: $REDUCE_DATA or ~/REDUCE_DATA)",
 )
 @click.option(
-    "--input-dir", "-i", default="raw", help="Input directory relative to base"
+    "--input-dir", "-i", default=None, help="Input directory relative to base"
 )
 @click.option(
     "--output-dir", "-o", default="reduced", help="Output directory relative to base"
@@ -117,7 +117,7 @@ def run(
         night=night,
         channels=channel,
         steps=steps,
-        base_dir=base_dir or "",
+        base_dir=base_dir,
         input_dir=input_dir,
         output_dir=output_dir,
         configuration=config,
