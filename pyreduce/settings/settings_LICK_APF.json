@@ -52,7 +52,8 @@
         ]
     },
     "curvature": {
-        "extraction_height": 0.5,
+        "curve_height": 0.5,
+        "extraction_height": 0.17,
         "dimensionality": "1D",
         "degree": 2
     },

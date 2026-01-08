@@ -44,7 +44,8 @@
     "curvature": {
         "extraction_method": "simple",
         "collapse_function": "sum",
-        "extraction_height": 1.0,
+        "curve_height": 1.0,
+        "extraction_height": 0.33,
         "peak_threshold": 0.1,
         "peak_width": 1,
         "window_width": 5,

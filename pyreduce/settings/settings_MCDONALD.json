@@ -51,7 +51,8 @@
         ]
     },
     "curvature": {
-        "extraction_height": 20,
+        "curve_height": 20,
+        "extraction_height": 7,
         "dimensionality": "2D",
         "degree": [
             3,

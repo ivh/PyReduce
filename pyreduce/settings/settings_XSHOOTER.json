@@ -37,7 +37,8 @@
         "bias_scaling": "exposure_time",
         "dimensionality": "2D",
         "curve_degree": 1,
-        "extraction_height": 0.9,
+        "curve_height": 0.9,
+        "extraction_height": 0.3,
         "degree": [
             1,
             1

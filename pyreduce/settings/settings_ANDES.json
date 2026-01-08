@@ -5,7 +5,8 @@
         "min_cluster": 200000
     },
     "curvature": {
-        "extraction_height": 200,
+        "curve_height": 200,
+        "extraction_height": 67,
         "dimensionality": "2D",
         "degree": [
             1,
