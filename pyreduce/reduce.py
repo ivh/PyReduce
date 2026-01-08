@@ -29,8 +29,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.io.fits.verify import VerifyWarning
+from astropy.utils.exceptions import AstropyUserWarning
 
-warnings.simplefilter("ignore", category=VerifyWarning)
+warnings.simplefilter("ignore", category=VerifyWarning, append=True)
+warnings.simplefilter("ignore", category=AstropyUserWarning, append=True)
 
 
 from tqdm import tqdm
