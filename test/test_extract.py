@@ -183,7 +183,8 @@ def test_fix_parameters():
     ncol, nrow, nord = 100, 100, 1
 
     # Everything None, i.e. most default settings
-    for xwd in [None, 0.2, (4, 4), [[10, 10]]]:
+    # extraction_height is now full height (split evenly above/below trace)
+    for xwd in [None, 0.4, 8, 20]:
         for cr in [None, (1, 90), [[4, 100]]]:
             xwd, cr, orders = extract.fix_parameters(xwd, cr, orders, ncol, nrow, nord)
             assert isinstance(xwd, np.ndarray)
@@ -200,9 +201,9 @@ def test_fix_parameters():
             assert orders.shape[0] == nord
             assert orders.shape[1] == 3
 
-    # Test that extraction_height=100 results in no valid pixels,
+    # Test that extraction_height=200 (full height, 100 per side) results in no valid pixels,
     # which now logs a warning and removes the order instead of raising ValueError
-    xwd, cr, orders_out = extract.fix_parameters(100, None, orders, ncol, nrow, nord)
+    xwd, cr, orders_out = extract.fix_parameters(200, None, orders, ncol, nrow, nord)
     # The order should be removed, resulting in an empty array
     assert len(orders_out) == 0
 

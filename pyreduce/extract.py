@@ -253,8 +253,8 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
 
     Parameters
     ----------
-    xwd : float, array
-        Extraction width, either one value for all traces, or the whole array
+    xwd : float
+        Total extraction height. Split evenly above/below trace. Values below 3 are fractions of order spacing.
     cr : 2-tuple(int), array
         Column range, either one value for all traces, or the whole array
     traces : array
@@ -279,12 +279,24 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
     """
 
     if xwd is None:
-        xwd = 0.5
+        xwd = 1.0
     if np.isscalar(xwd):
-        xwd = np.tile([xwd, xwd], (nord, 1))
+        # xwd is full extraction height, split evenly above/below trace
+        half = xwd / 2
+        xwd = np.tile([half, half], (nord, 1))
     else:
         xwd = np.asarray(xwd)
         if xwd.ndim == 1:
+            if len(xwd) == 2:
+                # Deprecated [below, above] format - convert to full height
+                import warnings
+
+                warnings.warn(
+                    "extraction_height as [below, above] list is deprecated. "
+                    "Use a single value for full extraction height.",
+                    DeprecationWarning,
+                    stacklevel=4,
+                )
             xwd = np.tile(xwd, (nord, 1))
 
     if cr is None:
@@ -340,31 +352,34 @@ def extend_traces(traces, nrow):
 
 
 def fix_extraction_height(xwd, traces, cr, ncol):
-    """Convert fractional extraction width to pixel range
+    """Convert fractional extraction width to pixel range.
+
+    Internal function that works on [below, above] representation.
+    Fractions (< 1 per side, i.e. < 2 total) are multiplied by order spacing.
 
     Parameters
     ----------
-    extraction_height : array[nord, 2]
-        current extraction width, in pixels or fractions (for values below 1.5)
+    xwd : array[nord, 2]
+        extraction width as [below, above] per order
     traces : array[nord, degree]
         trace polynomial coefficients
-    column_range : array[nord, 2]
+    cr : array[nord, 2]
         column range to use
     ncol : int
         number of columns in image
 
     Returns
     -------
-    extraction_height : array[nord, 2]
+    xwd : array[nord, 2]
         updated extraction width in pixels
     """
 
-    if not np.all(xwd > 1.5):
+    if not np.all(xwd >= 1):
         # if extraction width is in relative scale transform to pixel scale
         x = np.arange(ncol)
         for i in range(1, len(xwd) - 1):
             for j in [0, 1]:
-                if xwd[i, j] < 1.5:
+                if xwd[i, j] < 1:
                     k = i - 1 if j == 0 else i + 1
                     left = max(cr[[i, k], 0])
                     right = min(cr[[i, k], 1])
@@ -1243,8 +1258,8 @@ def extract(
         range of pixels to use for each trace (default: use all)
     order_range : array[2](int), optional
         range of traces to extract, traces have to be consecutive (default: use all)
-    extraction_height : array[nord, 2]({float, int}), optional
-        extraction width above and below each trace, values below 1.5 are considered relative, while values above are absolute (default: 0.5)
+    extraction_height : float, optional
+        Total extraction height. Values below 3 are fractions of order spacing, values above are pixels. Split evenly above/below trace. (default: 1.0)
     extraction_type : {"optimal", "simple", "normalize"}, optional
         which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
     p1 : float or array[nord, ncol], optional

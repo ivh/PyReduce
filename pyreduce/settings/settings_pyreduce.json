@@ -52,7 +52,7 @@
         "scatter_degree": 4,
         "scatter_cutoff": 2,
         "border_width": null,
-        "extraction_height": 0.3,
+        "extraction_height": 0.6,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "plot": true,
@@ -61,11 +61,11 @@
     "norm_flat": {
         "extraction_method": "normalize",
         "smooth_slitfunction": 4,
-        "smooth_spectrum": 1e-7,
+        "smooth_spectrum": 1e-07,
         "oversampling": 10,
         "maxiter": 20,
         "swath_width": 200,
-        "extraction_height": 0.2,
+        "extraction_height": 0.4,
         "threshold": 0.6,
         "threshold_lower": 0,
         "extraction_cutoff": 20,
@@ -75,7 +75,7 @@
     "wavecal_master": {
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 0.5,
+        "extraction_height": 1.0,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
@@ -113,10 +113,10 @@
         "plot": true,
         "plot_title": "Wavelength Calibration"
     },
-    "freq_comb_master":{
+    "freq_comb_master": {
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 0.5,
+        "extraction_height": 1.0,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
@@ -141,7 +141,7 @@
         "curve_degree": 2,
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 0.2,
+        "extraction_height": 0.4,
         "curve_height": 0.5,
         "curvature_cutoff": 3,
         "extraction_cutoff": 20,
@@ -155,19 +155,19 @@
         "plot_title": "Slit Curvature"
     },
     "rectify": {
-        "extraction_height": 0.5,
+        "extraction_height": 1.0,
         "input_files": "science",
         "plot": true,
         "plot_title": "Rectified Image"
     },
     "science": {
         "extraction_method": "optimal",
-        "extraction_height": 0.25,
+        "extraction_height": 0.5,
         "oversampling": 10,
         "swath_width": 300,
         "maxiter": 20,
         "smooth_slitfunction": 0.1,
-        "smooth_spectrum": 1e-7,
+        "smooth_spectrum": 1e-07,
         "extraction_cutoff": 20,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",

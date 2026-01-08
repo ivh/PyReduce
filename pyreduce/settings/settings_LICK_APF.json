@@ -2,10 +2,8 @@
     "__instrument__": "LICK_APF",
     "__inherits__": "pyreduce",
     "instrument": {},
-    "bias": {
-    },
-    "flat": {
-    },
+    "bias": {},
+    "flat": {},
     "trace": {
         "degree": 4,
         "filter_y": 25,
@@ -15,49 +13,57 @@
         "noise": 17,
         "merge_min_threshold": 0.01,
         "auto_merge_threshold": 0.01,
-        "closing_shape": [3, 3],
+        "closing_shape": [
+            3,
+            3
+        ],
         "manual": false
     },
     "scatter": {
-        "extraction_height": [9, 9]
+        "extraction_height": 18
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_height": [9, 9],
+        "extraction_height": 18,
         "oversampling": 12,
         "swath_width": 300
     },
     "wavecal_master": {
-        "extraction_height": 0.25
+        "extraction_height": 0.5
     },
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [2, 6],
+        "degree": [
+            2,
+            6
+        ],
         "manual": false
     },
     "freq_comb_master": {
-        "extraction_height": 0.25
+        "extraction_height": 0.5
     },
     "freq_comb": {
         "dimensionality": "2D",
-        "degree": [6, 6]
+        "degree": [
+            6,
+            6
+        ]
     },
     "curvature": {
-        "extraction_height": 0.25,
+        "extraction_height": 0.5,
         "dimensionality": "1D",
         "degree": 2
     },
     "science": {
         "oversampling": 10,
-        "extraction_height": [8, 8],
+        "extraction_height": 16,
         "swath_width": 800,
         "smooth_slitfunction": 6,
         "smooth_spectrum": 0
     },
-    "continuum": {
-    },
+    "continuum": {},
     "finalize": {
         "filename": "{input}.fits"
     }

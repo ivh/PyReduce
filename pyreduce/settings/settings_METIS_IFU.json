@@ -1,7 +1,7 @@
 {
     "__instrument__": "METIS_IFU",
     "__inherits__": "pyreduce",
-    "flat":{
+    "flat": {
         "bias_scaling": "number_of_files",
         "plot": false
     },
@@ -21,13 +21,13 @@
     },
     "scatter": {
         "bias_scaling": "number_of_files",
-        "extraction_height": 0.45,
+        "extraction_height": 0.9,
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 1e3,
-        "smooth_spectrum": 1e-7,
-        "extraction_height": 0.14,
+        "smooth_slitfunction": 1000.0,
+        "smooth_spectrum": 1e-07,
+        "extraction_height": 0.28,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -37,7 +37,7 @@
         "dimensionality": "1D",
         "curve_degree": 2,
         "collapse_function": "mean",
-        "extraction_height": 0.77,
+        "extraction_height": 1.54,
         "extraction_cutoff": 20,
         "curvature_cutoff": 3,
         "peak_threshold": 0.9725,
@@ -50,17 +50,17 @@
     "wavecal_master": {
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 0.7825,
+        "extraction_height": 1.565,
         "extraction_cutoff": 10,
         "bias_scaling": "exposure_time"
     },
-     "wavecal": {
+    "wavecal": {
         "extraction_method": "optimal",
         "bias_scaling": "exposure_time",
         "threshold": 70,
         "iterations": 3,
         "dimensionality": "2D",
-        "extraction_height": 0.7825,
+        "extraction_height": 1.565,
         "degree": [
             4,
             4
@@ -70,9 +70,9 @@
     },
     "science": {
         "oversampling": 10,
-        "extraction_height": 0.14235,
+        "extraction_height": 0.2847,
         "swath_width": 400,
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0.5e-5
+        "smooth_spectrum": 5e-06
     }
 }

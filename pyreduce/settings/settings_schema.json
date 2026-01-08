@@ -226,11 +226,10 @@
                             }
                         },
                         "extraction_height": {
-                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
                             "type": [
                                 "integer",
-                                "number",
-                                "array"
+                                "number"
                             ],
                             "items": {
                                 "type": [
@@ -575,11 +574,10 @@
                     "type": "object",
                     "properties": {
                         "extraction_height": {
-                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
                             "type": [
                                 "integer",
-                                "number",
-                                "array"
+                                "number"
                             ],
                             "items": {
                                 "type": [
@@ -718,11 +716,10 @@
                             "minimum": 3
                         },
                         "extraction_height": {
-                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
                             "type": [
                                 "integer",
-                                "number",
-                                "array"
+                                "number"
                             ],
                             "items": {
                                 "type": [
@@ -758,11 +755,10 @@
                             ]
                         },
                         "extraction_height": {
-                            "description": "Number of pixels below and above the order to use in the extraction. If a value under 1.5 is given it will be understood as the fractional difference to the next order. If only a single value is given it will be applied to all orders, otherwise values need to be provided for all orders",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
                             "type": [
                                 "integer",
-                                "number",
-                                "array"
+                                "number"
                             ],
                             "items": {
                                 "type": [

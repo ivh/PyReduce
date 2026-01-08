@@ -1,7 +1,7 @@
 {
     "__instrument__": "MICADO",
     "__inherits__": "pyreduce",
-    "flat":{
+    "flat": {
         "bias_scaling": "number_of_files"
     },
     "trace": {
@@ -19,13 +19,13 @@
     },
     "scatter": {
         "bias_scaling": "number_of_files",
-        "extraction_height": 0.45,
+        "extraction_height": 0.9,
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 1e3,
-        "smooth_spectrum": 1e-7,
-        "extraction_height": 0.14,
+        "smooth_slitfunction": 1000.0,
+        "smooth_spectrum": 1e-07,
+        "extraction_height": 0.28,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -35,11 +35,11 @@
         "dimensionality": "2D",
         "curve_degree": 1,
         "collapse_function": "mean",
-        "extraction_height": 350,
+        "extraction_height": 700,
         "extraction_cutoff": 10,
         "curvature_cutoff": 10,
         "peak_threshold": 10,
-        "peak_width":2,
+        "peak_width": 2,
         "window_width": 5,
         "peak_function": "lorentzian",
         "bias_scaling": "exposure_time",
@@ -51,17 +51,17 @@
     "wavecal_master": {
         "extraction_method": "simple",
         "collapse_function": "mean",
-        "extraction_height": 350,
+        "extraction_height": 700,
         "extraction_cutoff": 20,
         "bias_scaling": "exposure_time"
     },
-     "wavecal": {
+    "wavecal": {
         "extraction_method": "optimal",
         "bias_scaling": "number_of_files",
         "threshold": 80,
         "iterations": 3,
         "dimensionality": "2D",
-        "extraction_height": 350,
+        "extraction_height": 700,
         "degree": [
             5,
             5
@@ -71,9 +71,9 @@
     },
     "science": {
         "oversampling": 10,
-        "extraction_height": 0.14235,
+        "extraction_height": 0.2847,
         "swath_width": 400,
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0.5e-5
+        "smooth_spectrum": 5e-06
     }
 }

@@ -6,7 +6,10 @@
         "degree": 4,
         "degree_before_merge": 2,
         "regularization": 0,
-        "closing_shape": [3, 10],
+        "closing_shape": [
+            3,
+            10
+        ],
         "filter_y": 30,
         "min_cluster": 200,
         "noise": 50,
@@ -14,19 +17,19 @@
         "merge_min_threshold": 0.5,
         "manual": true
     },
-    "scatter":{
-        "extraction_height": 0.3
+    "scatter": {
+        "extraction_height": 0.6
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "smooth_spectrum": 0,
-        "extraction_height": 0.4,
+        "extraction_height": 0.8,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
     },
     "wavecal_master": {
-        "extraction_height": 10
+        "extraction_height": 20
     },
     "wavecal": {
         "threshold": 500,
@@ -37,21 +40,27 @@
         "medium": "vac"
     },
     "freq_comb_master": {
-        "extraction_height": 10
+        "extraction_height": 20
     },
     "freq_comb": {
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [6, 6]
+        "degree": [
+            6,
+            6
+        ]
     },
     "curvature": {
-        "extraction_height": 10,
+        "extraction_height": 20,
         "dimensionality": "2D",
-        "degree": [3, 6]
+        "degree": [
+            3,
+            6
+        ]
     },
     "science": {
         "oversampling": 1,
-        "extraction_height": 10,
+        "extraction_height": 20,
         "swath_width": 300,
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 0

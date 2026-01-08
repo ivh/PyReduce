@@ -1,20 +1,23 @@
 {
-  "__instrument__": "AJ",
-  "__inherits__": "pyreduce",
-  "trace": {
-    "degree": 4,
-    "noise": 0,
-    "min_cluster": 2000,
-    "min_width": 0.5,
-    "filter_y": 8,
-    "border_width": 0,
-    "closing_shape": [1, 1],
-    "manual": false,
-    "auto_merge_threshold": 1.0
-  },
-  "science": {
-    "extraction_method": "optimal",
-    "extraction_height": 0.5,
-    "oversampling": 6
-  }
+    "__instrument__": "AJ",
+    "__inherits__": "pyreduce",
+    "trace": {
+        "degree": 4,
+        "noise": 0,
+        "min_cluster": 2000,
+        "min_width": 0.5,
+        "filter_y": 8,
+        "border_width": 0,
+        "closing_shape": [
+            1,
+            1
+        ],
+        "manual": false,
+        "auto_merge_threshold": 1.0
+    },
+    "science": {
+        "extraction_method": "optimal",
+        "extraction_height": 1.0,
+        "oversampling": 6
+    }
 }

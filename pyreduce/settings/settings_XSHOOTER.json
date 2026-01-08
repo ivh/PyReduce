@@ -4,7 +4,7 @@
     "bias": {
         "degree": 1
     },
-    "flat":{
+    "flat": {
         "bias_scaling": "exposure_time"
     },
     "trace": {
@@ -22,13 +22,13 @@
     },
     "scatter": {
         "bias_scaling": "exposure_time",
-        "extraction_height": 0.45,
+        "extraction_height": 0.9,
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 1e3,
-        "smooth_spectrum": 1e-7,
-        "extraction_height": 0.5,
+        "smooth_slitfunction": 1000.0,
+        "smooth_spectrum": 1e-07,
+        "extraction_height": 1.0,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -37,7 +37,7 @@
         "bias_scaling": "exposure_time",
         "dimensionality": "2D",
         "curve_degree": 1,
-        "extraction_height": 0.45,
+        "extraction_height": 0.9,
         "degree": [
             1,
             1
@@ -71,9 +71,9 @@
     "science": {
         "bias_scaling": "exposure_time",
         "oversampling": 10,
-        "extraction_height": 0.45,
+        "extraction_height": 0.9,
         "swath_width": 400,
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0.5e-5
+        "smooth_spectrum": 5e-06
     }
 }
