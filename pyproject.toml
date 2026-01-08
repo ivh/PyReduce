@@ -56,6 +56,12 @@ dev = [
     "myst-parser",
     "setuptools",
 ]
+ipynb = [
+    "ipykernel>=7.1.0",
+    "jupyter-client>=8.8.0",
+    "jupytext>=1.18.1",
+    "nbconvert>=7.16.6",
+]
 
 [project.urls]
 Homepage = "https://github.com/ivh/PyReduce"
