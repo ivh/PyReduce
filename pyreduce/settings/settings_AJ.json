@@ -1,5 +1,6 @@
 {
   "__instrument__": "AJ",
+  "__inherits__": "pyreduce",
   "trace": {
     "degree": 4,
     "noise": 0,

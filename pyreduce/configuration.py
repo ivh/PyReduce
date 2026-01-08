@@ -9,7 +9,7 @@ no new parameters have been added by accident.
 
 import json
 import logging
-from os.path import dirname, join
+from os.path import dirname, exists, join
 
 import jsonschema
 
@@ -63,6 +63,46 @@ def load_settings_override(config, settings_file):
     return update(config, overrides, check=False)
 
 
+def _resolve_inheritance(config, seen=None):
+    """Recursively resolve __inherits__ chain.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dict, possibly with __inherits__ key
+    seen : set, optional
+        Set of already-visited parent names for cycle detection
+
+    Returns
+    -------
+    dict
+        Fully resolved configuration with all inherited values merged
+    """
+    if seen is None:
+        seen = set()
+
+    parent_name = config.pop("__inherits__", "pyreduce")
+
+    if parent_name is None:
+        return config
+
+    if parent_name in seen:
+        raise ValueError(f"Circular inheritance detected: {parent_name}")
+    seen.add(parent_name)
+
+    settings_dir = join(dirname(__file__), "settings")
+    parent_file = join(settings_dir, f"settings_{parent_name}.json")
+
+    if not exists(parent_file):
+        raise FileNotFoundError(f"Inherited settings file not found: {parent_file}")
+
+    with open(parent_file) as f:
+        parent = json.load(f)
+
+    parent = _resolve_inheritance(parent, seen)
+    return update(parent, config, check=False)
+
+
 def load_config(configuration, instrument, j=0):
     if configuration is None:
         logger.info(
@@ -95,9 +135,8 @@ def load_config(configuration, instrument, j=0):
             with open(fname) as f:
                 config = json.load(f)
 
-    # Combine instrument specific settings, with default values
-    settings = read_config()
-    settings = update(settings, config)
+    # Resolve inheritance chain (defaults to inheriting from pyreduce)
+    settings = _resolve_inheritance(config)
 
     # If it doesn't raise an Exception everything is as expected
     validate_config(settings)

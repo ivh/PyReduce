@@ -1,5 +1,6 @@
 {
     "__instrument__": "HARPS",
+    "__inherits__": "pyreduce",
     "instrument": {
         "polarimetry": false,
         "fiber": "A"

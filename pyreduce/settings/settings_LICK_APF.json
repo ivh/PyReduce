@@ -1,5 +1,6 @@
 {
     "__instrument__": "LICK_APF",
+    "__inherits__": "pyreduce",
     "instrument": {},
     "bias": {
     },

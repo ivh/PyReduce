@@ -1,5 +1,6 @@
 {
     "__instrument__": "CRIRES_PLUS",
+    "__inherits__": "pyreduce",
     "instrument": {},
     "bias": {
         "degree": 1

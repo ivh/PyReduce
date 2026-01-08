@@ -1,5 +1,6 @@
 {
     "__instrument__": "METIS_IFU",
+    "__inherits__": "pyreduce",
     "flat":{
         "bias_scaling": "number_of_files",
         "plot": false

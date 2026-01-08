@@ -1,5 +1,6 @@
 {
     "__instrument__": "NEID",
+    "__inherits__": "pyreduce",
     "trace": {
         "degree": 6,
         "filter_y": 80,

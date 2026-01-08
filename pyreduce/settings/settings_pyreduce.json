@@ -1,6 +1,7 @@
 {
     "$schema": "./settings_schema.json",
     "__instrument__": "DEFAULT",
+    "__inherits__": null,
     "reduce": {
         "base_dir": "./",
         "input_dir": "raw",

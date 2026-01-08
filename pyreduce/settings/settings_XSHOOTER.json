@@ -1,5 +1,6 @@
 {
     "__instrument__": "XSHOOTER",
+    "__inherits__": "pyreduce",
     "bias": {
         "degree": 1
     },

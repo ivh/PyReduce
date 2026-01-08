@@ -1,6 +1,7 @@
 {
     "$schema": "./settings_schema.json",
     "__instrument__": "UVES",
+    "__inherits__": "pyreduce",
     "trace": {
         "degree": 5,
         "filter_y": 80,

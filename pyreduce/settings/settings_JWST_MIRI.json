@@ -1,5 +1,6 @@
 {
     "__instrument__": "JWST_MIRI",
+    "__inherits__": "pyreduce",
     "instrument": {},
     "trace": {
         "degree": 4,
