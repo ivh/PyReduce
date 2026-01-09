@@ -89,7 +89,7 @@ class MyInstrument(Instrument):
         return f"wavecal_{channel}.npz"
 ```
 
-Place the YAML in `pyreduce/instruments/` and the Python file alongside it.
+Place both files in `pyreduce/instruments/{NAME}/` directory (YAML as `config.yaml`, Python as `__init__.py`).
 
 ## Instrument Configuration Fields
 
@@ -160,5 +160,6 @@ The goal is to orient the image so that:
 
 ## Reduction Settings
 
-Each instrument can have its own settings file at `pyreduce/settings/settings_INSTRUMENT.json`.
-This overrides the defaults for that instrument. See [Configuration](configuration_file.md) for details.
+Each instrument has its own settings file at `pyreduce/instruments/{INSTRUMENT}/settings.json`.
+This inherits from and overrides `pyreduce/instruments/defaults/settings.json`.
+See [Configuration](configuration_file.md) for details.

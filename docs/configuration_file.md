@@ -7,7 +7,7 @@ PyReduce uses two types of configuration files:
 
 ## Reduction Settings
 
-Location: `pyreduce/settings/settings_*.json`
+Location: `pyreduce/instruments/{INSTRUMENT}/settings.json`
 
 These control HOW the reduction is performed - polynomial degrees, thresholds,
 extraction parameters, etc.
@@ -33,8 +33,8 @@ extraction parameters, etc.
 
 Settings are loaded in order:
 
-1. `settings_pyreduce.json` - Base defaults
-2. `settings_INSTRUMENT.json` - Instrument-specific overrides
+1. `instruments/defaults/settings.json` - Base defaults
+2. `instruments/{INSTRUMENT}/settings.json` - Instrument-specific overrides
 3. Runtime overrides via `configuration` parameter
 
 To override settings at runtime:
@@ -55,7 +55,7 @@ Pipeline.from_instrument(
 
 ## Instrument Configs
 
-Location: `pyreduce/instruments/*.yaml`
+Location: `pyreduce/instruments/{INSTRUMENT}/config.yaml`
 
 These define WHAT the instrument is - detector properties, header keyword
 mappings, file classification patterns.

@@ -41,13 +41,19 @@ pyreduce/
 ├── instruments/         # Instrument definitions
 │   ├── common.py        # Base Instrument class
 │   ├── models.py        # Pydantic config models
+│   ├── filters.py       # File classification filters
 │   ├── instrument_info.py  # Instrument loader
-│   ├── *.yaml           # Instrument configs (one per instrument)
-│   └── *.py             # Custom instrument logic (optional)
-│
-├── settings/            # Reduction parameters
-│   ├── settings_default.json
-│   └── settings_*.json  # Per-instrument settings
+│   ├── defaults/        # Base settings and line atlases
+│   │   ├── settings.json   # Default reduction parameters
+│   │   ├── schema.json     # Settings validation schema
+│   │   ├── config.yaml     # Base instrument config
+│   │   └── atlas/          # Wavelength calibration line lists
+│   └── {INSTRUMENT}/    # Per-instrument directory (e.g., UVES/, HARPS/)
+│       ├── __init__.py     # Instrument class
+│       ├── config.yaml     # Hardware/header config
+│       ├── settings.json   # Reduction parameters
+│       ├── wavecal_*.npz   # Pre-computed wavelength solutions
+│       └── mask_*.fits.gz  # Bad pixel masks
 │
 └── clib/                # C source for extraction
     ├── slit_func_bd.c
@@ -97,7 +103,7 @@ Each step class has:
 
 ### Instrument Configs (YAML)
 
-Location: `pyreduce/instruments/*.yaml`
+Location: `pyreduce/instruments/{INSTRUMENT}/config.yaml`
 
 Defines what the instrument IS - hardware properties and header mappings:
 
@@ -139,7 +145,7 @@ Validated by Pydantic model `InstrumentConfig` in `models.py`.
 
 ### Reduction Settings (JSON)
 
-Location: `pyreduce/settings/settings_*.json`
+Location: `pyreduce/instruments/{INSTRUMENT}/settings.json`
 
 Defines HOW to reduce - algorithm parameters per step:
 
@@ -172,7 +178,7 @@ Defines HOW to reduce - algorithm parameters per step:
 }
 ```
 
-Settings cascade: `settings_default.json` < `settings_INSTRUMENT.json` < runtime overrides.
+Settings cascade: `instruments/defaults/settings.json` < `instruments/{INSTRUMENT}/settings.json` < runtime overrides.
 
 ## Python API
 
@@ -272,10 +278,12 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 
 ### Adding Instruments
 
-1. Create `pyreduce/instruments/name.yaml` with detector/header config
-2. Create `pyreduce/instruments/name.py` if custom logic needed (optional)
-3. Create `pyreduce/settings/settings_NAME.json` for reduction parameters
-4. Add example script to `examples/name_example.py`
+1. Create `pyreduce/instruments/{NAME}/` directory
+2. Add `config.yaml` with detector/header config
+3. Add `settings.json` for reduction parameters (can use `"__inherits__": "defaults"`)
+4. Add `__init__.py` with instrument class if custom logic needed (optional)
+5. Add wavecal/mask files if available
+6. Add example script to `examples/name_example.py`
 
 ### Test Organization
 
