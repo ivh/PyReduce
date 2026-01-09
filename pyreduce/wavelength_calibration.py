@@ -127,13 +127,15 @@ class LineAtlas:
 
         fname = element.lower() + ".fits"
         folder = dirname(__file__)
-        self.fname = join(folder, "wavecal/atlas", fname)
+        self.fname = join(folder, "instruments", "defaults", "atlas", fname)
         self.wave, self.flux = self.load_fits(self.fname)
 
         try:
             # If a specific linelist file is provided
             fname_list = element.lower() + "_list.txt"
-            self.fname_list = join(folder, "wavecal/atlas", fname_list)
+            self.fname_list = join(
+                folder, "instruments", "defaults", "atlas", fname_list
+            )
             linelist = np.genfromtxt(self.fname_list, dtype="f8,U8")
             wpos, element = linelist["f0"], linelist["f1"]
             indices = self.wave.searchsorted(wpos)

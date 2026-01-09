@@ -225,10 +225,10 @@ class Instrument:
         # you can also use values from this dictionary as placeholders using {name}, just like str.format
 
         this = os.path.dirname(__file__)
+        inst_dir = os.path.join(this, self.name.upper())
 
-        # Try YAML first, fall back to JSON
-        yaml_fname = os.path.join(this, f"{self.name}.yaml")
-        json_fname = os.path.join(this, f"{self.name}.json")
+        yaml_fname = os.path.join(inst_dir, "config.yaml")
+        json_fname = os.path.join(inst_dir, "config.json")
 
         if os.path.exists(yaml_fname):
             with open(yaml_fname) as f:
@@ -860,22 +860,20 @@ class Instrument:
         """
 
         specifier = header.get(self.config.wavecal_specifier or "", "")
-        instrument = "wavecal"
 
         cwd = os.path.dirname(__file__)
-        fname = f"{instrument.lower()}_{channel}_{specifier}.npz"
-        fname = os.path.join(cwd, "..", "wavecal", fname)
+        fname = f"wavecal_{channel}_{specifier}.npz"
+        fname = os.path.join(cwd, self.name.upper(), fname)
         return fname
 
     def get_supported_channels(self):
         return self.channels
 
     def get_mask_filename(self, channel, **kwargs):
-        i = self.name.lower()
-        c = channel.lower()
-        fname = f"mask_{i}_{c}.fits.gz"
+        c = channel.lower() if channel else ""
+        fname = f"mask_{c}.fits.gz" if c else "mask.fits.gz"
         cwd = os.path.dirname(__file__)
-        fname = os.path.join(cwd, "..", "masks", fname)
+        fname = os.path.join(cwd, self.name.upper(), fname)
         return fname
 
     def get_wavelength_range(self, header, channel, **kwargs):
@@ -883,7 +881,16 @@ class Instrument:
 
 
 class COMMON(Instrument):
-    pass
+    def load_info(self):
+        """Load the default/common instrument config from defaults/config.yaml"""
+        this = os.path.dirname(__file__)
+        yaml_fname = os.path.join(this, "defaults", "config.yaml")
+
+        with open(yaml_fname) as f:
+            info = yaml.safe_load(f)
+
+        config = InstrumentConfig(**info)
+        return config, info
 
 
 def create_custom_instrument(

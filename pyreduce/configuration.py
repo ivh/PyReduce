@@ -28,10 +28,10 @@ else:
 def get_configuration_for_instrument(instrument, **kwargs):
     local = dirname(__file__)
     instrument = str(instrument)
-    if instrument in ["pyreduce", None]:
-        fname = join(local, "settings", "settings_pyreduce.json")
+    if instrument in ["pyreduce", "defaults", None]:
+        fname = join(local, "instruments", "defaults", "settings.json")
     else:
-        fname = join(local, "settings", f"settings_{instrument.upper()}.json")
+        fname = join(local, "instruments", instrument.upper(), "settings.json")
 
     config = load_config(fname, instrument)
 
@@ -81,7 +81,7 @@ def _resolve_inheritance(config, seen=None):
     if seen is None:
         seen = set()
 
-    parent_name = config.pop("__inherits__", "pyreduce")
+    parent_name = config.pop("__inherits__", "defaults")
 
     if parent_name is None:
         return config
@@ -90,8 +90,11 @@ def _resolve_inheritance(config, seen=None):
         raise ValueError(f"Circular inheritance detected: {parent_name}")
     seen.add(parent_name)
 
-    settings_dir = join(dirname(__file__), "settings")
-    parent_file = join(settings_dir, f"settings_{parent_name}.json")
+    instruments_dir = join(dirname(__file__), "instruments")
+    if parent_name in ["pyreduce", "defaults"]:
+        parent_file = join(instruments_dir, "defaults", "settings.json")
+    else:
+        parent_file = join(instruments_dir, parent_name.upper(), "settings.json")
 
     if not exists(parent_file):
         raise FileNotFoundError(f"Inherited settings file not found: {parent_file}")
@@ -130,8 +133,16 @@ def load_config(configuration, instrument, j=0):
             with open(config) as f:
                 config = json.load(f)
         except FileNotFoundError:
-            fname = dirname(__file__)
-            fname = join(fname, "settings", config)
+            # Try to find settings file by instrument name
+            # e.g. "settings_UVES.json" -> instruments/UVES/settings.json
+            base_dir = dirname(__file__)
+            if config.startswith("settings_") and config.endswith(".json"):
+                inst_name = config[9:-5]  # Extract instrument name
+                fname = join(
+                    base_dir, "instruments", inst_name.upper(), "settings.json"
+                )
+            else:
+                fname = join(base_dir, "instruments", "defaults", config)
             with open(fname) as f:
                 config = json.load(f)
 
@@ -189,7 +200,7 @@ def update(dict1, dict2, check=True, name="dict1"):
     return dict1
 
 
-def read_config(fname="settings_pyreduce.json"):
+def read_config(fname=None):
     """Read the configuration file from disk
 
     If no filename is given it will load the default configuration.
@@ -198,8 +209,7 @@ def read_config(fname="settings_pyreduce.json"):
     Parameters
     ----------
     fname : str, optional
-        Filename of the configuration. By default "settings_pyreduce.json",
-        i.e. the default configuration
+        Filename of the configuration. By default the default settings.
 
     Returns
     -------
@@ -207,7 +217,10 @@ def read_config(fname="settings_pyreduce.json"):
         The read configuration file
     """
     this_dir = dirname(__file__)
-    fname = join(this_dir, "settings", fname)
+    if fname is None:
+        fname = join(this_dir, "instruments", "defaults", "settings.json")
+    elif not exists(fname):
+        fname = join(this_dir, "instruments", "defaults", fname)
 
     with open(fname) as file:
         settings = json.load(file)
@@ -237,9 +250,8 @@ def validate_config(config):
     if not hasJsonSchema:  # pragma: no cover
         # Can't check with old version
         return
-    fname = "settings_schema.json"
     this_dir = dirname(__file__)
-    fname = join(this_dir, "settings", fname)
+    fname = join(this_dir, "instruments", "defaults", "schema.json")
 
     with open(fname) as f:
         schema = json.load(f)
