@@ -148,7 +148,7 @@ def main(
     info = instrument.info
 
     # load default settings from settings_pyreduce.json
-    # $REDUCE_DATA overrides config for base_dir
+    # $REDUCE_DATA overrides config for base_dir (but "" means use relative paths)
     if base_dir is None:
         base_dir = os.environ.get("REDUCE_DATA") or config["reduce"]["base_dir"]
     if input_dir is None:
@@ -156,8 +156,8 @@ def main(
     if output_dir is None:
         output_dir = config["reduce"]["output_dir"]
 
-    # Validate base_dir exists
-    if not os.path.isdir(base_dir):
+    # Validate base_dir exists (skip if empty, allows absolute input/output paths)
+    if base_dir and not os.path.isdir(base_dir):
         source = "$REDUCE_DATA" if os.environ.get("REDUCE_DATA") else "config"
         raise FileNotFoundError(
             f"Base directory does not exist: {base_dir} (from {source})"

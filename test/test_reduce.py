@@ -502,8 +502,9 @@ def test_main(instrument, target, night, channel, input_dir, output_dir):
     # With steps=(), each result is an empty dict (no steps executed)
     assert isinstance(output[0], dict)
 
-    # Test default options - should not find anything with default paths
-    output = reduce.main(instrument, target, night, steps=())
+    # Test default options - should raise FileNotFoundError for missing paths
+    with pytest.raises(FileNotFoundError):
+        reduce.main(instrument, target, night, steps=())
 
 
 @pytest.mark.skip
