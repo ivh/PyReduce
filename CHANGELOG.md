@@ -1,6 +1,21 @@
 # Changelog
 
 
+## [0.7b2] - 2026-01-09
+
+### Changed
+- **Reorganize instrument files**: All instrument-related files now in per-instrument directories
+  - `instruments/{name}.py` → `instruments/{NAME}/__init__.py`
+  - `instruments/{name}.yaml` → `instruments/{NAME}/config.yaml`
+  - `settings/settings_{NAME}.json` → `instruments/{NAME}/settings.json`
+  - `wavecal/{name}_*.npz` → `instruments/{NAME}/wavecal_*.npz`
+  - `masks/mask_{name}_*.fits.gz` → `instruments/{NAME}/mask_*.fits.gz`
+- Base settings and schema moved to `instruments/defaults/`
+- Wavelength atlas files moved to `instruments/defaults/atlas/`
+
+### Removed
+- Orphan mask files for undefined instruments (elodie, sarg, hds, etc.)
+
 ## [0.7b1] - 2026-01-06
 
 ### Changed
