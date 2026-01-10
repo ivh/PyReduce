@@ -11,6 +11,7 @@ License
 """
 
 import logging
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,12 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None):
+    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None, min_frame_time=0.3):
         self.nrow = nrow
         self.ncol = ncol
         self.nslitf = nslitf
 
         self.nbad = nbad
+        self.min_frame_time = min_frame_time
+        self.last_frame_time = None
 
         plt.ion()
         self.fig = plt.figure(figsize=(12, 4))
@@ -64,11 +67,8 @@ class ProgressPlot:  # pragma: no cover
         # Just plot empty pictures, to create the plots
         # Update the data later
         img = np.ones((nrow, ncol))
-        # y, x = np.indices((nrow, ncol))
-        # self.im_obs = self.ax1.plot_surface(x, y, img)
-        # self.im_model = self.ax4.plot_surface(x, y, img)
-        self.im_obs = self.ax1.imshow(img)
-        self.im_model = self.ax4.imshow(img)
+        self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
+        self.im_model = self.ax4.imshow(img, aspect="auto", origin="lower")
 
         (self.dots_spec,) = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
@@ -128,18 +128,12 @@ class ProgressPlot:  # pragma: no cover
 
         # Update Data
         model = np.clip(model, 0, np.max(model[5:-5, 5:-5]) * 1.1)
-        self.im_obs.remove()
         img = np.clip(img, 0, np.max(model) * 1.1)
-        # y, x = np.indices(img.shape)
-        # self.im_obs = self.ax1.plot_surface(x, y, img)
-        self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
-        vmin, vmax = self.im_obs.norm.vmin, self.im_obs.norm.vmax
-        self.im_model.remove()
-        # y, x = np.indices(model.shape)
-        # self.im_model = self.ax4.plot_surface(x, y, model)
-        self.im_model = self.ax4.imshow(
-            model, aspect="auto", origin="lower", vmin=vmin, vmax=vmax
-        )
+        vmax = np.max(img)
+        self.im_obs.set_data(img)
+        self.im_obs.set_clim(0, vmax)
+        self.im_model.set_data(model)
+        self.im_model.set_clim(0, vmax)
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
@@ -173,6 +167,13 @@ class ProgressPlot:  # pragma: no cover
         self.fig.suptitle(title)
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+
+        if self.last_frame_time is not None:
+            elapsed = time.monotonic() - self.last_frame_time
+            remaining = self.min_frame_time - elapsed
+            if remaining > 0:
+                plt.pause(remaining)
+        self.last_frame_time = time.monotonic()
 
     def close(self):
         plt.ioff()
