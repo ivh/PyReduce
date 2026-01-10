@@ -11,6 +11,7 @@ License
 """
 
 import logging
+import os
 import time
 
 import matplotlib.pyplot as plt
@@ -26,13 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None, min_frame_time=0.3):
+    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None):
         self.nrow = nrow
         self.ncol = ncol
         self.nslitf = nslitf
 
         self.nbad = nbad
-        self.min_frame_time = min_frame_time
+        self.min_frame_time = float(
+            os.environ.get("PYREDUCE_PLOT_ANIMATION_SPEED", 0.3)
+        )
         self.last_frame_time = None
 
         plt.ion()
