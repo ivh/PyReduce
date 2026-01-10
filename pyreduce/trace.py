@@ -288,6 +288,7 @@ def merge_clusters(
 
     if manual:
         plt.ion()
+        plt.figure()  # dedicated figure for manual merge mode
 
     k = 0
     while k < len(merge):
