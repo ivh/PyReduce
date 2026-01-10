@@ -346,6 +346,7 @@ class Pipeline:
             result = self._run_step(name, files)
             self._data[name] = result
 
+        util.show_all()
         return self._data
 
     @property
@@ -542,9 +543,11 @@ class Pipeline:
             plot = int(os.environ["PYREDUCE_PLOT"])
         if "PYREDUCE_PLOT_DIR" in os.environ:
             plot_dir = os.environ["PYREDUCE_PLOT_DIR"]
+        plot_show = os.environ.get("PYREDUCE_PLOT_SHOW", "block")
 
-        # Set global plot directory
+        # Set global plot settings
         util.set_plot_dir(plot_dir)
+        util.set_plot_show(plot_show, plot_level=plot)
 
         # Load configuration
         config = load_config(configuration, instrument, 0)

@@ -99,6 +99,7 @@ def combine(files, output, plot=None):
     cnew = np.ones_like(snew)
 
     if plot:
+        plt.figure()
         for i in range(sold.shape[0]):
             plt.plot(wnew[plot], sold[i] / cold[i])
         plt.plot(wnew[plot], snew[plot], "--")

@@ -53,6 +53,20 @@ Pipeline.from_instrument(
 ).run()
 ```
 
+## Plotting
+
+Control plotting with environment variables:
+
+```bash
+# Save plots to files (headless/CI)
+PYREDUCE_PLOT=1 PYREDUCE_PLOT_DIR=/tmp/plots PYREDUCE_PLOT_SHOW=off uv run reduce run ...
+
+# Show all plots at end (browser via webagg)
+MPLBACKEND=webagg PYREDUCE_PLOT=1 PYREDUCE_PLOT_SHOW=defer uv run reduce run ...
+```
+
+See [How To](https://pyreduce-astro.readthedocs.io/en/latest/howto.html#plot-modes) for details.
+
 ## Documentation
 
 Full documentation at [ReadTheDocs](https://pyreduce-astro.readthedocs.io/).

@@ -630,6 +630,7 @@ def combine_calibrate(
             )
 
     if plot:  # pragma: no cover
+        plt.figure()
         title = "Master"
         if plot_title is not None:
             title = f"{plot_title}\n{title}"
@@ -695,6 +696,7 @@ def combine_polynomial(
     bhead["EXPTIME"] = np.sum(exptimes)
 
     if plot:
+        plt.figure()
         title = "Master"
         if plot_title is not None:
             title = f"{plot_title}\n{title}"
@@ -844,6 +846,7 @@ def combine_bias(
         nbad = 0
 
     if plot:  # pragma: no cover
+        plt.figure()
         title = "Master Bias"
         if plot_title is not None:
             title = f"{plot_title}\n{title}"

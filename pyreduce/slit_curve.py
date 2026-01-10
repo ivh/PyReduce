@@ -636,6 +636,7 @@ class Curvature:
         util.show_or_save("curvature_fit")
 
     def plot_comparison(self, original, p1, p2, peaks):  # pragma: no cover
+        plt.figure()
         _, ncol = original.shape
         output = np.zeros((np.sum(self.curve_height) + self.nord, ncol))
         pos = [0]

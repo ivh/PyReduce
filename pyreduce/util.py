@@ -22,22 +22,56 @@ from . import __version__
 
 logger = logging.getLogger(__name__)
 
-# Global plot directory - set by Pipeline/main() to save plots instead of showing
+# Global plot settings - can be set via env vars or set_plot_*() functions
 _plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
+_plot_show = os.environ.get("PYREDUCE_PLOT_SHOW", "block")  # "off", "block", "defer"
 if _plot_dir:
     os.makedirs(_plot_dir, exist_ok=True)
 
 
 def set_plot_dir(path):
-    """Set directory for saving plots. If None, plots will be shown interactively."""
+    """Set directory for saving plots. If None, plots will not be saved."""
     global _plot_dir
     _plot_dir = path
     if path:
         os.makedirs(path, exist_ok=True)
 
 
+def set_plot_show(mode, plot_level=0):
+    """Set plot display mode: 'off', 'block', or 'defer'.
+
+    Parameters
+    ----------
+    mode : str
+        One of 'off', 'block', or 'defer'
+    plot_level : int
+        Current plot level. If >= 2, warns that progress plots won't work with defer/off.
+    """
+    global _plot_show
+    if mode not in ("off", "block", "defer"):
+        raise ValueError(f"plot_show must be 'off', 'block', or 'defer', got {mode!r}")
+    if plot_level >= 2 and mode in ("defer", "off"):
+        logger.warning(
+            "plot level >= 2 uses interactive progress plots which don't work with "
+            "PYREDUCE_PLOT_SHOW=%s. Progress plots will be skipped.",
+            mode,
+        )
+    _plot_show = mode
+
+
+def is_interactive_plot_mode():
+    """Return True if plots are shown interactively (block mode)."""
+    return _plot_show == "block"
+
+
+def show_all():
+    """Show all deferred plots. Call at end of pipeline when using defer mode."""
+    if _plot_show == "defer" and plt.get_fignums():
+        plt.show()
+
+
 def show_or_save(name="plot"):
-    """Show plot interactively or save to file if plot_dir is set.
+    """Save plot to file and/or show interactively based on settings.
 
     Parameters
     ----------
@@ -48,9 +82,13 @@ def show_or_save(name="plot"):
         fname = os.path.join(_plot_dir, f"{name}.png")
         plt.savefig(fname, dpi=150, bbox_inches="tight")
         logger.debug("Saved plot to %s", fname)
-        plt.close()
-    else:
+
+    if _plot_show == "defer":
+        pass  # keep figure open for show_all()
+    elif _plot_show == "block":
         plt.show()
+    else:  # "off"
+        plt.close()
 
 
 def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):

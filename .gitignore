@@ -22,3 +22,4 @@ debug/
 idl/
 logs/
 *.ipynb
+tmp/*

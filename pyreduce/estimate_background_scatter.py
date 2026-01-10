@@ -105,6 +105,7 @@ def estimate_background_scatter(
     logger.debug("Background scatter coefficients: %s", str(coeff))
 
     if plot:  # pragma: no cover
+        plt.figure()
         # Calculate scatter at interorder positionsq
         yp, xp = np.indices(img.shape)
         back = np.polynomial.polynomial.polyval2d(xp, yp, coeff)

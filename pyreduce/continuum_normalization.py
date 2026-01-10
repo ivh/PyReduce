@@ -70,6 +70,7 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
         cont *= scale[:, None]
 
     if plot:  # pragma: no cover
+        plt.figure()
         plt.subplot(411)
         if plot_title is not None:
             plt.suptitle(plot_title)
@@ -317,6 +318,7 @@ def continuum_normalize(
 
     # Final output plot
     if plot:  # pragma: no cover
+        plt.figure()
         plt.plot(wave.ravel(), spec.ravel(), label="spec")
         plt.plot(wave.ravel(), cont.ravel(), label="cont")
         plt.legend(loc="best")

@@ -81,7 +81,33 @@ result = pipe.run()
 |----------|-------------|
 | `REDUCE_DATA` | Base data directory (default: `~/REDUCE_DATA`) |
 | `PYREDUCE_PLOT` | Override plot level (0=off, 1=basic, 2=detailed) |
-| `PYREDUCE_PLOT_DIR` | Save plots to directory instead of displaying |
+| `PYREDUCE_PLOT_DIR` | Save plots to directory as PNG files |
+| `PYREDUCE_PLOT_SHOW` | Display mode: `block` (default), `defer`, or `off` |
+
+## Plot Modes
+
+PyReduce supports three plot display modes via `PYREDUCE_PLOT_SHOW`:
+
+| Mode | Description |
+|------|-------------|
+| `block` | Show each plot interactively, blocking until closed (default) |
+| `defer` | Accumulate all plots, show together at end of pipeline |
+| `off` | Don't display plots (useful with `PYREDUCE_PLOT_DIR` to save only) |
+
+Save and display are independent—you can save to files AND display:
+
+```bash
+# Save only (headless/CI)
+PYREDUCE_PLOT=1 PYREDUCE_PLOT_DIR=/tmp/plots PYREDUCE_PLOT_SHOW=off uv run ...
+
+# Show all at end (useful with webagg backend for browser viewing)
+MPLBACKEND=webagg PYREDUCE_PLOT=1 PYREDUCE_PLOT_SHOW=defer uv run ...
+
+# Save AND show all at end
+PYREDUCE_PLOT=1 PYREDUCE_PLOT_DIR=/tmp/plots PYREDUCE_PLOT_SHOW=defer uv run ...
+```
+
+Note: Plot level 2 (interactive progress plots during extraction) only works with `block` mode.
 
 ## Pipeline Steps
 

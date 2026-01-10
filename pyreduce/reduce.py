@@ -139,9 +139,11 @@ def main(
         plot = int(os.environ["PYREDUCE_PLOT"])
     if "PYREDUCE_PLOT_DIR" in os.environ:
         plot_dir = os.environ["PYREDUCE_PLOT_DIR"]
+    plot_show = os.environ.get("PYREDUCE_PLOT_SHOW", "block")
 
-    # Set global plot directory for util.show_or_save()
+    # Set global plot settings for util.show_or_save()
     util.set_plot_dir(plot_dir)
+    util.set_plot_show(plot_show, plot_level=plot)
 
     if isinstance(instrument, str):
         instrument = instruments.instrument_info.load_instrument(instrument)
@@ -2049,6 +2051,7 @@ class Finalize(Step):
             head = self.save_config_to_header(head, config)
 
             if self.plot:
+                plt.figure()
                 plt.plot(wave.T, (spec / blaze).T)
                 if self.plot_title is not None:
                     plt.title(self.plot_title)

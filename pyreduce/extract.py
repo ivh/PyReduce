@@ -776,7 +776,11 @@ def extract_spectrum(
                 )
                 norm_model[ihalf] = swath.model[ihalf]
 
-            if plot >= 2 and not np.all(np.isnan(swath_img)):  # pragma: no cover
+            if (
+                plot >= 2
+                and not np.all(np.isnan(swath_img))
+                and util.is_interactive_plot_mode()
+            ):  # pragma: no cover
                 if progress is None:
                     progress = ProgressPlot(
                         swath_img.shape[0], swath_img.shape[1], nslitf, title=plot_title
@@ -955,7 +959,7 @@ def optimal_extraction(
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     ix = np.arange(ncol)
-    if plot >= 2:  # pragma: no cover
+    if plot >= 2 and util.is_interactive_plot_mode():  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
         nrow_swath = np.sum(extraction_height, axis=1).max()
         nslitf_swath = (nrow_swath + 2) * kwargs.get("osample", 1) + 1
@@ -994,7 +998,7 @@ def optimal_extraction(
             **kwargs,
         )
 
-    if plot >= 2:  # pragma: no cover
+    if plot >= 2 and progress is not None:  # pragma: no cover
         progress.close()
 
     if plot:  # pragma: no cover
@@ -1179,6 +1183,7 @@ def simple_extraction(
 def plot_comparison(
     original, traces, spectrum, slitf, extraction_height, column_range, title=None
 ):  # pragma: no cover
+    plt.figure()
     nrow, ncol = original.shape
     nord = len(traces)
     output = np.zeros((np.sum(extraction_height) + nord, ncol))

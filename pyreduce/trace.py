@@ -355,7 +355,7 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
 
 def plot_orders(im, x, y, clusters, orders, order_range, title=None):
     """Plot orders and image"""
-
+    plt.figure()
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
         cluster_img[x[c], y[c]] = c + 1
@@ -704,6 +704,7 @@ def trace(
                 # plt.show()
 
     if plot:  # pragma: no cover
+        plt.figure()
         title = "Identified clusters"
         if plot_title is not None:
             title = f"{plot_title}\n{title}"

@@ -257,8 +257,11 @@ uv run reduce list-steps
 ## Environment Variables
 
 - `REDUCE_DATA` - Base data directory (default: `~/REDUCE_DATA`)
-- `PYREDUCE_PLOT` - Override plot level (0, 1, 2)
-- `PYREDUCE_PLOT_DIR` - Save plots to directory instead of displaying
+- `PYREDUCE_PLOT` - Override plot level (0=off, 1=basic, 2=detailed)
+- `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
+- `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
+
+Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
 ## Development
 

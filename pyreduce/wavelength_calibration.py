@@ -1182,6 +1182,7 @@ class WavelengthCalibration:
         return lines
 
     def plot_results(self, wave_img, obs):
+        plt.figure()
         plt.subplot(211)
         title = "Wavelength solution with Wavelength calibration spectrum\nOrders are in different colours"
         if self.plot_title is not None:
@@ -1204,6 +1205,7 @@ class WavelengthCalibration:
         util.show_or_save("wavecal_results")
 
     def plot_residuals(self, lines, coef, title="Residuals"):
+        plt.figure()
         orders = np.unique(lines["order"])
         norders = len(orders)
         if self.plot_title is not None:
