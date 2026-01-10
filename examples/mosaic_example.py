@@ -19,8 +19,6 @@ from pyreduce import util
 from pyreduce.configuration import load_config
 from pyreduce.instruments.instrument_info import load_instrument
 from pyreduce.reduce import (
-    Mask,
-    NormalizeFlatField,
     OrderTracing,
     ScienceExtraction,
 )
@@ -91,18 +89,11 @@ def step_config(name):
     return cfg
 
 
-# --- STEP 1: Mask ---
-print("\n=== MASK ===")
-mask_step = Mask(*step_args, **step_config("mask"))
-mask = mask_step.run()
-
-bias = None
-
-# --- STEP 2: Trace all fibers ---
 print("\n=== TRACE ===")
 trace_step = OrderTracing(*step_args, **step_config("trace"))
-orders, column_range = trace_step.run([flat_file], mask=mask)
+orders, column_range = trace_step.run([flat_file])
 print(f"Found {len(orders)} traces (expected ~630)")
+# orders, column_range = trace_step.load()
 
 # --- STEP 3: Match traces to group centers ---
 print("\n=== IDENTIFY GROUP CENTERS ===")
@@ -147,37 +138,9 @@ print(f"\nUsing {len(center_orders)} group center traces for extraction")
 
 center_trace = (center_orders, center_column_range)
 
-# --- STEP 4: Prepare flat data ---
-print("\n=== FLAT ===")
-from astropy.io import fits
 
-flat_data = fits.getdata(flat_file).astype(float)
-with fits.open(flat_file) as hdul:
-    flat_header = hdul[0].header.copy()
-flat = (flat_data, flat_header)
-
-# --- STEP 5: Normalize flat (using center traces) ---
-print("\n=== NORM_FLAT ===")
-norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
-try:
-    norm_flat = norm_flat_step.run(flat, center_trace)
-    print("Normalized flat complete")
-except Exception as e:
-    print(f"Norm flat failed: {e}")
-    norm_flat = None
-
-# --- STEP 6: Extract from FLAT ---
-print("\n=== EXTRACT FLAT ===")
-science_step = ScienceExtraction(*step_args, **step_config("science"))
-try:
-    flat_spec = science_step.run([flat_file], center_trace)
-    print("FLAT extraction complete")
-except Exception as e:
-    print(f"FLAT extraction failed: {e}")
-    flat_spec = None
-
-# --- STEP 7: Extract from ThAr ---
 print("\n=== EXTRACT ThAr ===")
+science_step = ScienceExtraction(*step_args, **step_config("science"))
 try:
     thar_spec = science_step.run([thar_file], center_trace)
     print("ThAr extraction complete")
@@ -187,3 +150,11 @@ except Exception as e:
 
 print("\nDone!")
 print(f"Output saved to: {output_dir}")
+
+print("\n=== EXTRACT FLAT ===")
+try:
+    flat_spec = science_step.run([flat_file], center_trace)
+    print("FLAT extraction complete")
+except Exception as e:
+    print(f"FLAT extraction failed: {e}")
+    flat_spec = None
