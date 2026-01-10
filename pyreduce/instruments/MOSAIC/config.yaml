@@ -1,0 +1,48 @@
+# MOSAIC instrument configuration
+# Multi-object spectrograph with fiber bundles
+
+__instrument__: MOSAIC
+
+instrument: MOSAIC
+id_instrument: ".*MOSAIC.*"
+telescope: ELT
+
+date: DATE-OBS
+date_format: fits
+
+# NIR and VIS channels
+channels: [NIR, VIS]
+extension: 0
+orientation: 0
+transpose: false
+
+prescan_x: 0
+overscan_x: 0
+prescan_y: 0
+overscan_y: 0
+naxis_x: 4096
+naxis_y: 4096
+
+gain: 1
+readnoise: 0
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: null
+dec: null
+target: MOSAIC
+
+# File classification
+# Since this is simulated data, match by filename patterns
+kw_bias: FILENAME
+kw_flat: FILENAME
+kw_orders: FILENAME
+kw_wave: FILENAME
+kw_spec: FILENAME
+
+id_bias: ".*BIAS.*"
+id_flat: ".*FLAT.*"
+id_orders: ".*FLAT.*"
+id_wave: ".*ThAr.*"
+id_spec: ".*"

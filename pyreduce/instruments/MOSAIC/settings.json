@@ -1,0 +1,29 @@
+{
+    "__instrument__": "MOSAIC",
+    "__inherits__": "defaults",
+    "trace": {
+        "degree": 2,
+        "noise": 100,
+        "min_cluster": 4000,
+        "min_width": 0.9,
+        "filter_y": 10,
+        "border_width": 0,
+        "closing_shape": [1, 1],
+        "opening_shape": [1, 1],
+        "manual": false,
+        "auto_merge_threshold": 0,
+        "merge_min_threshold": 0
+    },
+    "norm_flat": {
+        "extraction_height": 0.4,
+        "oversampling": 6
+    },
+    "wavecal_master": {
+        "extraction_height": 0.4
+    },
+    "science": {
+        "extraction_method": "optimal",
+        "extraction_height": 0.4,
+        "oversampling": 6
+    }
+}
