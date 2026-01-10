@@ -591,7 +591,7 @@ class Curvature:
 
         for j in range(self.n):
             cr = self.column_range[j]
-            peaks = plot_peaks[j]
+            peaks = plot_peaks[j].astype(int)
             vec = np.clip(plot_vec[j], 0, None)
             p1 = plot_p1[j]
             p2 = plot_p2[j]
