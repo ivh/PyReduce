@@ -11,9 +11,11 @@ from pyreduce.configuration import get_configuration_for_instrument
 from pyreduce.instruments import common, instrument_info
 from pyreduce.instruments.models import validate_instrument_config
 
-supported_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.yaml"))
-supported_instruments = [basename(f)[:-5] for f in supported_instruments]
-supported_instruments = [f for f in supported_instruments if f not in ["common"]]
+supported_instruments = glob(
+    join(dirname(__file__), "../pyreduce/instruments/*/config.yaml")
+)
+supported_instruments = [basename(dirname(f)) for f in supported_instruments]
+supported_instruments = [f for f in supported_instruments if f not in ["defaults"]]
 
 
 @pytest.fixture(params=supported_instruments)
@@ -35,7 +37,7 @@ def config(supported_instrument):
 def test_instrument_yaml_pydantic_valid(supported_instrument):
     """Validate instrument YAML files with Pydantic."""
     instrument_path = join(
-        dirname(__file__), f"../pyreduce/instruments/{supported_instrument}.yaml"
+        dirname(__file__), f"../pyreduce/instruments/{supported_instrument}/config.yaml"
     )
     with open(instrument_path) as f:
         instrument_data = yaml.safe_load(f)

@@ -18,9 +18,11 @@ from pyreduce.instruments.models import (
 )
 
 # Get all YAML instrument files
-yaml_instruments = glob(join(dirname(__file__), "../pyreduce/instruments/*.yaml"))
-yaml_instruments = [basename(f)[:-5] for f in yaml_instruments]
-yaml_instruments = [f for f in yaml_instruments if f not in ["common"]]
+yaml_instruments = glob(
+    join(dirname(__file__), "../pyreduce/instruments/*/config.yaml")
+)
+yaml_instruments = [basename(dirname(f)) for f in yaml_instruments]
+yaml_instruments = [f for f in yaml_instruments if f not in ["defaults"]]
 
 
 @pytest.fixture(params=yaml_instruments)
@@ -30,7 +32,9 @@ def yaml_instrument(request):
 
 @pytest.fixture
 def yaml_instrument_path(yaml_instrument):
-    return join(dirname(__file__), f"../pyreduce/instruments/{yaml_instrument}.yaml")
+    return join(
+        dirname(__file__), f"../pyreduce/instruments/{yaml_instrument}/config.yaml"
+    )
 
 
 @pytest.fixture
