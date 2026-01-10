@@ -59,8 +59,17 @@ def cli():
 @click.option(
     "--output-dir", "-o", default="reduced", help="Output directory relative to base"
 )
+@click.option("--plot", "-p", default=0, help="Plot level: 0=none, 1=basic, 2=detailed")
 @click.option(
-    "--plot", "-p", default=0, help="Plot level (0=none, 1=save, 2=interactive)"
+    "--plot-dir",
+    default=None,
+    help="Save plots to this directory as PNG files",
+)
+@click.option(
+    "--plot-show",
+    type=click.Choice(["block", "defer", "off"]),
+    default=None,
+    help="Display mode: block (interactive), defer (show all at end), off",
 )
 @click.option(
     "--order-range",
@@ -83,6 +92,8 @@ def run(
     input_dir,
     output_dir,
     plot,
+    plot_dir,
+    plot_show,
     order_range,
     settings,
 ):
@@ -90,8 +101,14 @@ def run(
 
     INSTRUMENT: Name of the instrument (e.g., UVES, HARPS, XSHOOTER)
     """
+    import os
+
     from .configuration import get_configuration_for_instrument, load_settings_override
     from .reduce import main as reduce_main
+
+    # CLI args override env vars for plot settings
+    if plot_show is not None:
+        os.environ["PYREDUCE_PLOT_SHOW"] = plot_show
 
     # Parse steps
     if steps:
@@ -123,6 +140,7 @@ def run(
             configuration=config,
             order_range=order_range,
             plot=plot,
+            plot_dir=plot_dir,
         )
     except FileNotFoundError as e:
         raise click.ClickException(str(e)) from None

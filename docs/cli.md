@@ -39,7 +39,9 @@ uv run reduce run INSTRUMENT TARGET [OPTIONS]
 | `--base-dir` | `-b` | Base data directory (default: $REDUCE_DATA or ~/REDUCE_DATA) |
 | `--input-dir` | `-i` | Input directory relative to base (default: raw) |
 | `--output-dir` | `-o` | Output directory relative to base (default: reduced) |
-| `--plot` | `-p` | Plot level: 0=none, 1=save, 2=interactive |
+| `--plot` | `-p` | Plot level: 0=none, 1=basic, 2=detailed |
+| `--plot-dir` | | Save plots to this directory as PNG files |
+| `--plot-show` | | Display mode: block, defer, or off |
 | `--order-range` | | Order range to process (e.g., "1,21") |
 | `--settings` | | JSON file with settings overrides |
 
@@ -58,8 +60,11 @@ uv run reduce run UVES HD132205 --steps bias,flat,trace,science
 # Custom directories
 uv run reduce run HARPS "HD 12345" --base-dir /data --output-dir processed
 
-# With plotting
-uv run reduce run XSHOOTER target --plot 1
+# With plotting - save to files
+uv run reduce run XSHOOTER target --plot 1 --plot-dir /tmp/plots --plot-show off
+
+# With plotting - show all at end (useful with webagg backend)
+uv run reduce run UVES target --plot 1 --plot-show defer
 ```
 
 ### Individual Step Commands
