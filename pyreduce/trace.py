@@ -258,18 +258,22 @@ def merge_clusters(
     ----------
     img : array[nrow, ncol]
         the image the order trace is based on
-    orders : dict(int, array(float))
-        coefficients of polynomial fits to clusters
     x : dict(int, array(int))
         x coordinates of cluster points
     y : dict(int, array(int))
         y coordinates of cluster points
     n_clusters : array(int)
         cluster numbers
-    threshold : int, optional
-        overlap threshold for merging clusters (the default is 100)
     manual : bool, optional
-        if True ask before merging orders
+        if True ask before merging clusters (default: True)
+    deg : int, optional
+        polynomial degree for fitting (default: 2)
+    auto_merge_threshold : float, optional
+        overlap threshold for automatic merging (default: 0.9)
+    merge_min_threshold : float, optional
+        minimum overlap to consider merging (default: 0.1)
+    plot_title : str, optional
+        title for plots
 
     Returns
     -------
@@ -277,8 +281,8 @@ def merge_clusters(
         x coordinates of clusters, key=cluster id
     y : dict(int: array)
         y coordinates of clusters, key=cluster id
-    n_clusters : int
-        number of identified clusters
+    n_clusters : array(int)
+        cluster labels
     """
 
     nrow, ncol = img.shape
@@ -301,7 +305,7 @@ def merge_clusters(
             title = f"Probability: {overlap}"
             if plot_title is not None:
                 title = f"{plot_title}\n{title}"
-            plot_order(i, j, x, y, img, deg, title=title)
+            plot_trace_pair(i, j, x, y, img, deg, title=title)
             while True:
                 if manual:
                     answer = input("Merge? [y/n]")
@@ -346,16 +350,16 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
         degree of polynomial fit
     Returns
     -------
-    orders : dict(int, array[degree+1])
+    traces : dict(int, array[degree+1])
         coefficients of polynomial fit for each cluster
     """
 
-    orders = {c: fit(x[c], y[c], degree, regularization) for c in clusters}
-    return orders
+    traces = {c: fit(x[c], y[c], degree, regularization) for c in clusters}
+    return traces
 
 
-def plot_orders(im, x, y, clusters, orders, order_range, title=None):
-    """Plot orders and image"""
+def plot_traces(im, x, y, clusters, traces, column_range, title=None):
+    """Plot traces and image"""
     plt.figure()
     cluster_img = np.zeros(im.shape, dtype=im.dtype)
     for c in clusters:
@@ -373,45 +377,45 @@ def plot_orders(im, x, y, clusters, orders, order_range, title=None):
     else:
         bot, top = None, None
     plt.imshow(plot_im, origin="lower", vmin=bot, vmax=top)
-    plt.title("Input Image + Order polynomials")
+    plt.title("Input Image + Trace polynomials")
     plt.xlabel("x [pixel]")
     plt.ylabel("y [pixel]")
     plt.ylim([0, im.shape[0]])
 
-    if orders is not None:
-        for i, order in enumerate(orders):
-            x = np.arange(*order_range[i], 1)
-            y = np.polyval(order, x)
+    if traces is not None:
+        for i, tr in enumerate(traces):
+            x = np.arange(*column_range[i], 1)
+            y = np.polyval(tr, x)
             plt.plot(x, y)
 
     plt.subplot(122)
     plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
-    plt.title("Detected Clusters + Order Polynomials")
+    plt.title("Detected Clusters + Trace Polynomials")
     plt.xlabel("x [pixel]")
     plt.ylabel("y [pixel]")
 
-    if orders is not None:
-        for i, order in enumerate(orders):
-            x = np.arange(*order_range[i], 1)
-            y = np.polyval(order, x)
+    if traces is not None:
+        for i, tr in enumerate(traces):
+            x = np.arange(*column_range[i], 1)
+            y = np.polyval(tr, x)
             plt.plot(x, y)
 
     plt.ylim([0, im.shape[0]])
     if title is not None:
         plt.suptitle(title)
-    util.show_or_save("orders_trace")
+    util.show_or_save("trace_fitted")
 
 
-def plot_order(i, j, x, y, img, deg, title=""):
-    """Plot a single order"""
+def plot_trace_pair(i, j, x, y, img, deg, title=""):
+    """Plot two trace candidates for merge decision"""
     _, ncol = img.shape
 
-    order_i = fit(x[i], y[i], deg)
-    order_j = fit(x[j], y[j], deg)
+    trace_i = fit(x[i], y[i], deg)
+    trace_j = fit(x[j], y[j], deg)
 
     xp = np.arange(ncol)
-    yi = np.polyval(order_i, xp)
-    yj = np.polyval(order_j, xp)
+    yi = np.polyval(trace_i, xp)
+    yj = np.polyval(trace_j, xp)
 
     xmin = min(np.min(x[i]), np.min(x[j])) - 50
     xmax = max(np.max(x[i]), np.max(x[j])) + 50
@@ -434,7 +438,7 @@ def plot_order(i, j, x, y, img, deg, title=""):
     plt.plot(y[j], x[j], "g.")
     plt.xlim([ymin, ymax])
     plt.ylim([xmin, xmax])
-    util.show_or_save(f"orders_single_{i}_{j}")
+    util.show_or_save(f"trace_merge_{i}_{j}")
 
 
 def trace(
@@ -491,8 +495,8 @@ def trace(
 
     Returns
     -------
-    orders : array[nord, opower+1]
-        order tracing coefficients (in numpy order, i.e. largest exponent first)
+    traces : array[nord, opower+1]
+        trace polynomial coefficients (in numpy order, i.e. largest exponent first)
     """
 
     # Convert to signed integer, to avoid underflow problems
@@ -636,8 +640,8 @@ def trace(
     clusters[~mask_sizes[clusters]] = 0
 
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
-    # # x, y become dictionaries, with an entry for each order
-    # # n is just a list of all orders (ignore cluster == 0)
+    # # x, y become dictionaries, with an entry for each cluster
+    # # n is just a list of all cluster labels (ignore cluster == 0)
     n = np.unique(clusters)
     n = n[n != 0]
     x = {i: np.where(clusters == c)[0] for i, c in enumerate(n)}
@@ -718,7 +722,7 @@ def trace(
         clusters[clusters == 0] = np.ma.masked
 
         plt.imshow(clusters, origin="lower", cmap="prism")
-        util.show_or_save("orders_clusters")
+        util.show_or_save("trace_clusters")
 
     # Merge clusters, if there are even any possible mergers left
     x, y, n = merge_clusters(
@@ -742,9 +746,9 @@ def trace(
                 del y[k]
         n = x.keys()
 
-    orders = fit_polynomials_to_clusters(x, y, n, degree)
+    traces = fit_polynomials_to_clusters(x, y, n, degree)
 
-    # sort orders from bottom to top, using relative position
+    # sort traces from bottom to top, using relative position
 
     def compare(i, j):
         _, xi, i_left, i_right = i
@@ -759,21 +763,21 @@ def trace(
         return xi[left:right].mean() - xj[left:right].mean()
 
     xp = np.arange(im.shape[1])
-    keys = [(c, np.polyval(orders[c], xp), y[c].min(), y[c].max()) for c in x.keys()]
+    keys = [(c, np.polyval(traces[c], xp), y[c].min(), y[c].max()) for c in x.keys()]
     keys = sorted(keys, key=cmp_to_key(compare))
     key = [k[0] for k in keys]
 
     n = np.arange(len(n), dtype=int)
     x = {c: x[key[c]] for c in n}
     y = {c: y[key[c]] for c in n}
-    orders = np.array([orders[key[c]] for c in n])
+    traces = np.array([traces[key[c]] for c in n])
 
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
     if plot:  # pragma: no cover
-        plot_orders(im, x, y, n, orders, column_range, title=plot_title)
+        plot_traces(im, x, y, n, traces, column_range, title=plot_title)
 
-    return orders, column_range
+    return traces, column_range
 
 
 def merge_traces(
