@@ -172,6 +172,8 @@ def night(dataset):
     _, target = dataset
     if target == "HD132205":
         return "2010-04-01"
+    if target == "UX-Ori":
+        return "2009-10-04"
     return ""
 
 
