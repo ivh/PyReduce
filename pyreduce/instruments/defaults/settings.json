@@ -27,12 +27,12 @@
         "norm_scaling": "none",
         "regularization": 0,
         "closing_shape": [
-            5,
-            5
-        ],
-        "opening_shape": [
             2,
             2
+        ],
+        "opening_shape": [
+            1,
+            1
         ],
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.1,

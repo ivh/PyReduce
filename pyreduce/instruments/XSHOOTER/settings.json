@@ -9,16 +9,15 @@
     },
     "trace": {
         "degree": 5,
-        "degree_before_merge": 2,
         "bias_scaling": "exposure_time",
         "filter_y": 20,
-        "min_cluster": 500,
-        "noise": 10,
+        "min_cluster": 1500,
+        "noise": 40,
         "border_width": 50,
-        "auto_merge_threshold": 0.7,
-        "merge_min_threshold": 0.4,
-        "manual": true,
-        "min_width": 0
+        "auto_merge_threshold": 0.0,
+        "merge_min_threshold": 0.0,
+        "manual": false,
+        "min_width": 0.3
     },
     "scatter": {
         "bias_scaling": "exposure_time",
