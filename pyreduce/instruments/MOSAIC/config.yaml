@@ -46,3 +46,14 @@ id_flat: ".*FLAT.*"
 id_orders: ".*FLAT.*"
 id_wave: ".*ThAr.*"
 id_spec: ".*"
+
+# Fiber grouping configuration
+# IFU targets with ~7 fibers each
+# Note: actual trace count may vary; remainder fibers are dropped
+fibers:
+  bundles:
+    size: 7
+    merge: center
+  use:
+    curvature: groups
+    science: groups

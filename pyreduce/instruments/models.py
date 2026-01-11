@@ -7,7 +7,7 @@ structure described in REDESIGN.md.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -69,6 +69,51 @@ class AmplifiersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class FiberGroupConfig(BaseModel):
+    """Configuration for a named fiber group.
+
+    Defines a range of physical fibers that form a logical group (e.g., "A", "cal", "B").
+    The merged trace can be the average, center, or specific fiber(s) from the group.
+    """
+
+    range: tuple[int, int]  # [start, end) half-open interval, 1-based
+    merge: str | list[int] = "center"  # "average", "center", or [indices]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FiberBundleConfig(BaseModel):
+    """Configuration for repeating fiber bundles.
+
+    For instruments where fibers are organized in repeating bundles (e.g., 7 fibers
+    per IFU target), this defines the bundle structure.
+    """
+
+    size: int  # fibers per bundle
+    count: int | None = None  # number of bundles (validated if provided)
+    merge: str | list[int] = "center"  # "average", "center", or [indices]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# Type for trace selection in the 'use' section
+TraceSelection = Literal["all", "groups"] | list[str]
+
+
+class FibersConfig(BaseModel):
+    """Configuration for multi-fiber instruments.
+
+    Defines how physical fiber traces are organized into groups and which
+    traces to use for each reduction step.
+    """
+
+    groups: dict[str, FiberGroupConfig] | None = None
+    bundles: FiberBundleConfig | None = None
+    use: dict[str, TraceSelection] | None = None  # step_name -> selection
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class InstrumentConfig(BaseModel):
     """Configuration for an astronomical instrument.
 
@@ -99,6 +144,9 @@ class InstrumentConfig(BaseModel):
 
     # Multi-amplifier readout (optional)
     amplifiers: AmplifiersConfig | None = None
+
+    # Multi-fiber configuration (optional)
+    fibers: FibersConfig | None = None
 
     # Detector dimensions
     naxis_x: str | int = "NAXIS1"

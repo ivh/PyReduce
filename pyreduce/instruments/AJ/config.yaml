@@ -49,3 +49,21 @@ id_flat_odd: ".*odd.*"
 id_orders: ".*"
 id_wave: ".*"
 id_spec: ".*"
+
+# Fiber grouping configuration
+# 75 fibers organized into 3 logical groups
+fibers:
+  groups:
+    A:
+      range: [1, 36]
+      merge: average
+    cal:
+      range: [37, 40]
+      merge: average
+    B:
+      range: [40, 76]
+      merge: average
+  use:
+    science: [A, B]
+    wavecal: [cal]
+    norm_flat: all

@@ -983,3 +983,240 @@ def group_and_refit(
     logical_column_range = np.array(logical_column_range)
 
     return logical_traces, logical_column_range, fiber_counts
+
+
+def _merge_fiber_traces(traces, column_range, merge_method, degree=4):
+    """Apply merge method to a set of fiber traces.
+
+    Parameters
+    ----------
+    traces : ndarray (n_fibers, degree+1)
+        Polynomial coefficients for each fiber
+    column_range : ndarray (n_fibers, 2)
+        Column range for each fiber
+    merge_method : str or list[int]
+        "average", "center", or list of 1-based indices
+    degree : int
+        Polynomial degree for refitted traces (used with "average")
+
+    Returns
+    -------
+    merged_traces : ndarray (n_output, degree+1)
+    merged_cr : ndarray (n_output, 2)
+    """
+    n_fibers = len(traces)
+    if n_fibers == 0:
+        return np.empty((0, traces.shape[1])), np.empty((0, 2))
+
+    # Find shared column range
+    col_min = int(np.max(column_range[:, 0]))
+    col_max = int(np.min(column_range[:, 1]))
+    shared_cr = np.array([[col_min, col_max]])
+
+    if merge_method == "center":
+        # Select middle trace
+        idx = n_fibers // 2
+        return traces[idx : idx + 1], column_range[idx : idx + 1]
+
+    elif merge_method == "average":
+        # Average y-positions and refit
+        x_eval = np.arange(col_min, col_max)
+        y_values = np.array([np.polyval(t, x_eval) for t in traces])
+        y_mean = np.mean(y_values, axis=0)
+
+        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+        coeffs = fit.coef[::-1]  # Convert to np.polyval order
+        return coeffs.reshape(1, -1), shared_cr
+
+    elif isinstance(merge_method, list):
+        # Select specific indices (1-based within group)
+        indices = [i - 1 for i in merge_method]  # Convert to 0-based
+        valid = [i for i in indices if 0 <= i < n_fibers]
+        if not valid:
+            logger.warning("No valid indices in merge method %s", merge_method)
+            return np.empty((0, traces.shape[1])), np.empty((0, 2))
+        return traces[valid], column_range[valid]
+
+    else:
+        raise ValueError(f"Unknown merge method: {merge_method}")
+
+
+def organize_fibers(traces, column_range, fibers_config, degree=4):
+    """Organize traced fibers into groups according to config.
+
+    Takes raw fiber traces and groups them according to either explicit
+    named groups or repeating bundle patterns.
+
+    Parameters
+    ----------
+    traces : ndarray (n_fibers, degree+1)
+        Polynomial coefficients for each fiber trace
+    column_range : ndarray (n_fibers, 2)
+        Column range for each fiber
+    fibers_config : FibersConfig
+        Configuration specifying groups or bundles
+    degree : int
+        Polynomial degree for refitted traces (used with "average" merge)
+
+    Returns
+    -------
+    group_traces : dict[str, ndarray]
+        {group_name: traces} - merged trace(s) per group
+    group_column_range : dict[str, ndarray]
+        {group_name: column_range} per group
+    group_fiber_counts : dict[str, int]
+        Number of physical fibers in each group
+    """
+    n_fibers = len(traces)
+    group_traces = {}
+    group_column_range = {}
+    group_fiber_counts = {}
+
+    if fibers_config.groups is not None:
+        # Explicit named groups
+        for name, group_cfg in fibers_config.groups.items():
+            start, end = group_cfg.range
+            # Convert 1-based to 0-based indices
+            start_idx = start - 1
+            end_idx = end - 1  # half-open, so end is exclusive
+
+            if start_idx < 0 or end_idx > n_fibers:
+                logger.warning(
+                    "Group %s range [%d, %d) exceeds fiber count %d",
+                    name,
+                    start,
+                    end,
+                    n_fibers,
+                )
+                end_idx = min(end_idx, n_fibers)
+                start_idx = max(start_idx, 0)
+
+            group_tr = traces[start_idx:end_idx]
+            group_cr = column_range[start_idx:end_idx]
+            n_in_group = len(group_tr)
+
+            merged_tr, merged_cr = _merge_fiber_traces(
+                group_tr, group_cr, group_cfg.merge, degree
+            )
+
+            group_traces[name] = merged_tr
+            group_column_range[name] = merged_cr
+            group_fiber_counts[name] = n_in_group
+
+    elif fibers_config.bundles is not None:
+        # Repeating bundle pattern
+        bundle_cfg = fibers_config.bundles
+        bundle_size = bundle_cfg.size
+
+        if n_fibers % bundle_size != 0:
+            raise ValueError(
+                f"Number of fibers ({n_fibers}) not divisible by bundle size ({bundle_size})"
+            )
+
+        n_bundles = n_fibers // bundle_size
+        if bundle_cfg.count is not None and bundle_cfg.count != n_bundles:
+            raise ValueError(
+                f"Expected {bundle_cfg.count} bundles but found {n_bundles}"
+            )
+
+        # Create a group for each bundle
+        for i in range(n_bundles):
+            name = f"bundle_{i + 1}"  # 1-based naming
+            start_idx = i * bundle_size
+            end_idx = (i + 1) * bundle_size
+
+            bundle_tr = traces[start_idx:end_idx]
+            bundle_cr = column_range[start_idx:end_idx]
+
+            merged_tr, merged_cr = _merge_fiber_traces(
+                bundle_tr, bundle_cr, bundle_cfg.merge, degree
+            )
+
+            group_traces[name] = merged_tr
+            group_column_range[name] = merged_cr
+            group_fiber_counts[name] = bundle_size
+
+    return group_traces, group_column_range, group_fiber_counts
+
+
+def select_traces_for_step(
+    raw_traces,
+    raw_cr,
+    group_traces,
+    group_cr,
+    fibers_config,
+    step_name,
+):
+    """Select which traces to use for a given reduction step.
+
+    Looks up fibers_config.use[step_name] to determine selection.
+
+    Parameters
+    ----------
+    raw_traces : ndarray (n_fibers, degree+1)
+        All individual fiber traces
+    raw_cr : ndarray (n_fibers, 2)
+        Column ranges for individual fibers
+    group_traces : dict[str, ndarray]
+        Grouped/merged traces from organize_fibers()
+    group_cr : dict[str, ndarray]
+        Column ranges for grouped traces
+    fibers_config : FibersConfig or None
+        Fiber configuration (may be None for single-fiber instruments)
+    step_name : str
+        Name of the reduction step (e.g., "science", "curvature")
+
+    Returns
+    -------
+    traces : ndarray
+        Selected traces for this step
+    column_range : ndarray
+        Column ranges for selected traces
+    """
+    # No fiber config means use raw traces
+    if fibers_config is None:
+        return raw_traces, raw_cr
+
+    # No groups/bundles defined means use raw traces
+    if fibers_config.groups is None and fibers_config.bundles is None:
+        return raw_traces, raw_cr
+
+    # Determine selection for this step
+    selection = "groups"  # default when groups/bundles defined
+    if fibers_config.use is not None and step_name in fibers_config.use:
+        selection = fibers_config.use[step_name]
+
+    if selection == "all":
+        return raw_traces, raw_cr
+
+    elif selection == "groups":
+        # Concatenate all group traces
+        all_traces = []
+        all_cr = []
+        for name in sorted(group_traces.keys()):
+            all_traces.append(group_traces[name])
+            all_cr.append(group_cr[name])
+        if all_traces:
+            return np.vstack(all_traces), np.vstack(all_cr)
+        else:
+            return raw_traces, raw_cr
+
+    elif isinstance(selection, list):
+        # Select specific groups by name
+        selected_traces = []
+        selected_cr = []
+        for name in selection:
+            if name in group_traces:
+                selected_traces.append(group_traces[name])
+                selected_cr.append(group_cr[name])
+            else:
+                logger.warning("Group '%s' not found in trace data", name)
+        if selected_traces:
+            return np.vstack(selected_traces), np.vstack(selected_cr)
+        else:
+            logger.warning("No valid groups selected, using all raw traces")
+            return raw_traces, raw_cr
+
+    else:
+        logger.warning("Unknown selection type: %s, using raw traces", selection)
+        return raw_traces, raw_cr

@@ -292,7 +292,18 @@ class Pipeline:
         if load_only:
             try:
                 logger.info("Loading data from step '%s'", name)
-                return step.load(**dep_args)
+                result = step.load(**dep_args)
+                # Store fiber group traces if loaded (from OrderTracing)
+                if (
+                    name == "trace"
+                    and hasattr(step, "group_traces")
+                    and step.group_traces
+                ):
+                    self._data["trace_groups"] = (
+                        step.group_traces,
+                        step.group_column_range,
+                    )
+                return result
             except FileNotFoundError:
                 logger.warning(
                     "Intermediate files for step '%s' not found, running instead.",
@@ -303,7 +314,13 @@ class Pipeline:
         logger.info("Running step '%s'", name)
         if files is not None:
             dep_args["files"] = files
-        return step.run(**dep_args)
+        result = step.run(**dep_args)
+
+        # Store fiber group traces if available (from OrderTracing)
+        if name == "trace" and hasattr(step, "group_traces") and step.group_traces:
+            self._data["trace_groups"] = (step.group_traces, step.group_column_range)
+
+        return result
 
     def _ensure_dependency(self, name: str):
         """Ensure a dependency is available (load if needed)."""
@@ -313,6 +330,11 @@ class Pipeline:
         # 'config' is a special dependency - it's the full config dict, not a step
         if name == "config":
             self._data["config"] = self.config
+            return
+
+        # 'trace_groups' is derived from 'trace', not a separate step
+        if name == "trace_groups":
+            self._data["trace_groups"] = None  # Will be populated if available
             return
 
         files = self._files.get(name)

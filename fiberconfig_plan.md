@@ -186,3 +186,85 @@ result = Pipeline.from_instrument(
 1. Run `aj_example.py` with new config - should produce same output with less code
 2. Run `mosaic_example.py` with new config - should auto-select center fibers
 3. Unit tests for `organize_fibers()` with both group and bundle patterns
+
+---
+
+## Implementation Status (2025-01-11)
+
+### Completed
+
+1. **Pydantic models** (`pyreduce/instruments/models.py`)
+   - `FiberGroupConfig`, `FiberBundleConfig`, `FibersConfig`
+   - Added `fibers` field to `InstrumentConfig`
+
+2. **Fiber organization functions** (`pyreduce/trace.py`)
+   - `_merge_fiber_traces()` - applies merge method (average/center/indices)
+   - `organize_fibers()` - organizes traces into groups or bundles
+   - `select_traces_for_step()` - selects traces based on `fibers.use` config
+
+3. **OrderTracing modifications** (`pyreduce/reduce.py`)
+   - Calls `organize_fibers()` after tracing if fibers config present
+   - Saves both raw and grouped traces to .npz file
+   - Added `get_traces_for_step()` helper method
+
+4. **Step modifications** (`pyreduce/reduce.py`)
+   - Added `_select_traces()` helper to `Step` base class
+   - Modified `BackgroundScatter`, `NormalizeFlatField`, `SlitCurvatureDetermination`,
+     `WavelengthCalibrationMaster`, `ScienceExtraction` to use fiber selection
+   - Added `trace_groups` as optional dependency
+
+5. **Pipeline modifications** (`pyreduce/pipeline.py`)
+   - Stores `trace_groups` in `_data` when OrderTracing runs/loads
+   - Handles `trace_groups` as special optional dependency
+
+6. **Instrument configs**
+   - `AJ/config.yaml` - groups A/cal/B with merge:average
+   - `MOSAIC/config.yaml` - bundles size:7 with merge:center
+
+7. **Documentation**
+   - Updated `docs/fiber_bundle_tracing.md`
+
+8. **Example scripts**
+   - `examples/mosaic_example_v2.py` - uses Pipeline with fiber config
+   - `examples/aj_example_v2.py` - uses Pipeline with fiber config
+
+### Known Limitation: Per-Order Fiber Grouping
+
+**Problem discovered during testing:**
+
+The current implementation treats all traces as a flat list. This works for:
+- **MOSAIC**: Single effective "order" with 630 fibers in bundles of 7
+
+But does NOT work correctly for:
+- **AJ**: Multiple spectral orders (13), each with 75 fibers
+
+AJ has 886 total traces (~75 fibers × ~12 orders). The config groups `[1,36]`, `[37,40]`, `[40,76]`
+only select from the first ~75 traces, not handling per-order grouping.
+
+The original `merge_traces()` + `group_and_refit()` functions handle this by:
+1. Assigning traces to spectral orders based on `order_centers`
+2. Grouping fibers within each order
+
+### Remaining Work
+
+1. **Per-order fiber grouping** - Extend config to distinguish:
+   - Different fibers within same order (fiber index 1-75)
+   - Same fiber across different orders (order index 1-13)
+
+   Possible config extension:
+   ```yaml
+   fibers:
+     per_order: true  # Apply grouping within each spectral order
+     order_count: 13  # Expected number of orders
+     fibers_per_order: 75  # Fibers per order
+     groups:
+       A: {range: [1, 36], merge: average}
+       # ...
+   ```
+
+2. **Order detection** - Need a way to identify which traces belong to which order:
+   - Use `order_centers` reference file (like AJ example)
+   - Or auto-detect from trace y-positions and gaps
+
+3. **Even/odd flat handling** - AJ needs separate tracing of even/odd illuminated flats,
+   then merging. This is a separate concern from fiber grouping.

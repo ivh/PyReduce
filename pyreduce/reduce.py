@@ -50,6 +50,7 @@ from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, fix_parameters
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
+from .trace import organize_fibers, select_traces_for_step
 from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
@@ -338,6 +339,40 @@ class Step:
             return f"{i}_{c}"
         else:
             return i
+
+    def _select_traces(self, trace, step_name, trace_groups=None):
+        """Apply fiber selection to traces based on instrument config.
+
+        Parameters
+        ----------
+        trace : tuple (orders, column_range)
+            Raw traces from OrderTracing
+        step_name : str
+            Name of this step for fibers.use lookup
+        trace_groups : tuple (group_traces, group_cr), optional
+            Grouped traces from Pipeline (if available)
+
+        Returns
+        -------
+        orders : ndarray
+            Selected traces for this step
+        column_range : ndarray
+            Column ranges for selected traces
+        """
+        orders, column_range = trace
+        group_traces = {}
+        group_cr = {}
+        if trace_groups is not None:
+            group_traces, group_cr = trace_groups
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        return select_traces_for_step(
+            orders,
+            column_range,
+            group_traces,
+            group_cr,
+            fibers_config,
+            step_name,
+        )
 
 
 class CalibrationStep(Step):
@@ -769,6 +804,11 @@ class OrderTracing(CalibrationStep):
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
+        # Fiber organization data (populated by run() or load())
+        self.group_traces = None
+        self.group_column_range = None
+        self.group_fiber_counts = None
+
     @property
     def savefile(self):
         """str: Name of the order tracing file"""
@@ -820,6 +860,18 @@ class OrderTracing(CalibrationStep):
             plot_title=self.plot_title,
         )
 
+        # Organize fibers into groups if configured
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        if fibers_config is not None and (
+            fibers_config.groups is not None or fibers_config.bundles is not None
+        ):
+            logger.info("Organizing %d traces into fiber groups", len(orders))
+            self.group_traces, self.group_column_range, self.group_fiber_counts = (
+                organize_fibers(orders, column_range, fibers_config, self.fit_degree)
+            )
+            for name, count in self.group_fiber_counts.items():
+                logger.info("  Group %s: %d fibers", name, count)
+
         self.save(orders, column_range)
 
         return orders, column_range
@@ -834,7 +886,17 @@ class OrderTracing(CalibrationStep):
         column_range : array of shape (nord, 2)
             first and last(+1) column that carry signal in each order
         """
-        np.savez(self.savefile, orders=orders, column_range=column_range)
+        save_data = {"orders": orders, "column_range": column_range}
+
+        # Save grouped traces if available
+        if self.group_traces is not None:
+            save_data["group_names"] = list(self.group_traces.keys())
+            for name, traces in self.group_traces.items():
+                save_data[f"group_{name}_traces"] = traces
+                save_data[f"group_{name}_cr"] = self.group_column_range[name]
+                save_data[f"group_{name}_count"] = self.group_fiber_counts[name]
+
+        np.savez(self.savefile, **save_data)
         logger.info("Created order tracing file: %s", self.savefile)
 
     def load(self):
@@ -851,7 +913,51 @@ class OrderTracing(CalibrationStep):
         data = np.load(self.savefile, allow_pickle=True)
         orders = data["orders"]
         column_range = data["column_range"]
+
+        # Load grouped traces if available
+        if "group_names" in data:
+            group_names = list(data["group_names"])
+            self.group_traces = {}
+            self.group_column_range = {}
+            self.group_fiber_counts = {}
+            for name in group_names:
+                self.group_traces[name] = data[f"group_{name}_traces"]
+                self.group_column_range[name] = data[f"group_{name}_cr"]
+                self.group_fiber_counts[name] = int(data[f"group_{name}_count"])
+            logger.info("Loaded %d fiber groups", len(group_names))
+
         return orders, column_range
+
+    def get_traces_for_step(self, orders, column_range, step_name):
+        """Get traces appropriate for a specific reduction step.
+
+        Uses the instrument's fibers.use config to select raw or grouped traces.
+
+        Parameters
+        ----------
+        orders : ndarray
+            Raw traces from run() or load()
+        column_range : ndarray
+            Column ranges for raw traces
+        step_name : str
+            Name of the reduction step (e.g., "science", "curvature")
+
+        Returns
+        -------
+        traces : ndarray
+            Selected traces for this step
+        column_range : ndarray
+            Column ranges for selected traces
+        """
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        return select_traces_for_step(
+            orders,
+            column_range,
+            self.group_traces or {},
+            self.group_column_range or {},
+            fibers_config,
+            step_name,
+        )
 
 
 class BackgroundScatter(CalibrationStep):
@@ -859,7 +965,7 @@ class BackgroundScatter(CalibrationStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["trace"]
+        self._dependsOn += ["trace", "trace_groups"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
@@ -872,12 +978,13 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, files, trace, mask=None, bias=None):
+    def run(self, files, trace, mask=None, bias=None, trace_groups=None):
         logger.info("Background scatter files: %s", files)
 
         scatter_img, shead = self.calibrate(files, mask, bias)
 
-        orders, column_range = trace
+        # Apply fiber selection based on instrument config
+        orders, column_range = self._select_traces(trace, "scatter", trace_groups)
         scatter = estimate_background_scatter(
             scatter_img,
             orders,
@@ -929,7 +1036,7 @@ class NormalizeFlatField(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "trace", "scatter", "curvature"]
+        self._dependsOn += ["flat", "trace", "scatter", "curvature", "trace_groups"]
 
         #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -957,7 +1064,7 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, trace, scatter=None, curvature=None):
+    def run(self, flat, trace, scatter=None, curvature=None, trace_groups=None):
         """Calculate the 'normalized' flat field
 
         Parameters
@@ -970,6 +1077,8 @@ class NormalizeFlatField(Step):
             Background scatter model
         curvature : tuple, optional
             Slit curvature polynomials (p1, p2)
+        trace_groups : tuple, optional
+            Grouped traces for fiber selection
 
         Returns
         -------
@@ -979,7 +1088,8 @@ class NormalizeFlatField(Step):
             Continuum level as determined from the flat field for each order
         """
         flat, fhead = flat
-        orders, column_range = trace
+        # Apply fiber selection based on instrument config
+        orders, column_range = self._select_traces(trace, "norm_flat", trace_groups)
         p1, p2 = curvature if curvature is not None else (None, None)
 
         # if threshold is smaller than 1, assume percentage value is given
@@ -1054,14 +1164,23 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "bias"]
+        self._dependsOn += ["norm_flat", "curvature", "bias", "trace_groups"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_master.fits")
 
-    def run(self, files, trace, mask=None, curvature=None, bias=None, norm_flat=None):
+    def run(
+        self,
+        files,
+        trace,
+        mask=None,
+        curvature=None,
+        bias=None,
+        norm_flat=None,
+        trace_groups=None,
+    ):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -1081,6 +1200,8 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
             Master bias
         norm_flat : tuple, optional
             Normalized flat field
+        trace_groups : tuple, optional
+            Grouped traces for fiber selection
 
         Returns
         -------
@@ -1096,10 +1217,15 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         if len(files) == 0:
             raise FileNotFoundError("No files found for wavelength calibration")
         logger.info("Wavelength calibration files: %s", files)
+        # Apply fiber selection based on instrument config
+        selected_orders, selected_cr = self._select_traces(
+            trace, "wavecal_master", trace_groups
+        )
+        selected_trace = (selected_orders, selected_cr)
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
         # Extract wavecal spectrum
-        thar, _, _, _ = self.extract(orig, thead, trace, curvature)
+        thar, _, _, _ = self.extract(orig, thead, selected_trace, curvature)
         self.save(thar, thead)
         return thar, thead
 
@@ -1524,6 +1650,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
+        self._dependsOn += ["trace_groups"]
 
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["curvature_cutoff"]
@@ -1551,7 +1678,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         """str: Name of the curvature save file"""
         return join(self.output_dir, self.prefix + ".curve.npz")
 
-    def run(self, files, trace, mask=None, bias=None):
+    def run(self, files, trace, mask=None, bias=None, trace_groups=None):
         """Determine the curvature of the slit
 
         Parameters
@@ -1564,6 +1691,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             Bad pixel mask
         bias : tuple, optional
             Master bias
+        trace_groups : tuple, optional
+            Grouped traces for fiber selection
 
         Returns
         -------
@@ -1577,8 +1706,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         orig, thead = self.calibrate(files, mask, bias, None)
 
-        # Pre-filter traces using curve_height (the relevant height for curvature fitting)
-        orders, column_range = trace
+        # Apply fiber selection based on instrument config
+        orders, column_range = self._select_traces(trace, "curvature", trace_groups)
         nrow, ncol = orig.shape
         nord = len(orders)
         _, column_range, orders = fix_parameters(
@@ -1715,7 +1844,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "scatter"]
+        self._dependsOn += ["norm_flat", "curvature", "scatter", "trace_groups"]
         self._loadDependsOn += ["files"]
 
     def science_file(self, name):
@@ -1742,6 +1871,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         curvature=None,
         scatter=None,
         mask=None,
+        trace_groups=None,
     ):
         """Extract Science spectra from observation
 
@@ -1761,6 +1891,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             background scatter model
         mask : array of shape (nrow, ncol), optional
             bad pixel map
+        trace_groups : tuple, optional
+            Grouped traces for fiber selection
 
         Returns
         -------
@@ -1775,6 +1907,12 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         columns : list(array of shape (nord, 2))
             column ranges for each spectra
         """
+        # Apply fiber selection based on instrument config
+        selected_orders, selected_cr = self._select_traces(
+            trace, "science", trace_groups
+        )
+        selected_trace = (selected_orders, selected_cr)
+
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in tqdm(files, desc="Files"):
             logger.info("Science file: %s", fname)
@@ -1782,7 +1920,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             im, head = self.calibrate([fname], mask, bias, norm_flat)
             # Optimally extract science spectrum
             spec, sigma, slitfu, cr = self.extract(
-                im, head, trace, curvature, scatter=scatter
+                im, head, selected_trace, curvature, scatter=scatter
             )
 
             # make slitfus from swaths into one
