@@ -1,6 +1,22 @@
 # Changelog
 
 
+## [0.7b3] - 2026-01-11
+
+### Added
+- MOSAIC instrument support with fiber group detection and curvature step
+- Extraction animation controls: pause/step buttons and speed control (`PYREDUCE_PLOT_ANIMATION_SPEED`)
+- `--plot-dir` and `--plot-show` CLI options for flexible plot output
+
+### Changed
+- Rename `orders` to `traces` in rectify and slit_curve modules for consistency
+- Downgrade extraction max-iterations message from ERROR to WARNING
+- Only warn about missing files for steps that are actually requested
+
+### Fixed
+- Handle channel mismatch gracefully in CLI
+- Curvature plotting index error when peaks need int casting
+
 ## [0.7b2] - 2026-01-09
 
 ### Changed

@@ -97,10 +97,10 @@ class TestCurvatureInit:
             assert module.mode == mode
 
     @pytest.mark.unit
-    def test_nord_property(self, simple_orders):
-        """nord should return number of orders."""
+    def test_ntrace_property(self, simple_orders):
+        """ntrace should return number of traces."""
         module = CurvatureModule(simple_orders)
-        assert module.nord == 3
+        assert module.ntrace == 3
 
     @pytest.mark.unit
     def test_n_property_with_order_range(self, simple_orders):

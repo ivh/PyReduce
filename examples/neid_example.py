@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7b2"]
+# dependencies = ["pyreduce-astro>=0.7b3"]
 # ///
 """
 NEID reduction example
