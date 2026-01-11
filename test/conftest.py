@@ -475,7 +475,7 @@ def bias(step_args, settings, files, mask):
     bias = step.load(mask)
     if bias[0] is None:
         try:
-            bias = step.run(files, mask)
+            bias = step.run(files, mask=mask)
         except FileNotFoundError:
             # No input data for this instrument
             bias = (None, None)
@@ -497,7 +497,7 @@ def flat(step_args, settings, files, bias, mask):
     flat = step.load(mask)
     if flat[0] is None:
         try:
-            flat = step.run(files, bias, mask)
+            flat = step.run(files, bias=bias, mask=mask)
         except FileNotFoundError:
             flat = (None, None)
 
@@ -518,7 +518,7 @@ def orders(step_args, settings, files, mask, bias):
     try:
         orders, column_range = step.load()
     except FileNotFoundError:
-        orders, column_range = step.run(files, mask, bias)
+        orders, column_range = step.run(files, mask=mask, bias=bias)
     return orders, column_range
 
 
@@ -534,7 +534,7 @@ def scatter(step_args, settings, files, mask, bias, orders):
     scatter = step.load()
     if scatter is None:
         try:
-            scatter = step.run(files, mask, bias, orders)
+            scatter = step.run(files, orders, mask=mask, bias=bias)
         except FileNotFoundError:
             scatter = None
     return scatter
@@ -573,7 +573,7 @@ def normflat(step_args, settings, flat, orders, scatter, curvature):
 
     if norm is None:
         try:
-            norm, blaze = step.run(flat, orders, scatter, curvature)
+            norm, blaze = step.run(flat, orders, scatter=scatter, curvature=curvature)
         except FileNotFoundError:
             norm, blaze = None, None
     return norm, blaze
@@ -591,7 +591,7 @@ def curvature(step_args, settings, files, orders, mask):
     try:
         p1, p2 = step.load()
     except FileNotFoundError:
-        p1, p2 = step.run(files, orders, mask)
+        p1, p2 = step.run(files, orders, mask=mask)
     return p1, p2
 
 
@@ -633,7 +633,14 @@ def wave_master(step_args, settings, files, orders, mask, curvature, bias, normf
         thar, thead = step.load()
     except FileNotFoundError:
         try:
-            thar, thead = step.run(files, orders, mask, curvature, bias, normflat)
+            thar, thead = step.run(
+                files,
+                orders,
+                mask=mask,
+                curvature=curvature,
+                bias=bias,
+                norm_flat=normflat,
+            )
         except FileNotFoundError:
             thar, thead = None, None
     return thar, thead
@@ -718,6 +725,12 @@ def spec(step_args, settings, files, bias, orders, normflat, curvature, scatter,
     except FileNotFoundError:
         files = files[name][:1]
         heads, specs, sigmas, slitfus, column_ranges = step.run(
-            files, bias, orders, normflat, curvature, scatter, mask
+            files,
+            orders,
+            bias=bias,
+            norm_flat=normflat,
+            curvature=curvature,
+            scatter=scatter,
+            mask=mask,
         )
     return specs[0], sigmas[0]
