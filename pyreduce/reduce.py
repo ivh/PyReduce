@@ -225,8 +225,14 @@ def main(
                 plot=plot,
                 plot_dir=plot_dir,
             )
-            data = pipe.run(skip_existing=skip_existing)
-            output.append(data)
+            try:
+                data = pipe.run(skip_existing=skip_existing)
+                output.append(data)
+            except ValueError as e:
+                if "does not contain data for this channel" in str(e):
+                    logger.warning("Skipping channel %s: %s", c, e)
+                    continue
+                raise
     return output
 
 

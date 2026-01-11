@@ -449,7 +449,14 @@ class Instrument:
                 return header
 
             data, header = self.assemble_amplifiers(hdu, amp_extensions, channel)
-            data = clipnflip(data, header)
+            try:
+                data = clipnflip(data, header)
+            except IndexError as e:
+                hdu.close()
+                raise ValueError(
+                    f"Failed to load {fname} for channel '{channel}': {e}\n"
+                    f"This usually means the file does not contain data for this channel."
+                ) from None
         else:
             # Single extension path (original behavior)
             if extension is None:
@@ -465,7 +472,14 @@ class Instrument:
                 hdu.close()
                 return header
 
-            data = clipnflip(hdu[extension].data, header)
+            try:
+                data = clipnflip(hdu[extension].data, header)
+            except IndexError as e:
+                hdu.close()
+                raise ValueError(
+                    f"Failed to load {fname} for channel '{channel}' (extension {extension}): {e}\n"
+                    f"This usually means the file does not contain data for this channel."
+                ) from None
 
         if dtype is not None:
             data = data.astype(dtype)
