@@ -58,7 +58,7 @@ class ProgressPlot:  # pragma: no cover
         self.ax3.set_ylabel("contribution [1]")
         self.ax3.set_xlim((0, nrow))
         # self.ax4 = self.fig.add_subplot(234, projection="3d")
-        self.ax4 = self.fig.add_subplot(234)
+        self.ax4 = self.fig.add_subplot(234, sharex=self.ax1, sharey=self.ax1)
         self.ax4.set_title("Model")
         self.ax4.set_xlabel("x [pixel]")
         self.ax4.set_ylabel("y [pixel]")
