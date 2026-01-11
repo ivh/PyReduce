@@ -187,11 +187,13 @@ def main(
         )
         util.start_logging(log_file)
         # find input files and sort them by type
+        steps_list = list(steps) if steps != "all" else None
         files = instrument.sort_files(
             input_dir,
             t,
             n,
             channel=c,
+            steps=steps_list,
             **config["instrument"],
         )
         if len(files) == 0:

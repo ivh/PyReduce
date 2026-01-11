@@ -293,13 +293,16 @@ def slitfunc_curved(
         status = info[2]
         if status == 0:
             msg = "I dont't know what happened"
+            logger.error(msg)
         elif status == -1:
             msg = f"Did not finish convergence after maxiter ({maxiter}) iterations"
+            logger.warning(msg)
         elif status == -2:
             msg = "Curvature is larger than the swath. Check the curvature!"
+            logger.error(msg)
         else:
             msg = f"Check the C code, for status = {status}"
-        logger.error(msg)
+            logger.error(msg)
         # raise RuntimeError(msg)
 
     mask = mask == 0

@@ -573,12 +573,16 @@ class Pipeline:
         else:
             channels = [channel] if isinstance(channel, str) else channel
 
+        # Normalize steps for file sorting warnings
+        steps_list = list(cls.STEP_ORDER.keys()) if steps == "all" else list(steps)
+
         # Find and sort files
         files = inst.sort_files(
             full_input_dir,
             target,
             night,
             channel=channels[0] if len(channels) == 1 else channels[0],
+            steps=steps_list,
             **config["instrument"],
         )
 

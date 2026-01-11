@@ -75,8 +75,8 @@ class JWST_NIRISS(Instrument):
         hdu.close()
         return files
 
-    def sort_files(self, input_dir, target, night, channel):
-        files = super().sort_files(input_dir, target, night, channel)
+    def sort_files(self, input_dir, target, night, channel, **kwargs):
+        files = super().sort_files(input_dir, target, night, channel, **kwargs)
         for i, (_k, file) in enumerate(files):
             files_split = []
             for f in file["science"]:

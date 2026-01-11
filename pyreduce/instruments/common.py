@@ -668,7 +668,7 @@ class Instrument:
 
         return self.filters
 
-    def apply_filters(self, files, expected):
+    def apply_filters(self, files, expected, steps=None):
         """
         Determine the relevant files for a given set of expected values.
 
@@ -678,6 +678,9 @@ class Instrument:
             list if fits files
         expected : dict
             dictionary with expected header values for each reduction step
+        steps : list, optional
+            list of steps that will be run. If provided, warnings about
+            missing files are only shown for these steps.
 
         Returns
         -------
@@ -755,13 +758,14 @@ class Instrument:
                 # If no matching files are found ...
                 if len(f[step]) == 0:
                     if step not in self.find_closest:
-                        # Show a warning
-                        logger.warning(
-                            "Could not find any files for step '%s' with settings %s, sharing parameters %s",
-                            step,
-                            setting,
-                            self.shared,
-                        )
+                        # Show a warning (only for requested steps)
+                        if steps is None or step in steps:
+                            logger.warning(
+                                "Could not find any files for step '%s' with settings %s, sharing parameters %s",
+                                step,
+                                setting,
+                                self.shared,
+                            )
                     else:
                         # Or find the closest night instead
                         j = None
@@ -780,13 +784,14 @@ class Instrument:
                                     if diff_new < diff_old:
                                         j = i
                         if j is None:
-                            # We still dont find any files
-                            logger.warning(
-                                "Could not find any files for step '%s' in any night with settings %s, sharing parameters %s",
-                                step,
-                                setting,
-                                self.shared,
-                            )
+                            # We still dont find any files (only warn for requested steps)
+                            if steps is None or step in steps:
+                                logger.warning(
+                                    "Could not find any files for step '%s' in any night with settings %s, sharing parameters %s",
+                                    step,
+                                    setting,
+                                    self.shared,
+                                )
                         else:
                             # We found files in a close night
                             closest_key, closest_files = step_data[j]
@@ -808,7 +813,7 @@ class Instrument:
             )
         return files
 
-    def sort_files(self, input_dir, target, night, *args, **kwargs):
+    def sort_files(self, input_dir, target, night, *args, steps=None, **kwargs):
         """
         Sort a set of fits files into different categories
         types are: bias, flat, wavecal, orderdef, spec
@@ -823,6 +828,9 @@ class Instrument:
             observation night, possibly with wildcards
         channel : str
             instrument channel
+        steps : list, optional
+            list of steps that will be run. If provided, warnings about
+            missing files are only shown for these steps.
         Returns
         -------
         files_per_night : list[dict{str:dict{str:list[str]}}]
@@ -836,7 +844,7 @@ class Instrument:
         )
         files = self.find_files(input_dir)
         ev = self.get_expected_values(target, night, *args, **kwargs)
-        files = self.apply_filters(files, ev)
+        files = self.apply_filters(files, ev, steps=steps)
         return files
 
     def discover_channels(self, input_dir):
