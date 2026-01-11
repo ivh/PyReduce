@@ -3,10 +3,10 @@
     "__inherits__": "defaults",
     "trace": {
         "degree": 4,
-        "noise": 500,
+        "noise": 300,
         "min_cluster": 1000,
         "min_width": 0.5,
-        "filter_y": 5,
+        "filter_y": 6,
         "border_width": 0,
         "closing_shape": [1, 1],
         "opening_shape": [1, 1],
@@ -14,15 +14,10 @@
         "auto_merge_threshold": 0,
         "merge_min_threshold": 0
     },
-    "norm_flat": {
-        "extraction_height": 0.5,
-        "oversampling": 6
-    },
     "wavecal_master": {
         "extraction_height": 0.5
     },
     "science": {
-        "extraction_method": "optimal",
         "extraction_height": 43,
         "oversampling": 8,
         "swath_width": 400

@@ -91,16 +91,16 @@ def step_config(name):
 
 print("\n=== TRACE ===")
 trace_step = OrderTracing(*step_args, **step_config("trace"))
-orders, column_range = trace_step.run([flat_file])
-print(f"Found {len(orders)} traces (expected ~630)")
-# orders, column_range = trace_step.load()
+# traces, column_range = trace_step.run([flat_file])
+traces, column_range = trace_step.load()
+print(f"Found {len(traces)} traces (expected ~630)")
 
 # --- STEP 3: Match traces to group centers ---
 print("\n=== IDENTIFY GROUP CENTERS ===")
 
 # Evaluate all traces at detector center (x=2048)
 x_center = 2048
-traced_y = np.array([np.polyval(o, x_center) for o in orders])
+traced_y = np.array([np.polyval(o, x_center) for o in traces])
 print(f"Traced y-positions at x={x_center}: {traced_y[0]:.1f} to {traced_y[-1]:.1f}")
 
 # For each expected group center, find the closest traced fiber
@@ -132,11 +132,11 @@ if np.any(bad_matches):
         )
 
 # Extract only the center traces
-center_orders = orders[center_trace_indices]
+center_traces = traces[center_trace_indices]
 center_column_range = column_range[center_trace_indices]
-print(f"\nUsing {len(center_orders)} group center traces for extraction")
+print(f"\nUsing {len(center_traces)} group center traces for extraction")
 
-center_trace = (center_orders, center_column_range)
+center_trace = (center_traces, center_column_range)
 
 
 print("\n=== EXTRACT ThAr ===")
