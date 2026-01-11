@@ -532,14 +532,14 @@ class Bias(Step):
         """str: Name of master bias fits file"""
         return join(self.output_dir, self.prefix + ".bias.fits")
 
-    def run(self, files, mask):
+    def run(self, files, mask=None):
         """Calculate the master bias
 
         Parameters
         ----------
         files : list(str)
             bias files
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             bad pixel map
 
         Returns
@@ -674,16 +674,16 @@ class Flat(CalibrationStep):
         )
         logger.info("Created master flat file: %s", self.savefile)
 
-    def run(self, files, bias, mask):
+    def run(self, files, bias=None, mask=None):
         """Calculate the master flat, with the bias already subtracted
 
         Parameters
         ----------
         files : list(str)
             flat files
-        bias : tuple(array of shape (nrow, ncol), FITS header)
+        bias : tuple(array of shape (nrow, ncol), FITS header), optional
             master bias and header
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             Bad pixel mask
 
         Returns
@@ -766,16 +766,16 @@ class OrderTracing(CalibrationStep):
         """str: Name of the order tracing file"""
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
-    def run(self, files, mask, bias):
+    def run(self, files, mask=None, bias=None):
         """Determine polynomial coefficients describing order locations
 
         Parameters
         ----------
         files : list(str)
             Observation used for order tracing (should only have one element)
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        bias : tuple or None
+        bias : tuple, optional
             Bias correction
 
         Returns
@@ -864,7 +864,7 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, files, mask, bias, trace):
+    def run(self, files, trace, mask=None, bias=None):
         logger.info("Background scatter files: %s", files)
 
         scatter_img, shead = self.calibrate(files, mask, bias)
@@ -949,7 +949,7 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, trace, scatter, curvature):
+    def run(self, flat, trace, scatter=None, curvature=None):
         """Calculate the 'normalized' flat field
 
         Parameters
@@ -958,6 +958,10 @@ class NormalizeFlatField(Step):
             Master flat, and its FITS header
         trace : tuple(array, array)
             Polynomial coefficients for each order, and the first and last(+1) column containing signal
+        scatter : array, optional
+            Background scatter model
+        curvature : tuple, optional
+            Slit curvature polynomials (p1, p2)
 
         Returns
         -------
@@ -968,7 +972,7 @@ class NormalizeFlatField(Step):
         """
         flat, fhead = flat
         orders, column_range = trace
-        p1, p2 = curvature
+        p1, p2 = curvature if curvature is not None else (None, None)
 
         # if threshold is smaller than 1, assume percentage value is given
         if self.threshold <= 1:
@@ -1049,7 +1053,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".thar_master.fits")
 
-    def run(self, files, trace, mask, curvature, bias, norm_flat):
+    def run(self, files, trace, mask=None, curvature=None, bias=None, norm_flat=None):
         """Perform wavelength calibration
 
         This consists of extracting the wavelength image
@@ -1061,8 +1065,14 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
             wavelength calibration files
         trace : tuple(array, array)
             Polynomial coefficients of each order, and columns with signal of each order
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             Bad pixel mask
+        curvature : tuple, optional
+            Slit curvature polynomials
+        bias : tuple, optional
+            Master bias
+        norm_flat : tuple, optional
+            Normalized flat field
 
         Returns
         -------
@@ -1327,7 +1337,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".comb_master.fits")
 
-    def run(self, files, trace, mask, curvature, bias, norm_flat):
+    def run(self, files, trace, mask=None, curvature=None, bias=None, norm_flat=None):
         """Improve the wavelength calibration with a laser frequency comb (or similar)
 
         Parameters
@@ -1336,12 +1346,14 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
             observation files
         trace : tuple
             results from the order tracing step
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        curvature : tuple
+        curvature : tuple, optional
             results from the curvature step
-        bias : tuple
+        bias : tuple, optional
             results from the bias step
+        norm_flat : tuple, optional
+            results from the norm_flat step
 
         Returns
         -------
@@ -1531,7 +1543,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         """str: Name of the curvature save file"""
         return join(self.output_dir, self.prefix + ".curve.npz")
 
-    def run(self, files, trace, mask, bias):
+    def run(self, files, trace, mask=None, bias=None):
         """Determine the curvature of the slit
 
         Parameters
@@ -1540,8 +1552,10 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             files to use for this
         trace : tuple
             results of the order tracing
-        mask : array of shape (nrow, ncol)
+        mask : array of shape (nrow, ncol), optional
             Bad pixel mask
+        bias : tuple, optional
+            Master bias
 
         Returns
         -------
@@ -1633,9 +1647,9 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(self, files, trace, curvature, mask, freq_comb):
+    def run(self, files, trace, curvature=None, mask=None, freq_comb=None):
         orders, column_range = trace
-        p1, p2 = curvature
+        p1, p2 = curvature if curvature is not None else (None, None)
         wave = freq_comb
 
         files = files[self.input_files]
@@ -1711,22 +1725,33 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
-    def run(self, files, bias, trace, norm_flat, curvature, scatter, mask):
+    def run(
+        self,
+        files,
+        trace,
+        bias=None,
+        norm_flat=None,
+        curvature=None,
+        scatter=None,
+        mask=None,
+    ):
         """Extract Science spectra from observation
 
         Parameters
         ----------
         files : list(str)
             list of observations
-        bias : tuple
-            results from master bias step
         trace : tuple
             results from order tracing step
-        norm_flat : tuple
+        bias : tuple, optional
+            results from master bias step
+        norm_flat : tuple, optional
             results from flat normalization
-        curvature : tuple
+        curvature : tuple, optional
             results from slit curvature step
-        mask : array of shape (nrow, ncol)
+        scatter : array, optional
+            background scatter model
+        mask : array of shape (nrow, ncol), optional
             bad pixel map
 
         Returns

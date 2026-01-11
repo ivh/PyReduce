@@ -7,7 +7,8 @@ Simple usage example for PyReduce
 Loads a ScopeSim simulated MICADO dataset (with updated spectral layout and updated line lists), and runs the full extraction.
 """
 
-import pyreduce
+from pyreduce.configuration import get_configuration_for_instrument
+from pyreduce.pipeline import Pipeline
 
 # define parameters
 instrument = "MICADO"
@@ -40,7 +41,7 @@ base_dir = "/media/data/Dropbox/Dropbox/WORKING/iMICADO/Working/WORKING_PyReduce
 input_dir = "raw_new/HK/"
 output_dir = "reduced_new/"
 
-config = pyreduce.configuration.get_configuration_for_instrument(instrument)
+config = get_configuration_for_instrument(instrument)
 
 
 # Configuring parameters of individual steps here overwrites those defined  in the settings_MICADO.json file.
@@ -56,19 +57,16 @@ config = pyreduce.configuration.get_configuration_for_instrument(instrument)
 
 # NOTE: micado.thar_master.fits (created and controlled by wavecal_master) is NOT overwritten if any parameter in the steps in or before it are changed. Thus it has to be deleted before running PyReduce again.
 
-pyreduce.reduce.main(
+Pipeline.from_instrument(
     instrument,
     target,
-    night,
-    channel,
-    steps,
+    night=night,
+    channel=channel,
+    steps=steps,
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    order_range=(
-        3,
-        4,
-    ),  # for MICADO, when one order is on the detector (currently detector 5 of the HK band)
+    order_range=(3, 4),
     plot=1,
-)
+).run()

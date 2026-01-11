@@ -101,7 +101,7 @@ bias = None
 # --- STEP 2: Trace all fibers ---
 print("\n=== TRACE ===")
 trace_step = OrderTracing(*step_args, **step_config("trace"))
-orders, column_range = trace_step.run([flat_file], mask, bias)
+orders, column_range = trace_step.run([flat_file], mask=mask)
 print(f"Found {len(orders)} traces (expected ~630)")
 
 # --- STEP 3: Match traces to group centers ---
@@ -156,14 +156,11 @@ with fits.open(flat_file) as hdul:
     flat_header = hdul[0].header.copy()
 flat = (flat_data, flat_header)
 
-scatter = None
-curvature = None
-
 # --- STEP 5: Normalize flat (using center traces) ---
 print("\n=== NORM_FLAT ===")
 norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
 try:
-    norm_flat = norm_flat_step.run(flat, center_trace, scatter, curvature)
+    norm_flat = norm_flat_step.run(flat, center_trace)
     print("Normalized flat complete")
 except Exception as e:
     print(f"Norm flat failed: {e}")
@@ -173,9 +170,7 @@ except Exception as e:
 print("\n=== EXTRACT FLAT ===")
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 try:
-    flat_spec = science_step.run(
-        [flat_file], bias, center_trace, norm_flat, curvature, scatter, mask
-    )
+    flat_spec = science_step.run([flat_file], center_trace)
     print("FLAT extraction complete")
 except Exception as e:
     print(f"FLAT extraction failed: {e}")
@@ -184,9 +179,7 @@ except Exception as e:
 # --- STEP 7: Extract from ThAr ---
 print("\n=== EXTRACT ThAr ===")
 try:
-    thar_spec = science_step.run(
-        [thar_file], bias, center_trace, norm_flat, curvature, scatter, mask
-    )
+    thar_spec = science_step.run([thar_file], center_trace)
     print("ThAr extraction complete")
 except Exception as e:
     print(f"ThAr extraction failed: {e}")

@@ -111,28 +111,27 @@ mask = mask_step.run()
 # Step 2: Bias
 print("\n=== BIAS ===")
 bias_step = Bias(*step_args, **step_config("bias"))
-bias = bias_step.run(bias_files, mask)
+bias = bias_step.run(bias_files, mask=mask)
 
 # Step 3: Flat
 print("\n=== FLAT ===")
 flat_step = Flat(*step_args, **step_config("flat"))
-flat = flat_step.run(flat_files, bias, mask)
+flat = flat_step.run(flat_files, bias=bias, mask=mask)
 
 # Step 4: Order tracing
 print("\n=== TRACE ===")
 orders_step = OrderTracing(*step_args, **step_config("trace"))
-orders = orders_step.run(order_files, mask, bias)
+orders = orders_step.run(order_files, mask=mask, bias=bias)
 
 # Step 5: Curvature
 print("\n=== CURVATURE ===")
 curvature_step = SlitCurvatureDetermination(*step_args, **step_config("curvature"))
-curvature = curvature_step.run(curvature_files, orders, mask, bias)
+curvature = curvature_step.run(curvature_files, orders, mask=mask, bias=bias)
 
 # Step 6: Normalize flat
 print("\n=== NORM_FLAT ===")
 norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
-scatter = None  # Optional background scatter
-norm_flat = norm_flat_step.run(flat, orders, scatter, curvature)
+norm_flat = norm_flat_step.run(flat, orders)
 
 # Step 7: Wavelength calibration (three sub-steps)
 print("\n=== WAVECAL ===")
@@ -140,7 +139,12 @@ wavecal_master_step = WavelengthCalibrationMaster(
     *step_args, **step_config("wavecal_master")
 )
 wavecal_master = wavecal_master_step.run(
-    wavecal_files, orders, mask, curvature, bias, norm_flat
+    wavecal_files,
+    orders,
+    mask=mask,
+    curvature=curvature,
+    bias=bias,
+    norm_flat=norm_flat,
 )
 
 # wavecal_init: load existing linelist (from instrument defaults or previous run)
@@ -158,7 +162,12 @@ wave, coef, linelist = wavecal
 print("\n=== SCIENCE ===")
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 science = science_step.run(
-    science_files, bias, orders, norm_flat, curvature, scatter, mask
+    science_files,
+    orders,
+    bias=bias,
+    norm_flat=norm_flat,
+    curvature=curvature,
+    mask=mask,
 )
 
 # Step 9: Continuum normalization
