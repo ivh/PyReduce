@@ -12,6 +12,9 @@ from pyreduce.instruments.models import (
     BeamArmConfig,
     DetectorConfig,
     DimensionConfig,
+    FiberBundleConfig,
+    FiberGroupConfig,
+    FibersConfig,
     InstrumentConfig,
     OpticalPathConfig,
     validate_instrument_config,
@@ -256,3 +259,130 @@ class TestFutureModels:
         }
         config = DimensionConfig(**data)
         assert config.values == ["BLUE", "RED"]
+
+
+class TestFiberConfig:
+    """Tests for fiber grouping configuration models."""
+
+    @pytest.mark.unit
+    def test_fiber_group_config_minimal(self):
+        """Test FiberGroupConfig with minimal fields."""
+        data = {"range": [1, 36]}
+        config = FiberGroupConfig(**data)
+        assert config.range == (1, 36)
+        assert config.merge == "center"  # default
+
+    @pytest.mark.unit
+    def test_fiber_group_config_with_merge(self):
+        """Test FiberGroupConfig with merge method."""
+        data = {"range": [1, 36], "merge": "average"}
+        config = FiberGroupConfig(**data)
+        assert config.merge == "average"
+
+    @pytest.mark.unit
+    def test_fiber_group_config_merge_indices(self):
+        """Test FiberGroupConfig with index-based merge."""
+        data = {"range": [1, 36], "merge": [1, 18, 35]}
+        config = FiberGroupConfig(**data)
+        assert config.merge == [1, 18, 35]
+
+    @pytest.mark.unit
+    def test_fiber_group_config_rejects_extra_fields(self):
+        """Test FiberGroupConfig rejects unknown fields."""
+        data = {"range": [1, 36], "unknown_field": "value"}
+        with pytest.raises(ValidationError):
+            FiberGroupConfig(**data)
+
+    @pytest.mark.unit
+    def test_fiber_bundle_config_minimal(self):
+        """Test FiberBundleConfig with minimal fields."""
+        data = {"size": 7}
+        config = FiberBundleConfig(**data)
+        assert config.size == 7
+        assert config.count is None
+        assert config.merge == "center"  # default
+
+    @pytest.mark.unit
+    def test_fiber_bundle_config_with_count(self):
+        """Test FiberBundleConfig with count validation."""
+        data = {"size": 7, "count": 90, "merge": "average"}
+        config = FiberBundleConfig(**data)
+        assert config.size == 7
+        assert config.count == 90
+        assert config.merge == "average"
+
+    @pytest.mark.unit
+    def test_fiber_bundle_config_rejects_extra_fields(self):
+        """Test FiberBundleConfig rejects unknown fields."""
+        data = {"size": 7, "bad_field": True}
+        with pytest.raises(ValidationError):
+            FiberBundleConfig(**data)
+
+    @pytest.mark.unit
+    def test_fibers_config_with_groups(self):
+        """Test FibersConfig with named groups."""
+        data = {
+            "groups": {
+                "A": {"range": [1, 36], "merge": "average"},
+                "cal": {"range": [37, 40], "merge": "average"},
+                "B": {"range": [40, 76], "merge": "average"},
+            },
+            "use": {"science": ["A", "B"], "wavecal": ["cal"]},
+        }
+        config = FibersConfig(**data)
+        assert "A" in config.groups
+        assert config.groups["A"].range == (1, 36)
+        assert config.use["science"] == ["A", "B"]
+
+    @pytest.mark.unit
+    def test_fibers_config_with_bundles(self):
+        """Test FibersConfig with bundle pattern."""
+        data = {
+            "bundles": {"size": 7, "merge": "center"},
+            "use": {"science": "groups", "curvature": "groups"},
+        }
+        config = FibersConfig(**data)
+        assert config.bundles.size == 7
+        assert config.use["science"] == "groups"
+
+    @pytest.mark.unit
+    def test_fibers_config_use_all(self):
+        """Test FibersConfig with 'all' trace selection."""
+        data = {
+            "groups": {"A": {"range": [1, 36]}},
+            "use": {"norm_flat": "all"},
+        }
+        config = FibersConfig(**data)
+        assert config.use["norm_flat"] == "all"
+
+    @pytest.mark.unit
+    def test_fibers_config_rejects_extra_fields(self):
+        """Test FibersConfig rejects unknown fields."""
+        data = {
+            "groups": {"A": {"range": [1, 36]}},
+            "unknown": "bad",
+        }
+        with pytest.raises(ValidationError):
+            FibersConfig(**data)
+
+    @pytest.mark.unit
+    def test_instrument_config_with_fibers(self):
+        """Test InstrumentConfig includes fibers field."""
+        data = {
+            "instrument": "TEST",
+            "id_instrument": "TEST",
+            "fibers": {
+                "groups": {"A": {"range": [1, 36], "merge": "average"}},
+                "use": {"science": ["A"]},
+            },
+        }
+        config = InstrumentConfig(**data)
+        assert config.fibers is not None
+        assert "A" in config.fibers.groups
+
+    @pytest.mark.unit
+    def test_instrument_config_fibers_none_by_default(self):
+        """Test InstrumentConfig has fibers=None by default."""
+        data = {"instrument": "TEST", "id_instrument": "TEST"}
+        config = InstrumentConfig(**data)
+        assert config.fibers is None

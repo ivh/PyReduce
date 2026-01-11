@@ -305,3 +305,255 @@ class TestGroupAndRefit:
 
         assert fiber_counts["B"][0] == 0
         assert np.all(np.isnan(logical_traces["B"][0]))
+
+
+class TestOrganizeFibers:
+    """Tests for organize_fibers function (config-based fiber grouping)."""
+
+    @pytest.fixture
+    def sample_traces(self):
+        """Create sample traces for testing."""
+        # 10 traces at y = 100, 110, 120, ..., 190
+        traces = np.array([[0.0, 0.0, 100.0 + i * 10] for i in range(10)])
+        column_range = np.array([[10, 990]] * 10)
+        return traces, column_range
+
+    @pytest.fixture
+    def groups_config(self):
+        """Create a groups-based FibersConfig."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        return FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 5), merge="average"),
+                "B": FiberGroupConfig(range=(5, 11), merge="center"),
+            }
+        )
+
+    @pytest.fixture
+    def bundles_config(self):
+        """Create a bundles-based FibersConfig."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        return FibersConfig(bundles=FiberBundleConfig(size=5, merge="center"))
+
+    @pytest.mark.unit
+    def test_organize_fibers_with_groups_average(self, sample_traces, groups_config):
+        """Test organize_fibers with named groups using average merge."""
+        traces, column_range = sample_traces
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, groups_config
+        )
+
+        assert "A" in group_traces
+        assert "B" in group_traces
+        assert group_counts["A"] == 4  # fibers 1-4 (0-based: 0-3)
+        assert group_counts["B"] == 6  # fibers 5-10 (0-based: 4-9)
+
+    @pytest.mark.unit
+    def test_organize_fibers_with_groups_center(self, sample_traces):
+        """Test organize_fibers with center merge method."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 11), merge="center")}
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        assert "A" in group_traces
+        assert len(group_traces["A"]) == 1  # Single center trace
+        assert group_counts["A"] == 10
+
+    @pytest.mark.unit
+    def test_organize_fibers_with_bundles(self, sample_traces, bundles_config):
+        """Test organize_fibers with bundle pattern."""
+        traces, column_range = sample_traces
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, bundles_config
+        )
+
+        # 10 traces / 5 per bundle = 2 bundles
+        assert "bundle_1" in group_traces
+        assert "bundle_2" in group_traces
+        assert len(group_traces) == 2
+        assert group_counts["bundle_1"] == 5
+        assert group_counts["bundle_2"] == 5
+
+    @pytest.mark.unit
+    def test_organize_fibers_bundles_not_divisible(self, sample_traces):
+        """Test that bundles fails when traces not divisible by bundle size."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            bundles=FiberBundleConfig(size=3)
+        )  # 10 not divisible by 3
+
+        with pytest.raises(ValueError, match="not divisible"):
+            trace.organize_fibers(traces, column_range, config)
+
+    @pytest.mark.unit
+    def test_organize_fibers_bundles_wrong_count(self, sample_traces):
+        """Test that bundles fails when count doesn't match."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            bundles=FiberBundleConfig(size=5, count=10)  # Expected 10, but 10/5=2
+        )
+
+        with pytest.raises(ValueError, match="Expected 10 bundles"):
+            trace.organize_fibers(traces, column_range, config)
+
+    @pytest.mark.unit
+    def test_organize_fibers_merge_indices(self, sample_traces):
+        """Test organize_fibers with index-based merge."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 11), merge=[1, 5, 10])}
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        # Should select 3 specific traces
+        assert len(group_traces["A"]) == 3
+        assert group_counts["A"] == 10  # Still counted all 10 fibers in group
+
+
+class TestSelectTracesForStep:
+    """Tests for select_traces_for_step function."""
+
+    @pytest.fixture
+    def raw_traces(self):
+        """Create raw traces."""
+        traces = np.array([[0.0, 0.0, 100.0 + i * 10] for i in range(10)])
+        column_range = np.array([[10, 990]] * 10)
+        return traces, column_range
+
+    @pytest.fixture
+    def group_traces(self):
+        """Create grouped traces."""
+        return {
+            "A": np.array([[0.0, 0.0, 125.0]]),  # Averaged
+            "B": np.array([[0.0, 0.0, 175.0]]),  # Averaged
+        }
+
+    @pytest.fixture
+    def group_cr(self):
+        """Create grouped column ranges."""
+        return {
+            "A": np.array([[10, 990]]),
+            "B": np.array([[10, 990]]),
+        }
+
+    @pytest.mark.unit
+    def test_select_traces_no_config(self, raw_traces):
+        """Test that None config returns raw traces."""
+        traces, cr = raw_traces
+
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, {}, {}, None, "science"
+        )
+
+        assert np.array_equal(selected, traces)
+        assert np.array_equal(selected_cr, cr)
+
+    @pytest.mark.unit
+    def test_select_traces_all(self, raw_traces, group_traces, group_cr):
+        """Test selecting all raw traces."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 11))},
+            use={"science": "all"},
+        )
+
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science"
+        )
+
+        assert np.array_equal(selected, traces)
+
+    @pytest.mark.unit
+    def test_select_traces_groups(self, raw_traces, group_traces, group_cr):
+        """Test selecting all grouped traces."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 6))},
+            use={"science": "groups"},
+        )
+
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science"
+        )
+
+        # Should concatenate all groups (A and B)
+        assert len(selected) == 2
+
+    @pytest.mark.unit
+    def test_select_traces_specific_groups(self, raw_traces, group_traces, group_cr):
+        """Test selecting specific named groups."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 6))},
+            use={"science": ["A"]},  # Only group A
+        )
+
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science"
+        )
+
+        assert len(selected) == 1  # Only A
+
+    @pytest.mark.unit
+    def test_select_traces_default_to_groups(self, raw_traces, group_traces, group_cr):
+        """Test default selection when step not in use config."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 6))},
+            use={"other_step": "all"},  # science not specified
+        )
+
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science"
+        )
+
+        # Should default to "groups" when groups are defined
+        assert len(selected) == 2
+
+    @pytest.mark.unit
+    def test_select_traces_missing_group_warns(
+        self, raw_traces, group_traces, group_cr
+    ):
+        """Test warning when requested group doesn't exist."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 6))},
+            use={"science": ["A", "nonexistent"]},
+        )
+
+        # Should warn but still return valid groups
+        selected, selected_cr = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science"
+        )
+
+        assert len(selected) == 1  # Only A found
