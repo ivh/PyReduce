@@ -92,15 +92,27 @@ class ProgressPlot:  # pragma: no cover
 
         self.paused = False
         self.advance_one = False
-        ax_pause = self.fig.add_axes([0.4, 0.02, 0.08, 0.05])
-        ax_step = self.fig.add_axes([0.5, 0.02, 0.08, 0.05])
+        ax_slower = self.fig.add_axes([0.30, 0.02, 0.08, 0.05])
+        ax_faster = self.fig.add_axes([0.39, 0.02, 0.08, 0.05])
+        ax_pause = self.fig.add_axes([0.48, 0.02, 0.08, 0.05])
+        ax_step = self.fig.add_axes([0.57, 0.02, 0.08, 0.05])
+        self.btn_slower = Button(ax_slower, "Slower")
+        self.btn_faster = Button(ax_faster, "Faster")
         self.btn_pause = Button(ax_pause, "Pause")
         self.btn_step = Button(ax_step, "Step")
+        self.btn_slower.on_clicked(self._slower)
+        self.btn_faster.on_clicked(self._faster)
         self.btn_pause.on_clicked(self._toggle_pause)
         self.btn_step.on_clicked(self._step)
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+
+    def _slower(self, event=None):
+        self.min_frame_time = min(2.0, self.min_frame_time * 1.5)
+
+    def _faster(self, event=None):
+        self.min_frame_time = max(0.01, self.min_frame_time / 1.5)
 
     def _toggle_pause(self, event=None):
         self.paused = not self.paused
