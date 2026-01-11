@@ -14,12 +14,17 @@
         "auto_merge_threshold": 0,
         "merge_min_threshold": 0
     },
+    "curvature": {
+        "curve_height": 35,
+        "extraction_height": 5
+    },
     "wavecal_master": {
         "extraction_height": 0.5
     },
     "science": {
-        "extraction_height": 43,
+        "extraction_height": 37,
         "oversampling": 8,
-        "swath_width": 400
+        "swath_width": 500,
+        "smooth_slitfunction": 3
     }
 }

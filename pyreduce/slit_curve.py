@@ -58,12 +58,13 @@ class ProgressPlot:  # pragma: no cover
         self.line1 = line1
         self.line2 = line2
 
-    def update_plot1(self, vector, peak, offset=0):
+    def update_plot1(self, vector, peaks, offset=0):
         data = np.ones(self.ncol)
         data[offset : len(vector) + offset] = np.clip(vector, 1, None)
         self.line1.set_ydata(data)
-        self.line2.set_xdata(peak)
-        self.line2.set_ydata(data[peak])
+        peaks = np.atleast_1d(peaks)
+        self.line2.set_xdata(peaks)
+        self.line2.set_ydata(data[peaks])
         self.ax1.set_ylim((data.min(), data.max()))
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
