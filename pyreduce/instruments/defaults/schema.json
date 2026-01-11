@@ -24,12 +24,7 @@
                     "description": "Directory to place the output (and temporary) files in, relative to the base directory. May contain {instrument}, {night}, {mode}, {target} tags.",
                     "type": "string"
                 }
-            },
-            "required": [
-                "base_dir",
-                "input_dir",
-                "output_dir"
-            ]
+            }
         },
         "instrument": {
             "type": "object"
@@ -50,10 +45,7 @@
                             "type": "number",
                             "minimum": 0
                         }
-                    },
-                    "required": [
-                        "degree"
-                    ]
+                    }
                 }
             ]
         },
@@ -150,7 +142,11 @@
                         "filter_type": {
                             "description": "Type of smoothing filter for background estimation: boxcar (uniform average), gaussian, or whittaker (edge-preserving).",
                             "type": "string",
-                            "enum": ["boxcar", "gaussian", "whittaker"],
+                            "enum": [
+                                "boxcar",
+                                "gaussian",
+                                "whittaker"
+                            ],
                             "default": "boxcar"
                         },
                         "min_cluster": {
@@ -189,16 +185,7 @@
                             "description": "Ask for manual confirmation before merging any clusters. Otherwise only ask when overlap below 90%.",
                             "type": "boolean"
                         }
-                    },
-                    "required": [
-                        "degree",
-                        "filter_x",
-                        "filter_y",
-                        "min_cluster",
-                        "noise",
-                        "border_width",
-                        "manual"
-                    ]
+                    }
                 }
             ]
         },
@@ -251,12 +238,7 @@
                             ],
                             "minimum": 0
                         }
-                    },
-                    "required": [
-                        "scatter_degree",
-                        "scatter_cutoff",
-                        "border_width"
-                    ]
+                    }
                 }
             ]
         },
@@ -279,16 +261,12 @@
                             ],
                             "exclusiveMinimum": 0
                         },
-                        "threshold_lower":{
+                        "threshold_lower": {
                             "description": "Lower background level threshold, after the extraction. Always absolute, by default 0.",
                             "type": "number",
                             "minimum": 0
                         }
-                    },
-                    "required": [
-                        "threshold",
-                        "threshold_lower"
-                    ]
+                    }
                 }
             ]
         },
@@ -361,18 +339,7 @@
                             "minimum": 0,
                             "maximum": 100
                         }
-                    },
-                    "required": [
-                        "degree",
-                        "element",
-                        "medium",
-                        "wave_delta",
-                        "nwalkers",
-                        "steps",
-                        "resid_delta",
-                        "smoothing",
-                        "cutoff"
-                    ]
+                    }
                 }
             ]
         },
@@ -414,7 +381,10 @@
                         },
                         "element": {
                             "description": "Element(s) of the Gas Lamp used for calibration",
-                            "type": ["string", "null"]
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         },
                         "medium": {
                             "description": "Medium of the detector, either air or vaccum. This affects the wavelength scale",
@@ -424,15 +394,7 @@
                                 "air"
                             ]
                         }
-                    },
-                    "required": [
-                        "manual",
-                        "shift_window",
-                        "threshold",
-                        "iterations",
-                        "element",
-                        "medium"
-                    ]
+                    }
                 }
             ]
         },
@@ -473,13 +435,7 @@
                             "type": "number",
                             "exclusiveMinimum": 0
                         }
-                    },
-                    "required": [
-                        "lfc_peak_width",
-                        "degree",
-                        "dimensionality",
-                        "threshold"
-                    ]
+                    }
                 }
             ]
         },
@@ -552,16 +508,7 @@
                                 "lorentzian"
                             ]
                         }
-                    },
-                    "required": [
-                        "dimensionality",
-                        "degree",
-                        "peak_function",
-                        "window_width",
-                        "peak_width",
-                        "peak_threshold",
-                        "curve_degree"
-                    ]
+                    }
                 }
             ]
         },
@@ -600,10 +547,7 @@
                                 "freq_comb"
                             ]
                         }
-                    },
-                    "required": [
-                        "extraction_height"
-                    ]
+                    }
                 }
             ]
         },
@@ -636,24 +580,6 @@
             ]
         }
     },
-    "required": [
-        "reduce",
-        "instrument",
-        "mask",
-        "bias",
-        "flat",
-        "trace",
-        "scatter",
-        "norm_flat",
-        "wavecal_master",
-        "wavecal_init",
-        "wavecal",
-        "freq_comb_master",
-        "freq_comb",
-        "curvature",
-        "continuum",
-        "finalize"
-    ],
     "definitions": {
         "step": {
             "type": "object",
@@ -673,11 +599,7 @@
                         "null"
                     ]
                 }
-            },
-            "required": [
-                "plot",
-                "plot_title"
-            ]
+            }
         },
         "extraction": {
             "description": "Common settings for an extraction",
@@ -733,16 +655,7 @@
                             "type": "number",
                             "minimum": 0
                         }
-                    },
-                    "required": [
-                        "extraction_method",
-                        "oversampling",
-                        "smooth_slitfunction",
-                        "smooth_spectrum",
-                        "swath_width",
-                        "extraction_height",
-                        "extraction_cutoff"
-                    ]
+                    }
                 },
                 {
                     "title": "Simple Extraction",
@@ -781,13 +694,7 @@
                                 "median"
                             ]
                         }
-                    },
-                    "required": [
-                        "extraction_method",
-                        "extraction_height",
-                        "extraction_cutoff",
-                        "collapse_function"
-                    ]
+                    }
                 }
             ]
         },
@@ -845,16 +752,15 @@
                         "none"
                     ]
                 },
-                "norm_scaling":{
+                "norm_scaling": {
                     "description": "determines how to apply the normalized flat",
                     "type": "string",
-                    "enum": ["divide", "none"]
+                    "enum": [
+                        "divide",
+                        "none"
+                    ]
                 }
-            },
-            "required": [
-                "bias_scaling",
-                "norm_scaling"
-            ]
+            }
         }
     }
 }

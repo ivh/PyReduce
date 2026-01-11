@@ -13,7 +13,6 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 1e-07,
         "extraction_height": 20,
         "oversampling": 12,
         "swath_width": 200,

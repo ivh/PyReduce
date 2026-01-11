@@ -1100,13 +1100,7 @@ int slit_func_curved(int ncols,
 
         if (lambda_sP > 0.e0)
         {
-            norm = 0.e0;
-            for (x = 0; x < ncols; x++)
-            {
-                norm += sP[sp_index(x)];
-            }
-            norm /= ncols;
-            lambda = lambda_sP * norm; /* Scale regularization parameter */
+            lambda = lambda_sP;
 
             p_Aij[paij_index(0, 2 * delta_x)] += lambda;     /* Main diagonal  */
             p_Aij[paij_index(0, 2 * delta_x + 1)] -= lambda; /* Upper diagonal */

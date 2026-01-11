@@ -234,14 +234,11 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
     }
     if (lambda_sP > 0.e0)
     {
-      norm = 0.e0;
       for (x = 0; x < ncols; x++)
       {
         sP_old[x] = sP[x];
-        norm += sP[x];
       }
-      norm /= ncols;
-      lambda = lambda_sP * norm;
+      lambda = lambda_sP;
       Adiag[0] = 0.e0;
       Adiag[0 + ncols] += lambda;
       Adiag[0 + ncols * 2] -= lambda;

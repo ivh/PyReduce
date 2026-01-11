@@ -18,7 +18,6 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 1e-07,
         "extraction_height": 20,
         "oversampling": 12,
         "swath_width": 200,
@@ -54,7 +53,7 @@
     },
     "curvature": {
         "curve_height": 20,
-        "extraction_height": 7,
+        "extraction_height": 10,
         "peak_threshold": 0,
         "peak_width": 3,
         "window_width": 5,
