@@ -16,6 +16,7 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.widgets import Button
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 
@@ -39,6 +40,7 @@ class ProgressPlot:  # pragma: no cover
         self.last_frame_time = None
 
         plt.ion()
+        plt.rcParams["figure.raise_window"] = False
         self.fig = plt.figure(figsize=(12, 4))
 
         # self.ax1 = self.fig.add_subplot(231, projection="3d")
@@ -66,6 +68,7 @@ class ProgressPlot:  # pragma: no cover
             self.fig.suptitle(title)
 
         self.fig.tight_layout()
+        self.fig.subplots_adjust(bottom=0.18)
 
         # Just plot empty pictures, to create the plots
         # Update the data later
@@ -77,18 +80,42 @@ class ProgressPlot:  # pragma: no cover
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         (self.line_spec,) = self.ax2.plot(np.zeros(ncol), "-k")
-        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), "Pg")
+        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), ".g", ms=2)
         (self.dots_slit,) = self.ax3.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
         )
         (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=2)
-        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), "Pg")
+        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), ".g", ms=2)
 
         # self.ax1.set_zscale("log")
         # self.ax4.set_zscale("log")
 
+        self.paused = False
+        self.advance_one = False
+        ax_pause = self.fig.add_axes([0.4, 0.02, 0.08, 0.05])
+        ax_step = self.fig.add_axes([0.5, 0.02, 0.08, 0.05])
+        self.btn_pause = Button(ax_pause, "Pause")
+        self.btn_step = Button(ax_step, "Step")
+        self.btn_pause.on_clicked(self._toggle_pause)
+        self.btn_step.on_clicked(self._step)
+
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+
+    def _toggle_pause(self, event=None):
+        self.paused = not self.paused
+        self.btn_pause.label.set_text("Resume" if self.paused else "Pause")
+        self.fig.canvas.draw()
+
+    def _step(self, event=None):
+        if self.paused:
+            self.advance_one = True
+
+    def wait_if_paused(self):
+        while self.paused and not self.advance_one:
+            self.fig.canvas.flush_events()
+            time.sleep(0.05)
+        self.advance_one = False
 
     def fix_linear(self, data, limit, fill=0):
         """Assures the size of the 1D array data is equal to limit"""
@@ -130,13 +157,11 @@ class ProgressPlot:  # pragma: no cover
         sf = self.fix_linear(slitf, self.nslitf)
 
         # Update Data
-        model = np.clip(model, 0, np.max(model[5:-5, 5:-5]) * 1.1)
-        img = np.clip(img, 0, np.max(model) * 1.1)
-        vmax = np.max(img)
+        vmin, vmax = np.percentile(img, [5, 95])
         self.im_obs.set_data(img)
-        self.im_obs.set_clim(0, vmax)
+        self.im_obs.set_clim(vmin, vmax)
         self.im_model.set_data(model)
-        self.im_model.set_clim(0, vmax)
+        self.im_model.set_clim(vmin, vmax)
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
@@ -177,6 +202,8 @@ class ProgressPlot:  # pragma: no cover
             if remaining > 0:
                 plt.pause(remaining)
         self.last_frame_time = time.monotonic()
+
+        self.wait_if_paused()
 
     def close(self):
         plt.ioff()
