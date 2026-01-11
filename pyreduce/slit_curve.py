@@ -96,7 +96,7 @@ class ProgressPlot:  # pragma: no cover
 class Curvature:
     def __init__(
         self,
-        orders,
+        traces,
         curve_height=0.5,
         extraction_height=0.2,
         column_range=None,
@@ -112,12 +112,12 @@ class Curvature:
         peak_function="gaussian",
         curve_degree=2,
     ):
-        self.orders = orders
+        self.traces = traces
         self.curve_height = curve_height
         self.extraction_height = extraction_height
         self.column_range = column_range
         if order_range is None:
-            order_range = (0, self.nord)
+            order_range = (0, self.ntrace)
         self.order_range = order_range
         self.window_width = window_width
         self.threshold = peak_threshold
@@ -143,8 +143,8 @@ class Curvature:
                 self.fit_degree = (self.fit_degree, self.fit_degree)
 
     @property
-    def nord(self):
-        return self.orders.shape[0]
+    def ntrace(self):
+        return self.traces.shape[0]
 
     @property
     def n(self):
@@ -163,7 +163,7 @@ class Curvature:
         self._mode = value
 
     def _fix_inputs(self, original):
-        orders = self.orders
+        orders = self.traces
         curve_height = self.curve_height
         extraction_height = self.extraction_height
         column_range = self.column_range
@@ -183,8 +183,8 @@ class Curvature:
         self.extraction_height = extraction_height[
             self.order_range[0] : self.order_range[1]
         ]
-        self.orders = orders[self.order_range[0] : self.order_range[1]]
-        self.order_range = (0, self.nord)
+        self.traces = orders[self.order_range[0] : self.order_range[1]]
+        self.order_range = (0, self.ntrace)
 
     def _find_peaks(self, vec, cr):
         # This should probably be the same as in the wavelength calibration
@@ -212,7 +212,7 @@ class Curvature:
         original : array of shape (nrow, ncol)
             Original image
         order_idx : int
-            Index of the order in self.orders
+            Index of the trace in self.traces
 
         Returns
         -------
@@ -236,7 +236,7 @@ class Curvature:
 
         # Get trace position
         x = np.arange(ncol)
-        ycen = np.polyval(self.orders[order_idx], x)
+        ycen = np.polyval(self.traces[order_idx], x)
         ycen_int = ycen.astype(int)
 
         spectra = np.ma.zeros((n_offsets, ncol))
@@ -472,8 +472,8 @@ class Curvature:
         all_p2 = []
         plot_vec = []
 
-        for j in tqdm(range(self.n), desc="Order"):
-            logger.debug("Calculating curvature of order %i out of %i", j + 1, self.n)
+        for j in tqdm(range(self.n), desc="Trace"):
+            logger.debug("Calculating curvature of trace %i out of %i", j + 1, self.n)
 
             cr = self.column_range[j]
 
@@ -639,11 +639,11 @@ class Curvature:
     def plot_comparison(self, original, p1, p2, peaks):  # pragma: no cover
         plt.figure()
         _, ncol = original.shape
-        output = np.zeros((np.sum(self.curve_height) + self.nord, ncol))
+        output = np.zeros((np.sum(self.curve_height) + self.ntrace, ncol))
         pos = [0]
         x = np.arange(ncol)
-        for i in range(self.nord):
-            ycen = np.polyval(self.orders[i], x)
+        for i in range(self.ntrace):
+            ycen = np.polyval(self.traces[i], x)
             yb = ycen - self.curve_height[i, 0]
             yt = ycen + self.curve_height[i, 1]
             xl, xr = self.column_range[i]
@@ -656,7 +656,7 @@ class Curvature:
         vmin, vmax = np.percentile(output[output != 0], (5, 95))
         plt.imshow(output, vmin=vmin, vmax=vmax, origin="lower", aspect="auto")
 
-        for i in range(self.nord):
+        for i in range(self.ntrace):
             for p in peaks[i]:
                 ew = self.curve_height[i]
                 x = np.zeros(ew[0] + ew[1] + 1)
