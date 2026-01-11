@@ -77,15 +77,15 @@ class ProgressPlot:  # pragma: no cover
         self.im_model = self.ax4.imshow(img, aspect="auto", origin="lower")
 
         (self.dots_spec,) = self.ax2.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
         )
         (self.line_spec,) = self.ax2.plot(np.zeros(ncol), "-k")
-        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), ".g", ms=2)
+        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), ".r", ms=2)
         (self.dots_slit,) = self.ax3.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".r", ms=2, alpha=0.6
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
         )
         (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=2)
-        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), ".g", ms=2)
+        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), ".r", ms=2)
 
         # self.ax1.set_zscale("log")
         # self.ax4.set_zscale("log")
