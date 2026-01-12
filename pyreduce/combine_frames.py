@@ -541,6 +541,8 @@ def combine_calibrate(
     norm_scaling="divide",
     plot=False,
     plot_title=None,
+    traces=None,
+    extraction_height=None,
     **kwargs,
 ):
     """
@@ -639,6 +641,40 @@ def combine_calibrate(
         plt.ylabel("y [pixel]")
         bot, top = np.percentile(orig[orig != 0], (10, 90))
         plt.imshow(orig, vmin=bot, vmax=top, origin="lower")
+
+        # Overlay traces if provided
+        if traces is not None:
+            ncol = orig.shape[1]
+            x = np.arange(ncol)
+            x_mid = ncol // 2
+
+            # Compute extraction height in pixels if needed
+            extr_h = extraction_height
+            if extr_h is not None and np.isscalar(extr_h) and extr_h < 3:
+                # Fraction of order spacing - estimate from trace separation
+                y_mids = np.array([np.polyval(t, x_mid) for t in traces])
+                if len(y_mids) > 1:
+                    spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
+                    extr_h = extr_h * spacing
+                else:
+                    extr_h = 10  # fallback
+
+            for i, trace in enumerate(traces):
+                ycen = np.polyval(trace, x)
+                plt.plot(x, ycen, "w-", lw=0.5, alpha=0.8)
+                if extr_h is not None:
+                    if np.ndim(extr_h) == 2:
+                        yb = ycen - extr_h[i, 0]
+                        yt = ycen + extr_h[i, 1]
+                    elif np.ndim(extr_h) == 1:
+                        yb = ycen - extr_h[i] / 2
+                        yt = ycen + extr_h[i] / 2
+                    else:
+                        yb = ycen - extr_h / 2
+                        yt = ycen + extr_h / 2
+                    plt.plot(x, yb, "w--", lw=0.5, alpha=0.8)
+                    plt.plot(x, yt, "w--", lw=0.5, alpha=0.8)
+
         util.show_or_save("combine_master")
 
     return orig, thead

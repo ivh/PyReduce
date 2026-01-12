@@ -383,7 +383,15 @@ class CalibrationStep(Step):
         #:{'divide', 'none'}: how to apply the normalized flat field
         self.norm_scaling = config["norm_scaling"]
 
-    def calibrate(self, files, mask, bias=None, norm_flat=None):
+    def calibrate(
+        self,
+        files,
+        mask,
+        bias=None,
+        norm_flat=None,
+        traces=None,
+        extraction_height=None,
+    ):
         bias, bhead = bias if bias is not None else (None, None)
         norm, blaze = norm_flat if norm_flat is not None else (None, None)
         orig, thead = combine_calibrate(
@@ -398,6 +406,8 @@ class CalibrationStep(Step):
             norm_scaling=self.norm_scaling,
             plot=self.plot,
             plot_title=self.plot_title,
+            traces=traces,
+            extraction_height=extraction_height,
         )
 
         return orig, thead
@@ -1948,8 +1958,15 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in tqdm(files, desc="Files"):
             logger.info("Science file: %s", fname)
-            # Calibrate the input image
-            im, head = self.calibrate([fname], mask, bias, norm_flat)
+            # Calibrate the input image, pass traces for visualization
+            im, head = self.calibrate(
+                [fname],
+                mask,
+                bias,
+                norm_flat,
+                traces=selected_orders,
+                extraction_height=self.extraction_kwargs.get("extraction_height"),
+            )
             # Optimally extract science spectrum
             spec, sigma, slitfu, cr = self.extract(
                 im, head, selected_trace, curvature, scatter=scatter

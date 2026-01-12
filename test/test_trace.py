@@ -572,18 +572,22 @@ class TestOrganizeFibers:
             traces, column_range, config
         )
 
+        x_mid = 500  # middle of column_range
+
         # Bundle 1: all present, picks middle (y=100)
         assert group_counts["bundle_1"] == 5
-        assert group_traces["bundle_1"][0, 2] == pytest.approx(100.0)
+        y1 = np.polyval(group_traces["bundle_1"][0], x_mid)
+        assert y1 == pytest.approx(100.0)
 
-        # Bundle 2: 4 fibers, center missing, picks closest to 200 (either 190 or 210)
+        # Bundle 2: 4 fibers, center missing, averages neighbors (190 + 210) / 2 = 200
         assert group_counts["bundle_2"] == 4
-        selected_y = group_traces["bundle_2"][0, 2]
-        assert selected_y in [190.0, 210.0]
+        y2 = np.polyval(group_traces["bundle_2"][0], x_mid)
+        assert y2 == pytest.approx(200.0, abs=1.0)
 
         # Bundle 3: 3 fibers, picks closest to 300 (which is 300 itself)
         assert group_counts["bundle_3"] == 3
-        assert group_traces["bundle_3"][0, 2] == pytest.approx(300.0)
+        y3 = np.polyval(group_traces["bundle_3"][0], x_mid)
+        assert y3 == pytest.approx(300.0)
 
     @pytest.mark.unit
     def test_organize_fibers_bundle_centers_average_merge(self):

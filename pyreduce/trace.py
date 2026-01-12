@@ -1221,11 +1221,41 @@ def _merge_bundle_traces(
             idx = n_fibers // 2
             return traces[idx : idx + 1], column_range[idx : idx + 1]
         else:
-            # Missing fibers: pick trace closest to bundle_center
+            # Missing fibers: check if center fiber itself is missing
             y_positions = np.array([np.polyval(t, x_center) for t in traces])
             distances = np.abs(y_positions - bundle_center)
             idx = np.argmin(distances)
-            return traces[idx : idx + 1], column_range[idx : idx + 1]
+            min_dist = distances[idx]
+
+            # Estimate fiber spacing from present traces
+            if n_fibers >= 2:
+                sorted_y = np.sort(y_positions)
+                spacing = np.median(np.diff(sorted_y))
+            else:
+                spacing = min_dist * 2  # can't estimate, assume center is present
+
+            # If closest trace is more than half a spacing away, center is missing
+            if min_dist > spacing * 0.6:
+                # Center fiber missing: average the two closest neighbors
+                sorted_idx = np.argsort(distances)
+                if len(sorted_idx) >= 2:
+                    idx1, idx2 = sorted_idx[0], sorted_idx[1]
+                    x_eval = np.arange(col_min, col_max)
+                    y1 = np.polyval(traces[idx1], x_eval)
+                    y2 = np.polyval(traces[idx2], x_eval)
+                    y_mean = (y1 + y2) / 2
+                    fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+                    coeffs = fit.coef[::-1]
+                    # Use intersection of column ranges
+                    cr_min = max(column_range[idx1, 0], column_range[idx2, 0])
+                    cr_max = min(column_range[idx1, 1], column_range[idx2, 1])
+                    return coeffs.reshape(1, -1), np.array([[cr_min, cr_max]])
+                else:
+                    # Only one fiber, use it
+                    return traces[idx : idx + 1], column_range[idx : idx + 1]
+            else:
+                # Center fiber present, use it
+                return traces[idx : idx + 1], column_range[idx : idx + 1]
 
     elif merge_method == "average":
         # Average all present fibers
