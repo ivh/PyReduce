@@ -138,8 +138,8 @@
     },
     "curvature": {
         "dimensionality": "1D",
-        "degree": 2,
-        "curve_degree": 2,
+        "degree": 3,
+        "curve_degree": 1,
         "extraction_method": "simple",
         "collapse_function": "median",
         "curve_height": 0.5,
