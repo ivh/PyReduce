@@ -64,6 +64,32 @@ def test_simple():
     assert column_range[0, 1] == 100
 
 
+def test_per_side_border_width():
+    """Test per-side border_width as [top, bottom, left, right]."""
+    img = np.full((100, 100), 1)
+    # Two traces: one at top, one in middle
+    img[10:15, :] = 100  # near top edge
+    img[45:56, :] = 100  # middle
+
+    # With symmetric border_width=20, top trace should be excluded
+    orders, _ = trace(img, manual=False, degree=1, plot=False, border_width=20)
+    assert orders.shape[0] == 1  # only middle trace
+
+    # With per-side [5, 0, 0, 0], top trace still excluded (y=10-15 masked by top=5? no wait)
+    # Actually top=5 masks rows 0-5, trace at 10-15 should survive
+    # Let's use top=20 to exclude trace at y=10-15
+    orders, _ = trace(
+        img, manual=False, degree=1, plot=False, border_width=[20, 0, 0, 0]
+    )
+    assert orders.shape[0] == 1  # top trace excluded
+
+    # With per-side [0, 0, 0, 0], both traces should be found
+    orders, _ = trace(
+        img, manual=False, degree=1, plot=False, border_width=[0, 0, 0, 0]
+    )
+    assert orders.shape[0] == 2  # both traces found
+
+
 def test_parameters():
     img = np.full((100, 100), 1)
     img[45:56, :] = 100
@@ -82,6 +108,10 @@ def test_parameters():
         trace(img, border_width="bla")
     with pytest.raises(ValueError):
         trace(img, border_width=-1)
+    with pytest.raises(ValueError):
+        trace(img, border_width=[10, 10, 10])  # wrong length
+    with pytest.raises(ValueError):
+        trace(img, border_width=[10, -1, 10, 10])  # negative value
     with pytest.raises(TypeError):
         trace(img, degree="bla")
     with pytest.raises(ValueError):

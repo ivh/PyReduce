@@ -49,11 +49,12 @@ id_spec: ".*"
 
 # Fiber grouping configuration
 # IFU targets with ~7 fibers each
-# Note: actual trace count may vary; remainder fibers are dropped
+# bundle_centers_file assigns traces to bundles by proximity, handling missing fibers
 fibers:
   bundles:
     size: 7
     merge: center
+    bundle_centers_file: bundle_centers.yaml
   use:
     curvature: groups
     science: groups

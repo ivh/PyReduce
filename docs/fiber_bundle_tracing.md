@@ -53,6 +53,40 @@ fibers:
     science: groups
 ```
 
+### Handling Missing/Broken Fibers
+
+When some fibers are broken or missing, the trace count won't be divisible by bundle size. Use `bundle_centers_file` to assign traces to bundles by proximity rather than fixed division:
+
+```yaml
+fibers:
+  bundles:
+    size: 7
+    bundle_centers_file: bundle_centers.yaml  # y-position of each bundle center
+    merge: center
+
+  use:
+    curvature: groups
+    science: groups
+```
+
+The `bundle_centers.yaml` file maps bundle IDs to y-positions at detector center:
+
+```yaml
+# bundle_centers.yaml
+1: 3975.0
+2: 3932.4
+3: 3889.8
+# ... etc for all 90 bundles
+```
+
+Each detected trace is assigned to its nearest bundle center. When merging:
+
+- **merge: center** with all fibers present: picks middle index (e.g., fiber 4 of 7)
+- **merge: center** with missing fibers: picks trace closest to bundle_center
+- **merge: average**: averages all present fibers (no extrapolation for missing)
+
+This approach handles arbitrary patterns of missing fibers without requiring the trace count to be divisible by bundle size.
+
 ### Per-Order Grouping (echelle multi-fiber)
 
 For echelle instruments where fiber groups repeat across spectral orders (e.g., AJ with 75 fibers per order across 18 orders):
@@ -172,4 +206,4 @@ Simulated echelle with science fibers A/B and calibration fiber:
 ELT multi-object spectrograph with 90 IFU targets:
 - 7 fibers per target bundle
 - Extract center fiber from each bundle for reduction
-- Uses `bundles` pattern
+- Uses `bundles` pattern with `bundle_centers_file` to handle broken fibers

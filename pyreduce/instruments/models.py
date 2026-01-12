@@ -87,13 +87,31 @@ class FiberBundleConfig(BaseModel):
 
     For instruments where fibers are organized in repeating bundles (e.g., 7 fibers
     per IFU target), this defines the bundle structure.
+
+    Bundle assignment can use either:
+    - Fixed size division (n_traces must be divisible by size)
+    - bundle_centers: assign each trace to nearest bundle center (handles missing fibers)
     """
 
-    size: int  # fibers per bundle
+    size: int  # expected fibers per bundle
     count: int | None = None  # number of bundles (validated if provided)
     merge: str | list[int] = "center"  # "average", "center", or [indices]
 
+    # Bundle centers for robust assignment (handles missing fibers)
+    bundle_centers: dict[int, float] | None = None  # inline: bundle_id -> y_position
+    bundle_centers_file: str | list[str] | None = (
+        None  # external file, per-channel list ok
+    )
+
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("bundle_centers", mode="before")
+    @classmethod
+    def convert_bundle_centers_keys(cls, v):
+        """Convert string keys to int (YAML loads int keys as strings)."""
+        if v is None:
+            return v
+        return {int(k): float(val) for k, val in v.items()}
 
 
 # Type for trace selection in the 'use' section

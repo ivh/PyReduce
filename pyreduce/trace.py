@@ -488,8 +488,10 @@ def trace(
         If both noise and noise_relative are 0, defaults to 0.001 (0.1%).
     opower : int, optional
         polynomial degree of the order fit (default: 4)
-    border_width : int, optional
-        number of pixels at the bottom and top borders of the image to ignore for order tracing (default: 5)
+    border_width : int or list of 4 int, optional
+        Pixels to ignore at image edges for order tracing.
+        If int, same value applied to all edges.
+        If list: [top, bottom, left, right] for per-side control.
     plot : bool, optional
         wether to plot the final order fits (default: False)
     manual : bool, optional
@@ -525,8 +527,28 @@ def trace(
         width = peak_widths(col, [idx])[0][0]
         border_width = int(np.ceil(width))
         logger.info("Image border width, estimated: %i", border_width)
-    elif border_width < 0:
-        raise ValueError(f"Expected border width > 0, but got {border_width}")
+
+    # Normalize border_width to [top, bottom, left, right]
+    if isinstance(border_width, (list, tuple)):
+        if len(border_width) != 4:
+            raise ValueError(
+                f"border_width list must have 4 elements [top, bottom, left, right], "
+                f"got {len(border_width)}"
+            )
+        bw_top, bw_bottom, bw_left, bw_right = [int(b) for b in border_width]
+        if any(b < 0 for b in (bw_top, bw_bottom, bw_left, bw_right)):
+            raise ValueError(
+                f"All border_width values must be >= 0, got {border_width}"
+            )
+    elif isinstance(border_width, (int, float, np.integer, np.floating)):
+        bw = int(border_width)
+        if bw < 0:
+            raise ValueError(f"Expected border_width >= 0, but got {bw}")
+        bw_top = bw_bottom = bw_left = bw_right = bw
+    else:
+        raise TypeError(
+            f"border_width must be int or list of 4 int, got {type(border_width)}"
+        )
 
     if min_cluster is None:
         min_cluster = im.shape[1] // 4
@@ -591,9 +613,14 @@ def trace(
     mask = im_clean > background * (1 + noise_relative) + noise
     mask_initial = mask.copy()
     # remove borders
-    if border_width != 0:
-        mask[:border_width, :] = mask[-border_width:, :] = False
-        mask[:, :border_width] = mask[:, -border_width:] = False
+    if bw_top > 0:
+        mask[:bw_top, :] = False
+    if bw_bottom > 0:
+        mask[-bw_bottom:, :] = False
+    if bw_left > 0:
+        mask[:, :bw_left] = False
+    if bw_right > 0:
+        mask[:, -bw_right:] = False
     # remove masked areas with no clusters
     mask = np.ma.filled(mask, fill_value=False)
     # close gaps inbetween clusters
@@ -1077,6 +1104,157 @@ def _load_order_centers(filepath, instrument_dir=None):
     return {int(k): float(v) for k, v in data.items()}
 
 
+def _load_bundle_centers(filepath, instrument_dir=None):
+    """Load bundle_centers from a YAML file.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to YAML file (absolute or relative to instrument_dir)
+    instrument_dir : str, optional
+        Directory to resolve relative paths against
+
+    Returns
+    -------
+    bundle_centers : dict[int, float]
+        Bundle ID -> y-position at detector center
+    """
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(filepath)
+    if not path.is_absolute() and instrument_dir:
+        path = Path(instrument_dir) / path
+
+    with open(path) as f:
+        data = yaml.safe_load(f)
+
+    if "bundle_centers" in data:
+        data = data["bundle_centers"]
+
+    return {int(k): float(v) for k, v in data.items()}
+
+
+def _assign_traces_to_bundles(traces, column_range, bundle_centers):
+    """Assign each trace to a bundle based on y-position.
+
+    Parameters
+    ----------
+    traces : ndarray (n_traces, degree+1)
+        Polynomial coefficients for each trace
+    column_range : ndarray (n_traces, 2)
+        Column range for each trace
+    bundle_centers : dict[int, float]
+        Bundle ID -> y-position at detector center
+
+    Returns
+    -------
+    bundle_traces : dict[int, tuple[ndarray, ndarray]]
+        {bundle_id: (traces, column_range)} for traces assigned to each bundle,
+        sorted by y-position within each bundle
+    """
+    n_traces = len(traces)
+    if n_traces == 0:
+        return {}
+
+    x_center = int(np.mean(column_range[:, 0] + column_range[:, 1]) / 2)
+    y_positions = np.array([np.polyval(t, x_center) for t in traces])
+
+    bundle_ids = np.array(list(bundle_centers.keys()))
+    y_centers = np.array([bundle_centers[b] for b in bundle_ids])
+
+    bundle_traces = {b: [] for b in bundle_ids}
+    for i, y in enumerate(y_positions):
+        distances = np.abs(y - y_centers)
+        closest_idx = np.argmin(distances)
+        b = bundle_ids[closest_idx]
+        bundle_traces[b].append((y, traces[i], column_range[i]))
+
+    result = {}
+    for b, items in bundle_traces.items():
+        if items:
+            items.sort(key=lambda x: x[0])
+            tr_list = [item[1] for item in items]
+            cr_list = [item[2] for item in items]
+            result[b] = (np.array(tr_list), np.array(cr_list))
+
+    return result
+
+
+def _merge_bundle_traces(
+    traces, column_range, merge_method, degree, expected_size, bundle_center
+):
+    """Apply merge method to bundle traces, handling missing fibers.
+
+    Parameters
+    ----------
+    traces : ndarray (n_fibers, degree+1)
+        Polynomial coefficients for fibers in this bundle
+    column_range : ndarray (n_fibers, 2)
+        Column range for each fiber
+    merge_method : str or list[int]
+        "average", "center", or list of 1-based indices
+    degree : int
+        Polynomial degree for refitted traces
+    expected_size : int
+        Expected number of fibers in bundle
+    bundle_center : float
+        Y-position of bundle center (for fallback when fibers missing)
+
+    Returns
+    -------
+    merged_traces : ndarray (n_output, degree+1)
+    merged_cr : ndarray (n_output, 2)
+    """
+    n_fibers = len(traces)
+    if n_fibers == 0:
+        return np.empty((0, degree + 1)), np.empty((0, 2))
+
+    col_min = int(np.max(column_range[:, 0]))
+    col_max = int(np.min(column_range[:, 1]))
+    x_center = (col_min + col_max) // 2
+
+    if merge_method == "center":
+        if n_fibers == expected_size:
+            # All present: pick middle index
+            idx = n_fibers // 2
+            return traces[idx : idx + 1], column_range[idx : idx + 1]
+        else:
+            # Missing fibers: pick trace closest to bundle_center
+            y_positions = np.array([np.polyval(t, x_center) for t in traces])
+            distances = np.abs(y_positions - bundle_center)
+            idx = np.argmin(distances)
+            return traces[idx : idx + 1], column_range[idx : idx + 1]
+
+    elif merge_method == "average":
+        # Average all present fibers
+        x_eval = np.arange(col_min, col_max)
+        y_values = np.array([np.polyval(t, x_eval) for t in traces])
+        y_mean = np.mean(y_values, axis=0)
+
+        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+        coeffs = fit.coef[::-1]
+        shared_cr = np.array([[col_min, col_max]])
+        return coeffs.reshape(1, -1), shared_cr
+
+    elif isinstance(merge_method, list):
+        # Select specific indices - this may fail with missing fibers
+        indices = [i - 1 for i in merge_method]
+        valid = [i for i in indices if 0 <= i < n_fibers]
+        if not valid:
+            logger.warning(
+                "No valid indices in merge method %s for %d fibers",
+                merge_method,
+                n_fibers,
+            )
+            return np.empty((0, degree + 1)), np.empty((0, 2))
+        return traces[valid], column_range[valid]
+
+    else:
+        raise ValueError(f"Unknown merge method: {merge_method}")
+
+
 def _assign_traces_to_orders(traces, column_range, order_centers):
     """Assign each trace to a spectral order based on y-position.
 
@@ -1309,33 +1487,84 @@ def organize_fibers(
         bundle_cfg = fibers_config.bundles
         bundle_size = bundle_cfg.size
 
-        if n_fibers % bundle_size != 0:
-            raise ValueError(
-                f"Number of fibers ({n_fibers}) not divisible by bundle size ({bundle_size})"
+        # Load bundle_centers if provided (handles missing fibers)
+        bundle_centers = bundle_cfg.bundle_centers
+        if bundle_centers is None and bundle_cfg.bundle_centers_file:
+            centers_file = bundle_cfg.bundle_centers_file
+            if isinstance(centers_file, list):
+                centers_file = centers_file[channel_index]
+            bundle_centers = _load_bundle_centers(centers_file, instrument_dir)
+
+        if bundle_centers is not None:
+            # Assign traces to bundles by proximity to bundle centers
+            bundle_traces_dict = _assign_traces_to_bundles(
+                traces, column_range, bundle_centers
             )
 
-        n_bundles = n_fibers // bundle_size
-        if bundle_cfg.count is not None and bundle_cfg.count != n_bundles:
-            raise ValueError(
-                f"Expected {bundle_cfg.count} bundles but found {n_bundles}"
-            )
+            for bundle_id, (bundle_tr, bundle_cr) in sorted(bundle_traces_dict.items()):
+                name = f"bundle_{bundle_id}"
+                n_in_bundle = len(bundle_tr)
 
-        # Create a group for each bundle
-        for i in range(n_bundles):
-            name = f"bundle_{i + 1}"  # 1-based naming
-            start_idx = i * bundle_size
-            end_idx = (i + 1) * bundle_size
+                if n_in_bundle != bundle_size:
+                    logger.info(
+                        "Bundle %d has %d fibers (expected %d)",
+                        bundle_id,
+                        n_in_bundle,
+                        bundle_size,
+                    )
 
-            bundle_tr = traces[start_idx:end_idx]
-            bundle_cr = column_range[start_idx:end_idx]
+                merged_tr, merged_cr = _merge_bundle_traces(
+                    bundle_tr,
+                    bundle_cr,
+                    bundle_cfg.merge,
+                    degree,
+                    bundle_size,
+                    bundle_centers[bundle_id],
+                )
 
-            merged_tr, merged_cr = _merge_fiber_traces(
-                bundle_tr, bundle_cr, bundle_cfg.merge, degree
-            )
+                group_traces[name] = merged_tr
+                group_column_range[name] = merged_cr
+                group_fiber_counts[name] = n_in_bundle
 
-            group_traces[name] = merged_tr
-            group_column_range[name] = merged_cr
-            group_fiber_counts[name] = bundle_size
+            # Also handle bundles with zero traces (all fibers missing)
+            for bundle_id in bundle_centers:
+                name = f"bundle_{bundle_id}"
+                if name not in group_traces:
+                    logger.warning("Bundle %d has no traces assigned", bundle_id)
+                    group_traces[name] = np.empty((0, degree + 1))
+                    group_column_range[name] = np.empty((0, 2))
+                    group_fiber_counts[name] = 0
+
+        else:
+            # Fixed-size division (original behavior, requires exact divisibility)
+            if n_fibers % bundle_size != 0:
+                raise ValueError(
+                    f"Number of fibers ({n_fibers}) not divisible by bundle size ({bundle_size}). "
+                    f"Use bundle_centers_file for instruments with missing fibers."
+                )
+
+            n_bundles = n_fibers // bundle_size
+            if bundle_cfg.count is not None and bundle_cfg.count != n_bundles:
+                raise ValueError(
+                    f"Expected {bundle_cfg.count} bundles but found {n_bundles}"
+                )
+
+            # Create a group for each bundle
+            for i in range(n_bundles):
+                name = f"bundle_{i + 1}"  # 1-based naming
+                start_idx = i * bundle_size
+                end_idx = (i + 1) * bundle_size
+
+                bundle_tr = traces[start_idx:end_idx]
+                bundle_cr = column_range[start_idx:end_idx]
+
+                merged_tr, merged_cr = _merge_fiber_traces(
+                    bundle_tr, bundle_cr, bundle_cfg.merge, degree
+                )
+
+                group_traces[name] = merged_tr
+                group_column_range[name] = merged_cr
+                group_fiber_counts[name] = bundle_size
 
     return group_traces, group_column_range, group_fiber_counts
 

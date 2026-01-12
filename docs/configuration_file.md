@@ -98,7 +98,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 | `noise` | Noise threshold for detection | 100 |
 | `min_cluster` | Minimum pixels for valid order | 500 |
 | `filter_y` | Median filter size | 120 |
-| `border_width` | Pixels to ignore at edges | 10 |
+| `border_width` | Pixels to ignore at edges. Int or `[top, bottom, left, right]` | 10 |
 
 ### Science (Extraction)
 

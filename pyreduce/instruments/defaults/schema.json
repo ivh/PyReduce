@@ -176,12 +176,17 @@
                             "minimum": 0
                         },
                         "border_width": {
-                            "description": "Number of pixels to disregard at the border of the image. Estimated automatically if null.",
-                            "type": [
-                                "integer",
-                                "null"
-                            ],
-                            "minimum": 0
+                            "description": "Pixels to ignore at image edges. Int for all sides, or [top, bottom, left, right]. Estimated automatically if null.",
+                            "oneOf": [
+                                {"type": "null"},
+                                {"type": "integer", "minimum": 0},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "integer", "minimum": 0},
+                                    "minItems": 4,
+                                    "maxItems": 4
+                                }
+                            ]
                         },
                         "manual": {
                             "description": "Ask for manual confirmation before merging any clusters. Otherwise only ask when overlap below 90%.",

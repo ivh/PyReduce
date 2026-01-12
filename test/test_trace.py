@@ -474,6 +474,181 @@ class TestOrganizeFibers:
         assert len(group_traces["A"][1]) == 1
         assert len(group_traces["A"][2]) == 1
 
+    @pytest.mark.unit
+    def test_organize_fibers_bundle_centers_all_present(self):
+        """Test bundle_centers with all fibers present picks middle index."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        # 3 bundles of 5 fibers each, bundle centers at y=100, 200, 300
+        traces = np.array(
+            [
+                # Bundle 1 (center at 100): fibers at 80, 90, 100, 110, 120
+                [0.0, 0.0, 80.0],
+                [0.0, 0.0, 90.0],
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 110.0],
+                [0.0, 0.0, 120.0],
+                # Bundle 2 (center at 200): fibers at 180, 190, 200, 210, 220
+                [0.0, 0.0, 180.0],
+                [0.0, 0.0, 190.0],
+                [0.0, 0.0, 200.0],
+                [0.0, 0.0, 210.0],
+                [0.0, 0.0, 220.0],
+                # Bundle 3 (center at 300): fibers at 280, 290, 300, 310, 320
+                [0.0, 0.0, 280.0],
+                [0.0, 0.0, 290.0],
+                [0.0, 0.0, 300.0],
+                [0.0, 0.0, 310.0],
+                [0.0, 0.0, 320.0],
+            ]
+        )
+        column_range = np.array([[10, 990]] * 15)
+
+        config = FibersConfig(
+            bundles=FiberBundleConfig(
+                size=5,
+                merge="center",
+                bundle_centers={1: 100.0, 2: 200.0, 3: 300.0},
+            )
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        assert len(group_traces) == 3
+        assert "bundle_1" in group_traces
+        assert "bundle_2" in group_traces
+        assert "bundle_3" in group_traces
+
+        # All bundles have 5 fibers, should pick middle (index 2)
+        assert group_counts["bundle_1"] == 5
+        assert group_counts["bundle_2"] == 5
+        assert group_counts["bundle_3"] == 5
+
+        # Center trace is y=100, 200, 300 respectively
+        assert group_traces["bundle_1"][0, 2] == pytest.approx(100.0)
+        assert group_traces["bundle_2"][0, 2] == pytest.approx(200.0)
+        assert group_traces["bundle_3"][0, 2] == pytest.approx(300.0)
+
+    @pytest.mark.unit
+    def test_organize_fibers_bundle_centers_missing_fibers(self):
+        """Test bundle_centers with missing fibers picks closest to center."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        # Bundle 1: all 5 fibers present
+        # Bundle 2: only 4 fibers, center fiber (y=200) missing
+        # Bundle 3: only 3 fibers, bottom two missing
+        traces = np.array(
+            [
+                # Bundle 1: complete
+                [0.0, 0.0, 80.0],
+                [0.0, 0.0, 90.0],
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 110.0],
+                [0.0, 0.0, 120.0],
+                # Bundle 2: center missing (no y=200)
+                [0.0, 0.0, 180.0],
+                [0.0, 0.0, 190.0],
+                [0.0, 0.0, 210.0],
+                [0.0, 0.0, 220.0],
+                # Bundle 3: bottom two missing (no y=280, 290)
+                [0.0, 0.0, 300.0],
+                [0.0, 0.0, 310.0],
+                [0.0, 0.0, 320.0],
+            ]
+        )
+        column_range = np.array([[10, 990]] * 12)
+
+        config = FibersConfig(
+            bundles=FiberBundleConfig(
+                size=5,
+                merge="center",
+                bundle_centers={1: 100.0, 2: 200.0, 3: 300.0},
+            )
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        # Bundle 1: all present, picks middle (y=100)
+        assert group_counts["bundle_1"] == 5
+        assert group_traces["bundle_1"][0, 2] == pytest.approx(100.0)
+
+        # Bundle 2: 4 fibers, center missing, picks closest to 200 (either 190 or 210)
+        assert group_counts["bundle_2"] == 4
+        selected_y = group_traces["bundle_2"][0, 2]
+        assert selected_y in [190.0, 210.0]
+
+        # Bundle 3: 3 fibers, picks closest to 300 (which is 300 itself)
+        assert group_counts["bundle_3"] == 3
+        assert group_traces["bundle_3"][0, 2] == pytest.approx(300.0)
+
+    @pytest.mark.unit
+    def test_organize_fibers_bundle_centers_average_merge(self):
+        """Test bundle_centers with average merge uses all present fibers."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        # Bundle with only 3 of 5 fibers at y=90, 100, 110
+        traces = np.array(
+            [
+                [0.0, 0.0, 90.0],
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 110.0],
+            ]
+        )
+        column_range = np.array([[10, 990]] * 3)
+
+        config = FibersConfig(
+            bundles=FiberBundleConfig(
+                size=5,
+                merge="average",
+                bundle_centers={1: 100.0},
+            )
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config, degree=2
+        )
+
+        assert group_counts["bundle_1"] == 3
+        # Average of 90, 100, 110 is 100
+        assert group_traces["bundle_1"][0, 2] == pytest.approx(100.0, abs=1.0)
+
+    @pytest.mark.unit
+    def test_organize_fibers_bundle_centers_empty_bundle(self):
+        """Test bundle_centers handles bundles with no traces."""
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        # Only traces near bundle 1, none near bundle 2
+        traces = np.array(
+            [
+                [0.0, 0.0, 90.0],
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 110.0],
+            ]
+        )
+        column_range = np.array([[10, 990]] * 3)
+
+        config = FibersConfig(
+            bundles=FiberBundleConfig(
+                size=5,
+                merge="center",
+                bundle_centers={1: 100.0, 2: 500.0},  # Bundle 2 far away
+            )
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        # Bundle 1 gets all traces (closest)
+        assert group_counts["bundle_1"] == 3
+        # Bundle 2 is empty
+        assert group_counts["bundle_2"] == 0
+        assert len(group_traces["bundle_2"]) == 0
+
 
 class TestSelectTracesForStep:
     """Tests for select_traces_for_step function."""
