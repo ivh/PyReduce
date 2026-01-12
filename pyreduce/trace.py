@@ -448,7 +448,8 @@ def trace(
     filter_x=0,
     filter_y=None,
     filter_type="boxcar",
-    noise=None,
+    noise=0,
+    noise_relative=0,
     degree=4,
     border_width=None,
     degree_before_merge=2,
@@ -481,7 +482,10 @@ def trace(
         Type of smoothing filter: "boxcar" (default), "gaussian", or "whittaker".
         Boxcar is a uniform moving average. Whittaker preserves edges better.
     noise : float, optional
-        noise to filter out (default: 8)
+        Absolute noise threshold added to background (default: 0).
+    noise_relative : float, optional
+        Relative noise threshold as fraction of background (default: 0).
+        If both noise and noise_relative are 0, defaults to 0.001 (0.1%).
     opower : int, optional
         polynomial degree of the order fit (default: 4)
     border_width : int, optional
@@ -577,15 +581,14 @@ def trace(
     # Estimate local background by smoothing along y (cross-dispersion)
     background = smooth(im_clean, filter_y, axis=0)
 
-    if noise is None:
-        tmp = np.abs(background.flatten())
-        noise = np.percentile(tmp, 5)
-        logger.info("Background noise, estimated: %f", noise)
-    elif not np.isscalar(noise):
-        raise TypeError(f"Expected scalar noise level, but got {noise}")
+    # Default to 0.1% relative threshold if neither noise parameter is set
+    if noise == 0 and noise_relative == 0:
+        noise_relative = 0.001
+        logger.info("Using default noise_relative=0.001 (0.1%% of background)")
 
     # Threshold: pixels above local background are signal
-    mask = im_clean > background + noise
+    # Combines absolute (noise) and relative (noise_relative) thresholds
+    mask = im_clean > background * (1 + noise_relative) + noise
     mask_initial = mask.copy()
     # remove borders
     if border_width != 0:

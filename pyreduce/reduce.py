@@ -785,8 +785,10 @@ class OrderTracing(CalibrationStep):
         self.filter_y = config["filter_y"]
         #:str: Type of smoothing filter (boxcar, gaussian, whittaker)
         self.filter_type = config.get("filter_type", "boxcar")
-        #:int: Background noise value threshold
-        self.noise = config["noise"]
+        #:int: Absolute background noise threshold
+        self.noise = config.get("noise", 0)
+        #:float: Relative background noise threshold (fraction of background)
+        self.noise_relative = config.get("noise_relative", 0)
         #:int: Polynomial degree of the fit to each order
         self.fit_degree = config["degree"]
 
@@ -844,6 +846,7 @@ class OrderTracing(CalibrationStep):
             filter_y=self.filter_y,
             filter_type=self.filter_type,
             noise=self.noise,
+            noise_relative=self.noise_relative,
             degree=self.fit_degree,
             degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,

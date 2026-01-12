@@ -166,11 +166,13 @@
                             "minimum": 0
                         },
                         "noise": {
-                            "description": "Background noise level cutoff. Estimated automatically if null.",
-                            "type": [
-                                "integer",
-                                "null"
-                            ],
+                            "description": "Absolute noise threshold added to background (default: 0).",
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "noise_relative": {
+                            "description": "Relative noise threshold as fraction of background (default: 0). If both noise and noise_relative are 0, defaults to 0.001 (0.1%).",
+                            "type": "number",
                             "minimum": 0
                         },
                         "border_width": {

@@ -654,3 +654,114 @@ class TestSelectTracesForStep:
         assert len(result) == 1
         selected, _ = result["A"]
         assert len(selected) == 2  # 2 orders
+
+
+class TestNoiseThreshold:
+    """Tests for noise threshold settings in trace()."""
+
+    @pytest.fixture
+    def simple_image(self):
+        """Create a simple test image with known background and signal.
+
+        Image is 100x200 (nrow x ncol) with:
+        - Background level of 1000
+        - A horizontal "order" at row 50 with signal 100 above background
+        """
+        nrow, ncol = 100, 200
+        im = np.full((nrow, ncol), 1000.0)
+        # Add a trace at row 50, width ~5 pixels
+        for row in range(48, 53):
+            im[row, :] = 1100.0
+        return im
+
+    @pytest.mark.unit
+    def test_both_zero_defaults_to_relative(self, simple_image, caplog):
+        """When both noise=0 and noise_relative=0, should default to 0.001."""
+        import logging
+
+        caplog.set_level(logging.INFO)
+
+        # Should work and log the default
+        trace.trace(
+            simple_image,
+            noise=0,
+            noise_relative=0,
+            manual=False,
+        )
+
+        assert "Using default noise_relative=0.001" in caplog.text
+
+    @pytest.mark.unit
+    def test_absolute_noise_only(self, simple_image):
+        """Test with only absolute noise threshold."""
+        # Signal is 100 above background (1100 vs 1000)
+        # With noise=50, signal should be detected (100 > 50)
+        result = trace.trace(
+            simple_image,
+            noise=50,
+            noise_relative=0,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) >= 1
+
+        # With noise=150, signal should NOT be detected (100 < 150)
+        result = trace.trace(
+            simple_image,
+            noise=150,
+            noise_relative=0,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) == 0
+
+    @pytest.mark.unit
+    def test_relative_noise_only(self, simple_image):
+        """Test with only relative noise threshold."""
+        # Background ~1000, signal 100 above (10% above background)
+        # With noise_relative=0.05 (5%), signal should be detected
+        result = trace.trace(
+            simple_image,
+            noise=0,
+            noise_relative=0.05,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) >= 1
+
+        # With noise_relative=0.15 (15%), signal should NOT be detected
+        result = trace.trace(
+            simple_image,
+            noise=0,
+            noise_relative=0.15,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) == 0
+
+    @pytest.mark.unit
+    def test_combined_thresholds(self, simple_image):
+        """Test with both absolute and relative thresholds combined."""
+        # Background ~1000, signal 100 above
+        # Threshold = background * (1 + noise_relative) + noise
+        #           = 1000 * 1.05 + 20 = 1070
+        # Signal at 1100 > 1070, should detect
+        result = trace.trace(
+            simple_image,
+            noise=20,
+            noise_relative=0.05,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) >= 1
+
+        # Threshold = 1000 * 1.08 + 30 = 1110
+        # Signal at 1100 < 1110, should NOT detect
+        result = trace.trace(
+            simple_image,
+            noise=30,
+            noise_relative=0.08,
+            manual=False,
+        )
+        orders, column_range = result
+        assert len(orders) == 0
