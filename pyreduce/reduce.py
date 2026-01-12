@@ -946,8 +946,13 @@ class OrderTracing(CalibrationStep):
             self.group_column_range = {}
             self.group_fiber_counts = {}
             for name in group_names:
-                self.group_traces[name] = data[f"group_{name}_traces"]
-                self.group_column_range[name] = data[f"group_{name}_cr"]
+                # .item() extracts dict from 0-dim numpy array
+                traces = data[f"group_{name}_traces"]
+                self.group_traces[name] = (
+                    traces.item() if traces.shape == () else traces
+                )
+                cr = data[f"group_{name}_cr"]
+                self.group_column_range[name] = cr.item() if cr.shape == () else cr
                 self.group_fiber_counts[name] = int(data[f"group_{name}_count"])
             logger.info("Loaded %d fiber groups", len(group_names))
 

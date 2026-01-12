@@ -6,7 +6,7 @@
 AJ instrument example: Multi-fiber tracing with Pipeline API.
 
 Demonstrates tracing fibers illuminated in separate flat field images
-(even/odd pattern) using the Pipeline's trace() and merge_traces() methods.
+(even/odd pattern) using the Pipeline's trace_raw() and organize() methods.
 
 The fiber config in AJ/config.yaml handles:
 - order_centers_file: assigns traces to spectral orders by y-position
@@ -50,18 +50,26 @@ fibers_config = pipe.instrument.config.fibers
 print(f"Per-order grouping: {fibers_config.per_order}")
 print(f"Groups: {list(fibers_config.groups.keys())}")
 
-# --- Trace each flat independently ---
-print(f"\nTracing even fibers from {os.path.basename(file_even)}...")
-traces_even, cr_even = pipe.trace([file_even], save=False)
-print(f"  Found {len(traces_even)} traces")
+# --- Trace or load from previous run ---
+LOAD_TRACE = True  # Set False to re-run tracing
 
-print(f"\nTracing odd fibers from {os.path.basename(file_odd)}...")
-traces_odd, cr_odd = pipe.trace([file_odd], save=False)
-print(f"  Found {len(traces_odd)} traces")
+if LOAD_TRACE:
+    print("\nLoading traces from previous run...")
+    orders, column_range = pipe._run_step("trace", None, load_only=True)
+    print(f"  Loaded {len(orders)} traces")
+else:
+    # Trace each flat independently
+    print(f"\nTracing even fibers from {os.path.basename(file_even)}...")
+    traces_even, cr_even = pipe.trace_raw([file_even])
+    print(f"  Found {len(traces_even)} traces")
 
-# --- Merge and organize ---
-print("\nMerging traces and organizing into fiber groups...")
-pipe.merge_traces(traces_even, cr_even, traces_odd, cr_odd)
+    print(f"\nTracing odd fibers from {os.path.basename(file_odd)}...")
+    traces_odd, cr_odd = pipe.trace_raw([file_odd])
+    print(f"  Found {len(traces_odd)} traces")
+
+    # Organize into fiber groups
+    print("\nOrganizing traces into fiber groups...")
+    pipe.organize(traces_even, cr_even, traces_odd, cr_odd)
 
 # Access organized groups
 if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
