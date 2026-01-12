@@ -51,8 +51,11 @@ id_wave: ".*"
 id_spec: ".*"
 
 # Fiber grouping configuration
-# 75 fibers organized into 3 logical groups
+# 75 fibers per order, organized into 3 logical groups
 fibers:
+  per_order: true
+  fibers_per_order: 75
+  order_centers_file: order_centers.yaml
   groups:
     A:
       range: [1, 36]

@@ -429,6 +429,51 @@ class TestOrganizeFibers:
         assert len(group_traces["A"]) == 3
         assert group_counts["A"] == 10  # Still counted all 10 fibers in group
 
+    @pytest.mark.unit
+    def test_organize_fibers_per_order(self):
+        """Test per-order fiber grouping."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        # Create 6 traces: 3 fibers per order, 2 orders
+        # Order 1 at y~100, Order 2 at y~200
+        traces = np.array(
+            [
+                [0.0, 0.0, 90.0],  # Order 1, fiber 1
+                [0.0, 0.0, 100.0],  # Order 1, fiber 2
+                [0.0, 0.0, 110.0],  # Order 1, fiber 3
+                [0.0, 0.0, 190.0],  # Order 2, fiber 1
+                [0.0, 0.0, 200.0],  # Order 2, fiber 2
+                [0.0, 0.0, 210.0],  # Order 2, fiber 3
+            ]
+        )
+        column_range = np.array([[10, 990]] * 6)
+
+        config = FibersConfig(
+            per_order=True,
+            fibers_per_order=3,
+            order_centers={1: 100.0, 2: 200.0},
+            groups={
+                "A": FiberGroupConfig(range=(1, 3), merge="center"),  # fibers 1-2
+                "B": FiberGroupConfig(range=(3, 4), merge="center"),  # fiber 3
+            },
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        # Should have 2 groups, each with 2 orders
+        assert "A" in group_traces
+        assert "B" in group_traces
+        assert 1 in group_traces["A"]
+        assert 2 in group_traces["A"]
+        assert 1 in group_traces["B"]
+        assert 2 in group_traces["B"]
+
+        # Each merged trace should be 1 trace
+        assert len(group_traces["A"][1]) == 1
+        assert len(group_traces["A"][2]) == 1
+
 
 class TestSelectTracesForStep:
     """Tests for select_traces_for_step function."""
@@ -458,13 +503,13 @@ class TestSelectTracesForStep:
 
     @pytest.mark.unit
     def test_select_traces_no_config(self, raw_traces):
-        """Test that None config returns raw traces."""
+        """Test that None config returns raw traces in 'all' key."""
         traces, cr = raw_traces
 
-        selected, selected_cr = trace.select_traces_for_step(
-            traces, cr, {}, {}, None, "science"
-        )
+        result = trace.select_traces_for_step(traces, cr, {}, {}, None, "science")
 
+        assert "all" in result
+        selected, selected_cr = result["all"]
         assert np.array_equal(selected, traces)
         assert np.array_equal(selected_cr, cr)
 
@@ -479,15 +524,17 @@ class TestSelectTracesForStep:
             use={"science": "all"},
         )
 
-        selected, selected_cr = trace.select_traces_for_step(
+        result = trace.select_traces_for_step(
             traces, cr, group_traces, group_cr, config, "science"
         )
 
+        assert "all" in result
+        selected, _ = result["all"]
         assert np.array_equal(selected, traces)
 
     @pytest.mark.unit
     def test_select_traces_groups(self, raw_traces, group_traces, group_cr):
-        """Test selecting all grouped traces."""
+        """Test selecting all grouped traces stacked."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
         traces, cr = raw_traces
@@ -496,16 +543,19 @@ class TestSelectTracesForStep:
             use={"science": "groups"},
         )
 
-        selected, selected_cr = trace.select_traces_for_step(
+        result = trace.select_traces_for_step(
             traces, cr, group_traces, group_cr, config, "science"
         )
 
+        # "groups" stacks all into single "all" entry
+        assert "all" in result
+        selected, _ = result["all"]
         # Should concatenate all groups (A and B)
         assert len(selected) == 2
 
     @pytest.mark.unit
     def test_select_traces_specific_groups(self, raw_traces, group_traces, group_cr):
-        """Test selecting specific named groups."""
+        """Test selecting specific named groups returns dict per group."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
         traces, cr = raw_traces
@@ -514,11 +564,15 @@ class TestSelectTracesForStep:
             use={"science": ["A"]},  # Only group A
         )
 
-        selected, selected_cr = trace.select_traces_for_step(
+        result = trace.select_traces_for_step(
             traces, cr, group_traces, group_cr, config, "science"
         )
 
-        assert len(selected) == 1  # Only A
+        # Explicit list returns dict with named keys
+        assert "A" in result
+        assert len(result) == 1
+        selected, _ = result["A"]
+        assert len(selected) == 1
 
     @pytest.mark.unit
     def test_select_traces_default_to_groups(self, raw_traces, group_traces, group_cr):
@@ -531,11 +585,13 @@ class TestSelectTracesForStep:
             use={"other_step": "all"},  # science not specified
         )
 
-        selected, selected_cr = trace.select_traces_for_step(
+        result = trace.select_traces_for_step(
             traces, cr, group_traces, group_cr, config, "science"
         )
 
         # Should default to "groups" when groups are defined
+        assert "all" in result
+        selected, _ = result["all"]
         assert len(selected) == 2
 
     @pytest.mark.unit
@@ -552,8 +608,49 @@ class TestSelectTracesForStep:
         )
 
         # Should warn but still return valid groups
-        selected, selected_cr = trace.select_traces_for_step(
+        result = trace.select_traces_for_step(
             traces, cr, group_traces, group_cr, config, "science"
         )
 
-        assert len(selected) == 1  # Only A found
+        # Only A found as named key
+        assert "A" in result
+        assert len(result) == 1
+
+    @pytest.mark.unit
+    def test_select_traces_per_order(self):
+        """Test selecting from per-order grouped traces."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        # Raw traces (not used when selecting groups)
+        raw_traces = np.array([[0.0, 0.0, 100.0 + i * 10] for i in range(6)])
+        raw_cr = np.array([[10, 990]] * 6)
+
+        # Per-order grouped traces: {group: {order: trace}}
+        group_traces = {
+            "A": {1: np.array([[0.0, 0.0, 100.0]]), 2: np.array([[0.0, 0.0, 200.0]])},
+            "B": {1: np.array([[0.0, 0.0, 110.0]]), 2: np.array([[0.0, 0.0, 210.0]])},
+        }
+        group_cr = {
+            "A": {1: np.array([[10, 990]]), 2: np.array([[10, 990]])},
+            "B": {1: np.array([[10, 990]]), 2: np.array([[10, 990]])},
+        }
+
+        config = FibersConfig(
+            per_order=True,
+            order_centers={1: 100.0, 2: 200.0},
+            groups={
+                "A": FiberGroupConfig(range=(1, 2)),
+                "B": FiberGroupConfig(range=(2, 3)),
+            },
+            use={"science": ["A"]},
+        )
+
+        result = trace.select_traces_for_step(
+            raw_traces, raw_cr, group_traces, group_cr, config, "science"
+        )
+
+        # Should return A with stacked traces from both orders
+        assert "A" in result
+        assert len(result) == 1
+        selected, _ = result["A"]
+        assert len(selected) == 2  # 2 orders

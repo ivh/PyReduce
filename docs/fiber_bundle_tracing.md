@@ -10,10 +10,11 @@ PyReduce supports multi-fiber instruments where each spectral order contains mul
 - **Fiber**: Physical fiber in bundle (numbered 1-N)
 - **Group**: Named collection of fibers (e.g., "A", "cal", "B")
 - **Bundle**: Repeating pattern of fibers (e.g., 7 fibers per IFU target)
+- **Spectral Order**: Wavelength range; multi-order instruments have same fiber pattern repeated across orders
 
 ## Configuration
 
-### Named Groups (AJ-style)
+### Named Groups (single-order instruments)
 
 For instruments with explicitly defined fiber groups:
 
@@ -52,6 +53,73 @@ fibers:
     science: groups
 ```
 
+### Per-Order Grouping (echelle multi-fiber)
+
+For echelle instruments where fiber groups repeat across spectral orders (e.g., AJ with 75 fibers per order across 18 orders):
+
+```yaml
+fibers:
+  per_order: true
+  fibers_per_order: 75              # Expected fibers per order (validation)
+  order_centers_file: order_centers.yaml  # Or inline with order_centers:
+
+  groups:
+    A:
+      range: [1, 36]
+      merge: average
+    cal:
+      range: [37, 40]
+      merge: average
+    B:
+      range: [40, 76]
+      merge: average
+
+  use:
+    science: [A, B]
+    wavecal: [cal]
+    norm_flat: all
+```
+
+The `order_centers.yaml` file maps spectral order numbers to y-positions at detector center:
+
+```yaml
+# order_centers.yaml
+90: 3868.1
+91: 3609.0
+92: 3356.4
+# ... etc
+```
+
+Or inline for instruments with few orders:
+
+```yaml
+fibers:
+  per_order: true
+  order_centers:
+    1: 150.5
+    2: 320.3
+    3: 490.1
+```
+
+### Multi-Channel Instruments
+
+For instruments with multiple channels (detectors/arms), per-order fields can be lists indexed by channel:
+
+```yaml
+channels: [UVB, VIS, NIR]
+
+fibers:
+  per_order: true
+  order_centers_file: [uvb_centers.yaml, vis_centers.yaml, nir_centers.yaml]
+  fibers_per_order: [75, 75, 60]  # Can vary per channel
+
+  groups:  # Same structure across all channels
+    A: {range: [1, 36], merge: average}
+    B: {range: [40, 76], merge: average}
+```
+
+If fiber arrangements differ fundamentally between channels, use separate instrument configs.
+
 ## Merge Methods
 
 - `average` - Fit polynomial to mean y-positions of all fibers in group
@@ -63,36 +131,45 @@ fibers:
 The `use` section specifies which traces each reduction step receives:
 
 - `all` - All individual fiber traces (ignores grouping)
-- `groups` - All merged group/bundle traces
-- `[A, B]` - Specific named groups only
+- `groups` - All merged group/bundle traces stacked
+- `[A, B]` - Specific named groups (kept separate in output)
 
 Steps not listed in `use` default to `groups` when groups/bundles are defined.
 
 ## Output Format
 
-Order tracing saves both raw and grouped traces to the `.ord_default.npz` file:
+Order tracing saves both raw and grouped traces to the `.ord_default.npz` file.
 
+For per_order=False:
 ```
 orders          - Raw traces (n_fibers, degree+1)
 column_range    - Raw column ranges (n_fibers, 2)
-group_names     - List of group names
 group_A_traces  - Merged traces for group A
 group_A_cr      - Column ranges for group A
-group_A_count   - Number of physical fibers in group A
+```
+
+For per_order=True:
+```
+orders          - Raw traces (n_total_fibers, degree+1)
+column_range    - Raw column ranges
+A_order_90      - Merged trace for group A in order 90
+A_cr_90         - Column range for group A in order 90
 ...
 ```
 
 ## Example Instruments
 
-### AJ (75 fibers)
+### AJ (75 fibers x 18 orders)
 
 Simulated echelle with science fibers A/B and calibration fiber:
 - Fibers 1-35: Science fiber A
 - Fibers 37-39: Calibration fiber
 - Fibers 40-75: Science fiber B
+- Uses `per_order: true` with `order_centers_file`
 
-### MOSAIC (630 fibers)
+### MOSAIC (630 fibers, single order)
 
 ELT multi-object spectrograph with 90 IFU targets:
 - 7 fibers per target bundle
 - Extract center fiber from each bundle for reduction
+- Uses `bundles` pattern

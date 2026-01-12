@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class HeaderRef(BaseModel):
@@ -105,13 +105,44 @@ class FibersConfig(BaseModel):
 
     Defines how physical fiber traces are organized into groups and which
     traces to use for each reduction step.
+
+    For multi-order instruments (echelle), set per_order=True and provide
+    order_centers to apply grouping within each spectral order.
+
+    For multi-channel instruments, per-order fields can be lists indexed
+    by channel (same pattern as orientation, extension, etc.).
     """
 
     groups: dict[str, FiberGroupConfig] | None = None
     bundles: FiberBundleConfig | None = None
     use: dict[str, TraceSelection] | None = None  # step_name -> selection
 
+    # Per-order grouping for echelle instruments
+    # These can be lists for multi-channel instruments (indexed by channel)
+    per_order: bool = False
+    fibers_per_order: int | list[int] | None = None
+    order_centers: dict[int, float] | None = None  # inline (single channel only)
+    order_centers_file: str | list[str] | None = None  # per-channel list supported
+
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("order_centers", mode="before")
+    @classmethod
+    def convert_order_centers_keys(cls, v):
+        """Convert string keys to int (YAML loads int keys as strings)."""
+        if v is None:
+            return v
+        return {int(k): float(val) for k, val in v.items()}
+
+    @model_validator(mode="after")
+    def validate_per_order_config(self):
+        """Ensure order_centers or order_centers_file when per_order is True."""
+        if self.per_order:
+            if self.order_centers is None and self.order_centers_file is None:
+                raise ValueError(
+                    "order_centers or order_centers_file required when per_order=True"
+                )
+        return self
 
 
 class InstrumentConfig(BaseModel):

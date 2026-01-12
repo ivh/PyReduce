@@ -1041,11 +1041,101 @@ def _merge_fiber_traces(traces, column_range, merge_method, degree=4):
         raise ValueError(f"Unknown merge method: {merge_method}")
 
 
-def organize_fibers(traces, column_range, fibers_config, degree=4):
+def _load_order_centers(filepath, instrument_dir=None):
+    """Load order_centers from a YAML file.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to YAML file (absolute or relative to instrument_dir)
+    instrument_dir : str, optional
+        Directory to resolve relative paths against
+
+    Returns
+    -------
+    order_centers : dict[int, float]
+        Order number -> y-position at detector center
+    """
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(filepath)
+    if not path.is_absolute() and instrument_dir:
+        path = Path(instrument_dir) / path
+
+    with open(path) as f:
+        data = yaml.safe_load(f)
+
+    # Handle both flat dict and nested structure
+    if "order_centers" in data:
+        data = data["order_centers"]
+
+    return {int(k): float(v) for k, v in data.items()}
+
+
+def _assign_traces_to_orders(traces, column_range, order_centers):
+    """Assign each trace to a spectral order based on y-position.
+
+    Parameters
+    ----------
+    traces : ndarray (n_traces, degree+1)
+        Polynomial coefficients for each trace
+    column_range : ndarray (n_traces, 2)
+        Column range for each trace
+    order_centers : dict[int, float]
+        Order number -> y-position at detector center
+
+    Returns
+    -------
+    order_traces : dict[int, tuple[ndarray, ndarray]]
+        {order_m: (traces, column_range)} for traces assigned to each order
+    """
+    n_traces = len(traces)
+    if n_traces == 0:
+        return {}
+
+    # Get detector center x-coordinate
+    x_center = int(np.mean(column_range[:, 0] + column_range[:, 1]) / 2)
+
+    # Evaluate each trace at center to get y-position
+    y_positions = np.array([np.polyval(t, x_center) for t in traces])
+
+    # Get order numbers and centers as arrays
+    order_nums = np.array(list(order_centers.keys()))
+    y_centers = np.array([order_centers[m] for m in order_nums])
+
+    # Assign each trace to closest order, keeping track of y-position for sorting
+    order_traces = {m: [] for m in order_nums}  # list of (y, trace, cr)
+    for i, y in enumerate(y_positions):
+        distances = np.abs(y - y_centers)
+        closest_idx = np.argmin(distances)
+        m = order_nums[closest_idx]
+        order_traces[m].append((y, traces[i], column_range[i]))
+
+    # Sort by y-position within each order and convert to arrays
+    result = {}
+    for m, items in order_traces.items():
+        if items:
+            # Sort by y-position (fiber number increases with y typically)
+            items.sort(key=lambda x: x[0])
+            tr_list = [item[1] for item in items]
+            cr_list = [item[2] for item in items]
+            result[m] = (np.array(tr_list), np.array(cr_list))
+
+    return result
+
+
+def organize_fibers(
+    traces, column_range, fibers_config, degree=4, instrument_dir=None, channel_index=0
+):
     """Organize traced fibers into groups according to config.
 
     Takes raw fiber traces and groups them according to either explicit
     named groups or repeating bundle patterns.
+
+    For per_order=True instruments, grouping is applied within each spectral
+    order, returning {group: {order_m: trace}}.
 
     Parameters
     ----------
@@ -1057,21 +1147,129 @@ def organize_fibers(traces, column_range, fibers_config, degree=4):
         Configuration specifying groups or bundles
     degree : int
         Polynomial degree for refitted traces (used with "average" merge)
+    instrument_dir : str, optional
+        Directory for resolving relative order_centers_file paths
+    channel_index : int
+        Index into per-channel lists (for multi-channel instruments)
 
     Returns
     -------
-    group_traces : dict[str, ndarray]
-        {group_name: traces} - merged trace(s) per group
-    group_column_range : dict[str, ndarray]
-        {group_name: column_range} per group
+    group_traces : dict
+        For per_order=False: {group_name: ndarray} - merged trace(s) per group
+        For per_order=True: {group_name: {order_m: ndarray}} - per order per group
+    group_column_range : dict
+        Same structure as group_traces but with column ranges
     group_fiber_counts : dict[str, int]
-        Number of physical fibers in each group
+        Number of physical fibers in each group (per order if per_order=True)
     """
     n_fibers = len(traces)
     group_traces = {}
     group_column_range = {}
     group_fiber_counts = {}
 
+    # Handle per-order grouping
+    if fibers_config.per_order:
+        # Load order_centers from file if not inline
+        order_centers = fibers_config.order_centers
+        if order_centers is None and fibers_config.order_centers_file:
+            # Handle per-channel list
+            centers_file = fibers_config.order_centers_file
+            if isinstance(centers_file, list):
+                centers_file = centers_file[channel_index]
+            order_centers = _load_order_centers(centers_file, instrument_dir)
+
+        order_traces = _assign_traces_to_orders(traces, column_range, order_centers)
+
+        # Validate fibers per order if specified
+        fibers_per_order = fibers_config.fibers_per_order
+        if isinstance(fibers_per_order, list):
+            fibers_per_order = fibers_per_order[channel_index]
+        if fibers_per_order is not None:
+            for m, (tr, _cr) in order_traces.items():
+                if len(tr) != fibers_per_order:
+                    logger.warning(
+                        "Order %d has %d fibers, expected %d",
+                        m,
+                        len(tr),
+                        fibers_per_order,
+                    )
+
+        # Apply grouping within each order
+        if fibers_config.groups is not None:
+            for name, group_cfg in fibers_config.groups.items():
+                group_traces[name] = {}
+                group_column_range[name] = {}
+                group_fiber_counts[name] = 0
+
+                for m, (order_tr, order_cr) in sorted(order_traces.items()):
+                    start, end = group_cfg.range
+                    start_idx = start - 1
+                    end_idx = end - 1
+
+                    n_in_order = len(order_tr)
+                    if end_idx > n_in_order:
+                        logger.warning(
+                            "Group %s range [%d, %d) exceeds fiber count %d in order %d",
+                            name,
+                            start,
+                            end,
+                            n_in_order,
+                            m,
+                        )
+                        end_idx = min(end_idx, n_in_order)
+                    start_idx = max(start_idx, 0)
+
+                    if start_idx >= end_idx:
+                        continue
+
+                    fiber_tr = order_tr[start_idx:end_idx]
+                    fiber_cr = order_cr[start_idx:end_idx]
+
+                    merged_tr, merged_cr = _merge_fiber_traces(
+                        fiber_tr, fiber_cr, group_cfg.merge, degree
+                    )
+
+                    group_traces[name][m] = merged_tr
+                    group_column_range[name][m] = merged_cr
+                    group_fiber_counts[name] = end_idx - start_idx
+
+        elif fibers_config.bundles is not None:
+            bundle_cfg = fibers_config.bundles
+            bundle_size = bundle_cfg.size
+
+            # Process each order's bundles
+            for m, (order_tr, order_cr) in sorted(order_traces.items()):
+                n_in_order = len(order_tr)
+                if n_in_order % bundle_size != 0:
+                    raise ValueError(
+                        f"Order {m} has {n_in_order} fibers, "
+                        f"not divisible by bundle size {bundle_size}"
+                    )
+
+                n_bundles = n_in_order // bundle_size
+                for i in range(n_bundles):
+                    name = f"bundle_{i + 1}"
+                    if name not in group_traces:
+                        group_traces[name] = {}
+                        group_column_range[name] = {}
+                        group_fiber_counts[name] = bundle_size
+
+                    start_idx = i * bundle_size
+                    end_idx = (i + 1) * bundle_size
+
+                    bundle_tr = order_tr[start_idx:end_idx]
+                    bundle_cr = order_cr[start_idx:end_idx]
+
+                    merged_tr, merged_cr = _merge_fiber_traces(
+                        bundle_tr, bundle_cr, bundle_cfg.merge, degree
+                    )
+
+                    group_traces[name][m] = merged_tr
+                    group_column_range[name][m] = merged_cr
+
+        return group_traces, group_column_range, group_fiber_counts
+
+    # Non-per-order grouping (original behavior)
     if fibers_config.groups is not None:
         # Explicit named groups
         for name, group_cfg in fibers_config.groups.items():
@@ -1139,6 +1337,15 @@ def organize_fibers(traces, column_range, fibers_config, degree=4):
     return group_traces, group_column_range, group_fiber_counts
 
 
+def _stack_per_order_traces(order_dict):
+    """Stack per-order traces {order_m: trace} into arrays ordered by m."""
+    if not order_dict:
+        return np.empty((0, 1)), np.empty((0, 2))
+    sorted_orders = sorted(order_dict.keys())
+    traces = np.vstack([order_dict[m] for m in sorted_orders])
+    return traces, sorted_orders
+
+
 def select_traces_for_step(
     raw_traces,
     raw_cr,
@@ -1157,10 +1364,12 @@ def select_traces_for_step(
         All individual fiber traces
     raw_cr : ndarray (n_fibers, 2)
         Column ranges for individual fibers
-    group_traces : dict[str, ndarray]
+    group_traces : dict
         Grouped/merged traces from organize_fibers()
-    group_cr : dict[str, ndarray]
-        Column ranges for grouped traces
+        Non-per-order: {group_name: ndarray}
+        Per-order: {group_name: {order_m: ndarray}}
+    group_cr : dict
+        Column ranges with same structure as group_traces
     fibers_config : FibersConfig or None
         Fiber configuration (may be None for single-fiber instruments)
     step_name : str
@@ -1168,55 +1377,68 @@ def select_traces_for_step(
 
     Returns
     -------
-    traces : ndarray
-        Selected traces for this step
-    column_range : ndarray
-        Column ranges for selected traces
+    selected : dict[str, tuple[ndarray, ndarray]]
+        {group_name: (traces, column_range)} for each selected group
+        For "all" or "groups" selection, returns {"all": (traces, cr)}
     """
     # No fiber config means use raw traces
     if fibers_config is None:
-        return raw_traces, raw_cr
+        return {"all": (raw_traces, raw_cr)}
 
     # No groups/bundles defined means use raw traces
     if fibers_config.groups is None and fibers_config.bundles is None:
-        return raw_traces, raw_cr
+        return {"all": (raw_traces, raw_cr)}
 
     # Determine selection for this step
     selection = "groups"  # default when groups/bundles defined
     if fibers_config.use is not None and step_name in fibers_config.use:
         selection = fibers_config.use[step_name]
 
+    per_order = fibers_config.per_order
+
     if selection == "all":
-        return raw_traces, raw_cr
+        return {"all": (raw_traces, raw_cr)}
 
     elif selection == "groups":
-        # Concatenate all group traces
+        # Stack all group traces into single array
         all_traces = []
         all_cr = []
         for name in sorted(group_traces.keys()):
-            all_traces.append(group_traces[name])
-            all_cr.append(group_cr[name])
+            if per_order:
+                # Per-order: {group: {order: trace}} - stack orders for each group
+                traces, _ = _stack_per_order_traces(group_traces[name])
+                cr, _ = _stack_per_order_traces(group_cr[name])
+                all_traces.append(traces)
+                all_cr.append(cr)
+            else:
+                all_traces.append(group_traces[name])
+                all_cr.append(group_cr[name])
         if all_traces:
-            return np.vstack(all_traces), np.vstack(all_cr)
+            return {"all": (np.vstack(all_traces), np.vstack(all_cr))}
         else:
-            return raw_traces, raw_cr
+            return {"all": (raw_traces, raw_cr)}
 
     elif isinstance(selection, list):
-        # Select specific groups by name
-        selected_traces = []
-        selected_cr = []
+        # Select specific groups by name - keep them separate
+        result = {}
         for name in selection:
-            if name in group_traces:
-                selected_traces.append(group_traces[name])
-                selected_cr.append(group_cr[name])
-            else:
+            if name not in group_traces:
                 logger.warning("Group '%s' not found in trace data", name)
-        if selected_traces:
-            return np.vstack(selected_traces), np.vstack(selected_cr)
-        else:
+                continue
+
+            if per_order:
+                # Per-order: stack orders for this group
+                traces, _ = _stack_per_order_traces(group_traces[name])
+                cr, _ = _stack_per_order_traces(group_cr[name])
+                result[name] = (traces, cr)
+            else:
+                result[name] = (group_traces[name], group_cr[name])
+
+        if not result:
             logger.warning("No valid groups selected, using all raw traces")
-            return raw_traces, raw_cr
+            return {"all": (raw_traces, raw_cr)}
+        return result
 
     else:
         logger.warning("Unknown selection type: %s, using raw traces", selection)
-        return raw_traces, raw_cr
+        return {"all": (raw_traces, raw_cr)}

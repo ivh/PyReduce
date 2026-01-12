@@ -3,114 +3,145 @@
 # dependencies = ["pyreduce-astro>=0.7b3"]
 # ///
 """
-AJ instrument example using config-based fiber grouping.
+AJ instrument example using config-based per-order fiber grouping.
 
-The fibers.groups config in AJ/config.yaml handles:
-- Organizing 75 fibers into groups A (1-35), cal (37-39), B (40-75)
-- Merging each group's traces by averaging
-- Selecting which groups to use for each step
+This script demonstrates:
+1. Using OrderTracing step class with settings from settings.json
+2. Tracing even and odd flat fields separately
+3. Combining traces and using config-based per-order fiber grouping
+4. Extracting spectra from grouped fibers
 
-Note: This example uses a combined flat (even+odd). The even/odd
-flat separation for tracing is a separate concern not yet in config.
+The fiber config in AJ/config.yaml handles:
+- per_order: true - enables per-spectral-order grouping
+- order_centers_file - y-positions to assign traces to orders
+- groups - logical fiber groups (A, cal, B) within each order
+- use - which groups to use for each reduction step
 """
 
 import os
-from os.path import join
 
 import numpy as np
 
-from pyreduce import util
 from pyreduce.configuration import load_config
+from pyreduce.extract import extract
 from pyreduce.instruments.instrument_info import load_instrument
-from pyreduce.pipeline import Pipeline
+from pyreduce.reduce import OrderTracing
+from pyreduce.trace import organize_fibers
 
-# Parameters
+# --- Configuration ---
 instrument_name = "AJ"
-target = "AJ_test"
-night = ""
-channel = "ALL"
-plot = 1
-
-# Handle plot environment variables
-if "PYREDUCE_PLOT" in os.environ:
-    plot = int(os.environ["PYREDUCE_PLOT"])
-plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
-util.set_plot_dir(plot_dir)
-
-# Data location
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-raw_dir = join(data_dir, "AJ", "raw")
-output_dir = join(data_dir, "AJ", "reduced")
+raw_dir = os.path.join(data_dir, "AJ", "raw")
+output_dir = os.path.join(data_dir, "AJ", "reduced")
 
-# Input files - combine even and odd flats for tracing
-file_even = join(raw_dir, "J_FF_even_1s.fits")
-file_odd = join(raw_dir, "J_FF_odd_1s.fits")
-combined_flat = join(output_dir, "combined_flat.fits")
+# Input files
+file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
+file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
 
-# Verify input files exist
-for fpath in [file_even, file_odd]:
-    if not os.path.exists(fpath):
-        raise FileNotFoundError(f"Data file not found: {fpath}")
+# Output
+output_file = os.path.join(output_dir, "fiber_traces_v2.npz")
 
-print(f"Even flat: {file_even}")
-print(f"Odd flat: {file_odd}")
-
-# Create combined flat if needed
-os.makedirs(output_dir, exist_ok=True)
+# --- Load instrument and config ---
 instrument = load_instrument(instrument_name)
+channel = instrument.info["channels"][0]
+config = load_config(None, instrument_name)
+plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
-if not os.path.exists(combined_flat):
-    print("\nCombining even and odd flats...")
-    img_even, head = instrument.load_fits(file_even, channel=channel, extension=0)
-    img_odd, _ = instrument.load_fits(file_odd, channel=channel, extension=0)
-    # Convert masked arrays to regular arrays
-    img_even = np.asarray(img_even)
-    img_odd = np.asarray(img_odd)
-    img_combined = img_even.astype(np.float64) + img_odd.astype(np.float64)
+fibers_config = instrument.config.fibers
+print(f"Instrument: {instrument.name}")
+print(f"Per-order grouping: {fibers_config.per_order}")
+print(f"Fibers per order: {fibers_config.fibers_per_order}")
+print(f"Groups: {list(fibers_config.groups.keys())}")
 
-    from astropy.io import fits
-
-    fits.writeto(combined_flat, img_combined, head, overwrite=True)
-    print(f"Saved combined flat to: {combined_flat}")
-else:
-    print(f"\nUsing existing combined flat: {combined_flat}")
-
-# Load configuration
-config = load_config(None, instrument_name, plot)
-
-# Create pipeline - fiber grouping is handled by config.yaml:
-#   groups:
-#     A: {range: [1, 36], merge: average}
-#     cal: {range: [37, 40], merge: average}
-#     B: {range: [40, 76], merge: average}
-#   use:
-#     science: [A, B]
-#     wavecal: [cal]
-#     norm_flat: all
-pipe = Pipeline(
-    instrument=instrument_name,
-    output_dir=output_dir,
-    target=target,
+# --- Create OrderTracing step (once, reuse for both flats) ---
+trace_config = {**config["trace"], "plot": plot}
+trace_step = OrderTracing(
+    instrument,
     channel=channel,
-    night=night,
-    config=config,
+    target="AJ_test",
+    night="",
+    output_dir=output_dir,
+    order_range=None,
+    **trace_config,
+)
+
+# --- Step 1: Load images ---
+print(f"\nLoading {file_even}...")
+img_even, head_even = instrument.load_fits(file_even, channel=channel, extension=0)
+print(f"  Shape: {img_even.shape}")
+
+print(f"Loading {file_odd}...")
+img_odd, head_odd = instrument.load_fits(file_odd, channel=channel, extension=0)
+
+# Combined flat for extraction
+img_combined = img_even.astype(np.float64) + img_odd.astype(np.float64)
+
+# --- Step 2: Trace each flat using OrderTracing step ---
+print("\nTracing even-illuminated fibers...")
+trace_step.plot_title = "Even fibers"
+traces_even, cr_even = trace_step.run([file_even])
+print(f"  Found {len(traces_even)} traces")
+
+print("\nTracing odd-illuminated fibers...")
+trace_step.plot_title = "Odd fibers"
+traces_odd, cr_odd = trace_step.run([file_odd])
+print(f"  Found {len(traces_odd)} traces")
+
+# --- Step 3: Combine all traces ---
+all_traces = np.vstack([traces_even, traces_odd])
+all_cr = np.vstack([cr_even, cr_odd])
+print(f"\nTotal traces: {len(all_traces)}")
+
+# --- Step 4: Organize into fiber groups using config ---
+print("\nOrganizing traces into fiber groups...")
+channels = instrument.channels or []
+channel_index = channels.index(channel.upper()) if channel.upper() in channels else 0
+group_traces, group_cr, group_counts = organize_fibers(
+    all_traces,
+    all_cr,
+    fibers_config,
+    degree=config["trace"]["degree"],
+    instrument_dir=instrument._inst_dir,
+    channel_index=channel_index,
+)
+
+print("Fiber groups created:")
+for name, traces_dict in group_traces.items():
+    n_orders = len(traces_dict)
+    print(f"  {name}: {n_orders} orders, {group_counts[name]} fibers per order")
+
+# --- Step 5: Save results ---
+os.makedirs(output_dir, exist_ok=True)
+
+save_dict = {"raw_traces": all_traces, "raw_cr": all_cr}
+for group_name, order_dict in group_traces.items():
+    for order_m, tr in order_dict.items():
+        save_dict[f"{group_name}_order_{order_m}"] = tr
+        save_dict[f"{group_name}_cr_{order_m}"] = group_cr[group_name][order_m]
+
+np.savez(output_file, **save_dict)
+print(f"\nSaved traces to: {output_file}")
+
+# --- Step 6: Extract from group A as example ---
+print("\nExtracting group A spectra...")
+
+# Stack A traces across orders (sorted by order number)
+a_traces = np.vstack([group_traces["A"][m] for m in sorted(group_traces["A"].keys())])
+a_cr = np.vstack([group_cr["A"][m] for m in sorted(group_cr["A"].keys())])
+print(f"  Group A: {len(a_traces)} traces (one per order)")
+
+norm, spec, blaze, unc = extract(
+    img_combined,
+    a_traces,
+    column_range=a_cr,
+    extraction_type="normalize",
+    extraction_height=config["science"]["extraction_height"],
+    osample=config["science"]["oversampling"],
+    gain=1.0,
+    readnoise=0.0,
+    dark=0.0,
     plot=plot,
 )
 
-# Run pipeline steps
-pipe.flat([combined_flat])  # Register flat for norm_flat step
-pipe.trace_orders([combined_flat])
-pipe.normalize_flat()  # Uses flat registered above
-
-print("\n=== Running Pipeline ===")
-results = pipe.run()
-
-print("\n=== Results ===")
-orders, column_range = results["trace"]
-print(f"Raw traces: {len(orders)}")
-
-if "trace_groups" in results and results["trace_groups"]:
-    group_traces, group_cr = results["trace_groups"]
-    print(f"Fiber groups: {list(group_traces.keys())}")
-    for name, traces in group_traces.items():
-        print(f"  {name}: {len(traces)} trace(s)")
+print(f"  Extracted blaze shape: {blaze.shape}")
+print("Done.")

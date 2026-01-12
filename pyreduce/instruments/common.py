@@ -156,6 +156,9 @@ class Instrument:
         self.science = "science"
         self.shared = ["instrument", "night"]
 
+        # Directory containing instrument config files
+        self._inst_dir = os.path.join(os.path.dirname(__file__), self.name.upper())
+
         # Add channel filter if kw_channel is defined (for instruments with separate files per channel)
         if self.config.kw_channel is not None:
             self.filters["channel"] = ChannelFilter(self.config.kw_channel)

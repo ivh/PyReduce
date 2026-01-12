@@ -354,10 +354,8 @@ class Step:
 
         Returns
         -------
-        orders : ndarray
-            Selected traces for this step
-        column_range : ndarray
-            Column ranges for selected traces
+        selected : dict[str, tuple[ndarray, ndarray]]
+            {group_name: (traces, column_range)} for each selected group
         """
         orders, column_range = trace
         group_traces = {}
@@ -866,8 +864,22 @@ class OrderTracing(CalibrationStep):
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
             logger.info("Organizing %d traces into fiber groups", len(orders))
+            inst_dir = getattr(self.instrument, "_inst_dir", None)
+            # Get channel index for per-channel config lists
+            channels = self.instrument.channels or []
+            try:
+                channel_index = channels.index(self.channel.upper())
+            except (ValueError, AttributeError):
+                channel_index = 0
             self.group_traces, self.group_column_range, self.group_fiber_counts = (
-                organize_fibers(orders, column_range, fibers_config, self.fit_degree)
+                organize_fibers(
+                    orders,
+                    column_range,
+                    fibers_config,
+                    self.fit_degree,
+                    inst_dir,
+                    channel_index,
+                )
             )
             for name, count in self.group_fiber_counts.items():
                 logger.info("  Group %s: %d fibers", name, count)
@@ -984,7 +996,12 @@ class BackgroundScatter(CalibrationStep):
         scatter_img, shead = self.calibrate(files, mask, bias)
 
         # Apply fiber selection based on instrument config
-        orders, column_range = self._select_traces(trace, "scatter", trace_groups)
+        selected = self._select_traces(trace, "scatter", trace_groups)
+        # Stack all selected groups (typically just one)
+        all_traces = [tr for tr, _ in selected.values()]
+        all_cr = [cr for _, cr in selected.values()]
+        orders = np.vstack(all_traces)
+        column_range = np.vstack(all_cr)
         scatter = estimate_background_scatter(
             scatter_img,
             orders,
@@ -1089,7 +1106,11 @@ class NormalizeFlatField(Step):
         """
         flat, fhead = flat
         # Apply fiber selection based on instrument config
-        orders, column_range = self._select_traces(trace, "norm_flat", trace_groups)
+        selected = self._select_traces(trace, "norm_flat", trace_groups)
+        all_traces = [tr for tr, _ in selected.values()]
+        all_cr = [cr for _, cr in selected.values()]
+        orders = np.vstack(all_traces)
+        column_range = np.vstack(all_cr)
         p1, p2 = curvature if curvature is not None else (None, None)
 
         # if threshold is smaller than 1, assume percentage value is given
@@ -1218,9 +1239,11 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
             raise FileNotFoundError("No files found for wavelength calibration")
         logger.info("Wavelength calibration files: %s", files)
         # Apply fiber selection based on instrument config
-        selected_orders, selected_cr = self._select_traces(
-            trace, "wavecal_master", trace_groups
-        )
+        selected = self._select_traces(trace, "wavecal_master", trace_groups)
+        all_traces = [tr for tr, _ in selected.values()]
+        all_cr = [cr for _, cr in selected.values()]
+        selected_orders = np.vstack(all_traces)
+        selected_cr = np.vstack(all_cr)
         selected_trace = (selected_orders, selected_cr)
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
@@ -1707,7 +1730,11 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         orig, thead = self.calibrate(files, mask, bias, None)
 
         # Apply fiber selection based on instrument config
-        orders, column_range = self._select_traces(trace, "curvature", trace_groups)
+        selected = self._select_traces(trace, "curvature", trace_groups)
+        all_traces = [tr for tr, _ in selected.values()]
+        all_cr = [cr for _, cr in selected.values()]
+        orders = np.vstack(all_traces)
+        column_range = np.vstack(all_cr)
         nrow, ncol = orig.shape
         nord = len(orders)
         _, column_range, orders = fix_parameters(
@@ -1908,9 +1935,11 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             column ranges for each spectra
         """
         # Apply fiber selection based on instrument config
-        selected_orders, selected_cr = self._select_traces(
-            trace, "science", trace_groups
-        )
+        selected = self._select_traces(trace, "science", trace_groups)
+        all_traces = [tr for tr, _ in selected.values()]
+        all_cr = [cr for _, cr in selected.values()]
+        selected_orders = np.vstack(all_traces)
+        selected_cr = np.vstack(all_cr)
         selected_trace = (selected_orders, selected_cr)
 
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
