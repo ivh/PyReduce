@@ -245,68 +245,6 @@ class TestMergeTraces:
         assert len(t_by_o[20]) == 1
 
 
-class TestGroupAndRefit:
-    """Tests for group_and_refit function."""
-
-    @pytest.mark.unit
-    def test_group_and_refit_basic(self):
-        """Test basic grouping and refitting."""
-        # Two traces in order 0 at y=100 and y=110
-        # [0, 0, 100] in polyval order means y = 100
-        traces_by_order = {0: np.array([[0.0, 0.0, 100.0], [0.0, 0.0, 110.0]])}
-        cr_by_order = {0: np.array([[10, 990], [10, 990]])}
-        fiber_ids_by_order = {0: np.array([0, 1])}
-
-        groups = {"A": (0, 2)}
-
-        logical_traces, logical_cr, fiber_counts = trace.group_and_refit(
-            traces_by_order, cr_by_order, fiber_ids_by_order, groups, degree=2
-        )
-
-        assert "A" in logical_traces
-        assert len(logical_traces["A"]) == 1  # One order
-        assert logical_traces["A"][0].shape == (3,)  # degree 2 + 1 coeffs
-
-        assert 0 in fiber_counts["A"]
-        assert fiber_counts["A"][0] == 2  # 2 fibers in group A
-
-    @pytest.mark.unit
-    def test_group_and_refit_multiple_groups(self):
-        """Test with multiple fiber groups."""
-        traces_by_order = {
-            0: np.array([[0.0, 0.0, 100.0], [0.0, 0.0, 110.0], [0.0, 0.0, 200.0]])
-        }
-        cr_by_order = {0: np.array([[10, 990], [10, 990], [10, 990]])}
-        fiber_ids_by_order = {0: np.array([0, 1, 5])}
-
-        groups = {"A": (0, 2), "B": (5, 6)}
-
-        logical_traces, logical_cr, fiber_counts = trace.group_and_refit(
-            traces_by_order, cr_by_order, fiber_ids_by_order, groups, degree=2
-        )
-
-        assert "A" in logical_traces
-        assert "B" in logical_traces
-        assert fiber_counts["A"][0] == 2
-        assert fiber_counts["B"][0] == 1
-
-    @pytest.mark.unit
-    def test_group_and_refit_missing_group(self):
-        """Test with a group that has no traces."""
-        traces_by_order = {0: np.array([[0.0, 0.0, 100.0]])}
-        cr_by_order = {0: np.array([[10, 990]])}
-        fiber_ids_by_order = {0: np.array([0])}
-
-        groups = {"A": (0, 1), "B": (5, 6)}  # Group B has no traces
-
-        logical_traces, logical_cr, fiber_counts = trace.group_and_refit(
-            traces_by_order, cr_by_order, fiber_ids_by_order, groups, degree=2
-        )
-
-        assert fiber_counts["B"][0] == 0
-        assert np.all(np.isnan(logical_traces["B"][0]))
-
-
 class TestOrganizeFibers:
     """Tests for organize_fibers function (config-based fiber grouping)."""
 

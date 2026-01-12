@@ -155,7 +155,7 @@ def trace(instrument: str, files: tuple[str, ...], output: str, mode: str, plot:
     pipe = Pipeline(inst, output, mode=mode, plot=plot)
     if file_list:
         pipe = pipe.flat(file_list)
-    pipe.trace_orders(file_list).run()
+    pipe.trace(file_list).run()
     click.echo(f"Order trace saved to {output}")
 
 
@@ -288,7 +288,7 @@ def run(config_file: str, steps: str, skip_existing: bool, plot: int):
 
     if "trace" in config_steps:
         trace_files = files.get("trace") or files.get("flat")
-        pipe = pipe.trace_orders(_expand_globs(trace_files) if trace_files else None)
+        pipe = pipe.trace(_expand_globs(trace_files) if trace_files else None)
 
     if "scatter" in config_steps:
         pipe = pipe.scatter()

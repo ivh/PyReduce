@@ -34,7 +34,7 @@ class TestPipelineConstruction:
         result = pipe.flat(["file2.fits"])
         assert result is pipe
 
-        result = pipe.trace_orders()
+        result = pipe.trace()
         assert result is pipe
 
     @pytest.mark.unit
@@ -44,7 +44,7 @@ class TestPipelineConstruction:
             Pipeline("UVES", str(tmp_path))
             .bias(["bias1.fits", "bias2.fits"])
             .flat(["flat1.fits"])
-            .trace_orders()
+            .trace()
             .extract(["science.fits"])
         )
 
@@ -125,8 +125,8 @@ class TestPipelineExecution:
 
     @pytest.mark.instrument
     @pytest.mark.slow
-    def test_pipeline_trace_orders(self, instr, channel, files, settings, tmp_path):
-        """Test order tracing through Pipeline."""
+    def test_pipeline_trace(self, instr, channel, files, settings, tmp_path):
+        """Test tracing through Pipeline."""
         order_files = files.get("trace", [])
         if len(order_files) == 0:
             pytest.skip("No order tracing files for this instrument")
@@ -135,7 +135,7 @@ class TestPipelineExecution:
         pipe = Pipeline(instr, str(tmp_path), channel=channel, config=settings)
         if bias_files:
             pipe = pipe.bias(bias_files)
-        pipe = pipe.trace_orders(list(order_files))
+        pipe = pipe.trace(list(order_files))
         result = pipe.run()
 
         assert "trace" in result

@@ -3,207 +3,111 @@
 # dependencies = ["pyreduce-astro>=0.7b3"]
 # ///
 """
-AJ instrument example: Fiber bundle tracing with direct function calls.
+AJ instrument example: Multi-fiber tracing with Pipeline API.
 
-This script demonstrates tracing a multi-fiber instrument where even and
-odd fibers are illuminated in separate flat field images. Instead of
-embedding this logic in the Pipeline, we call the functions directly,
-giving full control over the workflow and access to intermediate results.
+Demonstrates tracing fibers illuminated in separate flat field images
+(even/odd pattern) using the Pipeline's trace() and merge_traces() methods.
 
-The instrument class still provides:
-- Image loading with proper orientation
-- Header parsing
-- Detector properties (gain, readnoise, etc.)
-
-The script controls:
-- Which files to use for what
-- Order of operations
-- Parameters for each step
-- What to save and where
+The fiber config in AJ/config.yaml handles:
+- order_centers_file: assigns traces to spectral orders by y-position
+- groups: organizes fibers into logical groups (A, cal, B) within each order
+- merge: average - averages fiber traces within each group
 """
 
 import os
 
 import numpy as np
 
+from pyreduce.configuration import load_config
 from pyreduce.extract import extract
-from pyreduce.instruments.instrument_info import load_instrument
-from pyreduce.trace import group_and_refit, merge_traces, trace
+from pyreduce.pipeline import Pipeline
 
 # --- Configuration ---
 instrument_name = "AJ"
-raw_dir = os.path.expanduser("~/REDUCE_DATA/AJ/raw")
+data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+raw_dir = os.path.join(data_dir, "AJ", "raw")
+output_dir = os.path.join(data_dir, "AJ", "reduced")
 
-# Input files
+# Input files (even and odd illuminated flats)
 file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
 file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
-orders_file = os.path.join(raw_dir, "ANDES_75fibre_J_orders.npz")
 
-# Output
-output_dir = os.path.expanduser("~/REDUCE_DATA/AJ/reduced")
-output_file = os.path.join(output_dir, "fiber_traces.npz")
-output_blaze = os.path.join(output_dir, "fiber_blaze.npz")
+# Plot settings
+plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
-# Load order centers from npz file
-orders_data = np.load(orders_file)
-order_numbers = orders_data["order"]
-order_centers = orders_data["y_mid"]
-print(
-    f"Loaded {len(order_centers)} orders ({order_numbers[0]}-{order_numbers[-1]}) from {orders_file}"
+# --- Create Pipeline ---
+config = load_config(None, instrument_name)
+pipe = Pipeline(
+    instrument=instrument_name,
+    output_dir=output_dir,
+    target="AJ_fiber_test",
+    config=config,
+    plot=plot,
 )
 
-# Order tracing parameters (tune these for your data)
-trace_params = {
-    "min_cluster": 500,
-    "min_width": 0.1,  # Fraction of detector height
-    "filter_x": 0,  # Smooth along dispersion to reduce noise
-    "filter_y": 4,  # Small value to preserve thin fiber separation
-    "noise": 0,
-    "degree": 4,
-    "degree_before_merge": 4,
-    "regularization": 0,
-    "closing_shape": (1, 1),
-    "opening_shape": (1, 1),
-    "border_width": 0,
-    "manual": False,
-    "auto_merge_threshold": 1.0,
-    "merge_min_threshold": 1.0,  # 1.0 disables merging entirely
-    "sigma": 0,
-    "plot": 1,
-}
+print(f"Instrument: {pipe.instrument.name}")
+fibers_config = pipe.instrument.config.fibers
+print(f"Per-order grouping: {fibers_config.per_order}")
+print(f"Groups: {list(fibers_config.groups.keys())}")
 
-# Logical fiber grouping (fiber number ranges, 1-based)
-logical_fibers = {
-    "A": (1, 36),
-    "cal": (37, 39),
-    "B": (40, 76),
-}
-
-# --- Load instrument ---
-instrument = load_instrument(instrument_name)
-channel = instrument.info["channels"][0]  # Use first channel
-print(f"Instrument: {instrument.name}, channel: {channel}")
-
-# --- Step 1: Load images using instrument class ---
-print(f"\nLoading {file_even}...")
-img_even, head_even = instrument.load_fits(file_even, channel=channel, extension=0)
-print(f"  Shape: {img_even.shape}, dtype: {img_even.dtype}")
-
-print(f"Loading {file_odd}...")
-img_odd, head_odd = instrument.load_fits(file_odd, channel=channel, extension=0)
-
-# Combine even and odd flats for extraction
-img_combined = img_even.astype(np.float64) + img_odd.astype(np.float64)
-print(f"Combined flat shape: {img_combined.shape}")
-
-# --- Step 2: Trace each flat independently ---
-print("\nTracing even-illuminated fibers...")
-traces_even, cr_even = trace(
-    img_even, plot_title="Even fibers", debug_dir="./debug/even", **trace_params
-)
+# --- Trace each flat independently ---
+print(f"\nTracing even fibers from {os.path.basename(file_even)}...")
+traces_even, cr_even = pipe.trace([file_even], save=False)
 print(f"  Found {len(traces_even)} traces")
 
-print("\nTracing odd-illuminated fibers...")
-traces_odd, cr_odd = trace(
-    img_odd, plot_title="Odd fibers", debug_dir="./debug/odd", **trace_params
-)
+print(f"\nTracing odd fibers from {os.path.basename(file_odd)}...")
+traces_odd, cr_odd = pipe.trace([file_odd], save=False)
 print(f"  Found {len(traces_odd)} traces")
 
-# --- Step 3: Merge traces and assign to spectral orders ---
-print("\nMerging traces and assigning to orders...")
-traces_by_order, cr_by_order, fiber_ids = merge_traces(
-    traces_even,
-    cr_even,
-    traces_odd,
-    cr_odd,
-    order_centers=order_centers,
-    order_numbers=order_numbers,
-    ncols=img_even.shape[1],
-)
+# --- Merge and organize ---
+print("\nMerging traces and organizing into fiber groups...")
+pipe.merge_traces(traces_even, cr_even, traces_odd, cr_odd)
 
-print(f"  Assigned to {len(traces_by_order)} spectral orders:")
-for oid in sorted(traces_by_order.keys()):
-    print(f"    Order {oid}: {len(traces_by_order[oid])} traces")
+# Access organized groups
+if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
+    group_traces, group_cr = pipe._data["trace_groups"]
+    print("Fiber groups:")
+    for name, traces_dict in group_traces.items():
+        n_orders = len(traces_dict)
+        print(f"  {name}: {n_orders} orders")
 
-# --- Step 4: Group into logical fibers (optional) ---
-# This step averages physical fiber traces into logical fiber traces.
-# It may fail if too few traces are detected - trace parameters need tuning.
-print("\nGrouping into logical fibers...")
-try:
-    logical_traces, logical_cr, fiber_counts = group_and_refit(
-        traces_by_order,
-        cr_by_order,
-        fiber_ids,
-        groups=logical_fibers,
-        degree=trace_params["degree"],
-    )
+# --- Extract group A as example ---
+print("\nExtracting group A spectra...")
 
-    for name, (start, end) in logical_fibers.items():
-        total = sum(fiber_counts[name].values())
-        print(f"  {name}: {total} physical fibers (range {start}-{end})")
-except Exception as e:
-    print(f"  Grouping failed: {e}")
-    print("  (This is expected if trace detection found too few traces)")
-    print("  Skipping grouping step - saving raw traces only")
-    logical_traces = None
+# Load combined flat for extraction
+img_even, _ = pipe.instrument.load_fits(file_even, channel="ALL", extension=0)
+img_odd, _ = pipe.instrument.load_fits(file_odd, channel="ALL", extension=0)
+img_combined = img_even.astype(np.float64) + img_odd.astype(np.float64)
 
-# --- Step 5: Save results ---
-os.makedirs(output_dir, exist_ok=True)
-
-save_dict = {
-    # Raw traces per order (always saved)
-    **{f"traces_order_{k}": v for k, v in traces_by_order.items()},
-    **{f"cr_order_{k}": v for k, v in cr_by_order.items()},
-    **{f"fiber_ids_order_{k}": v for k, v in fiber_ids.items()},
-}
-
-if logical_traces is not None:
-    # Add logical fiber traces
-    save_dict["orders"] = np.array(logical_traces["A"])
-    save_dict["column_range"] = np.array(logical_cr)
-    save_dict["traces_A"] = np.array(logical_traces["A"])
-    save_dict["traces_B"] = np.array(logical_traces["B"])
-    save_dict["traces_cal"] = np.array(logical_traces["cal"])
+# Get group A traces (stacked across orders)
+if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
+    group_traces, group_cr = pipe._data["trace_groups"]
+    a_orders = sorted(group_traces["A"].keys())
+    a_traces = np.vstack([group_traces["A"][m] for m in a_orders])
+    a_cr = np.vstack([group_cr["A"][m] for m in a_orders])
 else:
-    # Fallback: flatten all traces as orders
-    all_traces = np.vstack([traces_by_order[k] for k in sorted(traces_by_order.keys())])
-    all_cr = np.vstack([cr_by_order[k] for k in sorted(cr_by_order.keys())])
-    save_dict["orders"] = all_traces
-    save_dict["column_range"] = all_cr
+    # Fallback to raw traces
+    a_traces, a_cr = pipe._data["trace"]
 
-np.savez(output_file, **save_dict)
-print(f"\nSaved traces to: {output_file}")
-
-# --- Step 6: Extract spectra from all fiber traces ---
-# Flatten all traces into a single orders array for extraction
-all_traces = np.vstack([traces_by_order[k] for k in sorted(traces_by_order.keys())])
-all_cr = np.vstack([cr_by_order[k] for k in sorted(cr_by_order.keys())])
-print(f"\nExtracting {len(all_traces)} fiber traces...")
-
-# Extraction parameters
-extract_params = {
-    "extraction_height": 0.5,
-    "lambda_sf": 0.1,  # smooth_slitfunction
-    "lambda_sp": 0,  # smooth_spectrum
-    "osample": 10,  # oversampling
-    "swath_width": 200,
-    "plot": 1,
-}
+print(f"  Extracting {len(a_traces)} traces...")
 
 norm, spec, blaze, unc = extract(
     img_combined,
-    all_traces,
-    column_range=all_cr,
+    a_traces,
+    column_range=a_cr,
     extraction_type="normalize",
+    extraction_height=config["science"]["extraction_height"],
+    osample=config["science"]["oversampling"],
     gain=1.0,
     readnoise=0.0,
     dark=0.0,
-    **extract_params,
+    plot=plot,
 )
 
-print(f"  Extracted blaze shape: {blaze.shape}")
-print(f"  Normalized flat shape: {norm.shape}")
+print(f"  Blaze shape: {blaze.shape}")
 
-# Save extraction results
-np.savez(output_blaze, blaze=blaze, norm=norm, spec=spec, unc=unc)
-print(f"Saved blaze to: {output_blaze}")
+# Save results
+os.makedirs(output_dir, exist_ok=True)
+output_file = os.path.join(output_dir, "aj_blaze.npz")
+np.savez(output_file, blaze=blaze, norm=norm, spec=spec, unc=unc)
+print(f"\nSaved to: {output_file}")

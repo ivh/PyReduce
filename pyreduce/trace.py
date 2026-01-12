@@ -6,7 +6,8 @@ Note on terminology:
 - "spectral order": A group of traces at similar wavelengths (e.g., all fibers in one echelle order)
 
 The main function `trace` detects and fits individual traces.
-Use `merge_traces` and `group_and_refit` to organize traces into spectral orders.
+Use `merge_traces` to combine traces from multiple files (e.g., even/odd illumination).
+Use `organize_fibers` to group traces into logical fiber groups based on config.
 """
 
 import logging
@@ -927,92 +928,6 @@ def merge_traces(
         fiber_ids_by_order[order_idx] = fiber_ids
 
     return traces_by_order, column_range_by_order, fiber_ids_by_order
-
-
-def group_and_refit(
-    traces_by_order, column_range_by_order, fiber_ids_by_order, groups, degree=4
-):
-    """
-    Group physical fiber traces into logical fibers and refit polynomials.
-
-    For each spectral order and each fiber group, evaluates all member
-    polynomials at each column, averages the y-positions, and fits a new
-    polynomial.
-
-    Parameters
-    ----------
-    traces_by_order : dict
-        {order_idx: array (n_fibers, degree+1)} traces per order
-    column_range_by_order : dict
-        {order_idx: array (n_fibers, 2)} column ranges per order
-    fiber_ids_by_order : dict
-        {order_idx: array (n_fibers,)} fiber IDs per order (0-74)
-    groups : dict
-        Mapping of group name to fiber index range, e.g.:
-        {'A': (0, 36), 'cal': (36, 38), 'B': (38, 75)}
-    degree : int
-        Polynomial degree for refitted traces
-
-    Returns
-    -------
-    logical_traces : dict
-        {group_name: array (n_orders, degree+1)} polynomials per group
-    logical_column_range : array (n_orders, 2)
-        Column range per order
-    fiber_counts : dict
-        {group_name: dict {order_idx: int}} fiber counts per order
-    """
-    from numpy.polynomial.polynomial import Polynomial
-
-    order_indices = sorted(traces_by_order.keys())
-
-    logical_traces = {name: [] for name in groups.keys()}
-    logical_column_range = []
-    fiber_counts = {name: {} for name in groups.keys()}
-
-    for order_idx in order_indices:
-        traces = traces_by_order[order_idx]
-        column_range = column_range_by_order[order_idx]
-        fiber_ids = fiber_ids_by_order[order_idx]
-
-        # Find shared column range for this order
-        col_min = np.max(column_range[:, 0])
-        col_max = np.min(column_range[:, 1])
-        x_eval = np.arange(col_min, col_max)
-        logical_column_range.append([col_min, col_max])
-
-        for group_name, (start, end) in groups.items():
-            # Find traces belonging to this group
-            mask = (fiber_ids >= start) & (fiber_ids < end)
-            group_traces = traces[mask]
-
-            if len(group_traces) == 0:
-                logger.warning(
-                    "No traces for group %s in order %d", group_name, order_idx
-                )
-                # Use NaN coefficients for missing groups
-                logical_traces[group_name].append(np.full(degree + 1, np.nan))
-                fiber_counts[group_name][order_idx] = 0
-                continue
-
-            # Evaluate all traces at each column and average
-            y_values = np.array([np.polyval(t, x_eval) for t in group_traces])
-            y_mean = np.mean(y_values, axis=0)
-
-            # Fit new polynomial to averaged positions
-            fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
-            coeffs = fit.coef[::-1]  # Convert to np.polyval order
-
-            logical_traces[group_name].append(coeffs)
-            fiber_counts[group_name][order_idx] = len(group_traces)
-
-    # Convert lists to arrays
-    for name in groups.keys():
-        logical_traces[name] = np.array(logical_traces[name])
-
-    logical_column_range = np.array(logical_column_range)
-
-    return logical_traces, logical_column_range, fiber_counts
 
 
 def _merge_fiber_traces(traces, column_range, merge_method, degree=4):

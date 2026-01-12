@@ -192,7 +192,8 @@ class ProgressPlot:  # pragma: no cover
         self.mask_slit.set_ydata(mask_slit)
 
         self.ax2.set_xlim((0, nspec - 1))
-        limit = np.nanmax(spec[5:-5]) * 1.1
+        spec_middle = spec[5:-5] if len(spec) > 10 else spec
+        limit = np.nanmax(spec_middle) * 1.1 if len(spec_middle) > 0 else 1.0
         if not np.isnan(limit):
             self.ax2.set_ylim((0, limit))
 

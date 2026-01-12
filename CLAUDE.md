@@ -217,7 +217,7 @@ pipe = Pipeline(
 )
 pipe.bias(bias_files)
 pipe.flat(flat_files)
-pipe.trace_orders()
+pipe.trace()
 pipe.extract(science_files)
 result = pipe.run()
 ```

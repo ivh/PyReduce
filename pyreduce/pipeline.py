@@ -21,10 +21,16 @@ Example usage:
         Pipeline("UVES", output_dir, config=settings)
         .bias(bias_files)
         .flat(flat_files)
-        .trace_orders(order_files)
+        .trace()
         .extract(science_files)
         .run()
     )
+
+    # For multi-fiber instruments with separate illumination files:
+    traces_even, cr_even = pipe.trace([even_flat], save=False)
+    traces_odd, cr_odd = pipe.trace([odd_flat], save=False)
+    pipe.merge_traces(traces_even, cr_even, traces_odd, cr_odd)
+    pipe.extract([science_file]).run()
 """
 
 from __future__ import annotations
@@ -184,12 +190,202 @@ class Pipeline:
         """Combine flat frames into master flat."""
         return self._add_step("flat", files)
 
-    def trace_orders(self, files: list[str] | None = None) -> Pipeline:
-        """Trace echelle orders on flat field.
+    def trace(
+        self, files: list[str] | None = None, save: bool = True
+    ) -> Pipeline | tuple:
+        """Trace fibers/orders on flat field.
 
-        If files not provided, uses flat from previous step.
+        Parameters
+        ----------
+        files : list[str], optional
+            Files to use for tracing. If not provided, uses flat from previous step.
+        save : bool, default True
+            If True, saves results and adds step to pipeline (normal behavior).
+            If False, runs tracing immediately and returns raw (traces, column_range)
+            without saving or organizing. Use this for multi-file tracing workflows.
+
+        Returns
+        -------
+        Pipeline or tuple
+            If save=True: returns self for method chaining
+            If save=False: returns (traces, column_range) arrays
         """
-        return self._add_step("trace", files)
+        if save:
+            return self._add_step("trace", files)
+
+        # Run immediately without saving - for multi-file merge workflows
+        from .trace import trace as trace_func
+
+        # Get mask and bias if available
+        mask = self._data.get("mask")
+        bias = self._data.get("bias")
+
+        # Load and calibrate the image
+        step_config = self.config.get("trace", {}).copy()
+        step_config["plot"] = self.plot
+        step = OrderTracing(*self._get_step_inputs(), **step_config)
+
+        order_img, _ = step.calibrate(files, mask, bias, None)
+
+        # Run tracing without organization
+
+        traces, column_range = trace_func(
+            order_img,
+            min_cluster=step.min_cluster,
+            min_width=step.min_width,
+            filter_x=step.filter_x,
+            filter_y=step.filter_y,
+            filter_type=step.filter_type,
+            noise=step.noise,
+            noise_relative=step.noise_relative,
+            degree=step.fit_degree,
+            degree_before_merge=step.degree_before_merge,
+            regularization=step.regularization,
+            closing_shape=step.closing_shape,
+            opening_shape=step.opening_shape,
+            border_width=step.border_width,
+            manual=step.manual,
+            auto_merge_threshold=step.auto_merge_threshold,
+            merge_min_threshold=step.merge_min_threshold,
+            sigma=step.sigma,
+            plot=self.plot,
+            plot_title=step.plot_title,
+        )
+
+        return traces, column_range
+
+    def trace_orders(self, files: list[str] | None = None) -> Pipeline:
+        """Deprecated: use trace() instead."""
+        import warnings
+
+        warnings.warn(
+            "trace_orders() is deprecated, use trace() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.trace(files, save=True)
+
+    def merge_traces(
+        self,
+        traces_a,
+        column_range_a,
+        traces_b,
+        column_range_b,
+    ) -> Pipeline:
+        """Merge two sets of traces and organize into fiber groups.
+
+        Use this after calling trace(save=False) on multiple files to combine
+        results from different illumination patterns (e.g., even/odd fibers).
+
+        Parameters
+        ----------
+        traces_a : ndarray (n_traces_a, degree+1)
+            Polynomial coefficients from first trace set
+        column_range_a : ndarray (n_traces_a, 2)
+            Column ranges for first set
+        traces_b : ndarray (n_traces_b, degree+1)
+            Polynomial coefficients from second trace set
+        column_range_b : ndarray (n_traces_b, 2)
+            Column ranges for second set
+
+        Returns
+        -------
+        Pipeline
+            Self for method chaining
+
+        Example
+        -------
+        >>> traces_even, cr_even = pipe.trace([even_flat], save=False)
+        >>> traces_odd, cr_odd = pipe.trace([odd_flat], save=False)
+        >>> pipe.merge_traces(traces_even, cr_even, traces_odd, cr_odd)
+        >>> pipe.extract([science_file]).run()
+        """
+        import numpy as np
+
+        from .trace import merge_traces as merge_func
+
+        # Get fibers config for order_centers
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+
+        # Load order_centers if configured
+        order_centers = None
+        order_numbers = None
+        inst_dir = getattr(self.instrument, "_inst_dir", None)
+        channels = self.instrument.channels or []
+        try:
+            channel_index = channels.index(self.channel.upper())
+        except (ValueError, AttributeError):
+            channel_index = 0
+
+        if fibers_config is not None:
+            from .trace import _load_order_centers
+
+            oc_file = fibers_config.order_centers_file
+            if oc_file is not None:
+                if isinstance(oc_file, list):
+                    oc_file = (
+                        oc_file[channel_index]
+                        if channel_index < len(oc_file)
+                        else oc_file[0]
+                    )
+                order_centers_dict = _load_order_centers(oc_file, inst_dir)
+                order_numbers = np.array(list(order_centers_dict.keys()))
+                order_centers = np.array(list(order_centers_dict.values()))
+
+        # Get image width and trace degree
+        step_config = self.config.get("trace", {}).copy()
+        ncols = self.instrument.info.get("naxis", [2048, 2048])[0]
+        degree = step_config.get("degree", 4)
+
+        # Merge traces using order_centers - returns per-order dicts
+        traces_by_order, cr_by_order, fiber_ids_by_order = merge_func(
+            traces_a,
+            column_range_a,
+            traces_b,
+            column_range_b,
+            order_centers=order_centers,
+            order_numbers=order_numbers,
+            ncols=ncols,
+        )
+
+        # Flatten to arrays for standard pipeline flow
+        sorted_orders = sorted(traces_by_order.keys())
+        orders = np.vstack([traces_by_order[m] for m in sorted_orders])
+        column_range = np.vstack([cr_by_order[m] for m in sorted_orders])
+
+        # Store as trace result
+        self._data["trace"] = (orders, column_range)
+
+        # Organize into fiber groups if configured
+        group_counts = {}
+        if fibers_config is not None and (
+            fibers_config.groups is not None or fibers_config.bundles is not None
+        ):
+            from .trace import organize_fibers
+
+            logger.info("Organizing %d traces into fiber groups", len(orders))
+            group_traces, group_cr, group_counts = organize_fibers(
+                orders,
+                column_range,
+                fibers_config,
+                degree,
+                inst_dir,
+                channel_index,
+            )
+            self._data["trace_groups"] = (group_traces, group_cr)
+
+            for name, count in group_counts.items():
+                logger.info("  Group %s: %d fibers", name, count)
+
+        # Save to disk
+        step_config["plot"] = self.plot
+        step = OrderTracing(*self._get_step_inputs(), **step_config)
+        step.group_traces = self._data.get("trace_groups", (None, None))[0]
+        step.group_column_range = self._data.get("trace_groups", (None, None))[1]
+        step.group_fiber_counts = group_counts
+        step.save(orders, column_range)
+
+        return self
 
     def curvature(self, files: list[str] | None = None) -> Pipeline:
         """Determine slit curvature (p1/p2)."""
@@ -464,7 +660,7 @@ class Pipeline:
             "flat": lambda: pipe.flat(files.get("flat", []))
             if len(files.get("flat", []))
             else pipe,
-            "trace": lambda: pipe.trace_orders(files.get("trace")),
+            "trace": lambda: pipe.trace(files.get("trace")),
             "curvature": lambda: pipe.curvature(files.get("curvature")),
             "scatter": lambda: pipe.scatter(files.get("scatter")),
             "norm_flat": lambda: pipe.normalize_flat(),
