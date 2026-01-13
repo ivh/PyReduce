@@ -51,12 +51,15 @@ id_wave: ".*"
 id_spec: ".*"
 
 # Fiber grouping configuration
-# 75 fibers per order, organized into 3 logical groups
+# 75 fibers per order, organized into logical groups
+# A/B/cal: spatial division of the slit
+# ring0-4: IFU hexagonal structure (center to outer rings)
 fibers:
   per_order: true
   fibers_per_order: 75
   order_centers_file: order_centers.yaml
   groups:
+    # Spatial groups
     A:
       range: [1, 36]
       merge: average
@@ -65,6 +68,25 @@ fibers:
       merge: average
     B:
       range: [40, 76]
+      merge: average
+    # IFU rings (fiber 1,75=cal, 2=gap, gaps between rings)
+    ifu:
+      range: [3, 74]
+      merge: average
+    ring0:
+      range: [3, 4]
+      merge: average
+    ring1:
+      range: [6, 17]
+      merge: average
+    ring2:
+      range: [18, 30]
+      merge: average
+    ring3:
+      range: [31, 49]
+      merge: average
+    ring4:
+      range: [50, 74]
       merge: average
   use:
     science: [A, B]
