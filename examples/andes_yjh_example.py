@@ -3,15 +3,18 @@
 # dependencies = ["pyreduce-astro>=0.7b3"]
 # ///
 """
-AJ instrument example: Multi-fiber tracing with Pipeline API.
+ANDES_YJH instrument example: Multi-fiber tracing with Pipeline API.
 
 Demonstrates tracing fibers illuminated in separate flat field images
 (even/odd pattern) using the Pipeline's trace_raw() and organize() methods.
 
-The fiber config in AJ/config.yaml handles:
-- order_centers_file: assigns traces to spectral orders by y-position
+The fiber config in ANDES_YJH/config.yaml handles:
+- order_centers_file: assigns traces to spectral orders by y-position (channel-specific)
 - groups: organizes fibers into logical groups (A, cal, B) within each order
 - merge: average - averages fiber traces within each group
+
+ANDES_YJH has three channels (YJH, H, Y) with different wavelength coverage.
+This example uses the YJH channel with J-band data.
 """
 
 import os
@@ -22,14 +25,16 @@ from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
 # --- Configuration ---
-instrument_name = "AJ"
+instrument_name = "ANDES_YJH"
+channel = "YJH"  # Can be "YJH", "H", or "Y"
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-raw_dir = os.path.join(data_dir, "AJ", "raw")
-output_dir = os.path.join(data_dir, "AJ", "reduced")
+raw_dir = os.path.join(data_dir, "ANDES_YJH", "raw")
+output_dir = os.path.join(data_dir, "ANDES_YJH", "reduced")
 
 # Input files (even and odd illuminated flats)
-file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
-file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
+# Using J-band files for YJH channel demonstration
+file_even = os.path.join(raw_dir, "YJH_FF_even_1s.fits")
+file_odd = os.path.join(raw_dir, "YJH_FF_odd_1s.fits")
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
@@ -38,8 +43,9 @@ plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 config = load_config(None, instrument_name)
 pipe = Pipeline(
     instrument=instrument_name,
+    channel=channel,
     output_dir=output_dir,
-    target="AJ_fiber_test",
+    target="ANDES_fiber_test",
     config=config,
     plot=plot,
 )
@@ -84,8 +90,8 @@ if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
 
 # --- Create combined flat for extraction ---
 print("\nCombining even/odd flats...")
-img_even, head = pipe.instrument.load_fits(file_even, channel="ALL", extension=0)
-img_odd, _ = pipe.instrument.load_fits(file_odd, channel="ALL", extension=0)
+img_even, head = pipe.instrument.load_fits(file_even, channel=channel, extension=0)
+img_odd, _ = pipe.instrument.load_fits(file_odd, channel=channel, extension=0)
 img_combined = np.asarray(img_even, dtype=np.float64) + np.asarray(
     img_odd, dtype=np.float64
 )

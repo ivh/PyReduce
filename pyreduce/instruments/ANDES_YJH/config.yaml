@@ -1,15 +1,20 @@
-# AJ instrument configuration
-# Simulated echelle spectrograph with 75 fibers per order
+# ANDES_YJH instrument configuration
+# ANDES near-infrared echelle spectrograph with 75 fibers per order
+# Three channels: YJH (full Y+J+H coverage), H (H-band only), Y (Y-band only)
 
-__instrument__: AJ
+__instrument__: ANDES_YJH
 instrument: PYE1
 id_instrument: ".*ZEMAX.*"
-telescope: Simulated
+telescope: ELT
 
 date: DATE-OBS
 date_format: fits
 
-channels: [ALL]
+# Three channels with different wavelength coverage
+# YJH: ~0.95-1.8 µm (Y+J+H bands combined)
+# H: ~1.45-1.8 µm (H-band only)
+# Y: ~0.95-1.12 µm (Y-band only)
+channels: [YJH, H, Y]
 extension: 0
 orientation: 0
 transpose: false
@@ -33,7 +38,7 @@ target: PYE1
 
 # File classification
 # For fiber bundle tracing, we need separate even/odd flat files
-# These are matched by filename pattern since header values aren't reliable
+# Files are matched by channel prefix (YJH_, H_, Y_) and type suffix
 kw_bias: PYE1
 kw_flat: PYE1
 kw_flat_even: FILENAME
@@ -41,6 +46,7 @@ kw_flat_odd: FILENAME
 kw_orders: PYE1
 kw_wave: PYE1
 kw_spec: PYE1
+kw_channel: FILENAME
 
 id_bias: ".*bias.*"
 id_flat: ".*"
@@ -49,6 +55,10 @@ id_flat_odd: ".*odd.*"
 id_orders: ".*"
 id_wave: ".*"
 id_spec: ".*"
+# Channel identification by filename prefix
+id_channel_yjh: "^YJH_.*|^J_.*"
+id_channel_h: "^H_.*"
+id_channel_y: "^Y_.*"
 
 # Fiber grouping configuration
 # 75 fibers per order, organized into logical groups
@@ -57,7 +67,8 @@ id_spec: ".*"
 fibers:
   per_order: true
   fibers_per_order: 75
-  order_centers_file: order_centers.yaml
+  # Channel-specific order centers: order_centers_yjh.yaml, order_centers_h.yaml, order_centers_y.yaml
+  order_centers_file: order_centers_{channel}.yaml
   groups:
     # Spatial groups
     A:
