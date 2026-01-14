@@ -1,6 +1,6 @@
 # ANDES_YJH instrument configuration
 # ANDES near-infrared echelle spectrograph with 75 fibers per order
-# Three channels: YJH (full Y+J+H coverage), H (H-band only), Y (Y-band only)
+# Three channels: Y, J, H (selected by BAND header)
 
 __instrument__: ANDES_YJH
 instrument: HIERARCH ANDES_E2E
@@ -10,11 +10,11 @@ telescope: ELT
 date: DATE-OBS
 date_format: fits
 
-# Three channels with different wavelength coverage
-# YJH: ~0.95-1.8 µm (Y+J+H bands combined)
-# H: ~1.45-1.8 µm (H-band only)
-# Y: ~0.95-1.12 µm (Y-band only)
-channels: [YJH, H, Y]
+# Three channels matching BAND header values
+# Y: ~0.95-1.12 µm
+# J: ~1.12-1.35 µm
+# H: ~1.45-1.8 µm
+channels: [Y, J, H]
 extension: 0
 orientation: 0
 transpose: false
@@ -46,7 +46,7 @@ wl_min: WL_MIN
 wl_max: WL_MAX
 
 # File classification using ANDES E2E headers
-# Channel is determined by BAND header (J→YJH, H→H, Y→Y)
+# Channel is determined by BAND header
 # File type is determined by SIMTYPE header
 # Even/odd flats are determined by FIBMODE header
 kw_bias: SIMTYPE
@@ -65,10 +65,8 @@ id_flat_odd: "^odd$"
 id_orders: "^flat_field$"
 id_wave: "^(fabry_perot|lfc)$"
 id_spec: "^spectrum$"
-# Channel identification by BAND header
-id_channel_yjh: "^J$"
-id_channel_h: "^H$"
-id_channel_y: "^Y$"
+# Channel identification by BAND header (order matches channels: [Y, J, H])
+id_channel: ["^Y$", "^J$", "^H$"]
 
 # Fiber grouping configuration
 # 75 fibers per order, organized into logical groups
@@ -77,7 +75,7 @@ id_channel_y: "^Y$"
 fibers:
   per_order: true
   fibers_per_order: 75
-  # Channel-specific order centers: order_centers_yjh.yaml, order_centers_h.yaml, order_centers_y.yaml
+  # Channel-specific order centers: order_centers_y.yaml, order_centers_j.yaml, order_centers_h.yaml
   order_centers_file: order_centers_{channel}.yaml
   groups:
     # Spatial groups

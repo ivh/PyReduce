@@ -1,10 +1,10 @@
 """
 ANDES_YJH instrument - ANDES near-infrared echelle spectrograph with 75 fibers per order.
 
-Three channels:
-- YJH: Full Y+J+H band coverage (~0.95-1.8 µm)
-- H: H-band only (~1.45-1.8 µm)
-- Y: Y-band only (~0.95-1.12 µm)
+Three channels (selected by BAND header):
+- Y: ~0.95-1.12 µm
+- J: ~1.12-1.35 µm
+- H: ~1.45-1.8 µm
 """
 
 from ..common import Instrument

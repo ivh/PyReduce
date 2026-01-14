@@ -19,7 +19,7 @@ License
 """
 
 import logging
-import os.path
+import os
 import warnings
 from itertools import product
 from os.path import join
@@ -878,12 +878,6 @@ class OrderTracing(CalibrationStep):
         ):
             logger.info("Organizing %d traces into fiber groups", len(orders))
             inst_dir = getattr(self.instrument, "_inst_dir", None)
-            # Get channel index for per-channel config lists
-            channels = self.instrument.channels or []
-            try:
-                channel_index = channels.index(self.channel.upper())
-            except (ValueError, AttributeError):
-                channel_index = 0
             self.group_traces, self.group_column_range, self.group_fiber_counts = (
                 organize_fibers(
                     orders,
@@ -891,7 +885,7 @@ class OrderTracing(CalibrationStep):
                     fibers_config,
                     self.fit_degree,
                     inst_dir,
-                    channel_index,
+                    channel=self.channel,
                 )
             )
             for name, count in self.group_fiber_counts.items():
@@ -921,6 +915,7 @@ class OrderTracing(CalibrationStep):
                 save_data[f"group_{name}_cr"] = self.group_column_range[name]
                 save_data[f"group_{name}_count"] = self.group_fiber_counts[name]
 
+        os.makedirs(os.path.dirname(self.savefile), exist_ok=True)
         np.savez(self.savefile, **save_data)
         logger.info("Created order tracing file: %s", self.savefile)
 

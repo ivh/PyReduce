@@ -13,8 +13,7 @@ The fiber config in ANDES_YJH/config.yaml handles:
 - groups: organizes fibers into logical groups (A, cal, B) within each order
 - merge: average - averages fiber traces within each group
 
-ANDES_YJH has three channels (YJH, H, Y) with different wavelength coverage.
-This example uses the YJH channel with J-band data.
+ANDES_YJH has three channels: Y, J, H (selected by BAND header in files).
 """
 
 import os
@@ -26,19 +25,18 @@ from pyreduce.pipeline import Pipeline
 
 # --- Configuration ---
 instrument_name = "ANDES_YJH"
-channel = "YJH"  # Can be "YJH", "H", or "Y"
+channel = "J"  # Y, J, or H
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-raw_dir = os.path.join(data_dir, "ANDES_YJH", "raw")
-output_dir = os.path.join(data_dir, "ANDES_YJH", "reduced")
+raw_dir = os.path.join(data_dir, "ANDES", channel)
+output_dir = os.path.join(data_dir, "ANDES", "reduced", channel)
 
 # Input files (even and odd illuminated flats)
 # File selection is header-based:
-#   BAND='J' → YJH channel, BAND='H' → H channel, BAND='Y' → Y channel
+#   BAND header determines channel (Y, J, H)
 #   SIMTYPE='flat_field' → flat, SIMTYPE='spectrum' → science
 #   FIBMODE='even' → even flat, FIBMODE='odd' → odd flat
-# Adjust filenames to match your ANDES E2E simulation output
-file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
-file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
+file_even = os.path.join(raw_dir, f"{channel}_FF_even_1s.fits")
+file_odd = os.path.join(raw_dir, f"{channel}_FF_odd_1s.fits")
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
@@ -60,7 +58,7 @@ print(f"Per-order grouping: {fibers_config.per_order}")
 print(f"Groups: {list(fibers_config.groups.keys())}")
 
 # --- Trace or load from previous run ---
-LOAD_TRACE = True  # Set False to re-run tracing
+LOAD_TRACE = True  # Set True to load traces from previous run
 
 if LOAD_TRACE:
     print("\nLoading traces from previous run...")

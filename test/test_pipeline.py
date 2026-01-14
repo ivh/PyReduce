@@ -181,6 +181,17 @@ class TestPipelineLoad:
         assert "trace" in pipe._data
         assert pipe._data["trace"] is None  # Marker for load-from-disk
 
+    @pytest.mark.unit
+    def test_load_only_no_files_raises_clear_error(self, tmp_path):
+        """Test that load_only=True with no saved data and no files raises clear error."""
+        from pyreduce.configuration import load_config
+
+        config = load_config(None, "UVES")
+        pipe = Pipeline("UVES", str(tmp_path), config=config)
+
+        with pytest.raises(FileNotFoundError, match="No saved data for step"):
+            pipe._run_step("trace", None, load_only=True)
+
 
 class TestPipelineStepOrdering:
     """Test that steps are executed in correct order."""

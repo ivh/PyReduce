@@ -316,11 +316,6 @@ class Pipeline:
         # Get config and context
         fibers_config = getattr(self.instrument.config, "fibers", None)
         inst_dir = getattr(self.instrument, "_inst_dir", None)
-        channels = self.instrument.channels or []
-        try:
-            channel_index = channels.index(self.channel.upper())
-        except (ValueError, AttributeError):
-            channel_index = 0
 
         step_config = self.config.get("trace", {}).copy()
         degree = step_config.get("degree", 4)
@@ -339,7 +334,7 @@ class Pipeline:
                 fibers_config,
                 degree,
                 inst_dir,
-                channel_index,
+                channel=self.channel,
             )
             self._data["trace_groups"] = (group_traces, group_cr)
 
@@ -481,6 +476,10 @@ class Pipeline:
                     )
                 return result
             except FileNotFoundError:
+                if files is None:
+                    raise FileNotFoundError(
+                        f"No saved data for step '{name}' and no input files provided to run it."
+                    ) from None
                 logger.warning(
                     "Intermediate files for step '%s' not found, running instead.",
                     name,
