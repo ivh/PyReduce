@@ -1,4 +1,5 @@
-# J-band order Y-centers at x=2048
+# J channel order Y-centers at x=2048
+# J-band: ~1.12-1.35 µm (orders 90-107)
 # y_detector = y_hdf - 150
 90: 3778
 91: 3520

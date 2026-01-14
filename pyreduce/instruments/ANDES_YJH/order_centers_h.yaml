@@ -1,0 +1,9 @@
+# H-band order Y-centers at x=2048
+# H-band: ~1.45-1.8 µm (longer wavelengths, lower order numbers)
+# TODO: Fill in with actual order positions from H-band flat field data
+# Expected orders: approximately 60-85
+# Example format:
+# 60: 3900
+# 61: 3650
+# 62: 3400
+# ...

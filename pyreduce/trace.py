@@ -1253,7 +1253,7 @@ def _assign_traces_to_orders(traces, column_range, order_centers):
 
 
 def organize_fibers(
-    traces, column_range, fibers_config, degree=4, instrument_dir=None, channel_index=0
+    traces, column_range, fibers_config, degree=4, instrument_dir=None, channel=None
 ):
     """Organize traced fibers into groups according to config.
 
@@ -1275,8 +1275,8 @@ def organize_fibers(
         Polynomial degree for refitted traces (used with "average" merge)
     instrument_dir : str, optional
         Directory for resolving relative order_centers_file paths
-    channel_index : int
-        Index into per-channel lists (for multi-channel instruments)
+    channel : str, optional
+        Channel name for {channel} template substitution in order_centers_file
 
     Returns
     -------
@@ -1298,18 +1298,16 @@ def organize_fibers(
         # Load order_centers from file if not inline
         order_centers = fibers_config.order_centers
         if order_centers is None and fibers_config.order_centers_file:
-            # Handle per-channel list
             centers_file = fibers_config.order_centers_file
-            if isinstance(centers_file, list):
-                centers_file = centers_file[channel_index]
+            # Substitute {channel} template with channel name (lowercase)
+            if channel and "{channel}" in centers_file:
+                centers_file = centers_file.format(channel=channel.lower())
             order_centers = _load_order_centers(centers_file, instrument_dir)
 
         order_traces = _assign_traces_to_orders(traces, column_range, order_centers)
 
         # Validate fibers per order if specified
         fibers_per_order = fibers_config.fibers_per_order
-        if isinstance(fibers_per_order, list):
-            fibers_per_order = fibers_per_order[channel_index]
         if fibers_per_order is not None:
             for m, (tr, _cr) in order_traces.items():
                 if len(tr) != fibers_per_order:
@@ -1436,8 +1434,8 @@ def organize_fibers(
         bundle_centers = bundle_cfg.bundle_centers
         if bundle_centers is None and bundle_cfg.bundle_centers_file:
             centers_file = bundle_cfg.bundle_centers_file
-            if isinstance(centers_file, list):
-                centers_file = centers_file[channel_index]
+            if channel and "{channel}" in centers_file:
+                centers_file = centers_file.format(channel=channel.lower())
             bundle_centers = _load_bundle_centers(centers_file, instrument_dir)
 
         if bundle_centers is not None:

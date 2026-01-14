@@ -882,3 +882,100 @@ class TestNoiseThreshold:
         )
         orders, column_range = result
         assert len(orders) == 0
+
+
+class TestChannelTemplateSubstitution:
+    """Tests for {channel} template substitution in order_centers_file."""
+
+    @pytest.mark.unit
+    def test_channel_template_substitution(self, tmp_path):
+        """Test that {channel} in order_centers_file is substituted with channel name."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        # Create a temporary order_centers file for channel "j"
+        order_centers_file = tmp_path / "order_centers_j.yaml"
+        order_centers_file.write_text("1: 100\n2: 200\n")
+
+        # Create traces at y=100 and y=200
+        traces = np.array(
+            [
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 200.0],
+            ]
+        )
+        column_range = np.array([[10, 990], [10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            fibers_per_order=1,
+            order_centers_file="order_centers_{channel}.yaml",
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces,
+            column_range,
+            config,
+            instrument_dir=str(tmp_path),
+            channel="J",  # Should resolve to order_centers_j.yaml
+        )
+
+        # Should have organized into orders 1 and 2
+        assert "A" in group_traces
+        assert 1 in group_traces["A"]
+        assert 2 in group_traces["A"]
+
+    @pytest.mark.unit
+    def test_channel_template_lowercase(self, tmp_path):
+        """Test that channel name is lowercased in template substitution."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        # Create file with lowercase channel name
+        order_centers_file = tmp_path / "order_centers_h.yaml"
+        order_centers_file.write_text("10: 150\n")
+
+        traces = np.array([[0.0, 0.0, 150.0]])
+        column_range = np.array([[10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            fibers_per_order=1,
+            order_centers_file="order_centers_{channel}.yaml",
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        # Pass uppercase channel, should still find lowercase file
+        group_traces, group_cr, group_counts = trace.organize_fibers(
+            traces,
+            column_range,
+            config,
+            instrument_dir=str(tmp_path),
+            channel="H",
+        )
+
+        assert "A" in group_traces
+        assert 10 in group_traces["A"]
+
+    @pytest.mark.unit
+    def test_no_channel_no_substitution(self, tmp_path):
+        """Test that template is used literally when channel is None."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces = np.array([[0.0, 0.0, 100.0]])
+        column_range = np.array([[10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            order_centers_file="order_centers_{channel}.yaml",
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        # Without channel, should try to load literal filename and fail
+        with pytest.raises(FileNotFoundError):
+            trace.organize_fibers(
+                traces,
+                column_range,
+                config,
+                instrument_dir=str(tmp_path),
+                channel=None,
+            )

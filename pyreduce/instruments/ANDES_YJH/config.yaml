@@ -1,0 +1,113 @@
+# ANDES_YJH instrument configuration
+# ANDES near-infrared echelle spectrograph with 75 fibers per order
+# Three channels: Y, J, H (selected by BAND header)
+
+__instrument__: ANDES_YJH
+instrument: HIERARCH ANDES_E2E
+id_instrument: ".*"
+telescope: ELT
+
+date: DATE-OBS
+date_format: fits
+
+# Three channels matching BAND header values
+# Y: ~0.95-1.12 µm
+# J: ~1.12-1.35 µm
+# H: ~1.45-1.8 µm
+channels: [Y, J, H]
+extension: 0
+orientation: 0
+transpose: false
+
+prescan_x: 0
+overscan_x: 0
+prescan_y: 0
+overscan_y: 0
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: 1
+readnoise: 0
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: null
+dec: null
+target: PYE1
+
+# Additional ANDES E2E simulation headers
+hdfmodel: HDFMODEL
+simtype: SIMTYPE
+srctype: SRCTYPE
+fibmode: FIBMODE
+vshift: VSHIFT
+wl_min: WL_MIN
+wl_max: WL_MAX
+
+# File classification using ANDES E2E headers
+# Channel is determined by BAND header
+# File type is determined by SIMTYPE header
+# Even/odd flats are determined by FIBMODE header
+kw_bias: SIMTYPE
+kw_flat: SIMTYPE
+kw_flat_even: FIBMODE
+kw_flat_odd: FIBMODE
+kw_orders: SIMTYPE
+kw_wave: SIMTYPE
+kw_spec: SIMTYPE
+kw_channel: BAND
+
+id_bias: "^bias$"
+id_flat: "^flat_field$"
+id_flat_even: "^even$"
+id_flat_odd: "^odd$"
+id_orders: "^flat_field$"
+id_wave: "^(fabry_perot|lfc)$"
+id_spec: "^spectrum$"
+# Channel identification by BAND header (order matches channels: [Y, J, H])
+id_channel: ["^Y$", "^J$", "^H$"]
+
+# Fiber grouping configuration
+# 75 fibers per order, organized into logical groups
+# A/B/cal: spatial division of the slit
+# ring0-4: IFU hexagonal structure (center to outer rings)
+fibers:
+  per_order: true
+  fibers_per_order: 75
+  # Channel-specific order centers: order_centers_y.yaml, order_centers_j.yaml, order_centers_h.yaml
+  order_centers_file: order_centers_{channel}.yaml
+  groups:
+    # Spatial groups
+    A:
+      range: [1, 36]
+      merge: average
+    cal:
+      range: [37, 40]
+      merge: average
+    B:
+      range: [40, 76]
+      merge: average
+    # IFU rings (fiber 1,75=cal, 2=gap, gaps between rings)
+    ifu:
+      range: [3, 74]
+      merge: average
+    ring0:
+      range: [3, 4]
+      merge: average
+    ring1:
+      range: [6, 17]
+      merge: average
+    ring2:
+      range: [18, 30]
+      merge: average
+    ring3:
+      range: [31, 49]
+      merge: average
+    ring4:
+      range: [50, 74]
+      merge: average
+  use:
+    science: [A, B]
+    wavecal: [cal]
+    norm_flat: all

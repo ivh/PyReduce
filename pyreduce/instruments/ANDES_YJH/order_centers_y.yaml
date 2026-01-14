@@ -1,0 +1,9 @@
+# Y-band order Y-centers at x=2048
+# Y-band: ~0.95-1.12 µm (shorter wavelengths, higher order numbers)
+# TODO: Fill in with actual order positions from Y-band flat field data
+# Expected orders: approximately 108-130
+# Example format:
+# 108: 3900
+# 109: 3700
+# 110: 3500
+# ...
