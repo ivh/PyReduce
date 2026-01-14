@@ -37,9 +37,10 @@ plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
 util.set_plot_dir(plot_dir)
 
 # Data location
-data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-base_dir = join(data_dir, "MOSAIC", "REF_E2E", "VIS")
-output_dir = join(data_dir, "MOSAIC", "reduced", channel)
+#data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+data_dir = '/Users/jens/projects/mosaic/virtualmosaic/'
+base_dir = join(data_dir, "REF_E2E", "VIS")
+output_dir = join(data_dir, "reduced", channel)
 
 # File paths (simulated data)
 flat_file = join(
