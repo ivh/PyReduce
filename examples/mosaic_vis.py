@@ -3,13 +3,16 @@
 # dependencies = ["pyreduce-astro>=0.7b3"]
 # ///
 """
-MOSAIC NIR spectrograph example using config-based fiber grouping.
+MOSAIC VIS spectrograph example.
 
-The fibers.bundles config in MOSAIC/config.yaml handles:
-- Organizing 630 fibers into 90 bundles of 7
-- Selecting center fiber from each bundle for extraction
+The VIS detector is a 4-quadrant mosaic (12788x12394 pixels total).
+Each quadrant is processed as a separate channel:
+- VIS1: lower-left quadrant
+- VIS2: lower-right quadrant
+- VIS3: upper-left quadrant
+- VIS4: upper-right quadrant
 
-This replaces the manual gap detection in the original mosaic_example.py.
+This example processes VIS1. Run with different channel values for other quadrants.
 """
 
 import os
@@ -20,10 +23,11 @@ from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
 # Parameters
+# Change channel to VIS2, VIS3, or VIS4 for other quadrants
 instrument_name = "MOSAIC"
-target = "MOSAIC_NIR"
+target = "MOSAIC_VIS"
 night = ""
-channel = "NIR"
+channel = "VIS1"
 plot = 1
 
 # Handle plot environment variables
@@ -34,19 +38,17 @@ util.set_plot_dir(plot_dir)
 
 # Data location
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-base_dir = join(data_dir, "MOSAIC", "REF_E2E", "NIR")
-output_dir = join(data_dir, "MOSAIC", "reduced", "NIR")
+base_dir = join(data_dir, "MOSAIC", "REF_E2E", "VIS")
+output_dir = join(data_dir, "MOSAIC", "reduced", channel)
 
 # File paths (simulated data)
 flat_file = join(
     base_dir,
-    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01_STATIC_FOCAL_PLANE.fits",
+    "E2E_as_built_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_000.fits",
 )
 thar_file = join(
     base_dir,
-    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01_STATIC_FOCAL_PLANE.fits",
+    "E2E_as_built_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE.fits",
 )
 
 # Verify files exist
@@ -72,12 +74,8 @@ pipe = Pipeline(
 )
 
 # Run pipeline steps
-# The fibers.bundles config automatically:
-# - Groups 630 traces into 90 bundles of 7
-# - Selects center fiber from each bundle
-# - Uses grouped traces for curvature and science steps
-# pipe.trace_orders([flat_file])
-# pipe.curvature([thar_file])
+pipe.trace_orders([flat_file])
+pipe.curvature([thar_file])
 pipe.extract([thar_file, flat_file])
 
 print("\n=== Running Pipeline ===")
