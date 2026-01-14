@@ -33,66 +33,6 @@ from .util import polyfit2d_2 as polyfit2d
 logger = logging.getLogger(__name__)
 
 
-class ProgressPlot:  # pragma: no cover
-    def __init__(self, ncol, width, title=None):
-        plt.ion()
-
-        fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
-
-        plot_title = "Curvature in each order"
-        if title is not None:
-            plot_title = f"{title}\n{plot_title}"
-        fig.suptitle(plot_title)
-
-        (line1,) = ax1.plot(np.arange(ncol) + 1)
-        (line2,) = ax1.plot(0, 0, "d")
-        ax1.set_yscale("log")
-
-        self.ncol = ncol
-        self.width = width * 2 + 1
-
-        self.fig = fig
-        self.ax1 = ax1
-        self.ax2 = ax2
-        self.ax3 = ax3
-        self.line1 = line1
-        self.line2 = line2
-
-    def update_plot1(self, vector, peaks, offset=0):
-        data = np.ones(self.ncol)
-        data[offset : len(vector) + offset] = np.clip(vector, 1, None)
-        self.line1.set_ydata(data)
-        peaks = np.atleast_1d(peaks)
-        self.line2.set_xdata(peaks)
-        self.line2.set_ydata(data[peaks])
-        self.ax1.set_ylim((data.min(), data.max()))
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-    def update_plot2(self, img, model, p1, p2, peak):
-        self.ax2.clear()
-        self.ax3.clear()
-
-        self.ax2.imshow(img)
-        self.ax3.imshow(model)
-
-        nrows, _ = img.shape
-        middle = nrows // 2
-        y = np.arange(-middle, -middle + nrows)
-        x = peak + (p1 + p2 * y) * y
-        y += middle
-
-        self.ax2.plot(x, y, "r")
-        self.ax3.plot(x, y, "r")
-
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-    def close(self):
-        plt.close()
-        plt.ioff()
-
-
 class Curvature:
     def __init__(
         self,
@@ -499,10 +439,6 @@ class Curvature:
             # Fit curvature from peak positions
             p1, p2 = self._fit_curvature_from_positions(peaks, positions, offsets)
 
-            if self.plot >= 2:  # pragma: no cover
-                for peak in peaks:
-                    self.progress.update_plot1(vec, peak, cr[0])
-
             all_peaks.append(peaks)
             all_p1.append(p1)
             all_p2.append(p2)
@@ -699,15 +635,9 @@ class Curvature:
 
         self._fix_inputs(original)
 
-        if self.plot >= 2:  # pragma: no cover
-            self.progress = ProgressPlot(ncol, self.window_width, title=self.plot_title)
-
         peaks, p1, p2, vec = self._determine_curvature_all_lines(original)
 
         coef_p1, coef_p2 = self.fit(peaks, p1, p2)
-
-        if self.plot >= 2:  # pragma: no cover
-            self.progress.close()
 
         if self.plot:  # pragma: no cover
             self.plot_results(ncol, peaks, vec, p1, p2, coef_p1, coef_p2)
