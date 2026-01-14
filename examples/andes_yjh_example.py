@@ -32,9 +32,13 @@ raw_dir = os.path.join(data_dir, "ANDES_YJH", "raw")
 output_dir = os.path.join(data_dir, "ANDES_YJH", "reduced")
 
 # Input files (even and odd illuminated flats)
-# Using J-band files for YJH channel demonstration
-file_even = os.path.join(raw_dir, "YJH_FF_even_1s.fits")
-file_odd = os.path.join(raw_dir, "YJH_FF_odd_1s.fits")
+# File selection is header-based:
+#   BAND='J' → YJH channel, BAND='H' → H channel, BAND='Y' → Y channel
+#   SIMTYPE='flat_field' → flat, SIMTYPE='spectrum' → science
+#   FIBMODE='even' → even flat, FIBMODE='odd' → odd flat
+# Adjust filenames to match your ANDES E2E simulation output
+file_even = os.path.join(raw_dir, "J_FF_even_1s.fits")
+file_odd = os.path.join(raw_dir, "J_FF_odd_1s.fits")
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))

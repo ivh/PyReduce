@@ -3,8 +3,8 @@
 # Three channels: YJH (full Y+J+H coverage), H (H-band only), Y (Y-band only)
 
 __instrument__: ANDES_YJH
-instrument: PYE1
-id_instrument: ".*ZEMAX.*"
+instrument: HIERARCH ANDES_E2E
+id_instrument: ".*"
 telescope: ELT
 
 date: DATE-OBS
@@ -36,29 +36,39 @@ ra: null
 dec: null
 target: PYE1
 
-# File classification
-# For fiber bundle tracing, we need separate even/odd flat files
-# Files are matched by channel prefix (YJH_, H_, Y_) and type suffix
-kw_bias: PYE1
-kw_flat: PYE1
-kw_flat_even: FILENAME
-kw_flat_odd: FILENAME
-kw_orders: PYE1
-kw_wave: PYE1
-kw_spec: PYE1
-kw_channel: FILENAME
+# Additional ANDES E2E simulation headers
+hdfmodel: HDFMODEL
+simtype: SIMTYPE
+srctype: SRCTYPE
+fibmode: FIBMODE
+vshift: VSHIFT
+wl_min: WL_MIN
+wl_max: WL_MAX
 
-id_bias: ".*bias.*"
-id_flat: ".*"
-id_flat_even: ".*even.*"
-id_flat_odd: ".*odd.*"
-id_orders: ".*"
-id_wave: ".*"
-id_spec: ".*"
-# Channel identification by filename prefix
-id_channel_yjh: "^YJH_.*|^J_.*"
-id_channel_h: "^H_.*"
-id_channel_y: "^Y_.*"
+# File classification using ANDES E2E headers
+# Channel is determined by BAND header (J→YJH, H→H, Y→Y)
+# File type is determined by SIMTYPE header
+# Even/odd flats are determined by FIBMODE header
+kw_bias: SIMTYPE
+kw_flat: SIMTYPE
+kw_flat_even: FIBMODE
+kw_flat_odd: FIBMODE
+kw_orders: SIMTYPE
+kw_wave: SIMTYPE
+kw_spec: SIMTYPE
+kw_channel: BAND
+
+id_bias: "^bias$"
+id_flat: "^flat_field$"
+id_flat_even: "^even$"
+id_flat_odd: "^odd$"
+id_orders: "^flat_field$"
+id_wave: "^(fabry_perot|lfc)$"
+id_spec: "^spectrum$"
+# Channel identification by BAND header
+id_channel_yjh: "^J$"
+id_channel_h: "^H$"
+id_channel_y: "^Y$"
 
 # Fiber grouping configuration
 # 75 fibers per order, organized into logical groups
