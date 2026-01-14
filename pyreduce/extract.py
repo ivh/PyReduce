@@ -41,27 +41,31 @@ class ProgressPlot:  # pragma: no cover
 
         plt.ion()
         plt.rcParams["figure.raise_window"] = False
-        self.fig = plt.figure(figsize=(12, 4))
+        self.fig = plt.figure(figsize=(12, 6))
 
-        # self.ax1 = self.fig.add_subplot(231, projection="3d")
-        self.ax1 = self.fig.add_subplot(231)
+        gs = self.fig.add_gridspec(3, 3)
+
+        self.ax1 = self.fig.add_subplot(gs[0, 0])
         self.ax1.set_title("Swath")
         self.ax1.set_ylabel("y [pixel]")
-        self.ax2 = self.fig.add_subplot(132)
+        self.ax4 = self.fig.add_subplot(gs[1, 0], sharex=self.ax1, sharey=self.ax1)
+        self.ax4.set_title("Model")
+        self.ax4.set_ylabel("y [pixel]")
+        self.ax5 = self.fig.add_subplot(gs[2, 0], sharex=self.ax1, sharey=self.ax1)
+        self.ax5.set_title("Residual")
+        self.ax5.set_xlabel("x [pixel]")
+        self.ax5.set_ylabel("y [pixel]")
+
+        self.ax2 = self.fig.add_subplot(gs[:, 1])
         self.ax2.set_title("Spectrum")
         self.ax2.set_xlabel("x [pixel]")
         self.ax2.set_ylabel("flux [arb. unit]")
         self.ax2.set_xlim((0, ncol))
-        self.ax3 = self.fig.add_subplot(133)
+        self.ax3 = self.fig.add_subplot(gs[:, 2])
         self.ax3.set_title("Slit")
         self.ax3.set_xlabel("y [pixel]")
         self.ax3.set_ylabel("contribution [1]")
         self.ax3.set_xlim((0, nrow))
-        # self.ax4 = self.fig.add_subplot(234, projection="3d")
-        self.ax4 = self.fig.add_subplot(234, sharex=self.ax1, sharey=self.ax1)
-        self.ax4.set_title("Model")
-        self.ax4.set_xlabel("x [pixel]")
-        self.ax4.set_ylabel("y [pixel]")
 
         self.title = title
         if title is not None:
@@ -75,6 +79,9 @@ class ProgressPlot:  # pragma: no cover
         img = np.ones((nrow, ncol))
         self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
         self.im_model = self.ax4.imshow(img, aspect="auto", origin="lower")
+        self.im_resid = self.ax5.imshow(
+            np.zeros((nrow, ncol)), aspect="auto", origin="lower", cmap="RdBu"
+        )
 
         (self.dots_spec,) = self.ax2.plot(
             np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
@@ -174,6 +181,10 @@ class ProgressPlot:  # pragma: no cover
         self.im_obs.set_clim(vmin, vmax)
         self.im_model.set_data(model)
         self.im_model.set_clim(vmin, vmax)
+        resid = img - model
+        rlim = np.nanpercentile(np.abs(resid), 95)
+        self.im_resid.set_data(resid)
+        self.im_resid.set_clim(-rlim, rlim)
 
         # self.line_ycen.set_ydata(ycen)
         self.dots_spec.set_xdata(x_spec)
