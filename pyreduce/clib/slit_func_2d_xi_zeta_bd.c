@@ -918,7 +918,6 @@ int slit_func_curved(int ncols,
 
     // For the solving of the equation system
     double *l_Aij, *l_bj, *p_Aij, *p_bj;
-    double *diff;
 
     // For the geometry
     xi_ref *xi;
@@ -979,7 +978,6 @@ int slit_func_curved(int ncols,
     xi = malloc(MAX_XI * sizeof(xi_ref));
     zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
     m_zeta = malloc(MAX_MZETA * sizeof(int));
-    diff = malloc(MAX_IM * sizeof(double));
 
     xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
@@ -1141,17 +1139,8 @@ int slit_func_curved(int ncols,
         }
 
         /* Compare model and data */
-        // We use the Median absolute derivation to estimate the distribution
-        // The MAD is more robust than the usual STD as it uses the median
-        // However the MAD << STD, since we are not dealing with a Gaussian
-        // at all, but a distribution with heavy wings.
-        // Therefore we use the factor 40, instead of 6 to estimate a reasonable range
-        // of values. The cutoff is roughly the same.
-        // Technically the distribution might best be described by a Voigt profile
-        // which we then would have to fit to the distrubtion and then determine,
-        // the range that covers 99% of the data.
-        // Since that is much more complicated we just use the MAD.
         cost = 0;
+        dev = 0;
         isum = 0;
         for (y = 0; y < nrows; y++)
         {
@@ -1160,7 +1149,7 @@ int slit_func_curved(int ncols,
                 if (mask[im_index(x, y)])
                 {
                     tmp = model[im_index(x, y)] - im[im_index(x, y)];
-                    diff[isum] = tmp;
+                    dev += tmp * tmp;
                     tmp /= max(pix_unc[im_index(x, y)], 1);
                     cost += tmp * tmp;
                     isum++;
@@ -1168,20 +1157,14 @@ int slit_func_curved(int ncols,
             }
         }
         cost /= (isum - (ncols + ny));
-        dev = median_absolute_deviation(diff, isum);
-        // This is the "conversion" factor betweem MAD and STD
-        // i.e. a perfect normal distribution has MAD = sqrt(2/pi) * STD
-        dev *= 1.4826;
+        dev = sqrt(dev / isum);
 
-        /* Adjust the mask marking outlyers */
+        /* Adjust the mask marking outliers */
         for (y = 0; y < nrows; y++)
         {
             for (x = delta_x; x < ncols - delta_x; x++)
             {
-                // The MAD is significantly smaller than the STD was, since it describes
-                // only the central peak, not the distribution
-                // The factor 40 was chosen, since it is roughly equal to 6 * STD
-                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 40. * dev)
+                if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * dev)
                     mask[im_index(x, y)] = 1;
                 else
                     mask[im_index(x, y)] = 0;
@@ -1254,7 +1237,6 @@ int slit_func_curved(int ncols,
         sP[sp_index(x)] = unc[sp_index(x)] = 0;
     }
 
-    free(diff);
     free(l_Aij);
     free(p_Aij);
     free(p_bj);
