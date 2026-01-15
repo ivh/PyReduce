@@ -41,68 +41,89 @@ class ProgressPlot:  # pragma: no cover
 
         plt.ion()
         plt.rcParams["figure.raise_window"] = False
-        self.fig = plt.figure(figsize=(12, 6))
+        self.fig = plt.figure(figsize=(12, 8))
 
-        gs = self.fig.add_gridspec(3, 3)
+        gs = self.fig.add_gridspec(
+            4,
+            5,
+            height_ratios=[1, 1, 1, 1.2],
+            width_ratios=[0.03, 1, 1, 1, 0.8],
+            hspace=0.05,
+            wspace=0.05,
+        )
 
-        self.ax1 = self.fig.add_subplot(gs[0, 0])
-        self.ax1.set_title("Swath")
-        self.ax1.set_ylabel("y [pixel]")
-        self.ax4 = self.fig.add_subplot(gs[1, 0], sharex=self.ax1, sharey=self.ax1)
-        self.ax4.set_title("Model")
-        self.ax4.set_ylabel("y [pixel]")
-        self.ax5 = self.fig.add_subplot(gs[2, 0], sharex=self.ax1, sharey=self.ax1)
-        self.ax5.set_title("Residual")
-        self.ax5.set_xlabel("x [pixel]")
-        self.ax5.set_ylabel("y [pixel]")
+        # Colorbar axes (left column)
+        self.ax_cbar_img = self.fig.add_subplot(gs[0:2, 0])
+        self.ax_cbar_resid = self.fig.add_subplot(gs[2, 0])
 
-        self.ax2 = self.fig.add_subplot(gs[:, 1])
-        self.ax2.set_title("Spectrum")
-        self.ax2.set_xlabel("x [pixel]")
-        self.ax2.set_ylabel("flux [arb. unit]")
-        self.ax2.set_xlim((0, ncol))
-        self.ax3 = self.fig.add_subplot(gs[:, 2])
-        self.ax3.set_title("Slit")
-        self.ax3.set_xlabel("y [pixel]")
-        self.ax3.set_ylabel("contribution [1]")
-        self.ax3.set_xlim((0, nrow))
+        # Image panels (stacked vertically with no gaps, no tick labels)
+        self.ax_obs = self.fig.add_subplot(gs[0, 1:4])
+        self.ax_obs.set_axis_off()
+
+        self.ax_model = self.fig.add_subplot(
+            gs[1, 1:4], sharex=self.ax_obs, sharey=self.ax_obs
+        )
+        self.ax_model.set_axis_off()
+
+        self.ax_resid = self.fig.add_subplot(
+            gs[2, 1:4], sharex=self.ax_obs, sharey=self.ax_obs
+        )
+        self.ax_resid.set_axis_off()
+
+        # Slit function panel (rightmost column, top 3 rows, rotated axes)
+        self.ax_slit = self.fig.add_subplot(gs[0:3, 4])
+        self.ax_slit.set_title("Slit")
+        self.ax_slit.set_xlabel("contribution")
+        self.ax_slit.set_ylim((0, nrow))
+        self.ax_slit.yaxis.set_label_position("right")
+        self.ax_slit.yaxis.tick_right()
+
+        # Spectrum panel (full bottom row)
+        self.ax_spec = self.fig.add_subplot(gs[3, 1:])
+        self.ax_spec.set_xlim((0, ncol))
 
         self.title = title
         if title is not None:
             self.fig.suptitle(title)
 
-        self.fig.tight_layout()
-        self.fig.subplots_adjust(bottom=0.18)
-
-        # Just plot empty pictures, to create the plots
-        # Update the data later
+        # Create image plots
         img = np.ones((nrow, ncol))
-        self.im_obs = self.ax1.imshow(img, aspect="auto", origin="lower")
-        self.im_model = self.ax4.imshow(img, aspect="auto", origin="lower")
-        self.im_resid = self.ax5.imshow(
-            np.zeros((nrow, ncol)), aspect="auto", origin="lower", cmap="RdBu"
+        self.im_obs = self.ax_obs.imshow(img, aspect="auto", origin="lower")
+        self.im_model = self.ax_model.imshow(img, aspect="auto", origin="lower")
+        self.im_resid = self.ax_resid.imshow(
+            np.zeros((nrow, ncol)), aspect="auto", origin="lower", cmap="bwr"
         )
 
-        (self.dots_spec,) = self.ax2.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        # Colorbars in dedicated axes (ticks/labels on left)
+        self.cbar_img = self.fig.colorbar(
+            self.im_obs, cax=self.ax_cbar_img, ticklocation="left"
         )
-        (self.line_spec,) = self.ax2.plot(np.zeros(ncol), "-k")
-        (self.mask_spec,) = self.ax2.plot(np.zeros(self.nbad), ".r", ms=2)
-        (self.dots_slit,) = self.ax3.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        self.cbar_resid = self.fig.colorbar(
+            self.im_resid, cax=self.ax_cbar_resid, ticklocation="left"
         )
-        (self.line_slit,) = self.ax3.plot(np.zeros(nrow), "-k", lw=2)
-        (self.mask_slit,) = self.ax3.plot(np.zeros(self.nbad), ".r", ms=2)
 
-        # self.ax1.set_zscale("log")
-        # self.ax4.set_zscale("log")
+        # Spectrum plot elements
+        (self.dots_spec,) = self.ax_spec.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        )
+        (self.line_spec,) = self.ax_spec.plot(np.zeros(ncol), "-k")
+        (self.mask_spec,) = self.ax_spec.plot(np.zeros(self.nbad), ".r", ms=2)
+
+        # Slit function plot elements (rotated: y is vertical, contribution horizontal)
+        (self.dots_slit,) = self.ax_slit.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        )
+        (self.line_slit,) = self.ax_slit.plot(
+            np.zeros(nrow), np.zeros(nrow), "-k", lw=2
+        )
+        (self.mask_slit,) = self.ax_slit.plot(np.zeros(self.nbad), ".r", ms=2)
 
         self.paused = False
         self.advance_one = False
-        ax_slower = self.fig.add_axes([0.30, 0.02, 0.08, 0.05])
-        ax_faster = self.fig.add_axes([0.39, 0.02, 0.08, 0.05])
-        ax_pause = self.fig.add_axes([0.48, 0.02, 0.08, 0.05])
-        ax_step = self.fig.add_axes([0.57, 0.02, 0.08, 0.05])
+        ax_slower = self.fig.add_axes([0.30, 0.02, 0.08, 0.04])
+        ax_faster = self.fig.add_axes([0.39, 0.02, 0.08, 0.04])
+        ax_pause = self.fig.add_axes([0.48, 0.02, 0.08, 0.04])
+        ax_step = self.fig.add_axes([0.57, 0.02, 0.08, 0.04])
         self.btn_slower = Button(ax_slower, "Slower")
         self.btn_faster = Button(ax_faster, "Faster")
         self.btn_pause = Button(ax_pause, "Pause")
@@ -112,6 +133,7 @@ class ProgressPlot:  # pragma: no cover
         self.btn_pause.on_clicked(self._toggle_pause)
         self.btn_step.on_clicked(self._step)
 
+        self.fig.subplots_adjust(bottom=0.12, top=0.92, left=0.05, right=0.92)
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -146,7 +168,7 @@ class ProgressPlot:  # pragma: no cover
             data = np.concatenate((data, padding))
         return data
 
-    def plot(self, img, spec, slitf, model, ycen, mask, ord_num, left, right):
+    def plot(self, img, spec, slitf, model, ycen, mask, trace_idx, left, right):
         img = np.copy(img)
         spec = np.copy(spec)
         slitf = np.copy(slitf)
@@ -175,45 +197,44 @@ class ProgressPlot:  # pragma: no cover
         old = self.fix_linear(old, self.nslitf)
         sf = self.fix_linear(slitf, self.nslitf)
 
-        # Update Data
+        # Update image data
         vmin, vmax = np.percentile(img, [5, 95])
         self.im_obs.set_data(img)
         self.im_obs.set_clim(vmin, vmax)
         self.im_model.set_data(model)
         self.im_model.set_clim(vmin, vmax)
         resid = img - model
-        rlim = np.nanpercentile(np.abs(resid), 95)
+        rlim = np.nanpercentile(np.abs(resid), 99)
         self.im_resid.set_data(resid)
         self.im_resid.set_clim(-rlim, rlim)
 
-        # self.line_ycen.set_ydata(ycen)
+        # Update spectrum panel
         self.dots_spec.set_xdata(x_spec)
         self.dots_spec.set_ydata(y_spec)
         self.line_spec.set_ydata(spec)
-
         self.mask_spec.set_xdata(mask_spec_x)
         self.mask_spec.set_ydata(mask_spec)
 
-        self.dots_slit.set_xdata(x_slit)
-        self.dots_slit.set_ydata(y_slit)
-        self.line_slit.set_xdata(old)
-        self.line_slit.set_ydata(sf)
+        # Update slit function panel (rotated: contribution on x, y-pixel on y)
+        self.dots_slit.set_xdata(y_slit)
+        self.dots_slit.set_ydata(x_slit)
+        self.line_slit.set_xdata(sf)
+        self.line_slit.set_ydata(old)
+        self.mask_slit.set_xdata(mask_slit)
+        self.mask_slit.set_ydata(mask_slit_x)
 
-        self.mask_slit.set_xdata(mask_slit_x)
-        self.mask_slit.set_ydata(mask_slit)
-
-        self.ax2.set_xlim((0, nspec - 1))
+        self.ax_spec.set_xlim((0, nspec - 1))
         spec_middle = spec[5:-5] if len(spec) > 10 else spec
         limit = np.nanmax(spec_middle) * 1.1 if len(spec_middle) > 0 else 1.0
         if not np.isnan(limit):
-            self.ax2.set_ylim((0, limit))
+            self.ax_spec.set_ylim((0, limit))
 
-        self.ax3.set_xlim((0, ny - 1))
+        self.ax_slit.set_ylim((0, ny - 1))
         limit = np.nanmax(sf) * 1.1
         if not np.isnan(limit):
-            self.ax3.set_ylim((0, limit))
+            self.ax_slit.set_xlim((0, limit))
 
-        title = f"Order {ord_num}, Columns {left} - {right}"
+        title = f"Trace {trace_idx}, Columns {left} - {right}"
         if self.title is not None:
             title = f"{self.title}\n{title}"
         self.fig.suptitle(title)
