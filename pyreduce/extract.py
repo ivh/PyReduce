@@ -102,21 +102,25 @@ class ProgressPlot:  # pragma: no cover
             self.im_resid, cax=self.ax_cbar_resid, ticklocation="left"
         )
 
-        # Spectrum plot elements
-        (self.dots_spec,) = self.ax_spec.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        # Spectrum plot elements (rejected first as background, then good points)
+        (self.rejected_spec,) = self.ax_spec.plot(
+            np.zeros(self.nbad), np.zeros(self.nbad), ".k", ms=2, alpha=0.2
+        )
+        (self.good_spec,) = self.ax_spec.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.5
         )
         (self.line_spec,) = self.ax_spec.plot(np.zeros(ncol), "-k")
-        (self.mask_spec,) = self.ax_spec.plot(np.zeros(self.nbad), ".r", ms=2)
 
-        # Slit function plot elements (rotated: y is vertical, contribution horizontal)
-        (self.dots_slit,) = self.ax_slit.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.6
+        # Slit function plot elements (rejected first as background, then good points)
+        (self.rejected_slit,) = self.ax_slit.plot(
+            np.zeros(self.nbad), np.zeros(self.nbad), ".k", ms=2, alpha=0.2
+        )
+        (self.good_slit,) = self.ax_slit.plot(
+            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.5
         )
         (self.line_slit,) = self.ax_slit.plot(
             np.zeros(nrow), np.zeros(nrow), "-k", lw=2
         )
-        (self.mask_slit,) = self.ax_slit.plot(np.zeros(self.nbad), ".r", ms=2)
 
         self.paused = False
         self.advance_one = False
@@ -182,18 +186,20 @@ class ProgressPlot:  # pragma: no cover
 
         old = np.linspace(-1, ny, len(slitf))
 
-        # Fix Sizes
-        mask_spec_x = self.fix_linear(x_spec[mask.ravel()], self.nbad, fill=np.nan)
-        mask_spec = self.fix_linear(y_spec[mask.ravel()], self.nbad, fill=np.nan)
-        mask_slit_x = self.fix_linear(x_slit[mask.ravel()], self.nbad, fill=np.nan)
-        mask_slit = self.fix_linear(y_slit[mask.ravel()], self.nbad, fill=np.nan)
+        # Separate rejected (mask=0) and good (mask=1) points
+        rejected = ~mask.ravel()
+        good = mask.ravel()
+        rej_spec_x = self.fix_linear(x_spec[rejected], self.nbad, fill=np.nan)
+        rej_spec_y = self.fix_linear(y_spec[rejected], self.nbad, fill=np.nan)
+        rej_slit_x = self.fix_linear(x_slit[rejected], self.nbad, fill=np.nan)
+        rej_slit_y = self.fix_linear(y_slit[rejected], self.nbad, fill=np.nan)
+        good_spec_x = self.fix_linear(x_spec[good], self.ncol * self.nrow, fill=np.nan)
+        good_spec_y = self.fix_linear(y_spec[good], self.ncol * self.nrow, fill=np.nan)
+        good_slit_x = self.fix_linear(x_slit[good], self.ncol * self.nrow, fill=np.nan)
+        good_slit_y = self.fix_linear(y_slit[good], self.ncol * self.nrow, fill=np.nan)
 
         ycen = self.fix_linear(ycen, self.ncol)
-        x_spec = self.fix_linear(x_spec, self.ncol * self.nrow)
-        y_spec = self.fix_linear(y_spec, self.ncol * self.nrow)
         spec = self.fix_linear(spec, self.ncol)
-        x_slit = self.fix_linear(x_slit, self.ncol * self.nrow)
-        y_slit = self.fix_linear(y_slit, self.ncol * self.nrow)
         old = self.fix_linear(old, self.nslitf)
         sf = self.fix_linear(slitf, self.nslitf)
 
@@ -209,19 +215,19 @@ class ProgressPlot:  # pragma: no cover
         self.im_resid.set_clim(-rlim, rlim)
 
         # Update spectrum panel
-        self.dots_spec.set_xdata(x_spec)
-        self.dots_spec.set_ydata(y_spec)
+        self.rejected_spec.set_xdata(rej_spec_x)
+        self.rejected_spec.set_ydata(rej_spec_y)
+        self.good_spec.set_xdata(good_spec_x)
+        self.good_spec.set_ydata(good_spec_y)
         self.line_spec.set_ydata(spec)
-        self.mask_spec.set_xdata(mask_spec_x)
-        self.mask_spec.set_ydata(mask_spec)
 
         # Update slit function panel (rotated: contribution on x, y-pixel on y)
-        self.dots_slit.set_xdata(y_slit)
-        self.dots_slit.set_ydata(x_slit)
+        self.rejected_slit.set_xdata(rej_slit_y)
+        self.rejected_slit.set_ydata(rej_slit_x)
+        self.good_slit.set_xdata(good_slit_y)
+        self.good_slit.set_ydata(good_slit_x)
         self.line_slit.set_xdata(sf)
         self.line_slit.set_ydata(old)
-        self.mask_slit.set_xdata(mask_slit)
-        self.mask_slit.set_ydata(mask_slit_x)
 
         self.ax_spec.set_xlim((0, nspec - 1))
         spec_middle = spec[5:-5] if len(spec) > 10 else spec
