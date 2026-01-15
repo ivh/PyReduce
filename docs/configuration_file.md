@@ -37,6 +37,34 @@ Settings are loaded in order:
 2. `instruments/{INSTRUMENT}/settings.json` - Instrument-specific overrides
 3. Runtime overrides via `configuration` parameter
 
+### Per-Channel Settings
+
+For instruments with multiple channels that need different parameters, you can
+create channel-specific settings files named `settings_{channel}.json`:
+
+```
+pyreduce/instruments/MOSAIC/
+    settings.json           # Base settings for all channels
+    settings_NIR1.json      # Overrides for NIR1 channel
+    settings_VIS1.json      # Overrides for VIS1 channel
+```
+
+Channel settings should inherit from the base instrument:
+
+```json
+{
+    "__instrument__": "MOSAIC",
+    "__inherits__": "MOSAIC",
+    "science": {
+        "extraction_height": 50
+    }
+}
+```
+
+When using `Pipeline.from_instrument(..., channel="NIR1")`, PyReduce will
+automatically load `settings_NIR1.json` if it exists, falling back to
+`settings.json` otherwise.
+
 To override settings at runtime:
 
 ```python
