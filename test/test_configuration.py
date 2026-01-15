@@ -1,3 +1,6 @@
+import json
+import os
+
 import pytest
 
 from pyreduce import configuration as conf
@@ -68,3 +71,41 @@ def test_validation():
 
     with pytest.raises(ValueError):
         conf.validate_config(config)
+
+
+def test_per_channel_settings(tmp_path):
+    """Test that channel-specific settings files are loaded and inherit correctly."""
+    inst_dir = os.path.join(os.path.dirname(conf.__file__), "instruments", "UVES")
+    channel_file = os.path.join(inst_dir, "settings_TESTCHAN.json")
+
+    try:
+        # Create channel-specific settings that inherits from UVES
+        channel_settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES",
+            "science": {"extraction_height": 99},
+        }
+        with open(channel_file, "w") as f:
+            json.dump(channel_settings, f)
+
+        # Test: channel file is loaded when channel specified
+        config = conf.get_configuration_for_instrument("UVES", channel="TESTCHAN")
+        assert config["science"]["extraction_height"] == 99
+
+        # Test: other settings inherited from UVES
+        base_config = conf.get_configuration_for_instrument("UVES")
+        assert config["trace"]["degree"] == base_config["trace"]["degree"]
+
+        # Test: falls back to base settings when channel file doesn't exist
+        config_fallback = conf.get_configuration_for_instrument(
+            "UVES", channel="NONEXISTENT"
+        )
+        assert config_fallback["science"]["extraction_height"] != 99
+
+        # Test: load_config passes channel through
+        config_via_load = conf.load_config(None, "UVES", channel="TESTCHAN")
+        assert config_via_load["science"]["extraction_height"] == 99
+
+    finally:
+        if os.path.exists(channel_file):
+            os.remove(channel_file)

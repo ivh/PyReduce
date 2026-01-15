@@ -746,8 +746,8 @@ class Pipeline:
         util.set_plot_dir(plot_dir)
         util.set_plot_show(plot_show, plot_level=plot)
 
-        # Load configuration
-        config = load_config(configuration, instrument, 0)
+        # Load configuration (channel-specific if settings_{channel}.json exists)
+        config = load_config(configuration, instrument, 0, channel=channel)
 
         # Load instrument
         inst = load_instrument(instrument)

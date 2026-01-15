@@ -25,13 +25,22 @@ else:
     hasJsonSchema = True
 
 
-def get_configuration_for_instrument(instrument, **kwargs):
+def get_configuration_for_instrument(instrument, channel=None, **kwargs):
     local = dirname(__file__)
     instrument = str(instrument)
     if instrument in ["pyreduce", "defaults", None]:
         fname = join(local, "instruments", "defaults", "settings.json")
     else:
-        fname = join(local, "instruments", instrument.upper(), "settings.json")
+        inst_dir = join(local, "instruments", instrument.upper())
+        # Check for channel-specific settings file first
+        if channel:
+            channel_fname = join(inst_dir, f"settings_{channel}.json")
+            if exists(channel_fname):
+                fname = channel_fname
+            else:
+                fname = join(inst_dir, "settings.json")
+        else:
+            fname = join(inst_dir, "settings.json")
 
     config = load_config(fname, instrument)
 
@@ -106,12 +115,14 @@ def _resolve_inheritance(config, seen=None):
     return update(parent, config, check=False)
 
 
-def load_config(configuration, instrument, j=0):
+def load_config(configuration, instrument, j=0, channel=None):
     if configuration is None:
         logger.info(
             "No configuration specified, using default values for this instrument"
         )
-        config = get_configuration_for_instrument(instrument, plot=False)
+        config = get_configuration_for_instrument(
+            instrument, channel=channel, plot=False
+        )
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():
             config = configuration[str(instrument)]
