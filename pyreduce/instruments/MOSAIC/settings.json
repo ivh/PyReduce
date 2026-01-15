@@ -7,7 +7,7 @@
         "noise_relative": 0.001,
         "min_cluster": 4000,
         "min_width": 0.8,
-        "filter_y": 6,
+        "filter_y": 8,
         "border_width": [70, 70,0,0],
         "closing_shape": [1, 1],
         "opening_shape": [1, 1],
@@ -16,14 +16,14 @@
         "merge_min_threshold": 0
     },
     "curvature": {
-        "curve_height": 35,
-        "extraction_height": 5
+        "curve_height": 55,
+        "extraction_height": 12
     },
     "wavecal_master": {
         "extraction_height": 0.5
     },
     "science": {
-        "extraction_height": 37,
+        "extraction_height": 59,
         "oversampling": 8,
         "swath_width": 500,
         "smooth_slitfunction": 0.2,

@@ -1,0 +1,14 @@
+{
+    "__instrument__": "MOSAIC",
+    "__inherits__": "MOSAIC",
+    "trace": {
+        "filter_y": 8
+    },
+    "curvature": {
+        "curve_height": 55,
+        "extraction_height": 12
+    },
+    "science": {
+        "extraction_height": 59
+    }
+}
