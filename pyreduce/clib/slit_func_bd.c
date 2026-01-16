@@ -123,7 +123,7 @@ int slit_func_vert(int ncols,        /* Swath width in pixels                   
   */
   for (x = 0; x < ncols; x++)
   {
-    iy2 = osample - floor(ycen[x] / step) - 1;
+    iy2 = osample - floor(ycen[x] / step);
     iy1 = iy2 - osample;
 
     d1 = fmod(ycen[x], step);
