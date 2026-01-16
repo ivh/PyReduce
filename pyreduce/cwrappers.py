@@ -10,7 +10,6 @@ import ctypes
 import logging
 
 import numpy as np
-from scipy.ndimage import median_filter
 
 logger = logging.getLogger(__name__)
 
@@ -213,19 +212,7 @@ def slitfunc_curved(
     img[mask2] = 0
     mask |= ~np.isfinite(img)
 
-    # sp should never be all zero (thats a horrible guess) and leads to all nans
-    # This is a simplified run of the algorithm without oversampling or curvature
-    # But strong smoothing
-    # To remove the most egregious outliers, which would ruin the fit
-    sp = np.sum(img, axis=0)
-    median_filter(sp, 5, output=sp)
-    sl = np.median(img, axis=1)
-    sl /= np.sum(sl)
-
-    model = sl[:, None] * sp[None, :]
-    diff = model - img
-    mask[np.abs(diff) > 10 * diff.std()] = True
-
+    # Initial spectrum guess (sum of unmasked pixels per column)
     sp = np.sum(img, axis=0)
 
     mask = np.where(mask, c_int(0), c_int(1))
