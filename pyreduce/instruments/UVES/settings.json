@@ -15,7 +15,7 @@
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 2,
+        "smooth_slitfunction": 0.9,
         "smooth_spectrum": 0,
         "extraction_height": 0.9,
         "oversampling": 8,
@@ -52,7 +52,7 @@
         "oversampling": 8,
         "extraction_height": 0.4,
         "swath_width": 300,
-        "smooth_slitfunction": 0.1,
+        "smooth_slitfunction": 2,
         "smooth_spectrum": 0
     }
 }
