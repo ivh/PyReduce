@@ -28,12 +28,17 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressPlot:  # pragma: no cover
-    def __init__(self, nrow, ncol, nslitf, nbad=1000, title=None):
+    def __init__(self, nrow, ncol, nslitf, title=None):
         self.nrow = nrow
         self.ncol = ncol
         self.nslitf = nslitf
 
-        self.nbad = nbad
+        # Setup debug output directory for saving swath data
+        from pathlib import Path
+
+        reduce_data = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+        self.save_dir = Path(reduce_data) / "debug"
+        self.save_dir.mkdir(parents=True, exist_ok=True)
         self.min_frame_time = float(
             os.environ.get("PYREDUCE_PLOT_ANIMATION_SPEED", 0.3)
         )
@@ -103,24 +108,14 @@ class ProgressPlot:  # pragma: no cover
         )
 
         # Spectrum plot elements (rejected first as background, then good points)
-        (self.rejected_spec,) = self.ax_spec.plot(
-            np.zeros(self.nbad), np.zeros(self.nbad), ".k", ms=2, alpha=0.2
-        )
-        (self.good_spec,) = self.ax_spec.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.5
-        )
-        (self.line_spec,) = self.ax_spec.plot(np.zeros(ncol), "-k")
+        (self.rejected_spec,) = self.ax_spec.plot([], [], ".k", ms=2, alpha=0.2)
+        (self.good_spec,) = self.ax_spec.plot([], [], ".g", ms=2, alpha=0.5)
+        (self.line_spec,) = self.ax_spec.plot([], "-k")
 
         # Slit function plot elements (rejected first as background, then good points)
-        (self.rejected_slit,) = self.ax_slit.plot(
-            np.zeros(self.nbad), np.zeros(self.nbad), ".k", ms=2, alpha=0.2
-        )
-        (self.good_slit,) = self.ax_slit.plot(
-            np.zeros(nrow * ncol), np.zeros(nrow * ncol), ".g", ms=2, alpha=0.5
-        )
-        (self.line_slit,) = self.ax_slit.plot(
-            np.zeros(nrow), np.zeros(nrow), "-k", lw=2
-        )
+        (self.rejected_slit,) = self.ax_slit.plot([], [], ".k", ms=2, alpha=0.2)
+        (self.good_slit,) = self.ax_slit.plot([], [], ".g", ms=2, alpha=0.5)
+        (self.line_slit,) = self.ax_slit.plot([], [], "-k", lw=2)
 
         self.paused = False
         self.advance_one = False
@@ -162,17 +157,35 @@ class ProgressPlot:  # pragma: no cover
             time.sleep(0.05)
         self.advance_one = False
 
-    def fix_linear(self, data, limit, fill=0):
-        """Assures the size of the 1D array data is equal to limit"""
+    def plot(
+        self,
+        img,
+        spec,
+        slitf,
+        model,
+        ycen,
+        mask,
+        trace_idx,
+        left,
+        right,
+        unc,
+        info,
+        swath_idx,
+    ):
+        # Save swath data to debug directory
+        outfile = self.save_dir / f"swath_trace{trace_idx}_swath{swath_idx}.npz"
+        np.savez(
+            outfile,
+            swath_img=img,
+            ycen=ycen,
+            spec=spec,
+            slitf=slitf,
+            model=model,
+            unc=unc,
+            mask=mask,
+            info=info,
+        )
 
-        if len(data) > limit:
-            data = data[:limit]
-        elif len(data) < limit:
-            padding = np.full(limit - len(data), fill, dtype=data.dtype)
-            data = np.concatenate((data, padding))
-        return data
-
-    def plot(self, img, spec, slitf, model, ycen, mask, trace_idx, left, right):
         img = np.copy(img)
         spec = np.copy(spec)
         slitf = np.copy(slitf)
@@ -189,19 +202,15 @@ class ProgressPlot:  # pragma: no cover
         # Separate rejected (mask=0) and good (mask=1) points
         rejected = ~mask.ravel()
         good = mask.ravel()
-        rej_spec_x = self.fix_linear(x_spec[rejected], self.nbad, fill=np.nan)
-        rej_spec_y = self.fix_linear(y_spec[rejected], self.nbad, fill=np.nan)
-        rej_slit_x = self.fix_linear(x_slit[rejected], self.nbad, fill=np.nan)
-        rej_slit_y = self.fix_linear(y_slit[rejected], self.nbad, fill=np.nan)
-        good_spec_x = self.fix_linear(x_spec[good], self.ncol * self.nrow, fill=np.nan)
-        good_spec_y = self.fix_linear(y_spec[good], self.ncol * self.nrow, fill=np.nan)
-        good_slit_x = self.fix_linear(x_slit[good], self.ncol * self.nrow, fill=np.nan)
-        good_slit_y = self.fix_linear(y_slit[good], self.ncol * self.nrow, fill=np.nan)
 
-        ycen = self.fix_linear(ycen, self.ncol)
-        spec = self.fix_linear(spec, self.ncol)
-        old = self.fix_linear(old, self.nslitf)
-        sf = self.fix_linear(slitf, self.nslitf)
+        rej_spec_x = x_spec[rejected]
+        rej_spec_y = y_spec[rejected]
+        rej_slit_x = x_slit[rejected]
+        rej_slit_y = y_slit[rejected]
+        good_spec_x = x_spec[good]
+        good_spec_y = y_spec[good]
+        good_slit_x = x_slit[good]
+        good_slit_y = y_slit[good]
 
         # Update image data
         vmin, vmax = np.percentile(img, [5, 95])
@@ -219,6 +228,7 @@ class ProgressPlot:  # pragma: no cover
         self.rejected_spec.set_ydata(rej_spec_y)
         self.good_spec.set_xdata(good_spec_x)
         self.good_spec.set_ydata(good_spec_y)
+        self.line_spec.set_xdata(np.arange(len(spec)))
         self.line_spec.set_ydata(spec)
 
         # Update slit function panel (rotated: contribution on x, y-pixel on y)
@@ -226,7 +236,7 @@ class ProgressPlot:  # pragma: no cover
         self.rejected_slit.set_ydata(rej_slit_x)
         self.good_slit.set_xdata(good_slit_y)
         self.good_slit.set_ydata(good_slit_x)
-        self.line_slit.set_xdata(sf)
+        self.line_slit.set_xdata(slitf)
         self.line_slit.set_ydata(old)
 
         self.ax_spec.set_xlim((0, nspec - 1))
@@ -236,7 +246,7 @@ class ProgressPlot:  # pragma: no cover
             self.ax_spec.set_ylim((0, limit))
 
         self.ax_slit.set_ylim((0, ny - 1))
-        limit = np.nanmax(sf) * 1.1
+        limit = np.nanmax(slitf) * 1.1
         if not np.isnan(limit):
             self.ax_slit.set_xlim((0, limit))
 
@@ -877,6 +887,9 @@ def extract_spectrum(
                     ord_num,
                     ibeg,
                     iend,
+                    swath.unc[ihalf],
+                    swath.info[ihalf],
+                    ihalf,
                 )
 
     # Remove points at the border of the each swath, if order has curvature

@@ -76,8 +76,8 @@ pipe = Pipeline(
 # - Groups 630 traces into 90 bundles of 7
 # - Selects center fiber from each bundle
 # - Uses grouped traces for curvature and science steps
-pipe.trace_orders([flat_file])
-pipe.curvature([thar_file])
+# pipe.trace_orders([flat_file])
+# pipe.curvature([thar_file])
 pipe.extract([thar_file, flat_file])
 
 print("\n=== Running Pipeline ===")
