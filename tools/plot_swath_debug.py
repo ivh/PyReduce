@@ -93,7 +93,7 @@ def main():
     ax_rel_resid.tick_params(labelbottom=False)
 
     ax_mask = fig.add_subplot(gs[1, 1], sharex=ax_model, sharey=ax_swath)
-    ax_mask.imshow(mask, aspect="auto", origin="lower", cmap="gray")
+    ax_mask.imshow(~mask, aspect="auto", origin="lower", cmap="gray")
     ax_mask.set_title("Mask (white=good)")
     ax_mask.tick_params(labelbottom=False, labelleft=False)
 

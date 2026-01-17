@@ -4,6 +4,10 @@ Wrapper for REDUCE C functions
 This module provides access to the extraction algorithms in the
 C libraries and sanitizes the input parameters.
 
+Mask convention:
+    - Python side uses numpy convention: True = bad/masked pixel
+    - C code uses REDUCE convention: 1 = good pixel, 0 = bad pixel
+    All conversions happen at the boundary in this module.
 """
 
 import ctypes
@@ -20,6 +24,19 @@ from .clib._slitfunc_bd import lib as slitfunclib
 c_double = ctypes.c_double
 c_int = ctypes.c_int
 c_mask = ctypes.c_ubyte
+
+
+def _mask_to_c(mask: np.ndarray, dtype=None) -> np.ndarray:
+    """Convert numpy mask (True=bad) to C mask (1=good, 0=bad)."""
+    result = np.where(mask, 0, 1)
+    if dtype is not None:
+        result = result.astype(dtype)
+    return result
+
+
+def _mask_from_c(mask: np.ndarray) -> np.ndarray:
+    """Convert C mask (1=good, 0=bad) to numpy mask (True=bad)."""
+    return mask == 0
 
 
 def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
@@ -79,7 +96,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
     sl = np.zeros(ny, dtype=c_double)
 
-    mask = ~np.ma.getmaskarray(img)
+    mask = _mask_to_c(np.ma.getmaskarray(img), dtype=c_int)
     mask = np.require(mask, dtype=c_int, requirements=requirements)
 
     img = np.ma.getdata(img)
@@ -108,7 +125,7 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
         ffi.cast("double *", model.ctypes.data),
         ffi.cast("double *", unc.ctypes.data),
     )
-    mask = ~mask.astype(bool)
+    mask = _mask_from_c(mask)
 
     return sp, sl, model, unc, mask
 
@@ -215,7 +232,7 @@ def slitfunc_curved(
     # Initial spectrum guess (sum of unmasked pixels per column)
     sp = np.sum(img, axis=0)
 
-    mask = np.where(mask, c_int(0), c_int(1))
+    mask = _mask_to_c(mask, dtype=c_mask)
     # Determine the shot noise
     # by converting electrons to photonsm via the gain
     pix_unc = np.nan_to_num(np.abs(img), copy=False)
@@ -292,7 +309,7 @@ def slitfunc_curved(
             logger.error(msg)
         # raise RuntimeError(msg)
 
-    mask = mask == 0
+    mask = _mask_from_c(mask)
 
     return sp, sl, model, unc, mask, info
 

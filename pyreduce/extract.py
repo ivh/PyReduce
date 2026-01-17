@@ -199,9 +199,9 @@ class ProgressPlot:  # pragma: no cover
 
         old = np.linspace(-1, ny, len(slitf))
 
-        # Separate rejected (mask=0) and good (mask=1) points
-        rejected = ~mask.ravel()
-        good = mask.ravel()
+        # Separate rejected (mask=True) and good (mask=False) pixels
+        rejected = mask.ravel()
+        good = ~mask.ravel()
 
         rej_spec_x = x_spec[rejected]
         rej_spec_y = y_spec[rejected]
