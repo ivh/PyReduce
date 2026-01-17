@@ -1186,8 +1186,8 @@ int slit_func_curved(int ncols,
             printf("-----------\n");
         }
 #endif
-        /* Check for convergence */
-    } while (((iter++ < maxiter) && (cost_old - cost > ftol)) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
+        /* Check for convergence (minimum 4 iterations since mask adjustment starts at iter 2) */
+    } while (((iter++ < maxiter) && ((cost_old - cost > ftol) || (iter <= 4))) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
 
     if (iter >= maxiter - 1)
     {
