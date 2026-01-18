@@ -5,7 +5,7 @@ This module provides access to the extraction algorithms in the
 C libraries and sanitizes the input parameters.
 
 Mask convention:
-    - Python side uses numpy convention: True = bad/masked pixel
+    - FITS files and Python: numpy convention (1/True = bad/masked pixel)
     - C code uses REDUCE convention: 1 = good pixel, 0 = bad pixel
     All conversions happen at the boundary in this module.
 """

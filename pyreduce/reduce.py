@@ -557,7 +557,7 @@ class Mask(Step):
         mask_file = self.instrument.get_mask_filename(channel=self.channel)
         try:
             mask, _ = self.instrument.load_fits(mask_file, self.channel, extension=0)
-            mask = ~mask.data.astype(bool)  # REDUCE mask are inverse to numpy masks
+            mask = mask.data.astype(bool)  # 1 = bad/masked (numpy convention)
             logger.info("Bad pixel mask file: %s", mask_file)
         except (FileNotFoundError, ValueError):
             logger.error(
