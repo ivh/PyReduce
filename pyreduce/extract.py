@@ -109,12 +109,12 @@ class ProgressPlot:  # pragma: no cover
 
         # Spectrum plot elements (rejected first as background, then good points)
         (self.rejected_spec,) = self.ax_spec.plot([], [], ".r", ms=2, alpha=0.2)
-        (self.good_spec,) = self.ax_spec.plot([], [], ".g", ms=2, alpha=0.4)
+        (self.good_spec,) = self.ax_spec.plot([], [], ".g", ms=2, alpha=0.2)
         (self.line_spec,) = self.ax_spec.plot([], "-k")
 
         # Slit function plot elements (rejected first as background, then good points)
         (self.rejected_slit,) = self.ax_slit.plot([], [], ".r", ms=2, alpha=0.2)
-        (self.good_slit,) = self.ax_slit.plot([], [], ".g", ms=2, alpha=0.4)
+        (self.good_slit,) = self.ax_slit.plot([], [], ".g", ms=2, alpha=0.2)
         (self.line_slit,) = self.ax_slit.plot([], [], "-k", lw=2)
 
         self.paused = False

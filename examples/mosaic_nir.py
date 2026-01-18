@@ -78,8 +78,8 @@ pipe = Pipeline(
 # - Uses grouped traces for curvature and science steps
 # pipe.trace_orders([flat_file])
 # pipe.curvature([thar_file])
-pipe.extract([flat_file])
 pipe.extract([thar_file])
+pipe.extract([flat_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()
