@@ -441,6 +441,7 @@ class ExtractionStep(Step):
                 "swath_width": config["swath_width"],
                 "sigma_cutoff": config["extraction_cutoff"],
                 "maxiter": config["maxiter"],
+                "reject_threshold": config.get("extraction_reject", 6),
             }
         else:
             raise ValueError(
@@ -1080,6 +1081,7 @@ class NormalizeFlatField(Step):
                 "swath_width": config["swath_width"],
                 "sigma_cutoff": config["extraction_cutoff"],
                 "maxiter": config["maxiter"],
+                "reject_threshold": config.get("extraction_reject", 6),
             }
         else:
             raise ValueError(

@@ -688,6 +688,7 @@ def extract_spectrum(
     osample=1,
     swath_width=None,
     maxiter=20,
+    reject_threshold=6,
     telluric=None,
     scatter=None,
     normalize=False,
@@ -852,6 +853,7 @@ def extract_spectrum(
                 yrange=yrange,
                 maxiter=maxiter,
                 gain=gain,
+                reject_threshold=reject_threshold,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 

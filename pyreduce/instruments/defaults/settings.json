@@ -70,6 +70,7 @@
         "threshold": 0.6,
         "threshold_lower": 0,
         "extraction_cutoff": 20,
+        "extraction_reject": 6,
         "plot": true,
         "plot_title": "Normalized Flat"
     },
@@ -170,6 +171,7 @@
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 1e-07,
         "extraction_cutoff": 20,
+        "extraction_reject": 6,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "plot": true,

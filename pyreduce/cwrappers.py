@@ -131,7 +131,17 @@ def slitfunc(img, ycen, lambda_sp=0, lambda_sf=0.1, osample=1):
 
 
 def slitfunc_curved(
-    img, ycen, p1, p2, lambda_sp, lambda_sf, osample, yrange, maxiter=20, gain=1
+    img,
+    ycen,
+    p1,
+    p2,
+    lambda_sp,
+    lambda_sf,
+    osample,
+    yrange,
+    maxiter=20,
+    gain=1,
+    reject_threshold=6,
 ):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
@@ -157,6 +167,8 @@ def slitfunc_curved(
         maximumim number of iterations, by default 20
     gain : float, optional
         gain of the image, by default 1
+    reject_threshold : float, optional
+        outlier rejection threshold in sigma, by default 6. Set to 0 to disable.
 
     Returns
     -------
@@ -281,6 +293,7 @@ def slitfunc_curved(
         ffi.cast("double", lambda_sp),
         ffi.cast("double", lambda_sf),
         ffi.cast("int", maxiter),
+        ffi.cast("double", reject_threshold),
         ffi.cast("double *", psf_curve.ctypes.data),
         ffi.cast("double *", sp.ctypes.data),
         ffi.cast("double *", sl.ctypes.data),

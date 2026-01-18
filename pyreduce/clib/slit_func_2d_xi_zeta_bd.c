@@ -849,6 +849,7 @@ int slit_func_curved(int ncols,
                      double lambda_sP,
                      double lambda_sL,
                      int maxiter,
+                     double reject_threshold,
                      double *PSF_curve,
                      double *sP,
                      double *sL,
@@ -1160,7 +1161,7 @@ int slit_func_curved(int ncols,
         dev = sqrt(dev / isum);
 
         /* Adjust the mask marking outliers (skip first 2 iterations to let model stabilize) */
-        if (iter >= 2)
+        if (iter >= 2 && reject_threshold > 0)
         {
             for (y = 0; y < nrows; y++)
             {
@@ -1168,7 +1169,7 @@ int slit_func_curved(int ncols,
                 {
                     /* Use model-based Poisson noise: threshold scales with sqrt(model) */
                     tmp = sqrt(max(model[im_index(x, y)], 1.));
-                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < 6. * tmp)
+                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < reject_threshold * tmp)
                         mask[im_index(x, y)] = 1;
                     else
                         mask[im_index(x, y)] = 0;
