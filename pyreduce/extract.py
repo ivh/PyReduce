@@ -1146,14 +1146,6 @@ def model_image(img, xwd, p1, p2):
     return model, spec, slitf
 
 
-def get_mask(img, model):
-    # 99.73 = 3 sigma, 2 * 3 = 6 sigma
-    residual = np.ma.abs(img - model)
-    median, vmax = np.percentile(np.ma.compressed(residual), (50, 99.73))
-    vmax = median + 2 * (vmax - median)
-    return residual > vmax
-
-
 def simple_extraction(
     img,
     traces,
