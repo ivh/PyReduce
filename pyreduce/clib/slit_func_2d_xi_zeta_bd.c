@@ -385,6 +385,56 @@ double median_absolute_deviation(double arr[], unsigned int n)
     return mad;
 }
 
+/* Quickselect for arbitrary percentile (0-100) */
+double quick_select_percentile(double arr[], unsigned int n, double percentile)
+{
+    int low, high;
+    int target;
+    int middle, ll, hh;
+
+    low = 0;
+    high = n - 1;
+    target = (int)((percentile / 100.0) * (n - 1));
+    for (;;)
+    {
+        if (high <= low)
+            return arr[target];
+        if (high == low + 1)
+        {
+            if (arr[low] > arr[high])
+                ELEM_SWAP(arr[low], arr[high]);
+            return arr[target];
+        }
+        middle = (low + high) / 2;
+        if (arr[middle] > arr[high])
+            ELEM_SWAP(arr[middle], arr[high]);
+        if (arr[low] > arr[high])
+            ELEM_SWAP(arr[low], arr[high]);
+        if (arr[middle] > arr[low])
+            ELEM_SWAP(arr[middle], arr[low]);
+        ELEM_SWAP(arr[middle], arr[low + 1]);
+        ll = low + 1;
+        hh = high;
+        for (;;)
+        {
+            do
+                ll++;
+            while (arr[low] > arr[ll]);
+            do
+                hh--;
+            while (arr[hh] > arr[low]);
+            if (hh < ll)
+                break;
+            ELEM_SWAP(arr[ll], arr[hh]);
+        }
+        ELEM_SWAP(arr[low], arr[hh]);
+        if (hh <= target)
+            low = ll;
+        if (hh >= target)
+            high = hh - 1;
+    }
+}
+
 int xi_zeta_tensors(
     int ncols,
     int nrows,
@@ -912,13 +962,14 @@ int slit_func_curved(int ncols,
         0 on success, -1 on failure (see also bandsol)
     */
     int x, xx, xxx, y, yy, iy, jy, n, m, nx;
-    double norm, dev, lambda, diag_tot, ww, www;
-    double cost_old, ftol, tmp;
+    double norm, sigma, lambda, diag_tot, ww, www, tmp;
+    double sP_change, sP_stop, sP_med;
     int iter, delta_x;
     unsigned int isum;
 
     // For the solving of the equation system
     double *l_Aij, *l_bj, *p_Aij, *p_bj;
+    double *sP_old, *sP_diff;
 
     // For the geometry
     xi_ref *xi;
@@ -926,14 +977,12 @@ int slit_func_curved(int ncols,
     int *m_zeta;
 
     // The Optimization results
-    double success, status, cost;
+    double success, status;
 
-    // maxiter = 20; // Maximum number of iterations
-    ftol = 1e-7;  // Maximum cost difference between two iterations to stop convergence
+    sP_stop = 5e-5;  // Convergence threshold: 99th percentile change relative to median
     success = 1;
     status = 0;
-
-    cost = INFINITY;
+    sP_change = INFINITY;
     ny = osample * (nrows + 1) + 1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
 
 #if DEBUG
@@ -965,8 +1014,8 @@ int slit_func_curved(int ncols,
     if (nx > ncols)
     {
         info[0] = 0;    //failed
-        info[1] = cost; //INFINITY
-        info[2] = -2;   // curvature to large
+        info[1] = 0;
+        info[2] = -2;   // curvature too large
         info[3] = 0;
         info[4] = delta_x;
         return -1;
@@ -979,6 +1028,8 @@ int slit_func_curved(int ncols,
     xi = malloc(MAX_XI * sizeof(xi_ref));
     zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
     m_zeta = malloc(MAX_MZETA * sizeof(int));
+    sP_old = malloc(ncols * sizeof(double));
+    sP_diff = malloc(ncols * sizeof(double));
 
     xi_zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, PSF_curve, xi, zeta, m_zeta);
 
@@ -986,8 +1037,6 @@ int slit_func_curved(int ncols,
     iter = 0;
     do
     {
-        // Save the total cost (chi-square) from the previous iteration
-        cost_old = cost;
 
         /* Compute slit function sL */
 
@@ -1116,8 +1165,19 @@ int slit_func_curved(int ncols,
         /* Solve the system of equations */
         bandsol(p_Aij, p_bj, MAX_PAIJ_X, MAX_PAIJ_Y);
 
+        /* Save old spectrum, update, and compute change */
+        for (x = 0; x < ncols; x++)
+            sP_old[x] = sP[sp_index(x)];
         for (x = 0; x < ncols; x++)
             sP[sp_index(x)] = p_bj[pbj_index(x)];
+        for (x = 0; x < ncols; x++)
+            sP_diff[x] = fabs(sP[sp_index(x)] - sP_old[x]);
+
+        /* Convergence: 99th percentile of change relative to median spectrum */
+        sP_change = quick_select_percentile(sP_diff, ncols, 99.0);
+        for (x = 0; x < ncols; x++)
+            sP_diff[x] = sP[sp_index(x)];  /* reuse for median calc */
+        sP_med = fabs(quick_select_median(sP_diff, ncols));
 
         /* Compute the model */
         for (x = 0; x < MAX_IM; x++)
@@ -1139,9 +1199,8 @@ int slit_func_curved(int ncols,
             }
         }
 
-        /* Compare model and data */
-        cost = 0;
-        dev = 0;
+        /* Compute sigma for outlier rejection */
+        tmp = 0;
         isum = 0;
         for (y = 0; y < nrows; y++)
         {
@@ -1149,16 +1208,13 @@ int slit_func_curved(int ncols,
             {
                 if (mask[im_index(x, y)])
                 {
-                    tmp = model[im_index(x, y)] - im[im_index(x, y)];
-                    dev += tmp * tmp;
-                    tmp /= max(pix_unc[im_index(x, y)], 1);
-                    cost += tmp * tmp;
+                    sigma = model[im_index(x, y)] - im[im_index(x, y)];
+                    tmp += sigma * sigma;
                     isum++;
                 }
             }
         }
-        cost /= (isum - (ncols + ny));
-        dev = sqrt(dev / isum);
+        sigma = sqrt(tmp / isum);
 
         /* Adjust the mask marking outliers */
         if (reject_threshold > 0)
@@ -1167,7 +1223,7 @@ int slit_func_curved(int ncols,
             {
                 for (x = delta_x; x < ncols - delta_x; x++)
                 {
-                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < reject_threshold * dev)
+                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < reject_threshold * sigma)
                         mask[im_index(x, y)] = 1;
                     else
                         mask[im_index(x, y)] = 0;
@@ -1176,25 +1232,19 @@ int slit_func_curved(int ncols,
         }
 
 #if DEBUG
-        if (cost == 0)
-        {
-            printf("Iteration: %i, Reduced chi-square: %f\n", iter, cost);
-            printf("dev: %f\n", dev);
-            printf("isum: %i\n", isum);
-            printf("iteration: %i\n", iter);
-            printf("-----------\n");
-        }
+        printf("Iteration: %i, sP_change: %g, sP_med: %g, threshold: %g\n",
+               iter, sP_change, sP_med, sP_stop * sP_med);
 #endif
-        /* Check for convergence */
-    } while (((iter++ < maxiter) && (cost_old - cost > ftol)) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
+        /* Check for convergence: always do at least 2 iterations */
+    } while ((iter++ == 1) || ((iter <= maxiter) && (sP_change > sP_stop * sP_med)));
 
-    if (iter >= maxiter - 1)
+    if (iter >= maxiter)
     {
         status = -1; // ran out of iterations
         success = 0;
     }
-    else if (cost_old - cost <= ftol)
-        status = 1; // cost did not improve enough between iterations
+    else
+        status = 1; // converged
 
     /* Uncertainty estimate */
 
@@ -1241,6 +1291,8 @@ int slit_func_curved(int ncols,
         sP[sp_index(x)] = unc[sp_index(x)] = 0;
     }
 
+    free(sP_old);
+    free(sP_diff);
     free(l_Aij);
     free(p_Aij);
     free(p_bj);
@@ -1251,7 +1303,7 @@ int slit_func_curved(int ncols,
     free(m_zeta);
 
     info[0] = success;
-    info[1] = cost;
+    info[1] = sP_change;  /* final spectrum change */
     info[2] = status;
     info[3] = iter;
     info[4] = delta_x;
