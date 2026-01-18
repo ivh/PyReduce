@@ -164,7 +164,8 @@ class ProgressPlot:  # pragma: no cover
         slitf,
         model,
         ycen,
-        mask,
+        input_mask,
+        output_mask,
         trace_idx,
         left,
         right,
@@ -182,7 +183,8 @@ class ProgressPlot:  # pragma: no cover
             slitf=slitf,
             model=model,
             unc=unc,
-            mask=mask,
+            input_mask=input_mask,
+            output_mask=output_mask,
             info=info,
         )
 
@@ -199,9 +201,9 @@ class ProgressPlot:  # pragma: no cover
 
         old = np.linspace(-1, ny, len(slitf))
 
-        # Separate rejected (mask=True) and good (mask=False) pixels
-        rejected = mask.ravel()
-        good = ~mask.ravel()
+        # Separate rejected (output_mask=True) and good (output_mask=False) pixels
+        rejected = output_mask.ravel()
+        good = ~output_mask.ravel()
 
         rej_spec_x = x_spec[rejected]
         rej_spec_y = y_spec[rejected]
@@ -218,6 +220,41 @@ class ProgressPlot:  # pragma: no cover
         self.im_obs.set_clim(vmin, vmax)
         self.im_model.set_data(model)
         self.im_model.set_clim(vmin, vmax)
+
+        # Show masks on model panel: input mask (white), newly rejected (red)
+        # Use RGBA overlay images that scale properly when zooming
+        new_bad = output_mask & ~input_mask
+
+        # Create RGBA arrays (transparent where no mask)
+        input_rgba = np.zeros((*img.shape, 4), dtype=np.float32)
+        input_rgba[input_mask, :] = [1, 1, 1, 1]  # white
+
+        new_rgba = np.zeros((*img.shape, 4), dtype=np.float32)
+        new_rgba[new_bad, :] = [1, 0, 0, 1]  # red
+
+        # Match extent of underlying model image
+        extent = self.im_model.get_extent()
+
+        if hasattr(self, "_mask_im_new"):
+            self._mask_im_new.set_data(new_rgba)
+            self._mask_im_input.set_data(input_rgba)
+        else:
+            # Draw red (new) first, then white (input) on top
+            self._mask_im_new = self.ax_model.imshow(
+                new_rgba,
+                aspect="auto",
+                origin="lower",
+                interpolation="nearest",
+                extent=extent,
+            )
+            self._mask_im_input = self.ax_model.imshow(
+                input_rgba,
+                aspect="auto",
+                origin="lower",
+                interpolation="nearest",
+                extent=extent,
+            )
+
         resid = img - model
         rlim = np.nanpercentile(np.abs(resid), 99)
         self.im_resid.set_data(resid)
@@ -842,6 +879,7 @@ def extract_spectrum(
             # Do Slitfunction extraction
             swath_p1 = p1[ibeg:iend] if p1 is not None else 0
             swath_p2 = p2[ibeg:iend] if p2 is not None else 0
+            input_mask = np.ma.getmaskarray(swath_img).copy()
             swath[ihalf] = slitfunc_curved(
                 swath_img,
                 swath_ycen,
@@ -885,6 +923,7 @@ def extract_spectrum(
                     swath.slitf[ihalf],
                     swath.model[ihalf],
                     swath_ycen,
+                    input_mask,
                     swath.mask[ihalf],
                     ord_num,
                     ibeg,

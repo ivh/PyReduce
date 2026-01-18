@@ -31,7 +31,8 @@ def main():
     spec = data["spec"]
     slitf = data["slitf"]
     model = data["model"]
-    mask = data["mask"]
+    input_mask = data["input_mask"]
+    output_mask = data["output_mask"]
     unc = data["unc"]
     info = data["info"]
 
@@ -72,8 +73,13 @@ def main():
     ax_resid.tick_params(labelbottom=False, labelleft=False)
 
     ax_mask = fig.add_subplot(gs[0, 2], sharex=ax_swath, sharey=ax_swath)
-    ax_mask.imshow(~mask, aspect="auto", origin="lower", cmap="gray", vmin=0, vmax=1)
-    ax_mask.set_title("Mask (white=good)")
+    # Show masks: white=input mask, red=newly rejected, black=good
+    new_bad = output_mask & ~input_mask
+    mask_rgb = np.zeros((*swath_img.shape, 3), dtype=np.float32)
+    mask_rgb[input_mask, :] = [1, 1, 1]  # white
+    mask_rgb[new_bad, :] = [1, 0, 0]  # red
+    ax_mask.imshow(mask_rgb, aspect="auto", origin="lower", interpolation="nearest")
+    ax_mask.set_title("Mask (white=input, red=new)")
     ax_mask.tick_params(labelbottom=False, labelleft=False)
 
     # Row 1: Model, Rel. residual, Uncertainty
