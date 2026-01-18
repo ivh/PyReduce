@@ -41,12 +41,12 @@ output_dir = join(data_dir, "MOSAIC", "reduced", "NIR")
 flat_file = join(
     base_dir,
     "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01_STATIC_FOCAL_PLANE.fits",
+    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01_FOCAL_PLANE.fits",
 )
 thar_file = join(
     base_dir,
     "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01_STATIC_FOCAL_PLANE.fits",
+    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01_FOCAL_PLANE.fits",
 )
 
 # Verify files exist
@@ -78,8 +78,8 @@ pipe = Pipeline(
 # - Uses grouped traces for curvature and science steps
 # pipe.trace_orders([flat_file])
 # pipe.curvature([thar_file])
-pipe.extract([thar_file])
 pipe.extract([flat_file])
+pipe.extract([thar_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()

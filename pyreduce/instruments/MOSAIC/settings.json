@@ -24,10 +24,10 @@
     },
     "science": {
         "extraction_height": 37,
-        "extraction_reject": 0,
+        "extraction_reject": 5,
         "oversampling": 8,
         "swath_width": 500,
-        "smooth_slitfunction": 3,
+        "smooth_slitfunction": 2,
         "smooth_spectrum": 1e-07
     }
 }
