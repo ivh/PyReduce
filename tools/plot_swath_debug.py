@@ -36,7 +36,7 @@ def main():
     info = data["info"]
 
     resid = swath_img - model
-    rel_resid = resid / np.maximum(model, 1)
+    rel_resid = resid / np.ma.masked_less(model, 1)
 
     fig = plt.figure(figsize=(14, 10))
     gs = fig.add_gridspec(
@@ -72,7 +72,7 @@ def main():
     ax_resid.tick_params(labelbottom=False, labelleft=False)
 
     ax_mask = fig.add_subplot(gs[0, 2], sharex=ax_swath, sharey=ax_swath)
-    ax_mask.imshow(~mask, aspect="auto", origin="lower", cmap="gray")
+    ax_mask.imshow(~mask, aspect="auto", origin="lower", cmap="gray", vmin=0, vmax=1)
     ax_mask.set_title("Mask (white=good)")
     ax_mask.tick_params(labelbottom=False, labelleft=False)
 
@@ -84,7 +84,7 @@ def main():
     ax_model.set_ylabel("y")
     ax_model.tick_params(labelbottom=False)
 
-    rlim_rel = np.nanpercentile(np.abs(rel_resid), 99)
+    rlim_rel = np.percentile(np.ma.compressed(np.abs(rel_resid)), 99)
     ax_rel_resid = fig.add_subplot(gs[1, 1], sharex=ax_swath, sharey=ax_swath)
     ax_rel_resid.imshow(
         rel_resid,
