@@ -1160,16 +1160,14 @@ int slit_func_curved(int ncols,
         cost /= (isum - (ncols + ny));
         dev = sqrt(dev / isum);
 
-        /* Adjust the mask marking outliers (skip first 2 iterations to let model stabilize) */
-        if (iter >= 2 && reject_threshold > 0)
+        /* Adjust the mask marking outliers */
+        if (reject_threshold > 0)
         {
             for (y = 0; y < nrows; y++)
             {
                 for (x = delta_x; x < ncols - delta_x; x++)
                 {
-                    /* Use model-based Poisson noise: threshold scales with sqrt(model) */
-                    tmp = sqrt(max(model[im_index(x, y)], 1.));
-                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < reject_threshold * tmp)
+                    if (fabs(model[im_index(x, y)] - im[im_index(x, y)]) < reject_threshold * dev)
                         mask[im_index(x, y)] = 1;
                     else
                         mask[im_index(x, y)] = 0;
@@ -1187,8 +1185,8 @@ int slit_func_curved(int ncols,
             printf("-----------\n");
         }
 #endif
-        /* Check for convergence (minimum 4 iterations since mask adjustment starts at iter 2) */
-    } while (((iter++ < maxiter) && ((cost_old - cost > ftol) || (iter <= 4))) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
+        /* Check for convergence */
+    } while (((iter++ < maxiter) && (cost_old - cost > ftol)) || ((isfinite(cost) == 0) || ((isfinite(cost_old) == 0))));
 
     if (iter >= maxiter - 1)
     {

@@ -241,8 +241,14 @@ def slitfunc_curved(
     img[mask2] = 0
     mask |= ~np.isfinite(img)
 
-    # Initial spectrum guess (sum of unmasked pixels per column)
-    sp = np.sum(img, axis=0)
+    # Initial spectrum guess: median with outlier rejection, scaled to sum-equivalent
+    img_masked = np.ma.array(img, mask=mask)
+    if reject_threshold > 0:
+        col_median = np.ma.median(img_masked, axis=0)
+        col_std = np.ma.std(img_masked, axis=0)
+        outliers = np.abs(img - col_median) > reject_threshold * col_std
+        img_masked = np.ma.array(img, mask=mask | outliers)
+    sp = np.ma.median(img_masked, axis=0).filled(0) * nrows
 
     mask = _mask_to_c(mask, dtype=c_mask)
     # Determine the shot noise
