@@ -393,7 +393,7 @@ class CalibrationStep(Step):
         extraction_height=None,
     ):
         bias, bhead = bias if bias is not None else (None, None)
-        norm, blaze = norm_flat if norm_flat is not None else (None, None)
+        norm, blaze, *_ = norm_flat if norm_flat is not None else (None, None, None)
         orig, thead = combine_calibrate(
             files,
             self.instrument,
@@ -1118,6 +1118,10 @@ class NormalizeFlatField(Step):
             normalized flat field
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
+        slitfunc : list of arrays
+            Slit function for each order
+        slitfunc_meta : dict
+            Metadata for slitfunc (extraction_height, osample, order_range)
         """
         flat, fhead = flat
         # Apply fiber selection based on instrument config
@@ -1134,7 +1138,7 @@ class NormalizeFlatField(Step):
         else:
             threshold = self.threshold
 
-        norm, _, blaze, _ = extract(
+        norm, _, blaze, slitfunc, _ = extract(
             flat,
             orders,
             gain=fhead["e_gain"],
@@ -1156,10 +1160,24 @@ class NormalizeFlatField(Step):
         blaze = np.ma.filled(blaze, 0)
         norm = np.ma.filled(norm, 1)
         norm = np.nan_to_num(norm, nan=1)
-        self.save(norm, blaze)
-        return norm, blaze
 
-    def save(self, norm, blaze):
+        # Metadata for slitfunc: needed to validate/resample when used in other steps
+        # trace_range is relative to the selected traces (orders array)
+        n_traces = len(orders)
+        if self.order_range is None:
+            trace_range = (0, n_traces)
+        else:
+            trace_range = self.order_range
+        slitfunc_meta = {
+            "extraction_height": self.extraction_kwargs["extraction_height"],
+            "osample": self.extraction_kwargs["osample"],
+            "trace_range": trace_range,
+            "n_traces_selected": n_traces,
+        }
+        self.save(norm, blaze, slitfunc, slitfunc_meta)
+        return norm, blaze, slitfunc, slitfunc_meta
+
+    def save(self, norm, blaze, slitfunc, slitfunc_meta):
         """Save normalized flat field results to disk
 
         Parameters
@@ -1168,8 +1186,23 @@ class NormalizeFlatField(Step):
             normalized flat field
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
+        slitfunc : list of arrays
+            Slit function for each order
+        slitfunc_meta : dict
+            Metadata for slitfunc (extraction_height, osample, order_range)
         """
-        np.savez(self.savefile, blaze=blaze, norm=norm)
+        # Stack slitfunctions into 2D array if all same length, else save as object array
+        try:
+            slitfunc_arr = np.array(slitfunc)
+        except ValueError:
+            slitfunc_arr = np.array(slitfunc, dtype=object)
+        np.savez(
+            self.savefile,
+            blaze=blaze,
+            norm=norm,
+            slitfunc=slitfunc_arr,
+            slitfunc_meta=slitfunc_meta,
+        )
         logger.info("Created normalized flat file: %s", self.savefile)
 
     def load(self):
@@ -1181,6 +1214,10 @@ class NormalizeFlatField(Step):
             normalized flat field
         blaze : array of shape (nord, ncol)
             Continuum level as determined from the flat field for each order
+        slitfunc : list of arrays, or None
+            Slit function for each order (None if not available)
+        slitfunc_meta : dict or None
+            Metadata for slitfunc (extraction_height, osample, order_range)
         """
         try:
             data = np.load(self.savefile, allow_pickle=True)
@@ -1192,7 +1229,13 @@ class NormalizeFlatField(Step):
             data = {"blaze": None, "norm": None}
         blaze = data["blaze"]
         norm = data["norm"]
-        return norm, blaze
+        slitfunc = data.get("slitfunc", None)
+        if slitfunc is not None:
+            slitfunc = list(slitfunc)
+        slitfunc_meta = data.get("slitfunc_meta", None)
+        if slitfunc_meta is not None:
+            slitfunc_meta = slitfunc_meta.item()  # unwrap 0-d array from npz
+        return norm, blaze, slitfunc, slitfunc_meta
 
 
 class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
@@ -2091,7 +2134,7 @@ class ContinuumNormalization(Step):
         """
         wave = freq_comb
         heads, specs, sigmas, _, columns = science
-        norm, blaze = norm_flat
+        norm, blaze, *_ = norm_flat
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]
@@ -2170,7 +2213,7 @@ class ContinuumNormalization(Step):
                 "No continuum normalized data found. Using unnormalized results instead."
             )
             heads, specs, sigmas, columns = science
-            norm, blaze = norm_flat
+            norm, blaze, *_ = norm_flat
             conts = [blaze for _ in specs]
             data = {
                 "heads": heads,

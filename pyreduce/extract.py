@@ -1485,7 +1485,7 @@ def extract(
         im_norm = np.zeros_like(img)
         im_ordr = np.zeros_like(img)
 
-        blaze, _, _ = optimal_extraction(
+        blaze, slitfunction, _ = optimal_extraction(
             img,
             traces,
             extraction_height,
@@ -1500,7 +1500,7 @@ def extract(
         threshold_lower = kwargs.get("threshold_lower", 0)
         im_norm[im_norm <= threshold_lower] = 1
         im_ordr[im_ordr <= threshold_lower] = 1
-        return im_norm, im_ordr, blaze, column_range
+        return im_norm, im_ordr, blaze, slitfunction, column_range
     elif extraction_type in ("simple", "arc"):  # "arc" for backwards compatibility
         spectrum, uncertainties = simple_extraction(
             img,
