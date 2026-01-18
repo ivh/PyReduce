@@ -166,27 +166,29 @@ class ProgressPlot:  # pragma: no cover
         ycen,
         input_mask,
         output_mask,
-        trace_idx,
-        left,
-        right,
-        unc,
-        info,
-        swath_idx,
+        trace_idx=0,
+        left=0,
+        right=0,
+        unc=None,
+        info=None,
+        swath_idx=0,
+        save=True,
     ):
         # Save swath data to debug directory
-        outfile = self.save_dir / f"swath_trace{trace_idx}_swath{swath_idx}.npz"
-        np.savez(
-            outfile,
-            swath_img=img,
-            ycen=ycen,
-            spec=spec,
-            slitf=slitf,
-            model=model,
-            unc=unc,
-            input_mask=input_mask,
-            output_mask=output_mask,
-            info=info,
-        )
+        if save:
+            outfile = self.save_dir / f"swath_trace{trace_idx}_swath{swath_idx}.npz"
+            np.savez(
+                outfile,
+                swath_img=img,
+                ycen=ycen,
+                spec=spec,
+                slitf=slitf,
+                model=model,
+                unc=unc,
+                input_mask=input_mask,
+                output_mask=output_mask,
+                info=info,
+            )
 
         img = np.copy(img)
         spec = np.copy(spec)
