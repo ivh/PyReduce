@@ -220,11 +220,9 @@ class ProgressPlot:  # pragma: no cover
         vmin, vmax = np.percentile(img, [5, 95])
         self.im_obs.set_data(img)
         self.im_obs.set_clim(vmin, vmax)
-        self.im_model.set_data(model)
-        self.im_model.set_clim(vmin, vmax)
 
         # Show masks on model panel: input mask (white), newly rejected (red)
-        # Use RGBA overlay images that scale properly when zooming
+        # Masks are drawn first (underneath), model on top as masked array
         new_bad = output_mask & ~input_mask
 
         # Create RGBA arrays (transparent where no mask)
@@ -241,13 +239,14 @@ class ProgressPlot:  # pragma: no cover
             self._mask_im_new.set_data(new_rgba)
             self._mask_im_input.set_data(input_rgba)
         else:
-            # Draw red (new) first, then white (input) on top
+            # Draw masks first (lower zorder), then model on top
             self._mask_im_new = self.ax_model.imshow(
                 new_rgba,
                 aspect="auto",
                 origin="lower",
                 interpolation="nearest",
                 extent=extent,
+                zorder=1,
             )
             self._mask_im_input = self.ax_model.imshow(
                 input_rgba,
@@ -255,7 +254,16 @@ class ProgressPlot:  # pragma: no cover
                 origin="lower",
                 interpolation="nearest",
                 extent=extent,
+                zorder=2,
             )
+            # Move model image to top so cursor reads model values
+            self.im_model.set_zorder(3)
+
+        # Model as masked array: transparent where either mask is set
+        union_mask = input_mask | output_mask
+        model_masked = np.ma.array(model, mask=union_mask)
+        self.im_model.set_data(model_masked)
+        self.im_model.set_clim(vmin, vmax)
 
         resid = img - model
         rlim = np.nanpercentile(np.abs(resid), 99)
@@ -289,7 +297,8 @@ class ProgressPlot:  # pragma: no cover
         if not np.isnan(limit):
             self.ax_slit.set_xlim((0, limit))
 
-        title = f"Trace {trace_idx}, Columns {left} - {right}"
+        niter = int(info[3]) if info is not None else 0
+        title = f"Trace {trace_idx}, Swath {swath_idx}, Columns {left}-{right}, Iter {niter}"
         if self.title is not None:
             title = f"{self.title}\n{title}"
         self.fig.suptitle(title)
