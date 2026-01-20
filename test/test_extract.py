@@ -376,3 +376,177 @@ def test_extract(sample_data, orders):
 
     with pytest.raises(ValueError):
         extract.extract(img, orders, extraction_type="foobar")
+
+
+class TestPresetSlitfunc:
+    """Tests for preset_slitfunc functionality."""
+
+    @pytest.fixture
+    def simple_img(self):
+        """Create a simple test image with known spectrum and slitfunction."""
+        height, width = 21, 100
+        # Gaussian slit function
+        y = np.arange(height) - height // 2
+        slitf = np.exp(-0.5 * (y / 3) ** 2)
+        slitf /= slitf.sum()
+        # Linear spectrum
+        spec = 100 + np.linspace(0, 50, width)
+        # Create image
+        img = slitf[:, None] * spec[None, :]
+        return img, spec, slitf
+
+    @pytest.fixture
+    def simple_ycen(self, simple_img):
+        """Order center at middle of image."""
+        img, _, _ = simple_img
+        height, width = img.shape
+        return np.full(width, height // 2, dtype=float)
+
+    @pytest.fixture
+    def simple_orders(self, simple_ycen):
+        """Polynomial coefficients for straight trace."""
+        width = len(simple_ycen)
+        fit = np.polyfit(np.arange(width), simple_ycen, deg=2)
+        return np.atleast_2d(fit)
+
+    def test_preset_slitfunc_correct_size(self, simple_img, simple_ycen):
+        """Test extraction with correctly sized preset slitfunc."""
+        img, _, _ = simple_img
+        height, width = img.shape
+        osample = 5
+        yrange = (5, 5)  # 5 pixels above and below
+        nslitf = osample * (yrange[0] + yrange[1] + 2) + 1
+
+        # Create a preset slitfunc of correct size
+        preset = np.ones(nslitf)
+        preset /= preset.sum() / osample
+
+        xrange = [0, width]
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img.copy(),
+            simple_ycen.copy(),
+            yrange,
+            xrange,
+            osample=osample,
+            preset_slitfunc=preset,
+        )
+
+        assert spec is not None
+        assert len(spec) == width
+        assert np.any(spec > 0)
+
+    def test_preset_slitfunc_size_mismatch_error(self, simple_img, simple_ycen):
+        """Test that size mismatch raises helpful error."""
+        img, _, _ = simple_img
+        height, width = img.shape
+        osample = 5
+        yrange = (5, 5)
+        expected_nslitf = osample * (yrange[0] + yrange[1] + 2) + 1
+
+        # Create preset with wrong size
+        wrong_size = expected_nslitf + 10
+        preset = np.ones(wrong_size)
+
+        xrange = [0, width]
+        with pytest.raises(ValueError, match="preset_slitfunc size mismatch"):
+            extract.extract_spectrum(
+                img.copy(),
+                simple_ycen.copy(),
+                yrange,
+                xrange,
+                osample=osample,
+                preset_slitfunc=preset,
+            )
+
+    def test_preset_slitfunc_through_extract(self, simple_img, simple_orders):
+        """Test preset_slitfunc passed through extract() function."""
+        img, _, _ = simple_img
+        height, width = img.shape
+        osample = 5
+        extraction_height = 5  # fixed integer
+
+        # First extract normally to get a slitfunc
+        spec1, unc1, slitfunc_list, _ = extract.extract(
+            img.copy(),
+            simple_orders,
+            extraction_type="optimal",
+            extraction_height=extraction_height,
+            osample=osample,
+        )
+
+        # Now extract with preset slitfunc
+        spec2, unc2, slitfunc_out, _ = extract.extract(
+            img.copy(),
+            simple_orders,
+            extraction_type="optimal",
+            extraction_height=extraction_height,
+            osample=osample,
+            preset_slitfunc=slitfunc_list,
+            maxiter=1,
+        )
+
+        # Results should be similar
+        assert spec2 is not None
+        assert spec2.shape == spec1.shape
+
+
+class TestAdaptSlitfunc:
+    """Tests for _adapt_slitfunc helper function."""
+
+    def test_same_parameters_returns_copy(self):
+        """When parameters match, should return a copy."""
+        from pyreduce.cwrappers import _adapt_slitfunc
+
+        osample = 10
+        yrange = (5, 5)
+        nslitf = osample * (yrange[0] + yrange[1] + 2) + 1
+        slitfunc = np.random.rand(nslitf)
+
+        result = _adapt_slitfunc(slitfunc, osample, yrange, osample, yrange)
+
+        assert result is not slitfunc  # should be a copy
+        np.testing.assert_array_equal(result, slitfunc)
+
+    def test_truncate_extraction_height(self):
+        """Test truncating to smaller extraction height."""
+        from pyreduce.cwrappers import _adapt_slitfunc
+
+        osample = 10
+        src_yrange = (10, 10)
+        tgt_yrange = (5, 5)
+
+        src_nslitf = osample * (src_yrange[0] + src_yrange[1] + 2) + 1
+        tgt_nslitf = osample * (tgt_yrange[0] + tgt_yrange[1] + 2) + 1
+
+        # Gaussian-like slitfunc
+        src_y = np.linspace(-11, 11, src_nslitf)
+        slitfunc = np.exp(-0.5 * (src_y / 3) ** 2)
+        slitfunc /= slitfunc.sum() / osample
+
+        result = _adapt_slitfunc(slitfunc, osample, src_yrange, osample, tgt_yrange)
+
+        assert len(result) == tgt_nslitf
+        # Should still be normalized to osample
+        assert abs(result.sum() - osample) < 0.1
+
+    def test_resample_osample(self):
+        """Test resampling to different osample."""
+        from pyreduce.cwrappers import _adapt_slitfunc
+
+        src_osample = 10
+        tgt_osample = 5
+        yrange = (5, 5)
+
+        src_nslitf = src_osample * (yrange[0] + yrange[1] + 2) + 1
+        tgt_nslitf = tgt_osample * (yrange[0] + yrange[1] + 2) + 1
+
+        # Gaussian-like slitfunc
+        src_y = np.linspace(-6, 6, src_nslitf)
+        slitfunc = np.exp(-0.5 * (src_y / 2) ** 2)
+        slitfunc /= slitfunc.sum() / src_osample
+
+        result = _adapt_slitfunc(slitfunc, src_osample, yrange, tgt_osample, yrange)
+
+        assert len(result) == tgt_nslitf
+        # Should be normalized to target osample
+        assert abs(result.sum() - tgt_osample) < 0.1

@@ -6,6 +6,7 @@ from pyreduce.cwrappers import slitfunc, slitfunc_curved
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.skip(reason="Not a unit test - requires instrument data")
 @pytest.mark.instrument
 @pytest.mark.downloads
 def test_1d_vs_2d_extraction(flat, orders):

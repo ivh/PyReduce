@@ -11,11 +11,19 @@ Use `organize_fibers` to group traces into logical fiber groups based on config.
 """
 
 import logging
+import re
 from functools import cmp_to_key
 from itertools import combinations
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+def _natural_sort_key(s):
+    """Sort key for natural ordering (e.g., bundle_2 before bundle_10)."""
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r"(\d+)", s)]
+
+
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 from numpy.polynomial.polynomial import Polynomial
 from scipy.ndimage import binary_closing, binary_opening, label
@@ -1578,7 +1586,7 @@ def select_traces_for_step(
         # Stack all group traces into single array
         all_traces = []
         all_cr = []
-        for name in sorted(group_traces.keys()):
+        for name in sorted(group_traces.keys(), key=_natural_sort_key):
             if per_order:
                 # Per-order: {group: {order: trace}} - stack orders for each group
                 traces, _ = _stack_per_order_traces(group_traces[name])

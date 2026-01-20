@@ -1,0 +1,11 @@
+{
+    "__instrument__": "MOSAIC",
+    "__inherits__": "MOSAIC",
+    "norm_flat": {
+                "extraction_height": 37
+    },
+        "science": {
+        "extraction_height": 37,
+        "extraction_reject": 6
+        }
+}

@@ -979,3 +979,45 @@ class TestChannelTemplateSubstitution:
                 instrument_dir=str(tmp_path),
                 channel=None,
             )
+
+
+class TestNaturalSortKey:
+    """Tests for _natural_sort_key function."""
+
+    @pytest.mark.unit
+    def test_natural_sort_basic(self):
+        """Test natural sorting of bundle names."""
+        names = ["bundle_1", "bundle_10", "bundle_2", "bundle_20", "bundle_3"]
+        sorted_names = sorted(names, key=trace._natural_sort_key)
+        assert sorted_names == [
+            "bundle_1",
+            "bundle_2",
+            "bundle_3",
+            "bundle_10",
+            "bundle_20",
+        ]
+
+    @pytest.mark.unit
+    def test_natural_sort_mixed(self):
+        """Test natural sorting with mixed prefixes."""
+        names = ["fiber_1", "fiber_10", "bundle_2", "fiber_2"]
+        sorted_names = sorted(names, key=trace._natural_sort_key)
+        assert sorted_names == ["bundle_2", "fiber_1", "fiber_2", "fiber_10"]
+
+    @pytest.mark.unit
+    def test_natural_sort_no_numbers(self):
+        """Test sorting when no numbers present."""
+        names = ["apple", "banana", "cherry"]
+        sorted_names = sorted(names, key=trace._natural_sort_key)
+        assert sorted_names == ["apple", "banana", "cherry"]
+
+    @pytest.mark.unit
+    def test_natural_sort_multiple_numbers(self):
+        """Test sorting with multiple number groups."""
+        names = ["order_1_fiber_10", "order_1_fiber_2", "order_2_fiber_1"]
+        sorted_names = sorted(names, key=trace._natural_sort_key)
+        assert sorted_names == [
+            "order_1_fiber_2",
+            "order_1_fiber_10",
+            "order_2_fiber_1",
+        ]

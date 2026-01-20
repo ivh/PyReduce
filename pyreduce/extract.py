@@ -840,7 +840,14 @@ def extract_spectrum(
     ylow, yhigh = yrange
     xlow, xhigh = xrange
     nslitf = osample * (ylow + yhigh + 2) + 1
-    yhigh + ylow + 1
+
+    # Validate preset_slitfunc size before extraction
+    if preset_slitfunc is not None and len(preset_slitfunc) != nslitf:
+        raise ValueError(
+            f"preset_slitfunc size mismatch: got {len(preset_slitfunc)} elements, "
+            f"expected {nslitf} for osample={osample}, yrange=({ylow}, {yhigh}). "
+            f"Ensure norm_flat and extraction use the same extraction_height and osample."
+        )
 
     ycen_int = np.floor(ycen).astype(int)
 

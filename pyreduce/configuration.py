@@ -32,11 +32,14 @@ def get_configuration_for_instrument(instrument, channel=None, **kwargs):
         fname = join(local, "instruments", "defaults", "settings.json")
     else:
         inst_dir = join(local, "instruments", instrument.upper())
-        # Check for channel-specific settings file first
+        # Check for channel-specific settings file (case-insensitive)
         if channel:
             channel_fname = join(inst_dir, f"settings_{channel}.json")
+            channel_fname_lower = join(inst_dir, f"settings_{channel.lower()}.json")
             if exists(channel_fname):
                 fname = channel_fname
+            elif exists(channel_fname_lower):
+                fname = channel_fname_lower
             else:
                 fname = join(inst_dir, "settings.json")
         else:

@@ -1238,7 +1238,7 @@ int slit_func_curved(int ncols,
                iter, sP_change, sP_med, sP_stop * sP_med);
 #endif
         /* Check for convergence: always do at least 2 iterations */
-    } while ((iter++ == 1) || ((iter <= maxiter) && (sP_change > sP_stop * sP_med)));
+    } while ((iter++ == 0) || ((iter <= maxiter) && (sP_change > sP_stop * sP_med)));
 
     if (iter >= maxiter)
     {
