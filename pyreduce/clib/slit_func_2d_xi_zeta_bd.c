@@ -900,6 +900,7 @@ int slit_func_curved(int ncols,
                      double lambda_sL,
                      int maxiter,
                      double reject_threshold,
+                     int use_preset_slitfunc,
                      double *PSF_curve,
                      double *sP,
                      double *sL,
@@ -1037,78 +1038,79 @@ int slit_func_curved(int ncols,
     iter = 0;
     do
     {
-
-        /* Compute slit function sL */
-
-        /* Prepare the RHS and the matrix */
-        for (iy = 0; iy < MAX_LBJ; iy++)
-            l_bj[lbj_index(iy)] = 0.e0; /* Clean RHS */
-        for (iy = 0; iy < MAX_LAIJ; iy++)
-            l_Aij[iy] = 0;
-
-        /* Fill in SLE arrays for slit function */
-        diag_tot = 0.e0;
-        for (iy = 0; iy < ny; iy++)
+        /* Compute slit function sL (skip if using preset) */
+        if (!use_preset_slitfunc)
         {
-            for (x = 0; x < ncols; x++)
+            /* Prepare the RHS and the matrix */
+            for (iy = 0; iy < MAX_LBJ; iy++)
+                l_bj[lbj_index(iy)] = 0.e0; /* Clean RHS */
+            for (iy = 0; iy < MAX_LAIJ; iy++)
+                l_Aij[iy] = 0;
+
+            /* Fill in SLE arrays for slit function */
+            diag_tot = 0.e0;
+            for (iy = 0; iy < ny; iy++)
             {
-                for (n = 0; n < 4; n++)
+                for (x = 0; x < ncols; x++)
                 {
-                    ww = xi[xi_index(x, iy, n)].w;
-                    if (ww > 0)
+                    for (n = 0; n < 4; n++)
                     {
-                        xx = xi[xi_index(x, iy, n)].x;
-                        yy = xi[xi_index(x, iy, n)].y;
-                        if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
+                        ww = xi[xi_index(x, iy, n)].w;
+                        if (ww > 0)
                         {
-                            if (m_zeta[mzeta_index(xx, yy)] > 0)
+                            xx = xi[xi_index(x, iy, n)].x;
+                            yy = xi[xi_index(x, iy, n)].y;
+                            if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows)
                             {
-                                for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                if (m_zeta[mzeta_index(xx, yy)] > 0)
                                 {
-                                    xxx = zeta[zeta_index(xx, yy, m)].x;
-                                    jy = zeta[zeta_index(xx, yy, m)].iy;
-                                    www = zeta[zeta_index(xx, yy, m)].w;
-                                    l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+                                    for (m = 0; m < m_zeta[mzeta_index(xx, yy)]; m++)
+                                    {
+                                        xxx = zeta[zeta_index(xx, yy, m)].x;
+                                        jy = zeta[zeta_index(xx, yy, m)].iy;
+                                        www = zeta[zeta_index(xx, yy, m)].w;
+                                        l_Aij[laij_index(iy, jy - iy + 2 * osample)] += sP[sp_index(xxx)] * sP[sp_index(x)] * www * ww * mask[im_index(xx, yy)];
+                                    }
+                                    l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                                 }
-                                l_bj[lbj_index(iy)] += im[im_index(xx, yy)] * mask[im_index(xx, yy)] * sP[sp_index(x)] * ww;
                             }
                         }
                     }
                 }
+                diag_tot += l_Aij[laij_index(iy, 2 * osample)];
             }
-            diag_tot += l_Aij[laij_index(iy, 2 * osample)];
+
+            /* Scale regularization parameters */
+            lambda = lambda_sL * diag_tot / ny;
+
+            /* Add regularization parts for the SLE matrix */
+
+            l_Aij[laij_index(0, 2 * osample)] += lambda;     /* Main diagonal  */
+            l_Aij[laij_index(0, 2 * osample + 1)] -= lambda; /* Upper diagonal */
+            for (iy = 1; iy < ny - 1; iy++)
+            {
+                l_Aij[laij_index(iy, 2 * osample - 1)] -= lambda;    /* Lower diagonal */
+                l_Aij[laij_index(iy, 2 * osample)] += lambda * 2.e0; /* Main diagonal  */
+                l_Aij[laij_index(iy, 2 * osample + 1)] -= lambda;    /* Upper diagonal */
+            }
+            l_Aij[laij_index(ny - 1, 2 * osample - 1)] -= lambda; /* Lower diagonal */
+            l_Aij[laij_index(ny - 1, 2 * osample)] += lambda;     /* Main diagonal  */
+
+            /* Solve the system of equations */
+            bandsol(l_Aij, l_bj, MAX_LAIJ_X, MAX_LAIJ_Y);
+
+            /* Normalize the slit function */
+
+            norm = 0.e0;
+            for (iy = 0; iy < ny; iy++)
+            {
+                sL[sl_index(iy)] = l_bj[lbj_index(iy)];
+                norm += sL[sl_index(iy)];
+            }
+            norm /= osample;
+            for (iy = 0; iy < ny; iy++)
+                sL[sl_index(iy)] /= norm;
         }
-
-        /* Scale regularization parameters */
-        lambda = lambda_sL * diag_tot / ny;
-
-        /* Add regularization parts for the SLE matrix */
-
-        l_Aij[laij_index(0, 2 * osample)] += lambda;     /* Main diagonal  */
-        l_Aij[laij_index(0, 2 * osample + 1)] -= lambda; /* Upper diagonal */
-        for (iy = 1; iy < ny - 1; iy++)
-        {
-            l_Aij[laij_index(iy, 2 * osample - 1)] -= lambda;    /* Lower diagonal */
-            l_Aij[laij_index(iy, 2 * osample)] += lambda * 2.e0; /* Main diagonal  */
-            l_Aij[laij_index(iy, 2 * osample + 1)] -= lambda;    /* Upper diagonal */
-        }
-        l_Aij[laij_index(ny - 1, 2 * osample - 1)] -= lambda; /* Lower diagonal */
-        l_Aij[laij_index(ny - 1, 2 * osample)] += lambda;     /* Main diagonal  */
-
-        /* Solve the system of equations */
-        bandsol(l_Aij, l_bj, MAX_LAIJ_X, MAX_LAIJ_Y);
-
-        /* Normalize the slit function */
-
-        norm = 0.e0;
-        for (iy = 0; iy < ny; iy++)
-        {
-            sL[sl_index(iy)] = l_bj[lbj_index(iy)];
-            norm += sL[sl_index(iy)];
-        }
-        norm /= osample;
-        for (iy = 0; iy < ny; iy++)
-            sL[sl_index(iy)] /= norm;
 
         /* Compute spectrum sP */
         for (x = 0; x < MAX_PBJ; x++)

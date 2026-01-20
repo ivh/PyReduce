@@ -142,6 +142,7 @@ def slitfunc_curved(
     maxiter=20,
     gain=1,
     reject_threshold=6,
+    preset_slitfunc=None,
 ):
     """Decompose an image into a spectrum and a slitfunction, image may be curved
 
@@ -169,6 +170,9 @@ def slitfunc_curved(
         gain of the image, by default 1
     reject_threshold : float, optional
         outlier rejection threshold in sigma, by default 6. Set to 0 to disable.
+    preset_slitfunc : array[ny], optional
+        If provided, use this slit function instead of solving for it.
+        Size must be osample * (nrows + 1) + 1.
 
     Returns
     -------
@@ -272,9 +276,21 @@ def slitfunc_curved(
     ycen_offset = np.require(ycen_offset, dtype=c_int, requirements=requirements)
 
     # This memory could be reused between swaths
-    sl = np.zeros(ny, dtype=c_double)
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
+
+    # Handle preset slit function
+    use_preset = preset_slitfunc is not None
+    if use_preset:
+        sl = np.require(
+            preset_slitfunc, dtype=c_double, requirements=requirements
+        ).copy()
+        if sl.size != ny:
+            raise ValueError(
+                f"preset_slitfunc size {sl.size} doesn't match expected {ny}"
+            )
+    else:
+        sl = np.zeros(ny, dtype=c_double)
 
     # Info contains the folowing: sucess, cost, status, iteration, delta_x
     info = np.zeros(5, dtype=c_double)
@@ -300,6 +316,7 @@ def slitfunc_curved(
         ffi.cast("double", lambda_sf),
         ffi.cast("int", maxiter),
         ffi.cast("double", reject_threshold),
+        ffi.cast("int", 1 if use_preset else 0),
         ffi.cast("double *", psf_curve.ctypes.data),
         ffi.cast("double *", sp.ctypes.data),
         ffi.cast("double *", sl.ctypes.data),
@@ -318,8 +335,11 @@ def slitfunc_curved(
             msg = "I dont't know what happened"
             logger.error(msg)
         elif status == -1:
-            msg = f"Did not finish convergence after maxiter ({maxiter}) iterations"
-            logger.warning(msg)
+            # Don't warn about convergence when using preset slitfunc
+            # since we expect only a single pass
+            if not use_preset:
+                msg = f"Did not finish convergence after maxiter ({maxiter}) iterations"
+                logger.warning(msg)
         elif status == -2:
             msg = "Curvature is larger than the swath. Check the curvature!"
             logger.error(msg)
@@ -414,3 +434,188 @@ def create_spectral_model(
         ffi.cast("double *", img.ctypes.data),
     )
     return img
+
+
+def extract_with_slitfunc(
+    img: np.ndarray,
+    ycen: np.ndarray,
+    slitfunc: np.ndarray,
+    slitfunc_meta: dict,
+    yrange: tuple[int, int],
+    osample: int,
+    p1: np.ndarray | float = 0,
+    p2: np.ndarray | float = 0,
+    lambda_sp: float = 0,
+    gain: float = 1,
+    maxiter: int = 1,
+    reject_threshold: float = 0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract spectrum using a preset slit function (single-pass extraction).
+
+    This function validates and adapts the slit function to match the current
+    extraction parameters, then calls the C extraction code with the preset
+    slit function (skipping the sL solve step).
+
+    Parameters
+    ----------
+    img : array[nrows, ncols]
+        Image to extract from
+    ycen : array[ncols]
+        Order center positions (fractional pixel)
+    slitfunc : array[ny_src]
+        Preset slit function from a previous extraction (e.g., from norm_flat)
+    slitfunc_meta : dict
+        Metadata about the slit function source, must contain:
+        - "osample": oversampling factor used when slitfunc was computed
+        - "extraction_height": extraction height used (or yrange tuple)
+    yrange : tuple(int, int)
+        Target extraction height: pixels (below, above) the trace center
+    osample : int
+        Target oversampling factor for slit function
+    p1 : array[ncols] or float
+        Linear curvature coefficient
+    p2 : array[ncols] or float
+        Quadratic curvature coefficient
+    lambda_sp : float
+        Spectrum smoothing parameter (0 = no smoothing)
+    gain : float
+        Detector gain for uncertainty estimation
+    maxiter : int
+        Maximum iterations (default 1 for single-pass)
+    reject_threshold : float
+        Outlier rejection threshold (default 0 = disabled)
+
+    Returns
+    -------
+    sp, sl, model, unc, mask, info
+        Same as slitfunc_curved()
+
+    Raises
+    ------
+    ValueError
+        If extraction height is larger than source (can't extrapolate)
+    """
+    nrows, _ = img.shape
+
+    # Get source parameters
+    src_osample = slitfunc_meta.get("osample", osample)
+    src_height = slitfunc_meta.get("extraction_height")
+    if src_height is None:
+        src_yrange = slitfunc_meta.get("yrange", yrange)
+    else:
+        # Convert extraction_height to yrange if needed
+        if np.isscalar(src_height):
+            half = src_height / 2
+            src_yrange = (int(np.floor(half)), int(np.ceil(half)))
+        else:
+            src_yrange = tuple(src_height)
+
+    src_nrows = src_yrange[0] + src_yrange[1] + 1
+    src_ny = src_osample * (src_nrows + 1) + 1
+
+    # Validate source slitfunc size
+    if slitfunc.size != src_ny:
+        raise ValueError(
+            f"Slit function size {slitfunc.size} doesn't match expected {src_ny} "
+            f"for source parameters (osample={src_osample}, yrange={src_yrange})"
+        )
+
+    # Check if extraction height is compatible
+    target_height = yrange[0] + yrange[1] + 1
+    src_height_px = src_yrange[0] + src_yrange[1] + 1
+    if target_height > src_height_px:
+        raise ValueError(
+            f"Target extraction height ({target_height} pixels) is larger than "
+            f"source ({src_height_px} pixels). Cannot extrapolate slit function."
+        )
+
+    # Adapt slit function if parameters differ
+    adapted_sl = _adapt_slitfunc(slitfunc, src_osample, src_yrange, osample, yrange)
+
+    # Call the C extraction with preset slitfunc
+    return slitfunc_curved(
+        img,
+        ycen,
+        p1,
+        p2,
+        lambda_sp=lambda_sp,
+        lambda_sf=0.1,  # not used when preset
+        osample=osample,
+        yrange=yrange,
+        maxiter=maxiter,
+        gain=gain,
+        reject_threshold=reject_threshold,
+        preset_slitfunc=adapted_sl,
+    )
+
+
+def _adapt_slitfunc(
+    slitfunc: np.ndarray,
+    src_osample: int,
+    src_yrange: tuple[int, int],
+    tgt_osample: int,
+    tgt_yrange: tuple[int, int],
+) -> np.ndarray:
+    """Adapt slit function to different osample or extraction height.
+
+    Parameters
+    ----------
+    slitfunc : array
+        Source slit function
+    src_osample : int
+        Source oversampling factor
+    src_yrange : tuple(int, int)
+        Source extraction height (below, above)
+    tgt_osample : int
+        Target oversampling factor
+    tgt_yrange : tuple(int, int)
+        Target extraction height (below, above)
+
+    Returns
+    -------
+    adapted : array
+        Adapted slit function for target parameters
+    """
+    from scipy.interpolate import interp1d
+
+    src_nrows = src_yrange[0] + src_yrange[1] + 1
+    tgt_nrows = tgt_yrange[0] + tgt_yrange[1] + 1
+    src_ny = src_osample * (src_nrows + 1) + 1
+    tgt_ny = tgt_osample * (tgt_nrows + 1) + 1
+
+    # If parameters match, return copy
+    if src_osample == tgt_osample and src_yrange == tgt_yrange:
+        return slitfunc.copy()
+
+    # Create coordinate systems relative to trace center (y=0)
+    # Source: spans from -src_yrange[0]-1 to src_yrange[1]+1
+    src_y = np.linspace(-src_yrange[0] - 1, src_yrange[1] + 1, src_ny)
+    # Target: spans from -tgt_yrange[0]-1 to tgt_yrange[1]+1
+    tgt_y = np.linspace(-tgt_yrange[0] - 1, tgt_yrange[1] + 1, tgt_ny)
+
+    # Check if resampling osample
+    if src_osample != tgt_osample:
+        logger.warning(
+            "Resampling slit function from osample=%d to osample=%d",
+            src_osample,
+            tgt_osample,
+        )
+
+    # Check if truncating
+    if tgt_nrows < src_nrows:
+        logger.info(
+            "Truncating slit function from %d to %d pixels", src_nrows, tgt_nrows
+        )
+
+    # Interpolate
+    interp = interp1d(src_y, slitfunc, kind="cubic", bounds_error=False, fill_value=0.0)
+    adapted = interp(tgt_y)
+
+    # Renormalize to sum to osample
+    total = adapted.sum()
+    if total > 0:
+        adapted *= tgt_osample / total
+    else:
+        logger.warning("Slit function sums to zero after adaptation")
+
+    return adapted

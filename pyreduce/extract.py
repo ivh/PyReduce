@@ -753,6 +753,7 @@ def extract_spectrum(
     out_mask=None,
     progress=None,
     ord_num=0,
+    preset_slitfunc=None,
     **kwargs,
 ):
     """
@@ -903,6 +904,7 @@ def extract_spectrum(
                 maxiter=maxiter,
                 gain=gain,
                 reject_threshold=reject_threshold,
+                preset_slitfunc=preset_slitfunc,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -1098,6 +1100,9 @@ def optimal_extraction(
     if p2 is None:
         p2 = [None for _ in range(nord)]
 
+    # Handle preset_slitfunc (list of per-order slitfuncs)
+    preset_slitfunc = kwargs.pop("preset_slitfunc", None)
+
     # Add mask as defined by column ranges
     mask = np.full((nord, ncol), True)
     for i in range(nord):
@@ -1127,6 +1132,9 @@ def optimal_extraction(
         # Return values are set by reference, as the out parameters
         # Also column_range is adjusted depending on the curvature
         # This is to avoid large chunks of memory of essentially duplicates
+        order_slitfunc = None
+        if preset_slitfunc is not None and i < len(preset_slitfunc):
+            order_slitfunc = preset_slitfunc[i]
         extract_spectrum(
             img,
             ycen,
@@ -1142,6 +1150,7 @@ def optimal_extraction(
             ord_num=i + 1,
             plot=plot,
             plot_title=plot_title,
+            preset_slitfunc=order_slitfunc,
             **kwargs,
         )
 
