@@ -36,7 +36,6 @@
         "swath_width": 300,
         "maxiter": 20,
         "smooth_slitfunction": 0.1,
-        "extraction_cutoff": 20,
         "norm_scaling": "none"
     },
     "freq_comb": {},

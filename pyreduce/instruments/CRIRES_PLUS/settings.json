@@ -39,7 +39,6 @@
         "oversampling": 5,
         "swath_width": 2000,
         "smooth_slitfunction": 1,
-        "extraction_cutoff": 20,
         "bias_scaling": "exposure_time"
     },
     "wavecal_init": {

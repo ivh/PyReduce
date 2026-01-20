@@ -42,7 +42,6 @@ output_dir = "reduced"
 
 config = get_configuration_for_instrument(instrument)
 # config["science"]["extraction_method"] = "simple"
-# config["science"]["extraction_cutoff"] = 0
 
 Pipeline.from_instrument(
     instrument,

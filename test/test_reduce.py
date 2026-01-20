@@ -99,7 +99,6 @@ class TestExtractionStepValidation:
             "plot": False,
             "extraction_method": "invalid_method",
             "extraction_height": 10,
-            "extraction_cutoff": 3,
         }
         with pytest.raises(ValueError, match="not supported"):
             reduce.ExtractionStep(
@@ -113,7 +112,6 @@ class TestExtractionStepValidation:
             "plot": False,
             "extraction_method": "simple",
             "extraction_height": 10,
-            "extraction_cutoff": 3,
             "collapse_function": "median",
         }
         step = reduce.ExtractionStep(
@@ -130,7 +128,6 @@ class TestExtractionStepValidation:
             "plot": False,
             "extraction_method": "optimal",
             "extraction_height": 10,
-            "extraction_cutoff": 3,
             "smooth_slitfunction": 1,
             "smooth_spectrum": 0,
             "oversampling": 4,
@@ -380,7 +377,6 @@ class TestSlitCurvatureSaveLoad:
             "bias_scaling": "none",
             "norm_scaling": "none",
             "extraction_method": "simple",
-            "extraction_cutoff": 3,
             "collapse_function": "sum",
         }
         step = reduce.SlitCurvatureDetermination(
@@ -406,7 +402,6 @@ class TestSlitCurvatureSaveLoad:
             "bias_scaling": "none",
             "norm_scaling": "none",
             "extraction_method": "simple",
-            "extraction_cutoff": 3,
             "collapse_function": "sum",
         }
         step = reduce.SlitCurvatureDetermination(
@@ -441,7 +436,6 @@ class TestSlitCurvatureSaveLoad:
             "bias_scaling": "none",
             "norm_scaling": "none",
             "extraction_method": "simple",
-            "extraction_cutoff": 3,
             "collapse_function": "sum",
         }
         step = reduce.SlitCurvatureDetermination(

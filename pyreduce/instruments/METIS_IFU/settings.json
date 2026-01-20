@@ -38,7 +38,6 @@
         "collapse_function": "mean",
         "curve_height": 1.54,
         "extraction_height": 0.51,
-        "extraction_cutoff": 20,
         "curvature_cutoff": 3,
         "peak_threshold": 0.9725,
         "peak_width": 1,
@@ -51,7 +50,6 @@
         "extraction_method": "simple",
         "collapse_function": "median",
         "extraction_height": 1.565,
-        "extraction_cutoff": 10,
         "bias_scaling": "exposure_time"
     },
     "wavecal": {

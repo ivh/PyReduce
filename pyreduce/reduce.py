@@ -429,7 +429,6 @@ class ExtractionStep(Step):
             #:dict: arguments for the extraction
             self.extraction_kwargs = {
                 "extraction_height": config["extraction_height"],
-                "sigma_cutoff": config["extraction_cutoff"],
                 "collapse_function": config["collapse_function"],
             }
         elif self.extraction_method == "optimal":
@@ -439,7 +438,6 @@ class ExtractionStep(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
                 "maxiter": config["maxiter"],
                 "reject_threshold": config.get("extraction_reject", 6),
             }
@@ -1079,7 +1077,6 @@ class NormalizeFlatField(Step):
                 "lambda_sp": config["smooth_spectrum"],
                 "osample": config["oversampling"],
                 "swath_width": config["swath_width"],
-                "sigma_cutoff": config["extraction_cutoff"],
                 "maxiter": config["maxiter"],
                 "reject_threshold": config.get("extraction_reject", 6),
             }

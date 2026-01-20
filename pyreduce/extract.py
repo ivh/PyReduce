@@ -1395,7 +1395,6 @@ def extract(
     extraction_type="optimal",
     p1=None,
     p2=None,
-    sigma_cutoff=0,
     **kwargs,
 ):
     """
@@ -1461,19 +1460,6 @@ def extract(
     traces = traces[order_range[0] : order_range[1]]
     column_range = column_range[order_range[0] : order_range[1]]
     extraction_height = extraction_height[order_range[0] : order_range[1]]
-
-    # if sigma_cutoff > 0:
-    #     # Blur the image and mask outliers
-    #     img = np.ma.masked_invalid(img, copy=False)
-    #     img.data[img.mask] = 0
-    #     # Use the median of the sorounding pixels (excluding the pixel itself)
-    #     footprint = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
-    #     dilated = median_filter(img, footprint=footprint)
-    #     diff = np.ma.abs(img - dilated)
-    #     # median = 50%; 3 sigma = 99.73 %
-    #     median, std = np.percentile(diff.compressed(), (50, 99.73))
-    #     mask = diff > median + sigma_cutoff * std / 3
-    #     img[mask] = np.ma.masked
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
