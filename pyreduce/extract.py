@@ -21,7 +21,7 @@ from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 from . import util
-from .cwrappers import slitfunc_curved
+from .numba_extract import slitfunc_curved
 from .util import make_index
 
 logger = logging.getLogger(__name__)
