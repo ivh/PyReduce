@@ -491,6 +491,14 @@ def compute_uncertainties(
 def solve_band_system(A_band: np.ndarray, b: np.ndarray, bandwidth: int) -> np.ndarray:
     """Solve a band-diagonal system using scipy's LAPACK wrapper."""
     n = len(b)
+
+    # Special case: diagonal system (bandwidth=0)
+    if bandwidth == 0:
+        diag = A_band[:, 0]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            result = np.where(diag != 0, b / diag, 0.0)
+        return result
+
     full_bandwidth = 2 * bandwidth + 1
 
     # Convert to scipy's banded format
@@ -502,7 +510,21 @@ def solve_band_system(A_band: np.ndarray, b: np.ndarray, bandwidth: int) -> np.n
         else:
             ab[i, : n + diag_offset] = A_band[-diag_offset:, i]
 
-    return solve_banded((bandwidth, bandwidth), ab, b)
+    try:
+        return solve_banded((bandwidth, bandwidth), ab, b)
+    except np.linalg.LinAlgError:
+        # Matrix is singular - add small regularization to diagonal and retry
+        diag_row = bandwidth  # main diagonal is at row 'bandwidth' in ab
+        reg = 1e-10 * (np.abs(ab[diag_row]).max() + 1)
+        ab[diag_row] += reg
+        try:
+            return solve_banded((bandwidth, bandwidth), ab, b)
+        except np.linalg.LinAlgError:
+            # Still singular - fall back to simple diagonal solve
+            diag = A_band[:, bandwidth]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                result = np.where(diag != 0, b / diag, 0.0)
+            return result
 
 
 # -----------------------------------------------------------------------------
