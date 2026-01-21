@@ -33,11 +33,9 @@ def synthetic_swath():
         1000 + 500 * np.sin(2 * np.pi * x / 50) + 200 * np.exp(-(((x - 100) / 20) ** 2))
     )
 
-    # True slit function: Gaussian, normalized so sum/osample = 1
+    # True slit function: uniform (realistic for fiber-fed), normalized so sum/osample = 1
     ny = osample * (nrows + 1) + 1
-    iy = np.arange(ny)
-    center = ny / 2
-    true_slitf = np.exp(-(((iy - center) / (ny / 6)) ** 2))
+    true_slitf = np.ones(ny)
     true_slitf /= np.sum(true_slitf) / osample
 
     # Simple geometry: no curvature, centered

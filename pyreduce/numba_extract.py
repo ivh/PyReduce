@@ -483,6 +483,71 @@ def compute_uncertainties(
 
 
 # -----------------------------------------------------------------------------
+# Robust initial guess and pre-masking (0th pass)
+# -----------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def _robust_initial_guess(
+    im: np.ndarray,
+    mask: np.ndarray,
+    zeta: np.ndarray,
+    m_zeta: np.ndarray,
+    ncols: int,
+    nrows: int,
+    ny: int,
+    osample: int,
+    threshold: float,
+    noise_floor: float = 1.0,
+) -> tuple:
+    """
+    Compute robust initial spectrum using median, build initial model
+    with uniform slit function, and pre-mask outliers.
+
+    Returns (sP, sL, mask) with outliers masked.
+    """
+    # Initial spectrum: column-wise median (robust to cosmics)
+    sP = np.empty(ncols)
+    col_vals = np.empty(nrows)
+    for x in range(ncols):
+        n_good = 0
+        for y in range(nrows):
+            if mask[y, x] > 0:
+                col_vals[n_good] = im[y, x]
+                n_good += 1
+        if n_good > 0:
+            sorted_vals = np.sort(col_vals[:n_good])
+            sP[x] = sorted_vals[n_good // 2]
+        else:
+            sP[x] = 1.0
+
+    # Scale spectrum to match sum (like original), but using median-based estimate
+    # median ≈ sum / nrows for uniform slit function
+    for x in range(ncols):
+        sP[x] *= nrows
+    sP = np.maximum(sP, 1.0)
+
+    # Uniform slit function (like original initialization)
+    sL = np.ones(ny) / osample
+
+    # Compute initial model
+    model = compute_model(zeta, m_zeta, sP, sL, ncols, nrows)
+
+    # Pre-mask positive outliers (cosmics) using Poisson-like threshold
+    # Only reject pixels where data > model (cosmics are always positive)
+    if threshold > 0:
+        for y in range(nrows):
+            for x in range(ncols):
+                if mask[y, x] > 0:
+                    resid = im[y, x] - model[y, x]  # positive if data > model
+                    noise = max(np.sqrt(max(model[y, x], 0.0)), noise_floor)
+                    if resid > threshold * noise:
+                        mask[y, x] = 0.0
+
+    return sP, sL, mask
+
+
+# -----------------------------------------------------------------------------
 # Band solver (JIT-compiled, based on C bandsol)
 # -----------------------------------------------------------------------------
 
@@ -656,26 +721,14 @@ def _iteration_loop(
         # Compute model
         model = compute_model(zeta, m_zeta, sP, sL, ncols, nrows)
 
-        # Compute sigma for outlier rejection
-        sum_resid_sq = 0.0
-        sum_mask = 0.0
-        for y in range(nrows):
-            for x in range(ncols):
-                if mask[y, x] > 0:
-                    resid = model[y, x] - im[y, x]
-                    sum_resid_sq += resid * resid
-                    sum_mask += 1.0
-
-        if sum_mask > 0:
-            sigma = np.sqrt(sum_resid_sq / sum_mask)
-        else:
-            sigma = 1.0
-
-        # Update mask (outlier rejection)
+        # Update mask: reject positive outliers (cosmics) using Poisson-like threshold
+        # Only reject pixels where data > model (cosmics are always positive)
         if threshold > 0:
             for y in range(nrows):
                 for x in range(ncols):
-                    if abs(model[y, x] - im[y, x]) < threshold * sigma:
+                    resid = im[y, x] - model[y, x]  # positive if data > model
+                    noise = max(np.sqrt(max(model[y, x], 0.0)), 1.0)
+                    if resid < threshold * noise:
                         mask[y, x] = 1.0
                     else:
                         mask[y, x] = 0.0
@@ -741,18 +794,35 @@ def _slit_func_curved_internal(
         ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, psf_curve
     )
 
-    # Initial spectrum estimate: sum along rows
-    sP = np.sum(im * mask, axis=0)
-    sP = np.maximum(sP, 1.0)
-    sP = np.ascontiguousarray(sP, dtype=np.float64)
-
-    # Initial slit function
-    if preset_slitfunc is not None:
-        sL = np.ascontiguousarray(preset_slitfunc, dtype=np.float64)
-        use_preset = True
+    # 0th pass: robust initial guess and pre-mask outliers
+    # Skip for osample=1 (simple extraction) - geometry is simpler there
+    USE_0TH_PASS = osample > 1
+    if USE_0TH_PASS:
+        if preset_slitfunc is not None:
+            sL = np.ascontiguousarray(preset_slitfunc, dtype=np.float64)
+            use_preset = True
+            sP, _, mask = _robust_initial_guess(
+                im, mask, zeta, m_zeta, ncols, nrows, ny, osample, threshold
+            )
+            sP = np.ascontiguousarray(sP, dtype=np.float64)
+        else:
+            use_preset = False
+            sP, sL, mask = _robust_initial_guess(
+                im, mask, zeta, m_zeta, ncols, nrows, ny, osample, threshold
+            )
+            sP = np.ascontiguousarray(sP, dtype=np.float64)
+            sL = np.ascontiguousarray(sL, dtype=np.float64)
     else:
-        sL = np.ones(ny, dtype=np.float64) / osample
-        use_preset = False
+        # Original initialization
+        sP = np.sum(im * mask, axis=0)
+        sP = np.maximum(sP, 1.0)
+        sP = np.ascontiguousarray(sP, dtype=np.float64)
+        if preset_slitfunc is not None:
+            sL = np.ascontiguousarray(preset_slitfunc, dtype=np.float64)
+            use_preset = True
+        else:
+            sL = np.ones(ny, dtype=np.float64) / osample
+            use_preset = False
 
     # Run JIT-compiled iteration loop
     sP, sL, model, mask, niter = _iteration_loop(
