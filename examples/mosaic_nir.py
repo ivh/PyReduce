@@ -80,7 +80,7 @@ pipe.trace([flat_file])
 # pipe.curvature([thar_file])
 # pipe.flat([flat_file])
 # pipe.normalize_flat()
-# pipe.extract([flat_file])
+pipe.extract([thar_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()
