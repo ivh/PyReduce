@@ -55,6 +55,7 @@ dev = [
     "ipython>=9.8.0",
     "myst-parser",
     "setuptools",
+    "numba>=0.63.1",
 ]
 ipynb = [
     "ipykernel>=7.1.0",
