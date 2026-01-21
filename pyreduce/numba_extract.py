@@ -13,7 +13,6 @@ such that: model[x,y] = sum over contributing subpixels of sP[x'] * sL[iy] * wei
 
 import numpy as np
 from numba import njit
-from scipy.linalg import solve_banded
 
 # -----------------------------------------------------------------------------
 # Geometry tensor construction
@@ -484,52 +483,219 @@ def compute_uncertainties(
 
 
 # -----------------------------------------------------------------------------
-# Band solver wrapper (uses scipy LAPACK)
+# Band solver (JIT-compiled, based on C bandsol)
 # -----------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def bandsol(a: np.ndarray, r: np.ndarray) -> int:
+    """
+    Solve band-diagonal system Ax = r in-place.
+
+    Based on C bandsol implementation. Uses Gaussian elimination
+    with forward sweep and backward substitution.
+
+    Parameters
+    ----------
+    a : array[n, nd]
+        Band matrix. Main diagonal at column nd//2.
+        Modified in-place during solve.
+    r : array[n]
+        Right-hand side, replaced with solution in-place.
+
+    Returns
+    -------
+    status : int
+        0 on success, -1 on singular matrix
+    """
+    n, nd = a.shape
+    mid = nd // 2
+
+    # Forward sweep
+    for i in range(n - 1):
+        aa = a[i, mid]
+        if aa == 0.0:
+            # Try small regularization
+            aa = 1e-16
+            a[i, mid] = aa
+
+        r[i] /= aa
+        for j in range(nd):
+            a[i, j] /= aa
+
+        # Eliminate below
+        jmax = min(mid + 1, n - i)
+        for j in range(1, jmax):
+            aa = a[i + j, mid - j]
+            if aa != 0.0:
+                r[i + j] -= r[i] * aa
+                for k in range(nd - j):
+                    a[i + j, k] -= a[i, k + j] * aa
+
+    # Backward sweep
+    if a[n - 1, mid] != 0.0:
+        r[n - 1] /= a[n - 1, mid]
+
+    for i in range(n - 1, 0, -1):
+        jmax = min(mid, i)
+        for j in range(1, jmax + 1):
+            r[i - j] -= r[i] * a[i - j, mid + j]
+        if a[i - 1, mid] != 0.0:
+            r[i - 1] /= a[i - 1, mid]
+
+    return 0
 
 
 def solve_band_system(A_band: np.ndarray, b: np.ndarray, bandwidth: int) -> np.ndarray:
-    """Solve a band-diagonal system using scipy's LAPACK wrapper."""
-    n = len(b)
+    """
+    Wrapper for bandsol that matches the old API.
 
-    # Special case: diagonal system (bandwidth=0)
-    if bandwidth == 0:
-        diag = A_band[:, 0]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            result = np.where(diag != 0, b / diag, 0.0)
-        return result
+    Parameters
+    ----------
+    A_band : array[n, nd]
+        Band matrix (will be copied and modified)
+    b : array[n]
+        Right-hand side (will be copied and modified)
+    bandwidth : int
+        Half-bandwidth (unused, derived from A_band shape)
 
-    full_bandwidth = 2 * bandwidth + 1
+    Returns
+    -------
+    x : array[n]
+        Solution vector
+    """
+    # bandsol works in-place, so copy inputs
+    A_copy = A_band.copy()
+    b_copy = b.copy()
+    bandsol(A_copy, b_copy)
+    return b_copy
 
-    # Convert to scipy's banded format
-    ab = np.zeros((full_bandwidth, n))
-    for i in range(full_bandwidth):
-        diag_offset = bandwidth - i
-        if diag_offset >= 0:
-            ab[i, diag_offset:] = A_band[: n - diag_offset, i]
+
+# -----------------------------------------------------------------------------
+# Internal extraction function (JIT-compiled)
+# -----------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def _iteration_loop(
+    im: np.ndarray,
+    mask: np.ndarray,
+    xi: np.ndarray,
+    zeta: np.ndarray,
+    m_zeta: np.ndarray,
+    sP: np.ndarray,
+    sL: np.ndarray,
+    ncols: int,
+    nrows: int,
+    ny: int,
+    osample: int,
+    delta_x: int,
+    lambda_sP: float,
+    lambda_sL: float,
+    maxiter: int,
+    threshold: float,
+    use_preset: bool,
+) -> tuple:
+    """
+    JIT-compiled main iteration loop.
+
+    Returns (sP, sL, model, mask, niter)
+    """
+    bandwidth_sL = 2 * osample
+    bandwidth_sP = 2 * delta_x
+
+    model = np.zeros((nrows, ncols))
+    niter = 0
+
+    for iteration in range(maxiter):
+        niter = iteration + 1
+
+        # Save old spectrum for convergence check
+        sP_old = sP.copy()
+
+        # Solve for slit function (skip if preset)
+        if not use_preset:
+            l_Aij, l_bj = build_sL_system(
+                xi, zeta, m_zeta, sP, mask, im, ncols, nrows, ny, osample
+            )
+
+            # Compute regularization scale
+            diag_sum = 0.0
+            for iy in range(ny):
+                diag_sum += abs(l_Aij[iy, bandwidth_sL])
+            lambda_L = lambda_sL * diag_sum / ny
+
+            # Add regularization
+            add_regularization(l_Aij, ny, bandwidth_sL, lambda_L)
+
+            # Solve in-place
+            bandsol(l_Aij, l_bj)
+            sL = l_bj
+
+            # Normalize slit function
+            norm = 0.0
+            for iy in range(ny):
+                norm += sL[iy]
+            norm /= osample
+            if norm > 0:
+                for iy in range(ny):
+                    sL[iy] /= norm
+
+        # Solve for spectrum
+        p_Aij, p_bj = build_sP_system(
+            xi, zeta, m_zeta, sL, mask, im, ncols, nrows, ny, delta_x
+        )
+
+        if lambda_sP > 0:
+            add_regularization(p_Aij, ncols, bandwidth_sP, lambda_sP)
+
+        # Solve in-place
+        bandsol(p_Aij, p_bj)
+        sP = p_bj
+
+        # Compute model
+        model = compute_model(zeta, m_zeta, sP, sL, ncols, nrows)
+
+        # Compute sigma for outlier rejection
+        sum_resid_sq = 0.0
+        sum_mask = 0.0
+        for y in range(nrows):
+            for x in range(ncols):
+                if mask[y, x] > 0:
+                    resid = model[y, x] - im[y, x]
+                    sum_resid_sq += resid * resid
+                    sum_mask += 1.0
+
+        if sum_mask > 0:
+            sigma = np.sqrt(sum_resid_sq / sum_mask)
         else:
-            ab[i, : n + diag_offset] = A_band[-diag_offset:, i]
+            sigma = 1.0
 
-    try:
-        return solve_banded((bandwidth, bandwidth), ab, b)
-    except np.linalg.LinAlgError:
-        # Matrix is singular - add small regularization to diagonal and retry
-        diag_row = bandwidth  # main diagonal is at row 'bandwidth' in ab
-        reg = 1e-10 * (np.abs(ab[diag_row]).max() + 1)
-        ab[diag_row] += reg
-        try:
-            return solve_banded((bandwidth, bandwidth), ab, b)
-        except np.linalg.LinAlgError:
-            # Still singular - fall back to simple diagonal solve
-            diag = A_band[:, bandwidth]
-            with np.errstate(divide="ignore", invalid="ignore"):
-                result = np.where(diag != 0, b / diag, 0.0)
-            return result
+        # Update mask (outlier rejection)
+        if threshold > 0:
+            for y in range(nrows):
+                for x in range(ncols):
+                    if abs(model[y, x] - im[y, x]) < threshold * sigma:
+                        mask[y, x] = 1.0
+                    else:
+                        mask[y, x] = 0.0
 
+        # Check convergence: 99th percentile of |sP - sP_old|
+        diffs = np.abs(sP - sP_old)
+        sorted_diffs = np.sort(diffs)
+        idx99 = int(0.99 * len(diffs))
+        if idx99 >= len(diffs):
+            idx99 = len(diffs) - 1
+        change = sorted_diffs[idx99]
 
-# -----------------------------------------------------------------------------
-# Internal extraction function
-# -----------------------------------------------------------------------------
+        # Median of |sP|
+        sorted_sP = np.sort(np.abs(sP))
+        median_sP = sorted_sP[len(sP) // 2]
+
+        if change < 5e-5 * median_sP and iteration > 0:
+            break
+
+    return sP, sL, model, mask, niter
 
 
 def _slit_func_curved_internal(
@@ -561,7 +727,7 @@ def _slit_func_curved_internal(
     ycen_offset = np.ascontiguousarray(ycen_offset, dtype=np.int32)
     psf_curve = np.ascontiguousarray(psf_curve, dtype=np.float64)
 
-    # Compute delta_x from curvature (vectorized)
+    # Compute delta_x from curvature
     delta_x = 1 if lambda_sP > 0 else 0
     if np.any(psf_curve[:, 1:] != 0):
         y_vals = np.arange(-y_lower_lim, nrows - y_lower_lim + 1)
@@ -578,65 +744,46 @@ def _slit_func_curved_internal(
     # Initial spectrum estimate: sum along rows
     sP = np.sum(im * mask, axis=0)
     sP = np.maximum(sP, 1.0)
+    sP = np.ascontiguousarray(sP, dtype=np.float64)
 
     # Initial slit function
     if preset_slitfunc is not None:
         sL = np.ascontiguousarray(preset_slitfunc, dtype=np.float64)
+        use_preset = True
     else:
-        sL = np.ones(ny) / osample
+        sL = np.ones(ny, dtype=np.float64) / osample
+        use_preset = False
 
-    # Iteration
-    for iteration in range(maxiter):
-        sP_old = sP.copy()
-
-        # Solve for slit function (skip if preset)
-        if preset_slitfunc is None:
-            l_Aij, l_bj = build_sL_system(
-                xi, zeta, m_zeta, sP, mask, im, ncols, nrows, ny, osample
-            )
-            diag_sum = np.sum(np.abs(l_Aij[:, 2 * osample]))
-            lambda_L = lambda_sL * diag_sum / ny
-            add_regularization(l_Aij, ny, 2 * osample, lambda_L)
-            sL = solve_band_system(l_Aij, l_bj, 2 * osample)
-
-            # Normalize slit function
-            norm = np.sum(sL) / osample
-            if norm > 0:
-                sL = sL / norm
-
-        # Solve for spectrum
-        p_Aij, p_bj = build_sP_system(
-            xi, zeta, m_zeta, sL, mask, im, ncols, nrows, ny, delta_x
-        )
-        if lambda_sP > 0:
-            add_regularization(p_Aij, ncols, 2 * delta_x, lambda_sP)
-
-        sP = solve_band_system(p_Aij, p_bj, 2 * delta_x)
-
-        # Compute model and residuals
-        model = compute_model(zeta, m_zeta, sP, sL, ncols, nrows)
-
-        residual = (model - im) * mask
-        sigma = np.sqrt(np.sum(residual**2) / np.sum(mask))
-
-        # Update mask (outlier rejection)
-        if threshold > 0:
-            mask = np.where(np.abs(model - im) < threshold * sigma, 1.0, 0.0)
-
-        # Check convergence
-        change = np.percentile(np.abs(sP - sP_old), 99)
-        median_sP = np.median(np.abs(sP))
-        if change < 5e-5 * median_sP and iteration > 0:
-            break
+    # Run JIT-compiled iteration loop
+    sP, sL, model, mask, niter = _iteration_loop(
+        im,
+        mask,
+        xi,
+        zeta,
+        m_zeta,
+        sP,
+        sL,
+        ncols,
+        nrows,
+        ny,
+        osample,
+        delta_x,
+        lambda_sP,
+        lambda_sL,
+        maxiter,
+        threshold,
+        use_preset,
+    )
 
     # Compute uncertainties
     unc = compute_uncertainties(zeta, m_zeta, im, model, mask, ncols, nrows)
 
     # Zero out edge columns affected by curvature
-    sP[:delta_x] = 0
-    sP[-delta_x:] = 0 if delta_x > 0 else sP[-delta_x:]
-    unc[:delta_x] = 0
-    unc[-delta_x:] = 0 if delta_x > 0 else unc[-delta_x:]
+    if delta_x > 0:
+        sP[:delta_x] = 0
+        sP[-delta_x:] = 0
+        unc[:delta_x] = 0
+        unc[-delta_x:] = 0
 
     return {
         "spec": sP,
@@ -644,7 +791,7 @@ def _slit_func_curved_internal(
         "model": model,
         "mask": mask,
         "unc": unc,
-        "niter": iteration + 1,
+        "niter": niter,
         "delta_x": delta_x,
     }
 
