@@ -1,6 +1,33 @@
 # Changelog
 
 
+## [0.7b4] - 2026-01-22
+
+### Added
+- Per-channel settings support via `settings_{channel}.json` files
+- Fiber grouping configuration for multi-fiber instruments (bundle_centers, fiber_groups)
+- `preset_slitfunc` parameter for single-pass extraction using pre-computed slit function
+- `noise_relative` parameter for trace threshold scaling
+- `extraction_reject` threshold parameter for outlier rejection
+- ANDES_YJH instrument with multi-channel support
+- MOSAIC VIS quadrant support (VIS1-VIS4 channels) and NIR settings
+- HARPN fiber B wavecal file
+- Extraction residual panel in ProgressPlot
+- `tools/plot_swath_debug.py` for analyzing extraction debug data
+
+### Changed
+- **Mask convention**: Switch to numpy convention (True/1=bad) on Python side; C code uses inverted (1=good)
+- Extraction convergence now based on spectrum change with global RMS for rejection
+- Improved outlier rejection using 6*sigma instead of MAD in 2D extraction
+- Norm_flat step saves slit function with metadata for reuse
+- Refactor Pipeline trace API: add `trace_raw()` and `organize()` methods
+- Remove `extraction_cutoff` parameter (dead code)
+
+### Fixed
+- `smooth_spectrum` normalization (port from cr2res)
+- Masked array handling in swath debug plotting
+- Minimum 4 iterations enforced in curved extraction
+
 ## [0.7b3] - 2026-01-11
 
 ### Added

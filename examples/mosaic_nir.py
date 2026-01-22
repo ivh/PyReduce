@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7b3"]
+# dependencies = ["pyreduce-astro>=0.7b4"]
 # ///
 """
 MOSAIC NIR spectrograph example using config-based fiber grouping.
