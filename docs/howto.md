@@ -83,6 +83,7 @@ result = pipe.run()
 | `PYREDUCE_PLOT` | Override plot level (0=off, 1=basic, 2=detailed) |
 | `PYREDUCE_PLOT_DIR` | Save plots to directory as PNG files |
 | `PYREDUCE_PLOT_SHOW` | Display mode: `block` (default), `defer`, or `off` |
+| `PYREDUCE_PLOT_ANIMATION_SPEED` | Frame delay in seconds for extraction animation (default: 0.3) |
 
 ## Plot Modes
 
@@ -108,6 +109,16 @@ PYREDUCE_PLOT=1 PYREDUCE_PLOT_DIR=/tmp/plots PYREDUCE_PLOT_SHOW=defer uv run ...
 ```
 
 Note: Plot level 2 (interactive progress plots during extraction) only works with `block` mode.
+
+### Extraction Animation
+
+When `plot=2`, extraction shows an animated progress plot with the current swath, slit function fit, and residuals. Interactive controls are available:
+
+- **Pause/Resume** button - pause animation to examine current state
+- **Step** button - advance one swath at a time (when paused)
+- **Speed slider** - adjust animation frame rate
+
+Set `PYREDUCE_PLOT_ANIMATION_SPEED` to control the default frame delay (in seconds). A value of 0 shows swaths as fast as possible.
 
 ## Pipeline Steps
 

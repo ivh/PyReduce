@@ -123,10 +123,15 @@ See `pyreduce/instruments/models.py` for the full schema.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `degree` | Polynomial degree for trace fitting | 4 |
-| `noise` | Noise threshold for detection | 100 |
+| `noise` | Absolute noise threshold for detection | 0 |
+| `noise_relative` | Relative noise threshold (fraction of image max) | 0 |
 | `min_cluster` | Minimum pixels for valid order | 500 |
-| `filter_y` | Median filter size | 120 |
-| `border_width` | Pixels to ignore at edges. Int or `[top, bottom, left, right]` | 10 |
+| `filter_y` | Median filter size in y | null |
+| `filter_x` | Median filter size in x | 0 |
+| `filter_type` | Filter type ("boxcar" or "median") | "boxcar" |
+| `border_width` | Pixels to ignore at edges. Int or `[top, bottom, left, right]` | null |
+
+Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% of image maximum) for trace detection.
 
 ### Science (Extraction)
 
@@ -135,8 +140,27 @@ See `pyreduce/instruments/models.py` for the full schema.
 | `extraction_method` | "optimal" or "simple" | "optimal" |
 | `extraction_height` | Width in order widths | 0.5 |
 | `oversampling` | Slit function oversampling | 10 |
-| `smooth_slitfunction` | Smoothing factor | 1 |
+| `smooth_slitfunction` | Smoothing factor | 0.1 |
+| `smooth_spectrum` | Spectrum smoothing factor | 1e-7 |
 | `swath_width` | Width of extraction swaths | 300 |
+| `extraction_reject` | Sigma threshold for outlier rejection | 6 |
+| `maxiter` | Maximum extraction iterations | 30 |
+
+#### Using a Pre-computed Slit Function
+
+For faster extraction, the slit function computed during `norm_flat` can be reused in subsequent steps. The normalized flat step saves the slit function to `.slitfunc.npz` with metadata (extraction_height, osample). To use it:
+
+```python
+from pyreduce.echelle import read
+
+# Load slit function from norm_flat output
+slitfunc_data = read("output/UVES.2010-04-01.slitfunc.npz")
+
+# Pass to science extraction
+pipe.science(science_files, preset_slitfunc=slitfunc_data["slitfunc"])
+```
+
+This performs single-pass extraction without iterating to find the slit function shape, which is useful for instruments with stable slit profiles.
 
 ### Wavelength Calibration
 

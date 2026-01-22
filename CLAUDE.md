@@ -31,7 +31,7 @@ pyreduce/
 ├── reduce.py            # Step class implementations
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction algorithm
-├── trace_orders.py      # Order detection and tracing
+├── trace.py             # Order detection and tracing
 ├── wavelength_calibration.py  # Wavelength solution fitting
 ├── combine_frames.py    # Frame combination/calibration
 ├── echelle.py           # Echelle spectrum I/O
@@ -158,7 +158,7 @@ Defines HOW to reduce - algorithm parameters per step:
     "degree": 4,
     "noise": 100,
     "min_cluster": 500,
-    "filter_size": 120
+    "filter_y": 120
   },
   "norm_flat": {
     "extraction_height": 0.5,
@@ -260,6 +260,7 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT` - Override plot level (0=off, 1=basic, 2=detailed)
 - `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
+- `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
@@ -303,7 +304,7 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 | `pyreduce/reduce.py` | Step class implementations |
 | `pyreduce/extract.py` | Optimal extraction algorithm |
 | `pyreduce/wavelength_calibration.py` | Wavelength solution fitting |
-| `pyreduce/trace_orders.py` | Order detection and tracing |
+| `pyreduce/trace.py` | Order detection and tracing |
 | `pyreduce/instruments/common.py` | Base Instrument class |
 | `pyreduce/instruments/models.py` | Pydantic config models |
 | `pyreduce/clib/*.c` | C code for slit function decomposition |

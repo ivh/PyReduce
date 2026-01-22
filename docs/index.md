@@ -53,5 +53,6 @@ modules
 
 redesign
 fiber_bundle_tracing
+fibers_by_channel
 trace_fit_regularization
 ```

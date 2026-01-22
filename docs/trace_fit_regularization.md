@@ -11,7 +11,7 @@ parameter is accepted by the order tracing code but has no effect.
 
 The `regularization` parameter in order tracing settings is **not currently used**.
 
-In `trace_orders.py`, the `fit()` function accepts the parameter but uses
+In `trace.py`, the `fit()` function accepts the parameter but uses
 `numpy.polynomial.Polynomial.fit()` instead of the regularized `polyfit1d()`:
 
 ```python
@@ -77,7 +77,7 @@ intuitive and data-independent (e.g., useful range 0-1).
 
 ## TODO
 
-1. Enable regularization by uncommenting the `polyfit1d` call in `trace_orders.fit()`
+1. Enable regularization by uncommenting the `polyfit1d` call in `trace.fit()`
 2. Add input scaling to make the parameter data-independent
 3. Document recommended parameter ranges for different use cases
 4. Consider whether regularization helps with fiber bundle trace fitting

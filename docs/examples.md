@@ -107,6 +107,15 @@ previous runs if the output files exist.
 | `metis_lss_example.py` | ELT METIS Long-Slit |
 | `metis_ifu_example.py` | ELT METIS IFU |
 | `micado_example.py` | ELT MICADO |
+| `mosaic_nir.py` | ELT MOSAIC NIR channel |
+| `mosaic_vis.py` | ELT MOSAIC VIS channels |
+| `andes_yjh_example.py` | ELT ANDES YJH channels |
+
+### Advanced Usage
+
+| Example | Description |
+|---------|-------------|
+| `mosaic_preset-slitfunc.py` | Using pre-computed slit function for single-pass extraction |
 
 ### Templates
 

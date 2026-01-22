@@ -23,8 +23,11 @@ by creating YAML configuration files.
 - **NEID** - NN-EXPLORE Exoplanet Investigations with Doppler spectroscopy
 
 ### ELT Instruments (Simulated)
-- **METIS** - Mid-infrared ELT Imager and Spectrograph
+- **METIS** - Mid-infrared ELT Imager and Spectrograph (LSS and IFU modes)
 - **MICADO** - Multi-AO Imaging Camera for Deep Observations
+- **MOSAIC** - Multi-Object Spectrograph for Astrophysics, Intergalactic-medium studies and Cosmology
+- **ANDES_YJH** - ArmazoNes high Dispersion Echelle Spectrograph (YJH channels)
+- **NTE** - New Technology Echelle spectrograph
 
 ## Adding a Custom Instrument
 
@@ -163,3 +166,26 @@ The goal is to orient the image so that:
 Each instrument has its own settings file at `pyreduce/instruments/{INSTRUMENT}/settings.json`.
 This inherits from and overrides `pyreduce/instruments/defaults/settings.json`.
 See [Configuration](configuration_file.md) for details.
+
+## Multi-Fiber Instruments
+
+Some instruments have multiple fibers per spectral order (e.g., IFU bundles, calibration fibers alongside science fibers). PyReduce supports these via the `fibers` configuration in `config.yaml`:
+
+- **Fiber groups** - Named collections of fibers (e.g., "science", "cal", "sky")
+- **Bundle patterns** - Repeating groups of fibers (e.g., 7 fibers per IFU target)
+- **Per-order grouping** - For echelle instruments with multi-fiber orders
+
+The `fibers.use` section specifies which traces each reduction step should use:
+
+```yaml
+fibers:
+  groups:
+    A: { range: [1, 36], merge: average }
+    cal: { range: [37, 40], merge: average }
+  use:
+    science: [A]
+    wavecal: [cal]
+    norm_flat: all
+```
+
+See [Fiber Bundle Tracing](fiber_bundle_tracing.md) for the full configuration reference.
