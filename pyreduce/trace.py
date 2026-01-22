@@ -620,6 +620,30 @@ def trace(
     # Threshold: pixels above local background are signal
     # Combines absolute (noise) and relative (noise_relative) thresholds
     mask = im_clean > background * (1 + noise_relative) + noise
+
+    # Plot cross-section of signal vs background at plot level 2
+    if plot >= 2:  # pragma: no cover
+        ncol = im_clean.shape[1]
+        mid = ncol // 2
+        cols = slice(mid - 25, mid + 25)
+        signal_profile = np.median(im_clean[:, cols], axis=1)
+        background_profile = np.median(background[:, cols], axis=1)
+        threshold_profile = background_profile * (1 + noise_relative) + noise
+
+        plt.figure()
+        plt.plot(signal_profile, label="signal (median of 50 middle cols)")
+        plt.plot(background_profile, label=f"smoothed ({filter_type}={filter_y})")
+        plt.plot(
+            threshold_profile, label=f"threshold (noise={noise}, rel={noise_relative})"
+        )
+        plt.xlabel("Row (cross-dispersion)")
+        plt.ylabel("Counts")
+        title = "Signal vs background profile"
+        if plot_title is not None:
+            title = f"{plot_title}\n{title}"
+        plt.title(title)
+        plt.legend()
+        util.show_or_save("trace_signal_vs_background")
     mask_initial = mask.copy()
     # remove borders
     if bw_top > 0:
@@ -671,11 +695,14 @@ def trace(
 
     # label clusters
     clusters, _ = label(mask)
+    n_initial = clusters.max()
+    logger.info("Found %d clusters initially", n_initial)
 
     # remove small clusters
     sizes = np.bincount(clusters.ravel())
     mask_sizes = sizes > min_cluster
     mask_sizes[0] = True  # This is the background, which we don't need to remove
+    n_too_small = np.sum(~mask_sizes) - 1  # -1 for background
     clusters[~mask_sizes[clusters]] = 0
 
     # # Reorganize x, y, clusters into a more convenient "pythonic" format
@@ -685,6 +712,13 @@ def trace(
     n = n[n != 0]
     x = {i: np.where(clusters == c)[0] for i, c in enumerate(n)}
     y = {i: np.where(clusters == c)[1] for i, c in enumerate(n)}
+    if n_too_small > 0:
+        logger.info(
+            "Removed %d clusters smaller than min_cluster=%d, %d remain",
+            n_too_small,
+            min_cluster,
+            len(n),
+        )
 
     def best_fit_degree(x, y):
         L1 = np.sum((np.polyval(np.polyfit(y, x, 1), y) - x) ** 2)
@@ -699,6 +733,7 @@ def trace(
             return 2
 
     if sigma > 0:
+        n_before_sigma = len(x)
         cluster_degrees = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
         bias = {i: np.polyfit(y[i], x[i], deg=cluster_degrees[i])[-1] for i in x.keys()}
         n = list(x.keys())
@@ -746,6 +781,11 @@ def trace(
                         k += 1
                 # plt.imshow(clusters, origin="lower")
                 # plt.show()
+        n_after_sigma = len(x)
+        if n_after_sigma != n_before_sigma:
+            logger.info(
+                "Sigma clipping: %d -> %d clusters", n_before_sigma, n_after_sigma
+            )
 
     if plot:  # pragma: no cover
         plt.figure()
@@ -755,12 +795,29 @@ def trace(
         plt.title(title)
         plt.xlabel("x [pixel]")
         plt.ylabel("y [pixel]")
+
+        # Sort clusters by mean y-position so we can assign alternating colors
+        sorted_clusters = sorted(x.keys(), key=lambda i: np.mean(x[i]))
+        # Use distinct colors that cycle, so adjacent clusters are visually distinct
+        distinct_colors = [
+            "#e41a1c",
+            "#377eb8",
+            "#4daf4a",
+            "#984ea3",
+            "#ff7f00",
+            "#a65628",
+        ]
+        from matplotlib.colors import ListedColormap
+
+        n_colors = len(distinct_colors)
+
         clusters = np.ma.zeros(im.shape, dtype=int)
-        for i in x.keys():
-            clusters[x[i], y[i]] = i + 1
+        for color_idx, i in enumerate(sorted_clusters):
+            clusters[x[i], y[i]] = (color_idx % n_colors) + 1
         clusters[clusters == 0] = np.ma.masked
 
-        plt.imshow(clusters, origin="lower", cmap="prism")
+        cmap = ListedColormap(distinct_colors)
+        plt.imshow(clusters, origin="lower", cmap=cmap, vmin=1, vmax=n_colors)
         util.show_or_save("trace_clusters")
 
     # Merge clusters, if there are even any possible mergers left
@@ -777,6 +834,7 @@ def trace(
     )
 
     if min_width > 0:
+        n_before_width = len(x)
         sizes = {k: v.max() - v.min() for k, v in y.items()}
         mask_sizes = {k: v > min_width for k, v in sizes.items()}
         for k, v in mask_sizes.items():
@@ -784,7 +842,16 @@ def trace(
                 del x[k]
                 del y[k]
         n = x.keys()
+        n_too_narrow = n_before_width - len(x)
+        if n_too_narrow > 0:
+            logger.info(
+                "Removed %d clusters narrower than min_width=%d, %d remain",
+                n_too_narrow,
+                min_width,
+                len(x),
+            )
 
+    logger.info("Fitting polynomials to %d clusters", len(x))
     traces = fit_polynomials_to_clusters(x, y, n, degree)
 
     # sort traces from bottom to top, using relative position
@@ -973,6 +1040,10 @@ def _merge_fiber_traces(traces, column_range, merge_method, degree=4):
 
     elif merge_method == "average":
         # Average y-positions and refit
+        if col_min >= col_max:
+            # No shared column range, fall back to center trace
+            idx = n_fibers // 2
+            return traces[idx : idx + 1], column_range[idx : idx + 1]
         x_eval = np.arange(col_min, col_max)
         y_values = np.array([np.polyval(t, x_eval) for t in traces])
         y_mean = np.mean(y_values, axis=0)
@@ -1163,15 +1234,18 @@ def _merge_bundle_traces(
                 sorted_idx = np.argsort(distances)
                 if len(sorted_idx) >= 2:
                     idx1, idx2 = sorted_idx[0], sorted_idx[1]
-                    x_eval = np.arange(col_min, col_max)
+                    # Use intersection of column ranges
+                    cr_min = max(column_range[idx1, 0], column_range[idx2, 0])
+                    cr_max = min(column_range[idx1, 1], column_range[idx2, 1])
+                    if cr_min >= cr_max:
+                        # No overlap between traces, use the closest one
+                        return traces[idx : idx + 1], column_range[idx : idx + 1]
+                    x_eval = np.arange(cr_min, cr_max)
                     y1 = np.polyval(traces[idx1], x_eval)
                     y2 = np.polyval(traces[idx2], x_eval)
                     y_mean = (y1 + y2) / 2
                     fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
                     coeffs = fit.coef[::-1]
-                    # Use intersection of column ranges
-                    cr_min = max(column_range[idx1, 0], column_range[idx2, 0])
-                    cr_max = min(column_range[idx1, 1], column_range[idx2, 1])
                     return coeffs.reshape(1, -1), np.array([[cr_min, cr_max]])
                 else:
                     # Only one fiber, use it
@@ -1182,6 +1256,10 @@ def _merge_bundle_traces(
 
     elif merge_method == "average":
         # Average all present fibers
+        if col_min >= col_max:
+            # No shared column range, fall back to center trace
+            idx = n_fibers // 2
+            return traces[idx : idx + 1], column_range[idx : idx + 1]
         x_eval = np.arange(col_min, col_max)
         y_values = np.array([np.polyval(t, x_eval) for t in traces])
         y_mean = np.mean(y_values, axis=0)
