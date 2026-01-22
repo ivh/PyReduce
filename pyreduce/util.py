@@ -91,7 +91,9 @@ def show_or_save(name="plot"):
         plt.close()
 
 
-def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):
+def plot_traces(
+    im, traces, column_range=None, ax=None, imshow_kwargs=None, **line_kwargs
+):
     """Plot image with polynomial traces overlaid.
 
     Parameters
@@ -102,6 +104,8 @@ def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):
         Polynomial coefficients for traces. Either a 2D array of shape
         (n_traces, degree+1) or a list of 1D coefficient arrays.
         Coefficients are in numpy polyval order (highest degree first).
+    column_range : array[n_traces, 2], optional
+        Column range [start, end] for each trace. If None, traces span full width.
     ax : matplotlib.axes.Axes, optional
         Axes to plot on. If None, creates new figure.
     imshow_kwargs : dict, optional
@@ -124,12 +128,15 @@ def plot_traces(im, traces, ax=None, imshow_kwargs=None, **line_kwargs):
     ax.imshow(im, **imshow_defaults)
 
     traces = np.atleast_2d(traces)
-    x = np.arange(im.shape[1])
 
     line_defaults = {"color": "red", "linewidth": 0.5}
     line_defaults.update(line_kwargs)
 
-    for coef in traces:
+    for i, coef in enumerate(traces):
+        if column_range is not None:
+            x = np.arange(column_range[i, 0], column_range[i, 1])
+        else:
+            x = np.arange(im.shape[1])
         y = np.polyval(coef, x)
         ax.plot(x, y, **line_defaults)
 

@@ -542,6 +542,7 @@ def combine_calibrate(
     plot=False,
     plot_title=None,
     traces=None,
+    column_range=None,
     extraction_height=None,
     **kwargs,
 ):
@@ -645,7 +646,6 @@ def combine_calibrate(
         # Overlay traces if provided
         if traces is not None:
             ncol = orig.shape[1]
-            x = np.arange(ncol)
             x_mid = ncol // 2
 
             # Compute extraction height in pixels if needed
@@ -660,6 +660,10 @@ def combine_calibrate(
                     extr_h = 10  # fallback
 
             for i, trace in enumerate(traces):
+                if column_range is not None:
+                    x = np.arange(column_range[i, 0], column_range[i, 1])
+                else:
+                    x = np.arange(ncol)
                 ycen = np.polyval(trace, x)
                 plt.plot(x, ycen, "w-", lw=0.5, alpha=0.8)
                 if extr_h is not None:

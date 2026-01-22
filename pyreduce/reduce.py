@@ -390,6 +390,7 @@ class CalibrationStep(Step):
         bias=None,
         norm_flat=None,
         traces=None,
+        column_range=None,
         extraction_height=None,
     ):
         bias, bhead = bias if bias is not None else (None, None)
@@ -407,6 +408,7 @@ class CalibrationStep(Step):
             plot=self.plot,
             plot_title=self.plot_title,
             traces=traces,
+            column_range=column_range,
             extraction_height=extraction_height,
         )
 
@@ -2018,6 +2020,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
                 bias,
                 norm_flat,
                 traces=selected_traces,
+                column_range=selected_cr,
                 extraction_height=self.extraction_kwargs.get("extraction_height"),
             )
             # Optimally extract science spectrum
