@@ -27,7 +27,7 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "MOSAIC"
 target = "MOSAIC_VIS"
 night = ""
-channel = "VIS1"
+channel = "VIS4"
 plot = 1
 
 # Handle plot environment variables
@@ -37,10 +37,9 @@ plot_dir = os.environ.get("PYREDUCE_PLOT_DIR")
 util.set_plot_dir(plot_dir)
 
 # Data location
-#data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-data_dir = '/Users/jens/projects/mosaic/virtualmosaic/'
-base_dir = join(data_dir, "REF_E2E", "VIS")
-output_dir = join(data_dir, "reduced", channel)
+data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+base_dir = join(data_dir, "MOSAIC", "REF_E2E", "VIS")
+output_dir = join(data_dir, "MOSAIC", "reduced", channel)
 
 # File paths (simulated data)
 flat_file = join(
@@ -61,7 +60,7 @@ print(f"FLAT: {flat_file}")
 print(f"ThAr: {thar_file}")
 
 # Load configuration
-config = load_config(None, instrument_name, plot)
+config = load_config(None, instrument_name, channel=channel)
 
 # Create pipeline - fiber grouping is handled by config.yaml
 pipe = Pipeline(
@@ -76,8 +75,8 @@ pipe = Pipeline(
 
 # Run pipeline steps
 pipe.trace_orders([flat_file])
-pipe.curvature([thar_file])
-pipe.extract([thar_file, flat_file])
+# pipe.curvature([thar_file])
+# pipe.extract([thar_file, flat_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()

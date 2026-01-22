@@ -2,7 +2,15 @@
     "__instrument__": "MOSAIC",
     "__inherits__": "MOSAIC",
     "trace": {
-        "filter_y": 8
+        "degree": 9,
+        "noise": 500,
+        "noise_relative": 0.05,
+        "min_cluster": 100,
+        "min_width": 0.6,
+        "filter_y": 12,
+        "border_width": [0, 0,0,0],
+        "closing_shape": [1, 5],
+        "opening_shape": [1, 5]
     },
     "curvature": {
         "curve_height": 55,
