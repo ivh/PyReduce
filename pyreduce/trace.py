@@ -294,6 +294,11 @@ def merge_clusters(
         cluster labels
     """
 
+    # Skip all merge computation when merging is disabled
+    if auto_merge_threshold == 1 and not manual:
+        n_clusters = list(x.keys())
+        return x, y, n_clusters
+
     nrow, ncol = img.shape
     mct = calculate_mean_cluster_thickness(x, y)
 
@@ -571,7 +576,6 @@ def trace(
         pass
     elif isinstance(min_width, (float, np.floating)):
         min_width = int(min_width * im.shape[0])
-        logger.info("Minimum trace width: %i", min_width)
 
     # Validate filter_type
     valid_filters = ("boxcar", "gaussian", "whittaker")
