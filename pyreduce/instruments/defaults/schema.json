@@ -109,7 +109,7 @@
                             }
                         },
                         "auto_merge_threshold": {
-                            "description": "Fractional threshold, for automatic merging",
+                            "description": "Minimum overlap score (0-1) required to auto-merge clusters. Higher values = less merging. Set to 1 to disable auto-merging entirely.",
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1
