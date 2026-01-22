@@ -117,7 +117,7 @@ class Pipeline:
         channel: str = "",
         night: str = "",
         config: dict | None = None,
-        order_range: tuple[int, int] | None = None,
+        trace_range: tuple[int, int] | None = None,
         plot: int = 0,
         plot_dir: str | None = None,
     ):
@@ -137,7 +137,7 @@ class Pipeline:
             Observation night string
         config : dict, optional
             Configuration dict with step-specific settings
-        order_range : tuple, optional
+        trace_range : tuple, optional
             (first, last+1) orders to process
         plot : int, optional
             Plot level (0=off, 1=basic, 2=detailed). Default 0.
@@ -158,7 +158,7 @@ class Pipeline:
         self.channel = channel
         self.night = night
         self.config = config or {}
-        self.order_range = order_range
+        self.trace_range = trace_range
         self.plot = plot
         self.plot_dir = plot_dir
 
@@ -258,17 +258,6 @@ class Pipeline:
         )
 
         return traces, column_range
-
-    def trace_orders(self, files: list[str] | None = None) -> Pipeline:
-        """Deprecated: use trace() instead."""
-        import warnings
-
-        warnings.warn(
-            "trace_orders() is deprecated, use trace() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.trace(files)
 
     def organize(self, traces, column_range, *more) -> Pipeline:
         """Organize traces into fiber groups based on instrument config.
@@ -443,7 +432,7 @@ class Pipeline:
             self.target,
             self.night,
             self.output_dir,
-            self.order_range,
+            self.trace_range,
         )
 
     def _run_step(self, name: str, files: list | None, load_only: bool = False):
@@ -561,7 +550,7 @@ class Pipeline:
         channel: str,
         night: str,
         config: dict,
-        order_range=None,
+        trace_range=None,
         steps="all",
         plot: int = 0,
         plot_dir: str | None = None,
@@ -586,7 +575,7 @@ class Pipeline:
             Observation night
         config : dict
             Configuration dict
-        order_range : tuple, optional
+        trace_range : tuple, optional
             Order range to process
         steps : list or "all"
             Steps to run
@@ -607,7 +596,7 @@ class Pipeline:
             channel=channel,
             night=night,
             config=config,
-            order_range=order_range,
+            trace_range=trace_range,
             plot=plot,
             plot_dir=plot_dir,
         )
@@ -682,7 +671,7 @@ class Pipeline:
         input_dir: str | None = None,
         output_dir: str | None = None,
         configuration: dict | None = None,
-        order_range: tuple[int, int] | None = None,
+        trace_range: tuple[int, int] | None = None,
         plot: int = 0,
         plot_dir: str | None = None,
     ) -> Pipeline:
@@ -713,7 +702,7 @@ class Pipeline:
             Output directory relative to base_dir. Default: from config
         configuration : dict, optional
             Configuration overrides. Default: instrument defaults
-        order_range : tuple, optional
+        trace_range : tuple, optional
             (first, last+1) orders to process
         plot : int
             Plot level (0=off, 1=basic, 2=detailed)
@@ -810,7 +799,7 @@ class Pipeline:
             channel=channels[0],
             night=k.get("night", night or ""),
             config=config,
-            order_range=order_range,
+            trace_range=trace_range,
             steps=steps,
             plot=plot,
             plot_dir=plot_dir,

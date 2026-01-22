@@ -387,14 +387,14 @@ class Swath:
         self.info[key] = value[5]
 
 
-def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False):
+def fix_parameters(xwd, cr, traces, nrow, ncol, ntrace, ignore_column_range=False):
     """Fix extraction width and column range, so that all pixels used are within the image.
     I.e. the column range is cut so that the everything is within the image
 
     Parameters
     ----------
     xwd : float
-        Total extraction height. Split evenly above/below trace. Values below 3 are fractions of order spacing.
+        Total extraction height. Split evenly above/below trace. Values below 3 are fractions of trace spacing.
     cr : 2-tuple(int), array
         Column range, either one value for all traces, or the whole array
     traces : array
@@ -403,7 +403,7 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
         Number of rows in the image
     ncol : int
         Number of columns in the image
-    nord : int
+    ntrace : int
         Number of traces in the image
     ignore_column_range : bool, optional
         if true does not change the column range, however this may lead to problems with the extraction, by default False
@@ -423,7 +423,7 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
     if np.isscalar(xwd):
         # xwd is full extraction height, split evenly above/below trace
         half = xwd / 2
-        xwd = np.tile([half, half], (nord, 1))
+        xwd = np.tile([half, half], (ntrace, 1))
     else:
         xwd = np.asarray(xwd)
         if xwd.ndim == 1:
@@ -437,14 +437,14 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, nord, ignore_column_range=False)
                     DeprecationWarning,
                     stacklevel=4,
                 )
-            xwd = np.tile(xwd, (nord, 1))
+            xwd = np.tile(xwd, (ntrace, 1))
 
     if cr is None:
-        cr = np.tile([0, ncol], (nord, 1))
+        cr = np.tile([0, ncol], (ntrace, 1))
     else:
         cr = np.asarray(cr)
         if cr.ndim == 1:
-            cr = np.tile(cr, (nord, 1))
+            cr = np.tile(cr, (ntrace, 1))
 
     traces = np.asarray(traces)
 
@@ -468,20 +468,20 @@ def extend_traces(traces, nrow):
 
     Parameters
     ----------
-    traces : array[nord, degree]
+    traces : array[ntrace, degree]
         trace polynomial coefficients
     nrow : int
         number of rows in the image
 
     Returns
     -------
-    traces : array[nord + 2, degree]
+    traces : array[ntrace + 2, degree]
         extended traces
     """
 
-    nord, ncoef = traces.shape
+    ntrace, ncoef = traces.shape
 
-    if nord > 1:
+    if ntrace > 1:
         trace_low = 2 * traces[0] - traces[1]
         trace_high = 2 * traces[-1] - traces[-2]
     else:
@@ -495,22 +495,22 @@ def fix_extraction_height(xwd, traces, cr, ncol):
     """Convert fractional extraction width to pixel range.
 
     Internal function that works on [below, above] representation.
-    Fractions (< 1 per side, i.e. < 2 total) are multiplied by order spacing.
+    Fractions (< 1 per side, i.e. < 2 total) are multiplied by trace spacing.
 
     Parameters
     ----------
-    xwd : array[nord, 2]
-        extraction width as [below, above] per order
-    traces : array[nord, degree]
+    xwd : array[ntrace, 2]
+        extraction width as [below, above] per trace
+    traces : array[ntrace, degree]
         trace polynomial coefficients
-    cr : array[nord, 2]
+    cr : array[ntrace, 2]
         column range to use
     ncol : int
         number of columns in image
 
     Returns
     -------
-    xwd : array[nord, 2]
+    xwd : array[ntrace, 2]
         updated extraction width in pixels
     """
 
@@ -548,20 +548,20 @@ def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
     ----------
     img : array[nrow, ncol]
         image
-    traces : array[nord, degree]
+    traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[nord, 2]
+    extraction_height : array[ntrace, 2]
         extraction width in pixels, (below, above)
-    column_range : array[nord, 2]
+    column_range : array[ntrace, 2]
         current column range
     no_clip : bool, optional
         if False, new column range will be smaller or equal to current column range, otherwise it can also be larger (default: False)
 
     Returns
     -------
-    column_range : array[nord, 2]
+    column_range : array[ntrace, 2]
         updated column range
-    traces : array[nord, degree]
+    traces : array[ntrace, degree]
         trace polynomial coefficients (may have rows removed if no valid pixels)
     """
 
@@ -1072,47 +1072,47 @@ def optimal_extraction(
     ----------
     img : array[nrow, ncol]
         image to extract
-    traces : array[nord, degree]
+    traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[nord, 2]
+    extraction_height : array[ntrace, 2]
         extraction width in pixels
-    column_range : array[nord, 2]
+    column_range : array[ntrace, 2]
         column range to use
-    scatter : array[nord, 4, ncol]
+    scatter : array[ntrace, 4, ncol]
         background scatter (or None)
     **kwargs
         other parameters for the extraction (see extract_spectrum)
 
     Returns
     -------
-    spectrum : array[nord, ncol]
+    spectrum : array[ntrace, ncol]
         extracted spectrum
-    slitfunction : array[nord, nslitf]
+    slitfunction : array[ntrace, nslitf]
         recovered slitfunction
-    uncertainties: array[nord, ncol]
+    uncertainties: array[ntrace, ncol]
         uncertainties on the spectrum
     """
 
     logger.info("Using optimal extraction to produce spectrum")
 
     nrow, ncol = img.shape
-    nord = len(traces)
+    ntrace = len(traces)
 
-    spectrum = np.zeros((nord, ncol))
-    uncertainties = np.zeros((nord, ncol))
-    slitfunction = [None for _ in range(nord)]
+    spectrum = np.zeros((ntrace, ncol))
+    uncertainties = np.zeros((ntrace, ncol))
+    slitfunction = [None for _ in range(ntrace)]
 
     if p1 is None:
-        p1 = [None for _ in range(nord)]
+        p1 = [None for _ in range(ntrace)]
     if p2 is None:
-        p2 = [None for _ in range(nord)]
+        p2 = [None for _ in range(ntrace)]
 
-    # Handle preset_slitfunc (list of per-order slitfuncs)
+    # Handle preset_slitfunc (list of per-trace slitfuncs)
     preset_slitfunc = kwargs.pop("preset_slitfunc", None)
 
     # Add mask as defined by column ranges
-    mask = np.full((nord, ncol), True)
-    for i in range(nord):
+    mask = np.full((ntrace, ncol), True)
+    for i in range(ntrace):
         mask[i, column_range[i, 0] : column_range[i, 1]] = False
     spectrum = np.ma.array(spectrum, mask=mask)
     uncertainties = np.ma.array(uncertainties, mask=mask)
@@ -1126,8 +1126,8 @@ def optimal_extraction(
     else:
         progress = None
 
-    for i in tqdm(range(nord), desc="Trace"):
-        logger.debug("Extracting trace %i out of %i", i + 1, nord)
+    for i in tqdm(range(ntrace), desc="Trace"):
+        logger.debug("Extracting trace %i out of %i", i + 1, ntrace)
 
         # Define a fixed height area containing one trace
         ycen = np.polyval(traces[i], ix)
@@ -1239,11 +1239,11 @@ def simple_extraction(
     ----------
     img : array[nrow, ncol]
         image to extract
-    traces : array[nord, degree]
+    traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[nord, 2]
+    extraction_height : array[ntrace, 2]
         extraction width in pixels
-    column_range : array[nord, 2]
+    column_range : array[ntrace, 2]
         column range to use
     gain : float, optional
         adu to electron, amplifier gain (default: 1)
@@ -1256,30 +1256,30 @@ def simple_extraction(
 
     Returns
     -------
-    spectrum : array[nord, ncol]
+    spectrum : array[ntrace, ncol]
         extracted spectrum
-    uncertainties : array[nord, ncol]
+    uncertainties : array[ntrace, ncol]
         uncertainties on extracted spectrum
     """
 
     logger.info("Using simple extraction to produce spectrum")
     _, ncol = img.shape
-    nord, _ = traces.shape
+    ntrace, _ = traces.shape
 
-    spectrum = np.zeros((nord, ncol))
-    uncertainties = np.zeros((nord, ncol))
+    spectrum = np.zeros((ntrace, ncol))
+    uncertainties = np.zeros((ntrace, ncol))
 
     # Add mask as defined by column ranges
-    mask = np.full((nord, ncol), True)
-    for i in range(nord):
+    mask = np.full((ntrace, ncol), True)
+    for i in range(ntrace):
         mask[i, column_range[i, 0] : column_range[i, 1]] = False
     spectrum = np.ma.array(spectrum, mask=mask)
     uncertainties = np.ma.array(uncertainties, mask=mask)
 
     x = np.arange(ncol)
 
-    for i in tqdm(range(nord), desc="Trace"):
-        logger.debug("Extracting trace %i out of %i", i + 1, nord)
+    for i in tqdm(range(ntrace), desc="Trace"):
+        logger.debug("Extracting trace %i out of %i", i + 1, ntrace)
 
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
@@ -1340,11 +1340,11 @@ def plot_comparison(
 ):  # pragma: no cover
     plt.figure()
     nrow, ncol = original.shape
-    nord = len(traces)
-    output = np.zeros((np.sum(extraction_height) + nord, ncol))
+    ntrace = len(traces)
+    output = np.zeros((np.sum(extraction_height) + ntrace, ncol))
     pos = [0]
     x = np.arange(ncol)
-    for i in range(nord):
+    for i in range(ntrace):
         ycen = np.polyval(traces[i], x)
         yb = ycen - extraction_height[i, 0]
         yt = ycen + extraction_height[i, 1]
@@ -1363,7 +1363,7 @@ def plot_comparison(
 
     plt.imshow(output, origin="lower", aspect="auto")
 
-    for i in range(nord):
+    for i in range(ntrace):
         try:
             tmp = spectrum[i, column_range[i, 0] : column_range[i, 1]]
             # if len(tmp)
@@ -1397,7 +1397,7 @@ def extract(
     img,
     traces,
     column_range=None,
-    order_range=None,
+    trace_range=None,
     extraction_height=0.5,
     extraction_type="optimal",
     p1=None,
@@ -1411,19 +1411,19 @@ def extract(
     ----------
     img : array[nrow, ncol](float)
         observation to extract
-    traces : array[nord, degree](float)
+    traces : array[ntrace, degree](float)
         polynomial coefficients of the trace positions
-    column_range : array[nord, 2](int), optional
+    column_range : array[ntrace, 2](int), optional
         range of pixels to use for each trace (default: use all)
-    order_range : array[2](int), optional
+    trace_range : array[2](int), optional
         range of traces to extract, traces have to be consecutive (default: use all)
     extraction_height : float, optional
-        Total extraction height. Values below 3 are fractions of order spacing, values above are pixels. Split evenly above/below trace. (default: 1.0)
+        Total extraction height. Values below 3 are fractions of trace spacing, values above are pixels. Split evenly above/below trace. (default: 1.0)
     extraction_type : {"optimal", "simple", "normalize"}, optional
         which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
-    p1 : float or array[nord, ncol], optional
+    p1 : float or array[ntrace, ncol], optional
         The 1st order curvature of the slit for curved extraction. Will use vertical extraction if not set. (default: None, i.e. p1 = 0)
-    p2 : float or array[nord, ncol], optional
+    p2 : float or array[ntrace, ncol], optional
         The 2nd order curvature of the slit for curved extraction (default: None, i.e. p2 = 0)
     polarization : bool, optional
         if true, pairs of traces are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
@@ -1432,9 +1432,9 @@ def extract(
 
     Returns
     -------
-    spec : array[nord, ncol](float)
+    spec : array[ntrace, ncol](float)
         extracted spectrum for each trace
-    uncertainties : array[nord, ncol](float)
+    uncertainties : array[ntrace, ncol](float)
         uncertainties on the spectrum
 
     if extraction_type == "normalize" instead return
@@ -1443,30 +1443,30 @@ def extract(
         normalized image
     im_ordr : array[nrow, ncol](float)
         image with just the traces
-    blaze : array[nord, ncol](float)
+    blaze : array[ntrace, ncol](float)
         extracted spectrum (equals blaze if img was the flat field)
     """
 
     nrow, ncol = img.shape
-    nord, _ = traces.shape
-    if order_range is None:
-        order_range = (0, nord)
+    ntrace, _ = traces.shape
+    if trace_range is None:
+        trace_range = (0, ntrace)
     if np.isscalar(p1):
-        n = order_range[1] - order_range[0]
+        n = trace_range[1] - trace_range[0]
         p1 = np.full((n, ncol), p1)
     if np.isscalar(p2):
-        n = order_range[1] - order_range[0]
+        n = trace_range[1] - trace_range[0]
         p2 = np.full((n, ncol), p2)
 
     # Fix the input parameters
     extraction_height, column_range, traces = fix_parameters(
-        extraction_height, column_range, traces, nrow, ncol, nord
+        extraction_height, column_range, traces, nrow, ncol, ntrace
     )
     # Limit traces (and related properties) to traces in range
-    nord = order_range[1] - order_range[0]
-    traces = traces[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
-    extraction_height = extraction_height[order_range[0] : order_range[1]]
+    ntrace = trace_range[1] - trace_range[0]
+    traces = traces[trace_range[0] : trace_range[1]]
+    column_range = column_range[trace_range[0] : trace_range[1]]
+    extraction_height = extraction_height[trace_range[0] : trace_range[1]]
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files

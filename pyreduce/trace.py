@@ -515,7 +515,7 @@ def trace(
 
     Returns
     -------
-    traces : array[nord, opower+1]
+    traces : array[ntrace, opower+1]
         trace polynomial coefficients (in numpy order, i.e. largest exponent first)
     """
 

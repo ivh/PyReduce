@@ -73,7 +73,7 @@ pipe = Pipeline.from_files(
     channel=channel,
     night=night,
     config=config,
-    # order_range=order_range,
+    # trace_range=trace_range,
     steps=steps,
     plot=1,
 )

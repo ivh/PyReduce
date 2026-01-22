@@ -172,11 +172,11 @@ Steps not listed in `use` default to `groups` when groups/bundles are defined.
 
 ## Output Format
 
-Order tracing saves both raw and grouped traces to the `.ord_default.npz` file.
+Tracing saves both raw and grouped traces to the `.ord_default.npz` file.
 
 For per_order=False:
 ```
-orders          - Raw traces (n_fibers, degree+1)
+traces          - Raw traces (n_fibers, degree+1)
 column_range    - Raw column ranges (n_fibers, 2)
 group_A_traces  - Merged traces for group A
 group_A_cr      - Column ranges for group A
@@ -184,10 +184,10 @@ group_A_cr      - Column ranges for group A
 
 For per_order=True:
 ```
-orders          - Raw traces (n_total_fibers, degree+1)
+traces          - Raw traces (n_total_fibers, degree+1)
 column_range    - Raw column ranges
-A_order_90      - Merged trace for group A in order 90
-A_cr_90         - Column range for group A in order 90
+A_order_90      - Merged trace for group A in spectral order 90
+A_cr_90         - Column range for group A in spectral order 90
 ...
 ```
 

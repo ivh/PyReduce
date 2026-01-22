@@ -40,7 +40,7 @@ class Curvature:
         curve_height=0.5,
         extraction_height=0.2,
         column_range=None,
-        order_range=None,
+        trace_range=None,
         window_width=9,
         peak_threshold=10,
         peak_width=1,
@@ -56,9 +56,9 @@ class Curvature:
         self.curve_height = curve_height
         self.extraction_height = extraction_height
         self.column_range = column_range
-        if order_range is None:
-            order_range = (0, self.ntrace)
-        self.order_range = order_range
+        if trace_range is None:
+            trace_range = (0, self.ntrace)
+        self.trace_range = trace_range
         self.window_width = window_width
         self.threshold = peak_threshold
         self.peak_width = peak_width
@@ -88,7 +88,7 @@ class Curvature:
 
     @property
     def n(self):
-        return self.order_range[1] - self.order_range[0]
+        return self.trace_range[1] - self.trace_range[0]
 
     @property
     def mode(self):
@@ -103,28 +103,28 @@ class Curvature:
         self._mode = value
 
     def _fix_inputs(self, original):
-        orders = self.traces
+        traces = self.traces
         curve_height = self.curve_height
         extraction_height = self.extraction_height
         column_range = self.column_range
 
         nrow, ncol = original.shape
-        nord = len(orders)
+        ntrace = len(traces)
 
-        curve_height, column_range, orders = fix_parameters(
-            curve_height, column_range, orders, nrow, ncol, nord
+        curve_height, column_range, traces = fix_parameters(
+            curve_height, column_range, traces, nrow, ncol, ntrace
         )
         extraction_height, _, _ = fix_parameters(
-            extraction_height, column_range, orders, nrow, ncol, nord
+            extraction_height, column_range, traces, nrow, ncol, ntrace
         )
 
-        self.column_range = column_range[self.order_range[0] : self.order_range[1]]
-        self.curve_height = curve_height[self.order_range[0] : self.order_range[1]]
+        self.column_range = column_range[self.trace_range[0] : self.trace_range[1]]
+        self.curve_height = curve_height[self.trace_range[0] : self.trace_range[1]]
         self.extraction_height = extraction_height[
-            self.order_range[0] : self.order_range[1]
+            self.trace_range[0] : self.trace_range[1]
         ]
-        self.traces = orders[self.order_range[0] : self.order_range[1]]
-        self.order_range = (0, self.ntrace)
+        self.traces = traces[self.trace_range[0] : self.trace_range[1]]
+        self.trace_range = (0, self.ntrace)
 
     def _find_peaks(self, vec, cr):
         # This should probably be the same as in the wavelength calibration
@@ -624,9 +624,9 @@ class Curvature:
 
         Returns
         -------
-        p1 : array of shape (nord, ncol)
+        p1 : array of shape (ntrace, ncol)
             First order slit curvature at each point
-        p2 : array of shape (nord, ncol)
+        p2 : array of shape (ntrace, ncol)
             Second order slit curvature at each point
         """
         logger.info("Determining the Slit Curvature")
@@ -642,7 +642,7 @@ class Curvature:
         if self.plot:  # pragma: no cover
             self.plot_results(ncol, peaks, vec, p1, p2, coef_p1, coef_p2)
 
-        # Create output arrays (nord, ncol)
+        # Create output arrays (ntrace, ncol)
         iorder, ipeaks = np.indices((self.n, ncol))
         p1, p2 = self.eval(ipeaks, iorder, coef_p1, coef_p2)
 

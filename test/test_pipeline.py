@@ -412,10 +412,10 @@ class TestPipelineConfig:
         assert pipe.config == {}
 
     @pytest.mark.unit
-    def test_order_range_stored(self, tmp_path):
+    def test_trace_range_stored(self, tmp_path):
         """Order range should be stored."""
-        pipe = Pipeline("UVES", str(tmp_path), order_range=(3, 10))
-        assert pipe.order_range == (3, 10)
+        pipe = Pipeline("UVES", str(tmp_path), trace_range=(3, 10))
+        assert pipe.trace_range == (3, 10)
 
     @pytest.mark.unit
     def test_plot_level_stored(self, tmp_path):
@@ -436,7 +436,7 @@ class TestPipelineGetStepInputs:
             target="HD12345",
             channel="RED",
             night="2024-01-01",
-            order_range=(1, 5),
+            trace_range=(1, 5),
         )
         inputs = pipe._get_step_inputs()
 

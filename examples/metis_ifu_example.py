@@ -47,6 +47,6 @@ Pipeline.from_instrument(
     base_dir=base_dir,
     input_dir=input_dir,
     output_dir=output_dir,
-    # order_range=(16, 17),
+    # trace_range=(16, 17),
     plot=1,
 ).run()

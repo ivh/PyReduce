@@ -15,8 +15,20 @@ hdu = fits.open(input_dir + "uves_middle.flat.fits")
 img = hdu[0].data
 nrow, ncol = img.shape
 
+import warnings
+
 data = np.load(input_dir + "uves_middle.ord_default.npz", allow_pickle=True)
-orders = data["orders"]
+if "traces" in data:
+    traces = data["traces"]
+elif "orders" in data:
+    warnings.warn(
+        "Trace file uses old key 'orders'. Re-run the trace step to update.",
+        DeprecationWarning,
+        stacklevel=1,
+    )
+    traces = data["orders"]
+else:
+    raise KeyError("Trace file missing 'traces' key")
 column_range = data["column_range"]
 
 i = 5
@@ -24,7 +36,7 @@ ix = np.arange(ncol)
 
 ylow, yhigh = 50, 50
 ibeg, iend = 1500, 2000
-ycen = np.polyval(orders[i], ix)
+ycen = np.polyval(traces[i], ix)
 ycen_int = ycen.astype(int)
 # yrange = extract.get_y_scale(ycen, [400, 600], [5, 5], nrow)
 

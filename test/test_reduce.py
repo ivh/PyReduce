@@ -229,10 +229,10 @@ class TestFinalizeConfigSaving:
         )
 
         head = {}
-        config_to_save = {"order_range": None}
+        config_to_save = {"trace_range": None}
         result = step.save_config_to_header(head, config_to_save)
 
-        assert result["HIERARCH PR ORDER_RANGE"] == "null"
+        assert result["HIERARCH PR TRACE_RANGE"] == "null"
 
     @pytest.mark.unit
     def test_save_config_list_value(self, mock_instrument, tmp_path):
@@ -506,7 +506,7 @@ def test_main(instrument, target, night, channel, input_dir, output_dir):
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_run_all(
-    instrument, target, night, channel, input_dir, output_dir, order_range
+    instrument, target, night, channel, input_dir, output_dir, trace_range
 ):
     reduce.main(
         instrument,
@@ -516,7 +516,7 @@ def test_run_all(
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
-        order_range=order_range,
+        trace_range=trace_range,
         steps="all",
     )
 
@@ -526,7 +526,7 @@ def test_run_all(
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_load_all(
-    instrument, target, night, channel, input_dir, output_dir, order_range
+    instrument, target, night, channel, input_dir, output_dir, trace_range
 ):
     reduce.main(
         instrument,
@@ -536,7 +536,7 @@ def test_load_all(
         base_dir="",
         input_dir=input_dir,
         output_dir=output_dir,
-        order_range=order_range,
+        trace_range=trace_range,
         steps=["finalize"],
     )
 

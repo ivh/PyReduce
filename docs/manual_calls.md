@@ -19,13 +19,13 @@ required inputs.
 from pyreduce.reduce import Bias, Flat, OrderTracing, ...
 
 # Create step instance
-bias_step = Bias(instrument, channel, target, night, output_dir, order_range, **config)
+bias_step = Bias(instrument, channel, target, night, output_dir, trace_range, **config)
 
 # Run the step
 bias_result = bias_step.run(bias_files, mask)
 
 # Use the result in subsequent steps
-flat_step = Flat(instrument, channel, target, night, output_dir, order_range, **config)
+flat_step = Flat(instrument, channel, target, night, output_dir, trace_range, **config)
 flat_result = flat_step.run(flat_files, bias_result, mask)
 ```
 
@@ -60,7 +60,7 @@ instrument_name = "UVES"
 target = "HD132205"
 night = "2010-04-01"
 channel = "middle"
-order_range = (1, 21)
+trace_range = (1, 21)
 plot = 1
 
 # Paths
@@ -74,7 +74,7 @@ instrument = load_instrument(instrument_name)
 config = load_config(None, instrument_name, 0)
 
 # Common arguments for all steps
-step_args = (instrument, channel, target, night, output_dir, order_range)
+step_args = (instrument, channel, target, night, output_dir, trace_range)
 
 # Find and classify files
 file_groups = instrument.sort_files(
@@ -89,7 +89,7 @@ settings, files = file_groups[0]
 # Extract file lists
 bias_files = files.get("bias", [])
 flat_files = files.get("flat", [])
-order_files = files.get("orders", flat_files)
+trace_files = files.get("orders", flat_files)
 curvature_files = files.get("curvature", files.get("wavecal_master", []))
 wavecal_files = files.get("wavecal_master", [])
 science_files = files.get("science", [])
@@ -116,23 +116,23 @@ bias = bias_step.run(bias_files, mask)
 flat_step = Flat(*step_args, **step_config("flat"))
 flat = flat_step.run(flat_files, bias, mask)
 
-# Step 4: Trace orders
-orders_step = OrderTracing(*step_args, **step_config("orders"))
-orders = orders_step.run(order_files, mask, bias)
+# Step 4: Trace
+trace_step = OrderTracing(*step_args, **step_config("trace"))
+traces = trace_step.run(trace_files, mask, bias)
 
 # Step 5: Determine slit curvature
 curvature_step = SlitCurvatureDetermination(*step_args, **step_config("curvature"))
-curvature = curvature_step.run(curvature_files, orders, mask, bias)
+curvature = curvature_step.run(curvature_files, traces, mask, bias)
 
 # Step 6: Normalize flat field
 norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
 scatter = None  # Optional background scatter
-norm_flat = norm_flat_step.run(flat, orders, scatter, curvature)
+norm_flat = norm_flat_step.run(flat, traces, scatter, curvature)
 
 # Step 7: Wavelength calibration (three sub-steps)
 wavecal_master_step = WavelengthCalibrationMaster(*step_args, **step_config("wavecal_master"))
 wavecal_master = wavecal_master_step.run(
-    wavecal_files, orders, mask, curvature, bias, norm_flat
+    wavecal_files, traces, mask, curvature, bias, norm_flat
 )
 
 wavecal_init_step = WavelengthCalibrationInitialize(*step_args, **step_config("wavecal_init"))
@@ -145,7 +145,7 @@ wave, coef, linelist = wavecal
 # Step 8: Extract science spectra
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 science = science_step.run(
-    science_files, bias, orders, norm_flat, curvature, scatter, mask
+    science_files, bias, traces, norm_flat, curvature, scatter, mask
 )
 
 # Step 9: Continuum normalization
@@ -167,12 +167,12 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 | `Bias` | files, mask |
 | `Flat` | files, bias, mask |
 | `OrderTracing` | files, mask, bias |
-| `SlitCurvatureDetermination` | files, orders, mask, bias |
-| `NormalizeFlatField` | flat, orders, scatter, curvature |
-| `WavelengthCalibrationMaster` | files, orders, mask, curvature, bias, norm_flat |
+| `SlitCurvatureDetermination` | files, trace, mask, bias |
+| `NormalizeFlatField` | flat, trace, scatter, curvature |
+| `WavelengthCalibrationMaster` | files, trace, mask, curvature, bias, norm_flat |
 | `WavelengthCalibrationInitialize` | config, wavecal_master |
 | `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init |
-| `ScienceExtraction` | files, bias, orders, norm_flat, curvature, scatter, mask |
+| `ScienceExtraction` | files, bias, trace, norm_flat, curvature, scatter, mask |
 | `ContinuumNormalization` | science, wave, norm_flat |
 | `Finalize` | continuum, wave, config |
 
@@ -181,19 +181,19 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 The main advantage of manual execution is access to intermediate data:
 
 ```python
-# After order tracing
-orders, column_range = orders_step.run(order_files, mask, bias)
+# After tracing
+traces, column_range = trace_step.run(trace_files, mask, bias)
 
-# Inspect orders array
-print(f"Found {len(orders)} orders")
-print(f"Order polynomial coefficients shape: {orders.shape}")
+# Inspect traces array
+print(f"Found {len(traces)} traces")
+print(f"Trace polynomial coefficients shape: {traces.shape}")
 print(f"Column range: {column_range}")
 
-# Modify orders if needed (e.g., exclude problematic orders)
-orders = orders[2:-2]  # Skip first and last 2 orders
+# Modify traces if needed (e.g., exclude problematic traces)
+traces = traces[2:-2]  # Skip first and last 2 traces
 
-# Continue with modified orders
-curvature = curvature_step.run(curvature_files, orders, mask, bias)
+# Continue with modified traces
+curvature = curvature_step.run(curvature_files, traces, mask, bias)
 ```
 
 ## Loading Previous Results
@@ -202,11 +202,11 @@ Each step can save and load its results:
 
 ```python
 # Run a step and save
-orders = orders_step.run(order_files, mask, bias)
+traces = trace_step.run(trace_files, mask, bias)
 # Results are automatically saved to output_dir
 
 # Later, load without re-running
-orders = orders_step.load()
+traces = trace_step.load()
 ```
 
 ## See Also

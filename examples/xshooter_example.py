@@ -53,6 +53,6 @@ Pipeline.from_instrument(
     input_dir=input_dir,
     output_dir=output_dir,
     configuration=config,
-    order_range=(0, 15),
+    trace_range=(0, 15),
     plot=0,
 ).run()

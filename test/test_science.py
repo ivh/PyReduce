@@ -18,7 +18,7 @@ def test_science(
     normflat,
     orders,
     settings,
-    order_range,
+    trace_range,
 ):
     if len(files["science"]) == 0:
         pytest.skip(f"No science files found for instrument {instrument}")
@@ -53,7 +53,7 @@ def test_science(
         readnoise=head["e_readn"],
         dark=head["e_drk"],
         column_range=column_range,
-        order_range=order_range,
+        trace_range=trace_range,
         extraction_type=settings["extraction_method"],
         extraction_height=settings["extraction_height"],
         lambda_sf=settings["smooth_slitfunction"],
@@ -65,7 +65,7 @@ def test_science(
 
     assert isinstance(spec, np.ma.masked_array)
     assert spec.ndim == 2
-    assert spec.shape[0] == order_range[1] - order_range[0]
+    assert spec.shape[0] == trace_range[1] - trace_range[0]
     assert spec.shape[1] == im.shape[1]
     assert np.issubdtype(spec.dtype, np.floating)
     assert not np.any(np.isnan(spec))
@@ -73,7 +73,7 @@ def test_science(
 
     assert isinstance(sigma, np.ma.masked_array)
     assert sigma.ndim == 2
-    assert sigma.shape[0] == order_range[1] - order_range[0]
+    assert sigma.shape[0] == trace_range[1] - trace_range[0]
     assert sigma.shape[1] == im.shape[1]
     assert np.issubdtype(sigma.dtype, np.floating)
     assert not np.any(np.isnan(sigma))

@@ -8,41 +8,41 @@ logger = logging.getLogger(__name__)
 
 
 def estimate_extraction_height(
-    img, orders, column_range, plot=False
+    img, traces, column_range, plot=False
 ):  # pragma: no cover
     raise NotImplementedError
     nrow, ncol = img.shape
-    nord, _ = orders.shape
-    extraction_height = np.zeros((nord, 2), dtype=int)
+    ntrace, _ = traces.shape
+    extraction_height = np.zeros((ntrace, 2), dtype=int)
 
-    for i in range(nord):
-        # first guess, half way to the next order
-        # To order above
-        if i < nord - 1:
+    for i in range(ntrace):
+        # first guess, half way to the next trace
+        # To trace above
+        if i < ntrace - 1:
             beg = max(column_range[[i, i + 1], 0])
             end = min(column_range[[i, i + 1], 1])
             x = np.arange(beg, end)
-            y = np.polyval(orders[i], x)
-            y_above = np.polyval(orders[i + 1], x)
+            y = np.polyval(traces[i], x)
+            y_above = np.polyval(traces[i + 1], x)
             width_above = int(np.mean(y_above - y) // 2)
 
-        # To order below
+        # To trace below
         if i > 0:
             beg = max(column_range[[i - 1, i], 0])
             end = min(column_range[[i - 1, i], 1])
             x = np.arange(beg, end)
-            y = np.polyval(orders[i], x)
-            y_below = np.polyval(orders[i - 1], x)
+            y = np.polyval(traces[i], x)
+            y_below = np.polyval(traces[i - 1], x)
             width_below = int(np.mean(y - y_below) // 2)
         else:
             width_below = width_above
 
-        if i == nord - 1:
+        if i == ntrace - 1:
             width_above = width_below
 
         beg, end = column_range[i]
         x = np.arange(beg, end)
-        y = np.polyval(orders[i], x)
+        y = np.polyval(traces[i], x)
 
         y_int = y.astype(int)
         y_above = y_int + width_above

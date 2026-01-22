@@ -682,7 +682,7 @@ class Pipeline:
 
     def bias(self, files): ...
     def flat(self, files): ...
-    def trace_orders(self): ...
+    def trace(self): ...
     # ... each method appends to _steps, returns self
 
     def run(self):
@@ -796,7 +796,7 @@ def cli():
 @click.option('--output', '-o', default='.')
 def trace(instrument, files, output):
     inst = load_instrument(instrument)
-    Pipeline(inst, output).flat(list(files)).trace_orders().run()
+    Pipeline(inst, output).flat(list(files)).trace().run()
 
 # ... other commands
 
@@ -858,7 +858,7 @@ Not providing time estimates per instructions, but ordering by risk/complexity:
 ```python
 # String-based step names, Reducer holds all state
 reducer = Reducer(files, output_dir, target, instrument, mode, night, config)
-reducer.run_steps(["bias", "flat", "orders", "wavecal", "science"])
+reducer.run_steps(["bias", "flat", "trace", "wavecal", "science"])
 
 # Each step is a class with run/save/load methods
 class Bias(CalibrationStep):
@@ -883,7 +883,7 @@ result = (
     Pipeline(instrument, output_dir)
     .bias(files["bias"])           # → instrument_bias.fits
     .flat(files["flat"])           # → instrument_flat.fits
-    .trace_orders()                # → instrument_orders.npz
+    .trace()                # → instrument_orders.npz
     .normalize_flat()              # → instrument_norm_flat.npz
     .wavelength_calibration(files["wavecal"])
     .extract(files["science"])     # → instrument_science_001.fits
@@ -933,9 +933,9 @@ class Pipeline:
         self._steps.append(("flat", reduce_flat, {"files": files}))
         return self
 
-    def trace_orders(self, **kwargs) -> "Pipeline":
-        """Trace orders on flat field."""
-        self._steps.append(("orders", trace_orders, kwargs))
+    def trace(self, **kwargs) -> "Pipeline":
+        """Trace on flat field."""
+        self._steps.append(("trace", trace, kwargs))
         return self
 
     def extract(self, files: list[str], **kwargs) -> "Pipeline":
@@ -943,9 +943,9 @@ class Pipeline:
         self._steps.append(("science", extract_science, {"files": files, **kwargs}))
         return self
 
-    def load_orders(self, path: str) -> "Pipeline":
-        """Load orders from existing file instead of tracing."""
-        self._data["orders"] = load_orders_from_disk(path)
+    def load_traces(self, path: str) -> "Pipeline":
+        """Load traces from existing file instead of tracing."""
+        self._data["traces"] = load_traces_from_disk(path)
         return self
 
     def run(self, skip_existing: bool = False) -> dict:
@@ -999,10 +999,10 @@ def reduce_flat(instrument: Instrument, files: list[str], mask: np.ndarray = Non
     # ... implementation
     return flat, header
 
-def trace_orders(flat: np.ndarray, **config) -> Orders:
-    """Detect and trace echelle orders."""
+def trace(flat: np.ndarray, **config) -> Traces:
+    """Detect and trace."""
     # ... implementation
-    return orders
+    return traces
 ```
 
 ### Benefits for New Instruments
@@ -1021,9 +1021,9 @@ reducer.run_steps(steps)
 instrument = Instrument.from_yaml("toes.yaml")  # or create_custom_instrument()
 result = (
     Pipeline(instrument, output_dir)
-    .config(orders={"degree": 4, "min_cluster": 3000})  # override specific settings
+    .config(trace={"degree": 4, "min_cluster": 3000})  # override specific settings
     .flat(flat_files)
-    .trace_orders()
+    .trace()
     .wavelength_calibration(wavecal_files)
     .extract(science_files)
     .run()
@@ -1137,12 +1137,12 @@ def cli():
 @click.option("--output", "-o", default=".", help="Output directory")
 @click.option("--config", "-c", type=click.Path(), help="Step config overrides")
 def trace(instrument, files, output, config):
-    """Trace echelle orders on flat field."""
+    """Trace on flat field."""
     inst = Instrument.from_yaml(instrument)
     pipe = Pipeline(inst, output)
     if files:
         pipe.flat(list(files))
-    pipe.trace_orders()
+    pipe.trace()
     pipe.run()
 
 @cli.command()
@@ -1202,12 +1202,12 @@ test/
 
 ```python
 # Core extraction functions (test_extract.py) - PRESERVE SIGNATURES
-extract.extend_orders(orders, height) -> array
-extract.fix_column_range(cr, orders, ew, nrow, ncol) -> (cr, orders)
+extract.extend_traces(traces, height) -> array
+extract.fix_column_range(cr, traces, ew, nrow, ncol) -> (cr, traces)
 extract.make_bins(swath_width, xlow, xhigh, ycen) -> (nbin, starts, ends)
-extract.simple_extraction(img, orders, ew, cr, p1, p2) -> (spec, unc)
-extract.optimal_extraction(img, orders, xwd, cr, p1, p2) -> (spec, slitf, unc)
-extract.extract(img, orders, ...) -> (spec, unc, slitf, ...)
+extract.simple_extraction(img, traces, ew, cr, p1, p2) -> (spec, unc)
+extract.optimal_extraction(img, traces, xwd, cr, p1, p2) -> (spec, slitf, unc)
+extract.extract(img, traces, ...) -> (spec, unc, slitf, ...)
 
 # C wrappers (test_cwrappers.py) - PRESERVE SIGNATURES
 slitfunc(img, ycen, lambda_sp, lambda_sf, osample) -> (spec, slitf, ...)
@@ -1291,7 +1291,7 @@ def test_full_reduction(instrument, sample_dataset):
         Pipeline(inst, sample_dataset.output_dir)
         .bias(sample_dataset.files["bias"])
         .flat(sample_dataset.files["flat"])
-        .trace_orders()
+        .trace()
         .extract(sample_dataset.files["science"])
         .run()
     )
@@ -1314,15 +1314,15 @@ def test_reduce_bias_synthetic():
     assert bias.shape == (100, 100)
     assert np.isclose(bias.mean(), 1000, rtol=0.01)
 
-def test_trace_orders_synthetic():
-    """Test order tracing on synthetic flat."""
-    flat = create_synthetic_flat_with_orders(n_orders=10)
+def test_trace_synthetic():
+    """Test tracing on synthetic flat."""
+    flat = create_synthetic_flat_with_traces(n_traces=10)
 
-    orders = trace_orders(flat, degree=4, min_cluster=100)
+    traces = trace(flat, degree=4, min_cluster=100)
 
-    assert len(orders) == 10
-    for order in orders:
-        assert order.polynomial_degree == 4
+    assert len(traces) == 10
+    for tr in traces:
+        assert tr.polynomial_degree == 4
 ```
 
 ### Fixtures for New Architecture

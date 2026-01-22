@@ -224,7 +224,7 @@ def info(instr):
 
 
 @pytest.fixture
-def order_range(instrument):
+def trace_range(instrument):
     if instrument == "JWST_NIRISS":
         return (0, 2)
     else:
@@ -406,8 +406,8 @@ def prefix(instrument, channel):
 
 
 @pytest.fixture
-def step_args(instr, channel, target, night, output_dir, order_range):
-    return instr, channel, target, night, output_dir, order_range
+def step_args(instr, channel, target, night, output_dir, trace_range):
+    return instr, channel, target, night, output_dir, trace_range
 
 
 @pytest.fixture

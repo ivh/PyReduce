@@ -7,7 +7,7 @@ pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
 @pytest.mark.slow
-def test_normflat(flat, orders, settings, order_range, scatter, instrument):
+def test_normflat(flat, orders, settings, trace_range, scatter, instrument):
     flat, fhead = flat
     orders, column_range = orders
     settings = settings["norm_flat"]
@@ -23,7 +23,7 @@ def test_normflat(flat, orders, settings, order_range, scatter, instrument):
         readnoise=fhead["e_readn"],
         dark=fhead["e_drk"],
         column_range=column_range,
-        order_range=order_range,
+        trace_range=trace_range,
         extraction_type="normalize",
         extraction_height=settings["extraction_height"],
         threshold=settings["threshold"],

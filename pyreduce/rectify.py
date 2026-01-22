@@ -7,23 +7,23 @@ from .extract import correct_for_curvature, fix_parameters
 
 
 def rectify_image(
-    img, traces, column_range, extraction_height, order_range, p1=None, p2=None
+    img, traces, column_range, extraction_height, trace_range, p1=None, p2=None
 ):
-    nord, _ = traces.shape
+    ntrace, _ = traces.shape
     nrow, ncol = img.shape
     x = np.arange(ncol)
 
     extraction_height, column_range, traces = fix_parameters(
-        extraction_height, column_range, traces, nrow, ncol, nord
+        extraction_height, column_range, traces, nrow, ncol, ntrace
     )
 
-    nord = order_range[1] - order_range[0]
-    traces = traces[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
-    extraction_height = extraction_height[order_range[0] : order_range[1]]
+    ntrace = trace_range[1] - trace_range[0]
+    traces = traces[trace_range[0] : trace_range[1]]
+    column_range = column_range[trace_range[0] : trace_range[1]]
+    extraction_height = extraction_height[trace_range[0] : trace_range[1]]
 
     images = {}
-    for i in tqdm(range(nord), desc="Trace"):
+    for i in tqdm(range(ntrace), desc="Trace"):
         x_left_lim = column_range[i, 0]
         x_right_lim = column_range[i, 1]
 

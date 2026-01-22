@@ -74,7 +74,7 @@ pipe = Pipeline(
 )
 
 # Run pipeline steps
-pipe.trace_orders([flat_file])
+pipe.trace([flat_file])
 # pipe.curvature([thar_file])
 # pipe.extract([thar_file, flat_file])
 
@@ -82,8 +82,8 @@ print("\n=== Running Pipeline ===")
 results = pipe.run()
 
 print("\n=== Results ===")
-orders, column_range = results["trace"]
-print(f"Raw traces: {len(orders)}")
+traces, column_range = results["trace"]
+print(f"Raw traces: {len(traces)}")
 
 if "trace_groups" in results and results["trace_groups"]:
     group_traces, group_cr = results["trace_groups"]

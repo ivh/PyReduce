@@ -21,7 +21,7 @@ def spliced(spec, wave, normflat):
     return spec, wave, blaze, sigma
 
 
-def test_splice(spec, wave, normflat, order_range):
+def test_splice(spec, wave, normflat, trace_range):
     spec, sigma = spec
     norm, blaze = normflat
     wave = wave
@@ -44,7 +44,7 @@ def test_splice(spec, wave, normflat, order_range):
         == wave.shape[0]
         == blaze.shape[0]
         == sigma.shape[0]
-        == order_range[1] - order_range[0]
+        == trace_range[1] - trace_range[0]
     )
     assert (
         spec.shape[1]

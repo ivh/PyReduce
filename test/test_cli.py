@@ -285,15 +285,15 @@ class TestRunCommand:
         assert call_kwargs["plot"] in ["2", 2]
 
     @patch("pyreduce.reduce.main")
-    def test_run_with_order_range(self, mock_main, runner):
-        """Test run command with --order-range option."""
+    def test_run_with_trace_range(self, mock_main, runner):
+        """Test run command with --trace-range option."""
         mock_main.return_value = None
         result = runner.invoke(
-            cli, ["run", "UVES", "-t", "HD132205", "--order-range", "3,21"]
+            cli, ["run", "UVES", "-t", "HD132205", "--trace-range", "3,21"]
         )
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
-        assert call_kwargs["order_range"] == (3, 21)
+        assert call_kwargs["trace_range"] == (3, 21)
 
     @patch("pyreduce.reduce.main")
     def test_run_with_settings_file(self, mock_main, runner):
@@ -670,10 +670,10 @@ class TestErrorHandling:
         assert result.exit_code != 0
 
     @patch("pyreduce.reduce.main")
-    def test_step_with_invalid_order_range(self, mock_main, runner):
-        """Test step command with malformed order range."""
+    def test_step_with_invalid_trace_range(self, mock_main, runner):
+        """Test step command with malformed trace range."""
         result = runner.invoke(
-            cli, ["run", "UVES", "-t", "HD132205", "--order-range", "invalid"]
+            cli, ["run", "UVES", "-t", "HD132205", "--trace-range", "invalid"]
         )
         # May either fail to parse or raise during execution
         # Just verify it's handled appropriately
@@ -729,7 +729,7 @@ class TestCLIIntegration:
             "--input-dir",
             "--output-dir",
             "--plot",
-            "--order-range",
+            "--trace-range",
             "--settings",
         ]
         for option in options:

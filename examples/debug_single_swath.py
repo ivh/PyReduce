@@ -47,11 +47,24 @@ trace_file = join(output_dir, "MOSAIC_NIR.ord_default.npz")
 
 def load_traces(trace_file):
     """Load traces and column ranges from NPZ."""
+    import warnings
+
     data = np.load(trace_file, allow_pickle=True)
-    orders = data["orders"]
+    if "traces" in data:
+        traces = data["traces"]
+    elif "orders" in data:
+        warnings.warn(
+            f"Trace file {trace_file} uses old key 'orders'. "
+            "Re-run the trace step to update the file format.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        traces = data["orders"]
+    else:
+        raise KeyError("Trace file missing 'traces' key")
     column_range = data["column_range"]
-    print(f"Loaded {len(orders)} traces from {trace_file}")
-    return orders, column_range
+    print(f"Loaded {len(traces)} traces from {trace_file}")
+    return traces, column_range
 
 
 def load_image(flat_file):
@@ -153,17 +166,17 @@ def main():
 
     # Load data
     img = load_image(flat_file)
-    orders, column_range = load_traces(trace_file)
+    traces, column_range = load_traces(trace_file)
     nrow, ncol = img.shape
-    nord = len(orders)
+    ntrace = len(traces)
 
     print(f"\nImage: {nrow} x {ncol}")
-    print(f"Traces: {nord}")
+    print(f"Traces: {ntrace}")
     print(f"Extracting trace {TRACE_INDEX}, swath {SWATH_INDEX}\n")
 
     # Fix extraction parameters
     xwd, cr, traces = fix_parameters(
-        EXTRACTION_HEIGHT, column_range, orders, nrow, ncol, nord
+        EXTRACTION_HEIGHT, column_range, traces, nrow, ncol, ntrace
     )
 
     # Get the specific trace

@@ -344,7 +344,7 @@ class TestWavelengthCalibrationMakeWave:
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_wavecal(
-    files, instr, instrument, channel, mask, orders, settings, order_range
+    files, instr, instrument, channel, mask, orders, settings, trace_range
 ):
     name = "wavecal_master"
     if len(files[name]) == 0:
@@ -364,14 +364,14 @@ def test_wavecal(
         dark=thead["e_drk"],
         extraction_type="simple",
         column_range=column_range,
-        order_range=order_range,
+        trace_range=trace_range,
         extraction_height=settings[name]["extraction_height"],
         plot=False,
     )
 
     assert isinstance(thar, np.ndarray)
     assert thar.ndim == 2
-    assert thar.shape[0] == order_range[1] - order_range[0]
+    assert thar.shape[0] == trace_range[1] - trace_range[0]
     assert thar.shape[1] == orig.shape[1]
     assert np.issubdtype(thar.dtype, np.floating)
 
@@ -393,6 +393,6 @@ def test_wavecal(
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2
-    assert wave.shape[0] == order_range[1] - order_range[0]
+    assert wave.shape[0] == trace_range[1] - trace_range[0]
     assert wave.shape[1] == orig.shape[1]
     assert np.issubdtype(wave.dtype, np.floating)

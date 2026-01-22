@@ -72,9 +72,9 @@ def cli():
     help="Display mode: block (interactive), defer (show all at end), off",
 )
 @click.option(
-    "--order-range",
+    "--trace-range",
     default=None,
-    help="Order range to process (e.g., '1,21')",
+    help="Trace range to process (e.g., '1,21')",
 )
 @click.option(
     "--settings",
@@ -94,7 +94,7 @@ def run(
     plot,
     plot_dir,
     plot_show,
-    order_range,
+    trace_range,
     settings,
 ):
     """Run the reduction pipeline.
@@ -116,10 +116,10 @@ def run(
     else:
         steps = "all"
 
-    # Parse order range
-    if order_range:
-        parts = order_range.split(",")
-        order_range = (int(parts[0]), int(parts[1]))
+    # Parse trace range
+    if trace_range:
+        parts = trace_range.split(",")
+        trace_range = (int(parts[0]), int(parts[1]))
 
     # Load configuration
     config = get_configuration_for_instrument(instrument)
@@ -138,7 +138,7 @@ def run(
             input_dir=input_dir,
             output_dir=output_dir,
             configuration=config,
-            order_range=order_range,
+            trace_range=trace_range,
             plot=plot,
             plot_dir=plot_dir,
         )
@@ -425,7 +425,7 @@ def make_step_command(step_name):
                     target=target or "",
                     night=night,
                     output_dir=output_dir_full,
-                    order_range=None,
+                    trace_range=None,
                     **step_config,
                 )
 
@@ -462,7 +462,7 @@ def make_step_command(step_name):
                 target=target or "",
                 night=night,
                 output_dir=output_dir_full,
-                order_range=None,
+                trace_range=None,
                 **step_config,
             )
 

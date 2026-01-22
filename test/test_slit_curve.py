@@ -103,9 +103,9 @@ class TestCurvatureInit:
         assert module.ntrace == 3
 
     @pytest.mark.unit
-    def test_n_property_with_order_range(self, simple_orders):
+    def test_n_property_with_trace_range(self, simple_orders):
         """n should return number of orders in range."""
-        module = CurvatureModule(simple_orders, order_range=(1, 3))
+        module = CurvatureModule(simple_orders, trace_range=(1, 3))
         assert module.n == 2
 
     @pytest.mark.unit
@@ -252,7 +252,7 @@ def original(files, instrument, channel, mask):
 
 
 @pytest.mark.slow
-def test_curvature(original, orders, order_range, settings):
+def test_curvature(original, orders, trace_range, settings):
     original, chead = original
     orders, column_range = orders
     settings = settings["curvature"]
@@ -263,7 +263,7 @@ def test_curvature(original, orders, order_range, settings):
     module = CurvatureModule(
         orders,
         column_range=column_range,
-        order_range=order_range,
+        trace_range=trace_range,
         extraction_height=settings["extraction_height"],
         curve_height=settings.get("curve_height", 0.5),
         window_width=settings["window_width"],
@@ -281,17 +281,17 @@ def test_curvature(original, orders, order_range, settings):
 
     assert isinstance(p1, np.ndarray)
     assert p1.ndim == 2
-    assert p1.shape[0] == order_range[1] - order_range[0]
+    assert p1.shape[0] == trace_range[1] - trace_range[0]
     assert p1.shape[1] == original.shape[1]
 
     assert isinstance(p2, np.ndarray)
     assert p2.ndim == 2
-    assert p2.shape[0] == order_range[1] - order_range[0]
+    assert p2.shape[0] == trace_range[1] - trace_range[0]
     assert p2.shape[1] == original.shape[1]
 
     # Reduce the number of orders this way
-    orders = orders[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
+    orders = orders[trace_range[0] : trace_range[1]]
+    column_range = column_range[trace_range[0] : trace_range[1]]
 
     module = CurvatureModule(
         orders,
@@ -313,25 +313,25 @@ def test_curvature(original, orders, order_range, settings):
 
     assert isinstance(p1, np.ndarray)
     assert p1.ndim == 2
-    assert p1.shape[0] == order_range[1] - order_range[0]
+    assert p1.shape[0] == trace_range[1] - trace_range[0]
     assert p1.shape[1] == original.shape[1]
 
     assert isinstance(p2, np.ndarray)
     assert p2.ndim == 2
-    assert p2.shape[0] == order_range[1] - order_range[0]
+    assert p2.shape[0] == trace_range[1] - trace_range[0]
     assert p2.shape[1] == original.shape[1]
 
 
 @pytest.mark.slow
-def test_curvature_exception(original, orders, order_range):
+def test_curvature_exception(original, orders, trace_range):
     original, chead = original
     orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
 
-    orders = orders[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
+    orders = orders[trace_range[0] : trace_range[1]]
+    column_range = column_range[trace_range[0] : trace_range[1]]
 
     original = np.copy(original)
 
@@ -351,14 +351,14 @@ def test_curvature_exception(original, orders, order_range):
 
 
 @pytest.mark.slow
-def test_curvature_zero(original, orders, order_range):
+def test_curvature_zero(original, orders, trace_range):
     original, chead = original
     orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
-    orders = orders[order_range[0] : order_range[1]]
-    column_range = column_range[order_range[0] : order_range[1]]
+    orders = orders[trace_range[0] : trace_range[1]]
+    column_range = column_range[trace_range[0] : trace_range[1]]
 
     original = np.zeros_like(original)
 

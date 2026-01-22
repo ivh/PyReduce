@@ -75,7 +75,7 @@ def main(
     input_dir=None,
     output_dir=None,
     configuration=None,
-    order_range=None,
+    trace_range=None,
     skip_existing=False,
     plot=0,
     plot_dir=None,
@@ -223,7 +223,7 @@ def main(
                 channel=c,
                 night=k.get("night"),
                 config=config,
-                order_range=order_range,
+                trace_range=trace_range,
                 steps=steps,
                 plot=plot,
                 plot_dir=plot_dir,
@@ -243,7 +243,7 @@ class Step:
     """Parent class for all steps"""
 
     def __init__(
-        self, instrument, channel, target, night, output_dir, order_range, **config
+        self, instrument, channel, target, night, output_dir, trace_range, **config
     ):
         self._dependsOn = []
         self._loadDependsOn = []
@@ -255,8 +255,8 @@ class Step:
         self.target = target
         #:str: Date of the observation (as a string)
         self.night = night
-        #:tuple(int, int): First and Last(+1) order to process
-        self.order_range = order_range
+        #:tuple(int, int): First and Last(+1) trace to process
+        self.trace_range = trace_range
         #:bool: Whether to plot the results or the progress of this step
         self.plot = config.get("plot", False)
         #:str: Title used in the plots, if any
@@ -345,7 +345,7 @@ class Step:
 
         Parameters
         ----------
-        trace : tuple (orders, column_range)
+        trace : tuple (traces, column_range)
             Raw traces from OrderTracing
         step_name : str
             Name of this step for fibers.use lookup
@@ -357,14 +357,14 @@ class Step:
         selected : dict[str, tuple[ndarray, ndarray]]
             {group_name: (traces, column_range)} for each selected group
         """
-        orders, column_range = trace
+        traces, column_range = trace
         group_traces = {}
         group_cr = {}
         if trace_groups is not None:
             group_traces, group_cr = trace_groups
         fibers_config = getattr(self.instrument.config, "fibers", None)
         return select_traces_for_step(
-            orders,
+            traces,
             column_range,
             group_traces,
             group_cr,
@@ -447,18 +447,18 @@ class ExtractionStep(Step):
             )
 
     def extract(self, img, head, trace, curvature, scatter=None):
-        orders, column_range = trace if trace is not None else (None, None)
+        traces, column_range = trace if trace is not None else (None, None)
         p1, p2 = curvature if curvature is not None else (None, None)
 
         data, unc, slitfu, cr = extract(
             img,
-            orders,
+            traces,
             gain=head["e_gain"],
             readnoise=head["e_readn"],
             dark=head["e_drk"],
             column_range=column_range,
             extraction_type=self.extraction_method,
-            order_range=self.order_range,
+            trace_range=self.trace_range,
             plot=self.plot,
             plot_title=self.plot_title,
             p1=p1,
@@ -837,18 +837,18 @@ class OrderTracing(CalibrationStep):
 
         Returns
         -------
-        orders : array of shape (nord, ndegree+1)
-            polynomial coefficients for each order
-        column_range : array of shape (nord, 2)
-            first and last(+1) column that carries signal in each order
+        traces : array of shape (ntrace, ndegree+1)
+            polynomial coefficients for each trace
+        column_range : array of shape (ntrace, 2)
+            first and last(+1) column that carries signal in each trace
         """
 
-        logger.info("Order tracing files: %s", files)
+        logger.info("Tracing files: %s", files)
 
-        order_img, ohead = self.calibrate(files, mask, bias, None)
+        trace_img, ohead = self.calibrate(files, mask, bias, None)
 
-        orders, column_range = mark_orders(
-            order_img,
+        traces, column_range = mark_orders(
+            trace_img,
             min_cluster=self.min_cluster,
             min_width=self.min_width,
             filter_x=self.filter_x,
@@ -875,11 +875,11 @@ class OrderTracing(CalibrationStep):
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            logger.info("Organizing %d traces into fiber groups", len(orders))
+            logger.info("Organizing %d traces into fiber groups", len(traces))
             inst_dir = getattr(self.instrument, "_inst_dir", None)
             self.group_traces, self.group_column_range, self.group_fiber_counts = (
                 organize_fibers(
-                    orders,
+                    traces,
                     column_range,
                     fibers_config,
                     self.fit_degree,
@@ -890,47 +890,58 @@ class OrderTracing(CalibrationStep):
             for name, count in self.group_fiber_counts.items():
                 logger.info("  Group %s: %d fibers", name, count)
 
-        self.save(orders, column_range)
+        self.save(traces, column_range)
 
-        return orders, column_range
+        return traces, column_range
 
-    def save(self, orders, column_range):
-        """Save order tracing results to disk
+    def save(self, traces, column_range):
+        """Save tracing results to disk
 
         Parameters
         ----------
-        orders : array of shape (nord, ndegree+1)
+        traces : array of shape (ntrace, ndegree+1)
             polynomial coefficients
-        column_range : array of shape (nord, 2)
-            first and last(+1) column that carry signal in each order
+        column_range : array of shape (ntrace, 2)
+            first and last(+1) column that carry signal in each trace
         """
-        save_data = {"orders": orders, "column_range": column_range}
+        save_data = {"traces": traces, "column_range": column_range}
 
         # Save grouped traces if available
         if self.group_traces is not None:
             save_data["group_names"] = list(self.group_traces.keys())
-            for name, traces in self.group_traces.items():
-                save_data[f"group_{name}_traces"] = traces
+            for name, group_traces in self.group_traces.items():
+                save_data[f"group_{name}_traces"] = group_traces
                 save_data[f"group_{name}_cr"] = self.group_column_range[name]
                 save_data[f"group_{name}_count"] = self.group_fiber_counts[name]
 
         os.makedirs(os.path.dirname(self.savefile), exist_ok=True)
         np.savez(self.savefile, **save_data)
-        logger.info("Created order tracing file: %s", self.savefile)
+        logger.info("Created trace file: %s", self.savefile)
 
     def load(self):
-        """Load order tracing results
+        """Load tracing results
 
         Returns
         -------
-        orders : array of shape (nord, ndegree+1)
-            polynomial coefficients for each order
-        column_range : array of shape (nord, 2)
-            first and last(+1) column that carries signal in each order
+        traces : array of shape (ntrace, ndegree+1)
+            polynomial coefficients for each trace
+        column_range : array of shape (ntrace, 2)
+            first and last(+1) column that carries signal in each trace
         """
-        logger.info("Order tracing file: %s", self.savefile)
+        logger.info("Trace file: %s", self.savefile)
         data = np.load(self.savefile, allow_pickle=True)
-        orders = data["orders"]
+        if "traces" in data:
+            traces = data["traces"]
+        elif "orders" in data:
+            warnings.warn(
+                f"Trace file {self.savefile} uses old key 'orders'. "
+                "Re-run the trace step to update the file format.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            traces = data["orders"]
+        else:
+            raise KeyError("Trace file missing 'traces' key")
         column_range = data["column_range"]
 
         # Load grouped traces if available
@@ -941,25 +952,25 @@ class OrderTracing(CalibrationStep):
             self.group_fiber_counts = {}
             for name in group_names:
                 # .item() extracts dict from 0-dim numpy array
-                traces = data[f"group_{name}_traces"]
+                group_data = data[f"group_{name}_traces"]
                 self.group_traces[name] = (
-                    traces.item() if traces.shape == () else traces
+                    group_data.item() if group_data.shape == () else group_data
                 )
                 cr = data[f"group_{name}_cr"]
                 self.group_column_range[name] = cr.item() if cr.shape == () else cr
                 self.group_fiber_counts[name] = int(data[f"group_{name}_count"])
             logger.info("Loaded %d fiber groups", len(group_names))
 
-        return orders, column_range
+        return traces, column_range
 
-    def get_traces_for_step(self, orders, column_range, step_name):
+    def get_traces_for_step(self, traces, column_range, step_name):
         """Get traces appropriate for a specific reduction step.
 
         Uses the instrument's fibers.use config to select raw or grouped traces.
 
         Parameters
         ----------
-        orders : ndarray
+        traces : ndarray
             Raw traces from run() or load()
         column_range : ndarray
             Column ranges for raw traces
@@ -975,7 +986,7 @@ class OrderTracing(CalibrationStep):
         """
         fibers_config = getattr(self.instrument.config, "fibers", None)
         return select_traces_for_step(
-            orders,
+            traces,
             column_range,
             self.group_traces or {},
             self.group_column_range or {},
@@ -1012,11 +1023,11 @@ class BackgroundScatter(CalibrationStep):
         # Stack all selected groups (typically just one)
         all_traces = [tr for tr, _ in selected.values()]
         all_cr = [cr for _, cr in selected.values()]
-        orders = np.vstack(all_traces)
+        traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         scatter = estimate_background_scatter(
             scatter_img,
-            orders,
+            traces,
             column_range=column_range,
             extraction_height=self.extraction_height,
             scatter_degree=self.scatter_degree,
@@ -1113,19 +1124,19 @@ class NormalizeFlatField(Step):
         -------
         norm : array of shape (nrow, ncol)
             normalized flat field
-        blaze : array of shape (nord, ncol)
+        blaze : array of shape (ntrace, ncol)
             Continuum level as determined from the flat field for each order
         slitfunc : list of arrays
             Slit function for each order
         slitfunc_meta : dict
-            Metadata for slitfunc (extraction_height, osample, order_range)
+            Metadata for slitfunc (extraction_height, osample, trace_range)
         """
         flat, fhead = flat
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "norm_flat", trace_groups)
         all_traces = [tr for tr, _ in selected.values()]
         all_cr = [cr for _, cr in selected.values()]
-        orders = np.vstack(all_traces)
+        traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         p1, p2 = curvature if curvature is not None else (None, None)
 
@@ -1137,11 +1148,11 @@ class NormalizeFlatField(Step):
 
         norm, _, blaze, slitfunc, _ = extract(
             flat,
-            orders,
+            traces,
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
-            order_range=self.order_range,
+            trace_range=self.trace_range,
             column_range=column_range,
             scatter=scatter,
             threshold=threshold,
@@ -1159,12 +1170,12 @@ class NormalizeFlatField(Step):
         norm = np.nan_to_num(norm, nan=1)
 
         # Metadata for slitfunc: needed to validate/resample when used in other steps
-        # trace_range is relative to the selected traces (orders array)
-        n_traces = len(orders)
-        if self.order_range is None:
+        # trace_range is relative to the selected traces (traces array)
+        n_traces = len(traces)
+        if self.trace_range is None:
             trace_range = (0, n_traces)
         else:
-            trace_range = self.order_range
+            trace_range = self.trace_range
         slitfunc_meta = {
             "extraction_height": self.extraction_kwargs["extraction_height"],
             "osample": self.extraction_kwargs["osample"],
@@ -1181,12 +1192,12 @@ class NormalizeFlatField(Step):
         ----------
         norm : array of shape (nrow, ncol)
             normalized flat field
-        blaze : array of shape (nord, ncol)
+        blaze : array of shape (ntrace, ncol)
             Continuum level as determined from the flat field for each order
         slitfunc : list of arrays
             Slit function for each order
         slitfunc_meta : dict
-            Metadata for slitfunc (extraction_height, osample, order_range)
+            Metadata for slitfunc (extraction_height, osample, trace_range)
         """
         # Stack slitfunctions into 2D array if all same length, else save as object array
         try:
@@ -1209,12 +1220,12 @@ class NormalizeFlatField(Step):
         -------
         norm : array of shape (nrow, ncol)
             normalized flat field
-        blaze : array of shape (nord, ncol)
+        blaze : array of shape (ntrace, ncol)
             Continuum level as determined from the flat field for each order
         slitfunc : list of arrays, or None
             Slit function for each order (None if not available)
         slitfunc_meta : dict or None
-            Metadata for slitfunc (extraction_height, osample, order_range)
+            Metadata for slitfunc (extraction_height, osample, trace_range)
         """
         try:
             data = np.load(self.savefile, allow_pickle=True)
@@ -1281,7 +1292,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             wavelength for each point in the spectrum
         thar : array of shape (nrow, ncol)
             extracted wavelength calibration image
@@ -1297,9 +1308,9 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         selected = self._select_traces(trace, "wavecal_master", trace_groups)
         all_traces = [tr for tr, _ in selected.values()]
         all_cr = [cr for _, cr in selected.values()]
-        selected_orders = np.vstack(all_traces)
+        selected_traces = np.vstack(all_traces)
         selected_cr = np.vstack(all_cr)
-        selected_trace = (selected_orders, selected_cr)
+        selected_trace = (selected_traces, selected_cr)
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
         # Extract wavecal spectrum
@@ -1474,7 +1485,7 @@ class WavelengthCalibrationFinalize(Step):
 
         Returns
         -------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             wavelength for each point in the spectrum
         coef : array of shape (*ndegrees,)
             polynomial coefficients of the wavelength fit
@@ -1507,7 +1518,7 @@ class WavelengthCalibrationFinalize(Step):
 
         Parameters
         ----------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             wavelength for each point in the spectrum
         coef : array of shape (ndegrees,)
             polynomial coefficients of the wavelength fit
@@ -1522,7 +1533,7 @@ class WavelengthCalibrationFinalize(Step):
 
         Returns
         -------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             wavelength for each point in the spectrum
         coef : array of shape (*ndegrees,)
             polynomial coefficients of the wavelength fit
@@ -1569,7 +1580,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        comb : array of shape (nord, ncol)
+        comb : array of shape (ntrace, ncol)
             extracted frequency comb image
         chead : Header
             FITS header of the combined image
@@ -1654,16 +1665,16 @@ class LaserFrequencyCombFinalize(Step):
             observation files
         wavecal : tuple()
             results from the wavelength calibration step
-        orders : tuple
-            results from the order tracing step
+        trace : tuple
+            results from the tracing step
         mask : array of shape (nrow, ncol)
             Bad pixel mask
 
         Returns
         -------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             improved wavelength solution
-        comb : array of shape (nord, ncol)
+        comb : array of shape (ntrace, ncol)
             extracted frequency comb image
         """
         comb, chead = freq_comb_master
@@ -1688,7 +1699,7 @@ class LaserFrequencyCombFinalize(Step):
 
         Parameters
         ----------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             improved wavelength solution
         """
         np.savez(self.savefile, wave=wave)
@@ -1705,9 +1716,9 @@ class LaserFrequencyCombFinalize(Step):
 
         Returns
         -------
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             improved wavelength solution
-        comb : array of shape (nord, ncol)
+        comb : array of shape (ntrace, ncol)
             extracted frequency comb image
         """
         try:
@@ -1774,9 +1785,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        p1 : array of shape (nord, ncol)
+        p1 : array of shape (ntrace, ncol)
             first order slit curvature at each point
-        p2 : array of shape (nord, ncol)
+        p2 : array of shape (ntrace, ncol)
             second order slit curvature at each point
         """
 
@@ -1788,20 +1799,20 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         selected = self._select_traces(trace, "curvature", trace_groups)
         all_traces = [tr for tr, _ in selected.values()]
         all_cr = [cr for _, cr in selected.values()]
-        orders = np.vstack(all_traces)
+        traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         nrow, ncol = orig.shape
-        nord = len(orders)
-        _, column_range, orders = fix_parameters(
-            self.curve_height, column_range, orders, nrow, ncol, nord
+        ntrace = len(traces)
+        _, column_range, traces = fix_parameters(
+            self.curve_height, column_range, traces, nrow, ncol, ntrace
         )
 
         module = CurvatureModule(
-            orders,
+            traces,
             column_range=column_range,
             curve_height=self.curve_height,
             extraction_height=self.extraction_height,
-            order_range=self.order_range,
+            trace_range=self.trace_range,
             fit_degree=self.fit_degree,
             curve_degree=self.curve_degree,
             sigma_cutoff=self.sigma_cutoff,
@@ -1822,9 +1833,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Parameters
         ----------
-        p1 : array of shape (nord, ncol)
+        p1 : array of shape (ntrace, ncol)
             first order slit curvature at each point
-        p2 : array of shape (nord, ncol)
+        p2 : array of shape (ntrace, ncol)
             second order slit curvature at each point
         """
         np.savez(self.savefile, p1=p1, p2=p2)
@@ -1835,9 +1846,9 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        p1 : array of shape (nord, ncol)
+        p1 : array of shape (ntrace, ncol)
             first order slit curvature at each point
-        p2 : array of shape (nord, ncol)
+        p2 : array of shape (ntrace, ncol)
             second order slit curvature at each point
         """
         try:
@@ -1867,7 +1878,7 @@ class RectifyImage(Step):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
     def run(self, files, trace, curvature=None, mask=None, freq_comb=None):
-        orders, column_range = trace
+        traces, column_range = trace
         p1, p2 = curvature if curvature is not None else (None, None)
         wave = freq_comb
 
@@ -1881,10 +1892,10 @@ class RectifyImage(Step):
 
             images, cr, xwd = rectify_image(
                 img,
-                orders,
+                traces,
                 column_range,
                 self.extraction_height,
-                self.order_range,
+                self.trace_range,
                 p1,
                 p2,
             )
@@ -1980,22 +1991,22 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         -------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (nord, ncol))
+        specs : list(array of shape (ntrace, ncol))
             extracted spectra
-        sigmas : list(array of shape (nord, ncol))
+        sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
-        slitfu: list(array of shape (nord, (extr_height*oversample+1)+1)
+        slitfu: list(array of shape (ntrace, (extr_height*oversample+1)+1)
             slit illumination function
-        columns : list(array of shape (nord, 2))
+        columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "science", trace_groups)
         all_traces = [tr for tr, _ in selected.values()]
         all_cr = [cr for _, cr in selected.values()]
-        selected_orders = np.vstack(all_traces)
+        selected_traces = np.vstack(all_traces)
         selected_cr = np.vstack(all_cr)
-        selected_trace = (selected_orders, selected_cr)
+        selected_trace = (selected_traces, selected_cr)
 
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in tqdm(files, desc="Files"):
@@ -2006,7 +2017,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
                 mask,
                 bias,
                 norm_flat,
-                traces=selected_orders,
+                traces=selected_traces,
                 extraction_height=self.extraction_kwargs.get("extraction_height"),
             )
             # Optimally extract science spectrum
@@ -2036,13 +2047,13 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             filename to save to
         head : FITS header
             FITS header
-        spec : array of shape (nord, ncol)
+        spec : array of shape (ntrace, ncol)
             extracted spectrum
-        sigma : array of shape (nord, ncol)
+        sigma : array of shape (ntrace, ncol)
             uncertainties of the extracted spectrum
-        slitfu: list(array of shape (nord, (extr_height*oversample+1)+1)
+        slitfu: list(array of shape (ntrace, (extr_height*oversample+1)+1)
             slit illumination function
-        column_range : array of shape (nord, 2)
+        column_range : array of shape (ntrace, 2)
             range of columns that have spectrum
         """
         nameout = self.science_file(fname)
@@ -2058,11 +2069,11 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         -------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (nord, ncol))
+        specs : list(array of shape (ntrace, ncol))
             extracted spectra
-        sigmas : list(array of shape (nord, ncol))
+        sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
-        columns : list(array of shape (nord, 2))
+        columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
         files = files["science"]
@@ -2120,13 +2131,13 @@ class ContinuumNormalization(Step):
         -------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (nord, ncol))
+        specs : list(array of shape (ntrace, ncol))
             extracted spectra
-        sigmas : list(array of shape (nord, ncol))
+        sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
-        conts : list(array of shape (nord, ncol))
+        conts : list(array of shape (ntrace, ncol))
             continuum for each spectrum
-        columns : list(array of shape (nord, 2))
+        columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
         wave = freq_comb
@@ -2166,13 +2177,13 @@ class ContinuumNormalization(Step):
         ----------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (nord, ncol))
+        specs : list(array of shape (ntrace, ncol))
             extracted spectra
-        sigmas : list(array of shape (nord, ncol))
+        sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
-        conts : list(array of shape (nord, ncol))
+        conts : list(array of shape (ntrace, ncol))
             continuum for each spectrum
-        columns : list(array of shape (nord, 2))
+        columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
         value = {
@@ -2192,13 +2203,13 @@ class ContinuumNormalization(Step):
         -------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (nord, ncol))
+        specs : list(array of shape (ntrace, ncol))
             extracted spectra
-        sigmas : list(array of shape (nord, ncol))
+        sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
-        conts : list(array of shape (nord, ncol))
+        conts : list(array of shape (ntrace, ncol))
             continuum for each spectrum
-        columns : list(array of shape (nord, 2))
+        columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
         try:
@@ -2332,15 +2343,15 @@ class Finalize(Step):
             individual number of each file
         head : FITS header
             FITS header
-        spec : array of shape (nord, ncol)
+        spec : array of shape (ntrace, ncol)
             final spectrum
-        sigma : array of shape (nord, ncol)
+        sigma : array of shape (ntrace, ncol)
             final uncertainties
-        cont : array of shape (nord, ncol)
+        cont : array of shape (ntrace, ncol)
             final continuum scales
-        wave : array of shape (nord, ncol)
+        wave : array of shape (ntrace, ncol)
             wavelength solution
-        columns : array of shape (nord, 2)
+        columns : array of shape (ntrace, 2)
             columns that carry signal
 
         Returns

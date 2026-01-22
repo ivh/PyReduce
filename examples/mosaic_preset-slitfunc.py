@@ -77,9 +77,9 @@ trace_data = np.load(trace_file)
 group_names = trace_data["group_names"]
 all_traces = [trace_data[f"group_{name}_traces"] for name in group_names]
 all_cr = [trace_data[f"group_{name}_cr"] for name in group_names]
-orders = np.vstack(all_traces)
+traces = np.vstack(all_traces)
 column_range = np.vstack(all_cr)
-print(f"Loaded {len(orders)} grouped traces from {trace_file}")
+print(f"Loaded {len(traces)} grouped traces from {trace_file}")
 
 # Load norm_flat (with slitfunc)
 norm_data = np.load(norm_file, allow_pickle=True)
@@ -104,20 +104,20 @@ print("\n=== Extracting ThAr with preset slit function ===")
 thar_img, thar_head = instrument.load_fits(thar_file, channel)
 
 # Use the grouped traces (same as norm_flat)
-selected_orders = orders
+selected_traces = traces
 selected_cr = column_range
 
 # Extraction parameters from slitfunc_meta
 osample = slitfunc_meta["osample"]
 extraction_height = slitfunc_meta["extraction_height"]
 
-print(f"Extracting {len(selected_orders)} traces with preset slitfunc")
+print(f"Extracting {len(selected_traces)} traces with preset slitfunc")
 print(f"  osample={osample}, extraction_height={extraction_height}")
 
 # Extract using the extract() function with preset_slitfunc
 spectrum, uncertainties, slitfunc_out, column_range_out = extract(
     thar_img,
-    selected_orders,
+    selected_traces,
     column_range=selected_cr,
     extraction_type="optimal",
     extraction_height=extraction_height,

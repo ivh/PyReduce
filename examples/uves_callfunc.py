@@ -36,7 +36,7 @@ instrument_name = "UVES"
 target = "HD[- ]?132205"
 night = "2010-04-01"
 channel = "middle"
-order_range = (1, 21)
+trace_range = (1, 21)
 plot = 1
 
 # Handle plot environment variables (same as Pipeline does)
@@ -58,7 +58,7 @@ instrument = load_instrument(instrument_name)
 config = load_config(None, instrument_name, 0)
 
 # Common step arguments
-step_args = (instrument, channel, target, night, output_dir, order_range)
+step_args = (instrument, channel, target, night, output_dir, trace_range)
 
 # Find and classify files automatically
 file_groups = instrument.sort_files(
