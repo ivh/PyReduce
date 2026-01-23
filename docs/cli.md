@@ -23,16 +23,16 @@ reduce --help
 Run the reduction pipeline for an instrument and target:
 
 ```bash
-uv run reduce run INSTRUMENT TARGET [OPTIONS]
+uv run reduce run INSTRUMENT [OPTIONS]
 ```
 
 **Arguments:**
 - `INSTRUMENT` - Instrument name (e.g., UVES, HARPS, XSHOOTER)
-- `TARGET` - Target star name or regex pattern
 
 **Options:**
 | Option | Short | Description |
 |--------|-------|-------------|
+| `--target` | `-t` | Target star name or regex pattern |
 | `--night` | `-n` | Observation night (YYYY-MM-DD format) |
 | `--channel` | `-c` | Instrument channel/detector (e.g., RED, BLUE, middle) |
 | `--steps` | `-s` | Comma-separated steps to run (default: all) |
@@ -49,22 +49,22 @@ uv run reduce run INSTRUMENT TARGET [OPTIONS]
 
 ```bash
 # Basic reduction
-uv run reduce run UVES HD132205
+uv run reduce run UVES -t HD132205
 
 # Specify night and channel
-uv run reduce run UVES HD132205 --night 2010-04-01 --channel middle
+uv run reduce run UVES -t HD132205 --night 2010-04-01 --channel middle
 
 # Run specific steps
-uv run reduce run UVES HD132205 --steps bias,flat,trace,science
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 
 # Custom directories
-uv run reduce run HARPS "HD 12345" --base-dir /data --output-dir processed
+uv run reduce run HARPS -t "HD 12345" --base-dir /data --output-dir processed
 
 # With plotting - save to files
-uv run reduce run XSHOOTER target --plot 1 --plot-dir /tmp/plots --plot-show off
+uv run reduce run XSHOOTER -t target --plot 1 --plot-dir /tmp/plots --plot-show off
 
 # With plotting - show all at end (useful with webagg backend)
-uv run reduce run UVES target --plot 1 --plot-show defer
+uv run reduce run UVES -t target --plot 1 --plot-show defer
 ```
 
 ### Individual Step Commands
@@ -72,23 +72,23 @@ uv run reduce run UVES target --plot 1 --plot-show defer
 Each reduction step can be run individually:
 
 ```bash
-uv run reduce bias INSTRUMENT TARGET [OPTIONS]
-uv run reduce flat INSTRUMENT TARGET [OPTIONS]
-uv run reduce trace INSTRUMENT TARGET [OPTIONS]
-uv run reduce curvature INSTRUMENT TARGET [OPTIONS]
-uv run reduce scatter INSTRUMENT TARGET [OPTIONS]
-uv run reduce norm_flat INSTRUMENT TARGET [OPTIONS]
-uv run reduce wavecal_master INSTRUMENT TARGET [OPTIONS]
-uv run reduce wavecal_init INSTRUMENT TARGET [OPTIONS]
-uv run reduce wavecal INSTRUMENT TARGET [OPTIONS]
-uv run reduce freq_comb_master INSTRUMENT TARGET [OPTIONS]
-uv run reduce freq_comb INSTRUMENT TARGET [OPTIONS]
-uv run reduce science INSTRUMENT TARGET [OPTIONS]
-uv run reduce continuum INSTRUMENT TARGET [OPTIONS]
-uv run reduce finalize INSTRUMENT TARGET [OPTIONS]
+uv run reduce bias INSTRUMENT [OPTIONS]
+uv run reduce flat INSTRUMENT [OPTIONS]
+uv run reduce trace INSTRUMENT [OPTIONS]
+uv run reduce curvature INSTRUMENT [OPTIONS]
+uv run reduce scatter INSTRUMENT [OPTIONS]
+uv run reduce norm_flat INSTRUMENT [OPTIONS]
+uv run reduce wavecal_master INSTRUMENT [OPTIONS]
+uv run reduce wavecal_init INSTRUMENT [OPTIONS]
+uv run reduce wavecal INSTRUMENT [OPTIONS]
+uv run reduce freq_comb_master INSTRUMENT [OPTIONS]
+uv run reduce freq_comb INSTRUMENT [OPTIONS]
+uv run reduce science INSTRUMENT [OPTIONS]
+uv run reduce continuum INSTRUMENT [OPTIONS]
+uv run reduce finalize INSTRUMENT [OPTIONS]
 ```
 
-These accept the same options as `run` except `--steps`, plus:
+These accept the same options as `run` (including `-t/--target`) except `--steps`, plus:
 
 | Option | Short | Description |
 |--------|-------|-------------|
@@ -99,10 +99,10 @@ These accept the same options as `run` except `--steps`, plus:
 
 ```bash
 # Run trace on a specific flat file
-uv run reduce trace UVES HD132205 --file /path/to/flat.fits
+uv run reduce trace UVES -t HD132205 --file /path/to/flat.fits
 
 # Override settings for a step
-uv run reduce trace UVES HD132205 --settings my_settings.json
+uv run reduce trace UVES -t HD132205 --settings my_settings.json
 ```
 
 The settings file can contain partial overrides:

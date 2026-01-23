@@ -17,7 +17,7 @@ uv run python examples/uves_example.py
 Or use the CLI directly:
 
 ```bash
-uv run reduce run UVES "HD[- ]?132205" --steps bias,flat,trace,science
+uv run reduce run UVES -t "HD[- ]?132205" --steps bias,flat,trace,science
 ```
 
 ## Example Structure

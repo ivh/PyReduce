@@ -409,6 +409,7 @@ class TestIndividualStepCommands:
             [
                 step,
                 "UVES",
+                "-t",
                 "HD132205",
                 "-n",
                 "2010-04-01",
@@ -473,6 +474,7 @@ class TestIndividualStepCommands:
             [
                 "flat",
                 "XSHOOTER",
+                "--target",
                 "UX-Ori",
                 "--night",
                 "2015-10-15",

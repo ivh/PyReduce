@@ -24,11 +24,11 @@ Quick start:
 uv run reduce download UVES
 
 # Run full pipeline
-uv run reduce run UVES HD132205 --steps bias,flat,trace,science
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 
 # Run individual steps
-uv run reduce bias UVES HD132205
-uv run reduce trace UVES HD132205
+uv run reduce bias UVES -t HD132205
+uv run reduce trace UVES -t HD132205
 
 # List available steps
 uv run reduce list-steps

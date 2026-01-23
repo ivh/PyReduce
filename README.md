@@ -34,11 +34,11 @@ uv sync
 uv run reduce download UVES
 
 # Run reduction
-uv run reduce run UVES HD132205 --steps bias,flat,trace,science
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 
 # Or run individual steps
-uv run reduce bias UVES HD132205
-uv run reduce flat UVES HD132205
+uv run reduce bias UVES -t HD132205
+uv run reduce flat UVES -t HD132205
 ```
 
 Or use the Python API:

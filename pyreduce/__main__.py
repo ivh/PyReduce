@@ -3,9 +3,9 @@ PyReduce command-line interface.
 
 Usage:
     uv run reduce --help
-    uv run reduce run UVES HD132205 --night 2010-04-01
-    uv run reduce run UVES HD132205 --steps bias,flat,trace
-    uv run reduce trace UVES HD132205
+    uv run reduce run UVES -t HD132205 --night 2010-04-01
+    uv run reduce run UVES -t HD132205 --steps bias,flat,trace
+    uv run reduce trace UVES -t HD132205
     uv run reduce combine --output combined.fits *.final.fits
 """
 
@@ -308,7 +308,9 @@ def make_step_command(step_name):
 
     @click.command(name=step_name)
     @click.argument("instrument")
-    @click.argument("target", required=False, default="")
+    @click.option(
+        "--target", "-t", default=None, help="Target star name or regex pattern"
+    )
     @click.option("--night", "-n", default=None, help="Observation night")
     @click.option("--channel", "-c", default=None, help="Instrument channel")
     @click.option("--base-dir", "-b", default=None, help="Base directory")

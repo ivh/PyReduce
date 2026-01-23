@@ -15,7 +15,7 @@ uv add pyreduce-astro
 uv run reduce download UVES
 
 # Run reduction
-uv run reduce run UVES HD132205 --steps bias,flat,trace,science
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 ```
 
 Or use Python:

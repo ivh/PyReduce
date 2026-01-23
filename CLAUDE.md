@@ -19,7 +19,7 @@ uv run reduce download UVES
 PYREDUCE_PLOT=0 uv run python examples/uves_example.py
 
 # Or use CLI
-uv run reduce run UVES HD132205 --steps bias,flat,trace,science
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 ```
 
 ## Package Structure
@@ -237,12 +237,12 @@ pyreduce.reduce.main(
 
 ```bash
 # Full pipeline
-uv run reduce run UVES HD132205 --steps bias,flat,trace
+uv run reduce run UVES -t HD132205 --steps bias,flat,trace
 
 # Individual steps (top-level commands)
-uv run reduce bias UVES HD132205
-uv run reduce trace UVES HD132205
-uv run reduce wavecal UVES HD132205
+uv run reduce bias UVES -t HD132205
+uv run reduce trace UVES -t HD132205
+uv run reduce wavecal UVES -t HD132205
 
 # Combine reduced spectra
 uv run reduce combine --output combined.fits *.final.fits
