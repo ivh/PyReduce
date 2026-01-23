@@ -42,7 +42,7 @@ flat_file = join(
     "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01",
     "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01_STATIC_FOCAL_PLANE.fits",
 )
-trace_file = join(output_dir, "MOSAIC_NIR.ord_default.npz")
+trace_file = join(output_dir, "MOSAIC_NIR.traces.npz")
 
 
 def load_traces(trace_file):

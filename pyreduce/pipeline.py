@@ -53,10 +53,10 @@ from .reduce import (
     LaserFrequencyCombMaster,
     Mask,
     NormalizeFlatField,
-    OrderTracing,
     RectifyImage,
     ScienceExtraction,
     SlitCurvatureDetermination,
+    Trace,
     WavelengthCalibrationFinalize,
     WavelengthCalibrationInitialize,
     WavelengthCalibrationMaster,
@@ -75,7 +75,7 @@ class Pipeline:
         "mask": Mask,
         "bias": Bias,
         "flat": Flat,
-        "trace": OrderTracing,
+        "trace": Trace,
         "scatter": BackgroundScatter,
         "norm_flat": NormalizeFlatField,
         "wavecal_master": WavelengthCalibrationMaster,
@@ -230,7 +230,7 @@ class Pipeline:
         # Load and calibrate the image
         step_config = self.config.get("trace", {}).copy()
         step_config["plot"] = self.plot
-        step = OrderTracing(*self._get_step_inputs(), **step_config)
+        step = Trace(*self._get_step_inputs(), **step_config)
 
         order_img, _ = step.calibrate(files, mask, bias, None)
 
@@ -332,7 +332,7 @@ class Pipeline:
 
         # Save to disk
         step_config["plot"] = self.plot
-        step = OrderTracing(*self._get_step_inputs(), **step_config)
+        step = Trace(*self._get_step_inputs(), **step_config)
         step.group_traces = self._data.get("trace_groups", (None, None))[0]
         step.group_column_range = self._data.get("trace_groups", (None, None))[1]
         step.group_fiber_counts = group_counts
@@ -453,7 +453,7 @@ class Pipeline:
             try:
                 logger.info("Loading data from step '%s'", name)
                 result = step.load(**dep_args)
-                # Store fiber group traces if loaded (from OrderTracing)
+                # Store fiber group traces if loaded (from Trace)
                 if (
                     name == "trace"
                     and hasattr(step, "group_traces")
@@ -480,7 +480,7 @@ class Pipeline:
             dep_args["files"] = files
         result = step.run(**dep_args)
 
-        # Store fiber group traces if available (from OrderTracing)
+        # Store fiber group traces if available (from Trace)
         if name == "trace" and hasattr(step, "group_traces") and step.group_traces:
             self._data["trace_groups"] = (step.group_traces, step.group_column_range)
 

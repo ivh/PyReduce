@@ -16,9 +16,9 @@ from pyreduce.reduce import (
     Flat,
     Mask,
     NormalizeFlatField,
-    OrderTracing,
     ScienceExtraction,
     SlitCurvatureDetermination,
+    Trace,
     WavelengthCalibrationFinalize,
     WavelengthCalibrationInitialize,
     WavelengthCalibrationMaster,
@@ -515,7 +515,7 @@ def orders(step_args, settings, files, mask, bias):
     settings["plot"] = False
     settings["manual"] = False
 
-    step = OrderTracing(*step_args, **settings)
+    step = Trace(*step_args, **settings)
 
     try:
         orders, column_range = step.load()

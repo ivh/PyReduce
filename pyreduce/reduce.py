@@ -346,7 +346,7 @@ class Step:
         Parameters
         ----------
         trace : tuple (traces, column_range)
-            Raw traces from OrderTracing
+            Raw traces from Tracing step
         step_name : str
             Name of this step for fibers.use lookup
         trace_groups : tuple (group_traces, group_cr), optional
@@ -780,8 +780,8 @@ class Flat(CalibrationStep):
         return flat, fhead
 
 
-class OrderTracing(CalibrationStep):
-    """Determine the polynomial fits describing the pixel locations of each order"""
+class Trace(CalibrationStep):
+    """Determine the polynomial fits describing the pixel locations of each trace"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
@@ -822,7 +822,12 @@ class OrderTracing(CalibrationStep):
 
     @property
     def savefile(self):
-        """str: Name of the order tracing file"""
+        """str: Name of the tracing file"""
+        return join(self.output_dir, self.prefix + ".traces.npz")
+
+    @property
+    def _old_savefile(self):
+        """str: Old name of tracing file (for backwards compatibility)"""
         return join(self.output_dir, self.prefix + ".ord_default.npz")
 
     def run(self, files, mask=None, bias=None):
@@ -930,13 +935,23 @@ class OrderTracing(CalibrationStep):
         column_range : array of shape (ntrace, 2)
             first and last(+1) column that carries signal in each trace
         """
-        logger.info("Trace file: %s", self.savefile)
-        data = np.load(self.savefile, allow_pickle=True)
+        savefile = self.savefile
+        if not os.path.exists(savefile) and os.path.exists(self._old_savefile):
+            warnings.warn(
+                f"Trace file {self._old_savefile} uses old filename. "
+                "Re-run the trace step to update, or rename to "
+                f"{os.path.basename(savefile)}.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            savefile = self._old_savefile
+        logger.info("Trace file: %s", savefile)
+        data = np.load(savefile, allow_pickle=True)
         if "traces" in data:
             traces = data["traces"]
         elif "orders" in data:
             warnings.warn(
-                f"Trace file {self.savefile} uses old key 'orders'. "
+                f"Trace file {savefile} uses old key 'orders'. "
                 "Re-run the trace step to update the file format.",
                 DeprecationWarning,
                 stacklevel=2,

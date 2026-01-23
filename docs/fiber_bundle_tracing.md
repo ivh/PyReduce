@@ -172,7 +172,7 @@ Steps not listed in `use` default to `groups` when groups/bundles are defined.
 
 ## Output Format
 
-Tracing saves both raw and grouped traces to the `.ord_default.npz` file.
+Tracing saves both raw and grouped traces to the `.traces.npz` file.
 
 For per_order=False:
 ```

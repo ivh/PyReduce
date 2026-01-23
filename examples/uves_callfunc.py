@@ -23,9 +23,9 @@ from pyreduce.reduce import (
     Flat,
     Mask,
     NormalizeFlatField,
-    OrderTracing,
     ScienceExtraction,
     SlitCurvatureDetermination,
+    Trace,
     WavelengthCalibrationFinalize,
     WavelengthCalibrationInitialize,
     WavelengthCalibrationMaster,
@@ -120,18 +120,18 @@ flat = flat_step.run(flat_files, bias=bias, mask=mask)
 
 # Step 4: Order tracing
 print("\n=== TRACE ===")
-orders_step = OrderTracing(*step_args, **step_config("trace"))
-orders = orders_step.run(order_files, mask=mask, bias=bias)
+trace_step = Trace(*step_args, **step_config("trace"))
+traces = trace_step.run(order_files, mask=mask, bias=bias)
 
 # Step 5: Curvature
 print("\n=== CURVATURE ===")
 curvature_step = SlitCurvatureDetermination(*step_args, **step_config("curvature"))
-curvature = curvature_step.run(curvature_files, orders, mask=mask, bias=bias)
+curvature = curvature_step.run(curvature_files, traces, mask=mask, bias=bias)
 
 # Step 6: Normalize flat
 print("\n=== NORM_FLAT ===")
 norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
-norm_flat = norm_flat_step.run(flat, orders)
+norm_flat = norm_flat_step.run(flat, traces)
 
 # Step 7: Wavelength calibration (three sub-steps)
 print("\n=== WAVECAL ===")
@@ -140,7 +140,7 @@ wavecal_master_step = WavelengthCalibrationMaster(
 )
 wavecal_master = wavecal_master_step.run(
     wavecal_files,
-    orders,
+    traces,
     mask=mask,
     curvature=curvature,
     bias=bias,
@@ -163,7 +163,7 @@ print("\n=== SCIENCE ===")
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 science = science_step.run(
     science_files,
-    orders,
+    traces,
     bias=bias,
     norm_flat=norm_flat,
     curvature=curvature,

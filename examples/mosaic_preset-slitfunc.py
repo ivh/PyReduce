@@ -68,7 +68,7 @@ prefix = "mosaic_nir"
 # Load saved results from previous pipeline run
 print("\n=== Loading saved results ===")
 
-trace_file = join(output_dir, f"{prefix}.ord_default.npz")
+trace_file = join(output_dir, f"{prefix}.traces.npz")
 norm_file = join(output_dir, f"{prefix}.flat_norm.npz")
 curve_file = join(output_dir, f"{prefix}.curve.npz")
 

@@ -372,7 +372,7 @@ def make_step_command(step_name):
             step_classes = {
                 "bias": reduce_module.Bias,
                 "flat": reduce_module.Flat,
-                "trace": reduce_module.OrderTracing,
+                "trace": reduce_module.Trace,
                 "curvature": reduce_module.SlitCurvatureDetermination,
                 "scatter": reduce_module.BackgroundScatter,
                 "wavecal_master": reduce_module.WavelengthCalibrationMaster,
@@ -409,7 +409,7 @@ def make_step_command(step_name):
                     "mask": reduce_module.Mask,
                     "bias": reduce_module.Bias,
                     "flat": reduce_module.Flat,
-                    "trace": reduce_module.OrderTracing,
+                    "trace": reduce_module.Trace,
                     "curvature": reduce_module.SlitCurvatureDetermination,
                     "scatter": reduce_module.BackgroundScatter,
                     "norm_flat": reduce_module.NormalizeFlatField,

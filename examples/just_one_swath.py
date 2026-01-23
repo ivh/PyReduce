@@ -17,7 +17,7 @@ nrow, ncol = img.shape
 
 import warnings
 
-data = np.load(input_dir + "uves_middle.ord_default.npz", allow_pickle=True)
+data = np.load(input_dir + "uves_middle.traces.npz", allow_pickle=True)
 if "traces" in data:
     traces = data["traces"]
 elif "orders" in data:

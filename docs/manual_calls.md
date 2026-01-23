@@ -16,7 +16,7 @@ instantiate these classes directly and call their `run()` method with the
 required inputs.
 
 ```python
-from pyreduce.reduce import Bias, Flat, OrderTracing, ...
+from pyreduce.reduce import Bias, Flat, Trace, ...
 
 # Create step instance
 bias_step = Bias(instrument, channel, target, night, output_dir, trace_range, **config)
@@ -47,7 +47,7 @@ from pyreduce.reduce import (
     Flat,
     Mask,
     NormalizeFlatField,
-    OrderTracing,
+    Trace,
     ScienceExtraction,
     SlitCurvatureDetermination,
     WavelengthCalibrationFinalize,
@@ -117,7 +117,7 @@ flat_step = Flat(*step_args, **step_config("flat"))
 flat = flat_step.run(flat_files, bias, mask)
 
 # Step 4: Trace
-trace_step = OrderTracing(*step_args, **step_config("trace"))
+trace_step = Trace(*step_args, **step_config("trace"))
 traces = trace_step.run(trace_files, mask, bias)
 
 # Step 5: Determine slit curvature
@@ -166,7 +166,7 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 | `Mask` | (none) |
 | `Bias` | files, mask |
 | `Flat` | files, bias, mask |
-| `OrderTracing` | files, mask, bias |
+| `Trace` | files, mask, bias |
 | `SlitCurvatureDetermination` | files, trace, mask, bias |
 | `NormalizeFlatField` | flat, trace, scatter, curvature |
 | `WavelengthCalibrationMaster` | files, trace, mask, curvature, bias, norm_flat |

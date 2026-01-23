@@ -281,8 +281,8 @@ class TestBiasStepSaveLoad:
         assert result == (None, None)
 
 
-class TestOrderTracingSaveLoad:
-    """Unit tests for OrderTracing step save/load."""
+class TestTraceSaveLoad:
+    """Unit tests for Trace step save/load."""
 
     @pytest.fixture
     def mock_instrument(self):
@@ -310,10 +310,10 @@ class TestOrderTracingSaveLoad:
             "border_width": 10,
             "manual": False,
         }
-        step = reduce.OrderTracing(
+        step = reduce.Trace(
             mock_instrument, "RED", "", "", str(tmp_path), None, **config
         )
-        assert step.savefile.endswith(".ord_default.npz")
+        assert step.savefile.endswith(".traces.npz")
 
     @pytest.mark.unit
     def test_trace_save_load_roundtrip(self, mock_instrument, tmp_path):
@@ -337,9 +337,7 @@ class TestOrderTracingSaveLoad:
             "border_width": 10,
             "manual": False,
         }
-        step = reduce.OrderTracing(
-            mock_instrument, "", "", "", str(tmp_path), None, **config
-        )
+        step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
 
         # Create fake trace data
         orders = np.array([[100.0, 0.01, 0.0], [200.0, 0.02, 0.0]])
