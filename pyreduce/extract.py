@@ -427,7 +427,10 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, ntrace, ignore_column_range=Fals
     else:
         xwd = np.asarray(xwd)
         if xwd.ndim == 1:
-            if len(xwd) == 2:
+            if len(xwd) == ntrace:
+                # Per-trace heights: each value is full height for one trace
+                xwd = np.array([[h / 2, h / 2] for h in xwd])
+            elif len(xwd) == 2:
                 # Deprecated [below, above] format - convert to full height
                 import warnings
 
@@ -437,7 +440,9 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, ntrace, ignore_column_range=Fals
                     DeprecationWarning,
                     stacklevel=4,
                 )
-            xwd = np.tile(xwd, (ntrace, 1))
+                xwd = np.tile(xwd, (ntrace, 1))
+            else:
+                xwd = np.tile(xwd, (ntrace, 1))
 
     if cr is None:
         cr = np.tile([0, ncol], (ntrace, 1))

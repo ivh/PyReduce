@@ -74,10 +74,16 @@ class FiberGroupConfig(BaseModel):
 
     Defines a range of physical fibers that form a logical group (e.g., "A", "cal", "B").
     The merged trace can be the average, center, or specific fiber(s) from the group.
+
+    The height parameter specifies extraction height for this group:
+    - float: explicit pixel value (or fraction if < 3)
+    - "derived": compute from trace positions as span + fiber_diameter
+    - None: use settings.json extraction_height (default)
     """
 
     range: tuple[int, int]  # [start, end) half-open interval, 1-based
     merge: str | list[int] = "center"  # "average", "center", or [indices]
+    height: float | Literal["derived"] | None = None
 
     model_config = ConfigDict(extra="forbid")
 

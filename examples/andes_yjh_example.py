@@ -62,7 +62,7 @@ LOAD_TRACE = True  # Set True to load traces from previous run
 
 if LOAD_TRACE:
     print("\nLoading traces from previous run...")
-    traces, column_range = pipe._run_step("trace", None, load_only=True)
+    traces, column_range, heights = pipe._run_step("trace", None, load_only=True)
     print(f"  Loaded {len(traces)} traces")
 
     # Re-run organize with current config (picks up any config changes)
@@ -71,11 +71,11 @@ if LOAD_TRACE:
 else:
     # Trace each flat independently
     print(f"\nTracing even fibers from {os.path.basename(file_even)}...")
-    traces_even, cr_even = pipe.trace_raw([file_even])
+    traces_even, cr_even, _ = pipe.trace_raw([file_even])
     print(f"  Found {len(traces_even)} traces")
 
     print(f"\nTracing odd fibers from {os.path.basename(file_odd)}...")
-    traces_odd, cr_odd = pipe.trace_raw([file_odd])
+    traces_odd, cr_odd, _ = pipe.trace_raw([file_odd])
     print(f"  Found {len(traces_odd)} traces")
 
     # Organize into fiber groups
@@ -84,7 +84,7 @@ else:
 
 # Access organized groups
 if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
-    group_traces, group_cr = pipe._data["trace_groups"]
+    group_traces, group_cr, group_heights = pipe._data["trace_groups"]
     print("Fiber groups:")
     for name, traces_dict in group_traces.items():
         n_traces = len(traces_dict)

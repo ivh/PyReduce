@@ -345,23 +345,34 @@ class Step:
 
         Parameters
         ----------
-        trace : tuple (traces, column_range)
+        trace : tuple (traces, column_range[, heights])
             Raw traces from Tracing step
         step_name : str
             Name of this step for fibers.use lookup
-        trace_groups : tuple (group_traces, group_cr), optional
+        trace_groups : tuple (group_traces, group_cr, group_heights), optional
             Grouped traces from Pipeline (if available)
 
         Returns
         -------
-        selected : dict[str, tuple[ndarray, ndarray]]
-            {group_name: (traces, column_range)} for each selected group
+        selected : dict[str, tuple[ndarray, ndarray, heights]]
+            {group_name: (traces, column_range, height)} for each selected group
+            height can be scalar, array, or None (use settings default)
         """
-        traces, column_range = trace
+        # Unpack trace tuple (heights is optional for backwards compat)
+        if len(trace) >= 3:
+            traces, column_range, raw_heights = trace[0], trace[1], trace[2]
+        else:
+            traces, column_range = trace
+            raw_heights = None
+
         group_traces = {}
         group_cr = {}
+        group_heights = {}
         if trace_groups is not None:
-            group_traces, group_cr = trace_groups
+            if len(trace_groups) >= 3:
+                group_traces, group_cr, group_heights = trace_groups[:3]
+            elif len(trace_groups) == 2:
+                group_traces, group_cr = trace_groups
         fibers_config = getattr(self.instrument.config, "fibers", None)
         return select_traces_for_step(
             traces,
@@ -370,6 +381,8 @@ class Step:
             group_cr,
             fibers_config,
             step_name,
+            group_heights,
+            raw_heights,
         )
 
 
@@ -449,7 +462,7 @@ class ExtractionStep(Step):
             )
 
     def extract(self, img, head, trace, curvature, scatter=None):
-        traces, column_range = trace if trace is not None else (None, None)
+        traces, column_range = trace[:2] if trace is not None else (None, None)
         p1, p2 = curvature if curvature is not None else (None, None)
 
         data, unc, slitfu, cr = extract(
@@ -815,10 +828,14 @@ class Trace(CalibrationStep):
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
+        # Per-trace heights (populated by run() or load())
+        self.heights = None
+
         # Fiber organization data (populated by run() or load())
         self.group_traces = None
         self.group_column_range = None
         self.group_fiber_counts = None
+        self.group_heights = None
 
     @property
     def savefile(self):
@@ -854,7 +871,7 @@ class Trace(CalibrationStep):
 
         trace_img, ohead = self.calibrate(files, mask, bias, None)
 
-        traces, column_range = mark_orders(
+        traces, column_range, heights = mark_orders(
             trace_img,
             min_cluster=self.min_cluster,
             min_width=self.min_width,
@@ -876,6 +893,7 @@ class Trace(CalibrationStep):
             plot=self.plot,
             plot_title=self.plot_title,
         )
+        self.heights = heights
 
         # Organize fibers into groups if configured
         fibers_config = getattr(self.instrument.config, "fibers", None)
@@ -884,18 +902,23 @@ class Trace(CalibrationStep):
         ):
             logger.info("Organizing %d traces into fiber groups", len(traces))
             inst_dir = getattr(self.instrument, "_inst_dir", None)
-            self.group_traces, self.group_column_range, self.group_fiber_counts = (
-                organize_fibers(
-                    traces,
-                    column_range,
-                    fibers_config,
-                    self.fit_degree,
-                    inst_dir,
-                    channel=self.channel,
-                )
+            (
+                self.group_traces,
+                self.group_column_range,
+                self.group_fiber_counts,
+                self.group_heights,
+            ) = organize_fibers(
+                traces,
+                column_range,
+                fibers_config,
+                self.fit_degree,
+                inst_dir,
+                channel=self.channel,
             )
             for name, count in self.group_fiber_counts.items():
-                logger.info("  Group %s: %d fibers", name, count)
+                height = self.group_heights.get(name)
+                height_str = f", height={height:.1f}px" if height else ""
+                logger.info("  Group %s: %d fibers%s", name, count, height_str)
 
         self.save(traces, column_range)
 
@@ -913,6 +936,10 @@ class Trace(CalibrationStep):
         """
         save_data = {"traces": traces, "column_range": column_range}
 
+        # Save per-trace heights
+        if self.heights is not None:
+            save_data["heights"] = self.heights
+
         # Save grouped traces if available
         if self.group_traces is not None:
             save_data["group_names"] = list(self.group_traces.keys())
@@ -920,6 +947,12 @@ class Trace(CalibrationStep):
                 save_data[f"group_{name}_traces"] = group_traces
                 save_data[f"group_{name}_cr"] = self.group_column_range[name]
                 save_data[f"group_{name}_count"] = self.group_fiber_counts[name]
+                # Save height (may be None)
+                if self.group_heights is not None:
+                    height = self.group_heights.get(name)
+                    save_data[f"group_{name}_height"] = (
+                        height if height is not None else np.nan
+                    )
 
         os.makedirs(os.path.dirname(self.savefile), exist_ok=True)
         np.savez(self.savefile, **save_data)
@@ -961,12 +994,19 @@ class Trace(CalibrationStep):
             raise KeyError("Trace file missing 'traces' key")
         column_range = data["column_range"]
 
+        # Load per-trace heights (backwards compat: None if missing)
+        if "heights" in data:
+            self.heights = data["heights"]
+        else:
+            self.heights = None
+
         # Load grouped traces if available
         if "group_names" in data:
             group_names = list(data["group_names"])
             self.group_traces = {}
             self.group_column_range = {}
             self.group_fiber_counts = {}
+            self.group_heights = {}
             for name in group_names:
                 # .item() extracts dict from 0-dim numpy array
                 group_data = data[f"group_{name}_traces"]
@@ -976,6 +1016,13 @@ class Trace(CalibrationStep):
                 cr = data[f"group_{name}_cr"]
                 self.group_column_range[name] = cr.item() if cr.shape == () else cr
                 self.group_fiber_counts[name] = int(data[f"group_{name}_count"])
+                # Load height (may be nan for None)
+                height_key = f"group_{name}_height"
+                if height_key in data:
+                    h = float(data[height_key])
+                    self.group_heights[name] = None if np.isnan(h) else h
+                else:
+                    self.group_heights[name] = None
             logger.info("Loaded %d fiber groups", len(group_names))
 
         return traces, column_range
@@ -1009,6 +1056,8 @@ class Trace(CalibrationStep):
             self.group_column_range or {},
             fibers_config,
             step_name,
+            self.group_heights or {},
+            self.heights,
         )
 
 
@@ -1038,8 +1087,8 @@ class BackgroundScatter(CalibrationStep):
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "scatter", trace_groups)
         # Stack all selected groups (typically just one)
-        all_traces = [tr for tr, _ in selected.values()]
-        all_cr = [cr for _, cr in selected.values()]
+        all_traces = [tr for tr, _, _ in selected.values()]
+        all_cr = [cr for _, cr, _ in selected.values()]
         traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         scatter = estimate_background_scatter(
@@ -1151,11 +1200,52 @@ class NormalizeFlatField(Step):
         flat, fhead = flat
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "norm_flat", trace_groups)
-        all_traces = [tr for tr, _ in selected.values()]
-        all_cr = [cr for _, cr in selected.values()]
+        all_traces = [tr for tr, _, _ in selected.values()]
+        all_cr = [cr for _, cr, _ in selected.values()]
         traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         p1, p2 = curvature if curvature is not None else (None, None)
+
+        # Build per-trace extraction heights
+        # Priority: group height > raw height from trace > setting default
+        extraction_kwargs = dict(self.extraction_kwargs)
+        default_height = extraction_kwargs.get("extraction_height")
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces_in_group = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                # height is an array (per-trace heights from trace file)
+                per_trace_heights.extend(height[:n_traces_in_group])
+            elif height is not None:
+                # height is a scalar (group height)
+                per_trace_heights.extend([height] * n_traces_in_group)
+            elif default_height is not None:
+                # Fall back to setting
+                per_trace_heights.extend([default_height] * n_traces_in_group)
+            else:
+                # No height available - use None (extract will error or use its default)
+                per_trace_heights.extend([None] * n_traces_in_group)
+
+        # Use per-trace heights if we have any non-None values from trace data
+        has_trace_heights = any(h is not None for _, _, h in selected.values())
+        if has_trace_heights and default_height is None:
+            extraction_kwargs["extraction_height"] = per_trace_heights
+            logger.info("Using extraction heights from trace file")
+        elif has_trace_heights:
+            extraction_kwargs["extraction_height"] = per_trace_heights
+            logger.info(
+                "Using per-group extraction heights: %s",
+                {
+                    name: h
+                    for name, (_, _, h) in selected.items()
+                    if h is not None and not hasattr(h, "__len__")
+                },
+            )
 
         # if threshold is smaller than 1, assume percentage value is given
         if self.threshold <= 1:
@@ -1179,7 +1269,7 @@ class NormalizeFlatField(Step):
             p2=p2,
             plot=self.plot,
             plot_title=self.plot_title,
-            **self.extraction_kwargs,
+            **extraction_kwargs,
         )
 
         blaze = np.ma.filled(blaze, 0)
@@ -1194,8 +1284,8 @@ class NormalizeFlatField(Step):
         else:
             trace_range = self.trace_range
         slitfunc_meta = {
-            "extraction_height": self.extraction_kwargs["extraction_height"],
-            "osample": self.extraction_kwargs["osample"],
+            "extraction_height": extraction_kwargs["extraction_height"],
+            "osample": extraction_kwargs["osample"],
             "trace_range": trace_range,
             "n_traces_selected": n_traces,
         }
@@ -1323,8 +1413,8 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         logger.info("Wavelength calibration files: %s", files)
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "wavecal_master", trace_groups)
-        all_traces = [tr for tr, _ in selected.values()]
-        all_cr = [cr for _, cr in selected.values()]
+        all_traces = [tr for tr, _, _ in selected.values()]
+        all_cr = [cr for _, cr, _ in selected.values()]
         selected_traces = np.vstack(all_traces)
         selected_cr = np.vstack(all_cr)
         selected_trace = (selected_traces, selected_cr)
@@ -1814,8 +1904,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "curvature", trace_groups)
-        all_traces = [tr for tr, _ in selected.values()]
-        all_cr = [cr for _, cr in selected.values()]
+        all_traces = [tr for tr, _, _ in selected.values()]
+        all_cr = [cr for _, cr, _ in selected.values()]
         traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
         nrow, ncol = orig.shape
@@ -1895,7 +1985,7 @@ class RectifyImage(Step):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
     def run(self, files, trace, curvature=None, mask=None, freq_comb=None):
-        traces, column_range = trace
+        traces, column_range = trace[:2]
         p1, p2 = curvature if curvature is not None else (None, None)
         wave = freq_comb
 
@@ -1972,6 +2062,31 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
+    def _extract_with_kwargs(
+        self, img, head, trace, curvature, scatter, extraction_kwargs
+    ):
+        """Extract with custom extraction kwargs (for per-group heights)."""
+        traces, column_range = trace[:2] if trace is not None else (None, None)
+        p1, p2 = curvature if curvature is not None else (None, None)
+
+        data, unc, slitfu, cr = extract(
+            img,
+            traces,
+            gain=head["e_gain"],
+            readnoise=head["e_readn"],
+            dark=head["e_drk"],
+            column_range=column_range,
+            extraction_type=self.extraction_method,
+            trace_range=self.trace_range,
+            plot=self.plot,
+            plot_title=self.plot_title,
+            p1=p1,
+            p2=p2,
+            scatter=scatter,
+            **extraction_kwargs,
+        )
+        return data, unc, slitfu, cr
+
     def run(
         self,
         files,
@@ -2019,11 +2134,52 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "science", trace_groups)
-        all_traces = [tr for tr, _ in selected.values()]
-        all_cr = [cr for _, cr in selected.values()]
+        all_traces = [tr for tr, _, _ in selected.values()]
+        all_cr = [cr for _, cr, _ in selected.values()]
         selected_traces = np.vstack(all_traces)
         selected_cr = np.vstack(all_cr)
         selected_trace = (selected_traces, selected_cr)
+
+        # Build per-trace extraction heights
+        # Priority: group height > raw height from trace > setting default
+        default_height = self.extraction_kwargs.get("extraction_height")
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces_in_group = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                # height is an array (per-trace heights from trace file)
+                per_trace_heights.extend(height[:n_traces_in_group])
+            elif height is not None:
+                # height is a scalar (group height)
+                per_trace_heights.extend([height] * n_traces_in_group)
+            elif default_height is not None:
+                # Fall back to setting
+                per_trace_heights.extend([default_height] * n_traces_in_group)
+            else:
+                # No height available - use None (extract will error or use its default)
+                per_trace_heights.extend([None] * n_traces_in_group)
+
+        # Use per-trace heights if we have any non-None values from trace data
+        has_trace_heights = any(h is not None for _, _, h in selected.values())
+        extraction_kwargs = dict(self.extraction_kwargs)
+        if has_trace_heights and default_height is None:
+            extraction_kwargs["extraction_height"] = per_trace_heights
+            logger.info("Using extraction heights from trace file")
+        elif has_trace_heights:
+            extraction_kwargs["extraction_height"] = per_trace_heights
+            logger.info(
+                "Using per-group extraction heights: %s",
+                {
+                    name: h
+                    for name, (_, _, h) in selected.items()
+                    if h is not None and not hasattr(h, "__len__")
+                },
+            )
 
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in tqdm(files, desc="Files"):
@@ -2036,11 +2192,11 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
                 norm_flat,
                 traces=selected_traces,
                 column_range=selected_cr,
-                extraction_height=self.extraction_kwargs.get("extraction_height"),
+                extraction_height=extraction_kwargs.get("extraction_height"),
             )
             # Optimally extract science spectrum
-            spec, sigma, slitfu, cr = self.extract(
-                im, head, selected_trace, curvature, scatter=scatter
+            spec, sigma, slitfu, cr = self._extract_with_kwargs(
+                im, head, selected_trace, curvature, scatter, extraction_kwargs
             )
 
             # make slitfus from swaths into one

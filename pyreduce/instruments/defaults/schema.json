@@ -220,10 +220,11 @@
                             }
                         },
                         "extraction_height": {
-                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing. If null, uses heights computed from trace spacing.",
                             "type": [
                                 "integer",
-                                "number"
+                                "number",
+                                "null"
                             ],
                             "items": {
                                 "type": [
@@ -528,10 +529,11 @@
                     "type": "object",
                     "properties": {
                         "extraction_height": {
-                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing. If null, uses heights computed from trace spacing.",
                             "type": [
                                 "integer",
-                                "number"
+                                "number",
+                                "null"
                             ],
                             "items": {
                                 "type": [
@@ -645,10 +647,11 @@
                             "minimum": 3
                         },
                         "extraction_height": {
-                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing. If null, uses heights computed from trace spacing.",
                             "type": [
                                 "integer",
-                                "number"
+                                "number",
+                                "null"
                             ],
                             "items": {
                                 "type": [
@@ -675,10 +678,11 @@
                             ]
                         },
                         "extraction_height": {
-                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing.",
+                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing. If null, uses heights computed from trace spacing.",
                             "type": [
                                 "integer",
-                                "number"
+                                "number",
+                                "null"
                             ],
                             "items": {
                                 "type": [

@@ -82,31 +82,40 @@ fibers:
     A:
       range: [1, 36]
       merge: average
+      height: derived
     cal:
       range: [37, 40]
       merge: average
+      height: derived
     B:
       range: [40, 76]
       merge: average
+      height: derived
     # IFU rings (fiber 1,75=cal, 2=gap, gaps between rings)
     ifu:
       range: [3, 74]
       merge: average
+      height: derived
     ring0:
       range: [3, 4]
       merge: average
+      height: derived
     ring1:
       range: [6, 17]
       merge: average
+      height: derived
     ring2:
       range: [18, 30]
       merge: average
+      height: derived
     ring3:
       range: [31, 49]
       merge: average
+      height: derived
     ring4:
       range: [50, 74]
       merge: average
+      height: derived
   use:
     science: [A, B]
     wavecal: [cal]

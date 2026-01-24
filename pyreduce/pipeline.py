@@ -234,7 +234,7 @@ class Pipeline:
 
         order_img, _ = step.calibrate(files, mask, bias, None)
 
-        traces, column_range = trace_func(
+        traces, column_range, heights = trace_func(
             order_img,
             min_cluster=step.min_cluster,
             min_width=step.min_width,
@@ -257,7 +257,7 @@ class Pipeline:
             plot_title=step.plot_title,
         )
 
-        return traces, column_range
+        return traces, column_range, heights
 
     def organize(self, traces, column_range, *more) -> Pipeline:
         """Organize traces into fiber groups based on instrument config.
@@ -299,8 +299,19 @@ class Pipeline:
             traces = np.vstack(all_traces)
             column_range = np.vstack(all_cr)
 
-        # Store as trace result
-        self._data["trace"] = (traces, column_range)
+        # Compute per-trace heights
+        from .trace import compute_trace_heights
+
+        ncol = traces.shape[1] if hasattr(traces, "shape") else 4096  # fallback
+        # Get ncol from instrument if available
+        if hasattr(self.instrument, "config") and hasattr(
+            self.instrument.config, "naxis"
+        ):
+            ncol = self.instrument.config.naxis[0]
+        heights = compute_trace_heights(traces, column_range, ncol)
+
+        # Store as trace result (with heights)
+        self._data["trace"] = (traces, column_range, heights)
 
         # Get config and context
         fibers_config = getattr(self.instrument.config, "fibers", None)
@@ -311,13 +322,14 @@ class Pipeline:
 
         # Organize into fiber groups if configured
         group_counts = {}
+        group_heights = {}
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
             from .trace import organize_fibers
 
             logger.info("Organizing %d traces into fiber groups", len(traces))
-            group_traces, group_cr, group_counts = organize_fibers(
+            group_traces, group_cr, group_counts, group_heights = organize_fibers(
                 traces,
                 column_range,
                 fibers_config,
@@ -325,16 +337,21 @@ class Pipeline:
                 inst_dir,
                 channel=self.channel,
             )
-            self._data["trace_groups"] = (group_traces, group_cr)
+            self._data["trace_groups"] = (group_traces, group_cr, group_heights)
 
             for name, count in group_counts.items():
-                logger.info("  Group %s: %d fibers", name, count)
+                height = group_heights.get(name)
+                height_str = f", height={height:.1f}px" if height else ""
+                logger.info("  Group %s: %d fibers%s", name, count, height_str)
 
         # Save to disk
         step_config["plot"] = self.plot
         step = Trace(*self._get_step_inputs(), **step_config)
-        step.group_traces = self._data.get("trace_groups", (None, None))[0]
-        step.group_column_range = self._data.get("trace_groups", (None, None))[1]
+        trace_groups = self._data.get("trace_groups", (None, None, None))
+        step.group_traces = trace_groups[0]
+        step.group_column_range = trace_groups[1]
+        step.group_heights = trace_groups[2] if len(trace_groups) > 2 else {}
+        step.heights = heights
         step.group_fiber_counts = group_counts
         step.save(traces, column_range)
 
@@ -454,15 +471,19 @@ class Pipeline:
                 logger.info("Loading data from step '%s'", name)
                 result = step.load(**dep_args)
                 # Store fiber group traces if loaded (from Trace)
-                if (
-                    name == "trace"
-                    and hasattr(step, "group_traces")
-                    and step.group_traces
-                ):
-                    self._data["trace_groups"] = (
-                        step.group_traces,
-                        step.group_column_range,
-                    )
+                # Heights are stored in the trace tuple itself
+                if name == "trace":
+                    # Augment trace result with heights
+                    if hasattr(step, "heights") and step.heights is not None:
+                        traces, column_range = result
+                        result = (traces, column_range, step.heights)
+                        self._data["trace"] = result
+                    if hasattr(step, "group_traces") and step.group_traces:
+                        self._data["trace_groups"] = (
+                            step.group_traces,
+                            step.group_column_range,
+                            step.group_heights or {},
+                        )
                 return result
             except FileNotFoundError:
                 if files is None:
@@ -481,8 +502,14 @@ class Pipeline:
         result = step.run(**dep_args)
 
         # Store fiber group traces if available (from Trace)
-        if name == "trace" and hasattr(step, "group_traces") and step.group_traces:
-            self._data["trace_groups"] = (step.group_traces, step.group_column_range)
+        # Heights are included in the trace result tuple
+        if name == "trace":
+            if hasattr(step, "group_traces") and step.group_traces:
+                self._data["trace_groups"] = (
+                    step.group_traces,
+                    step.group_column_range,
+                    step.group_heights or {},
+                )
 
         return result
 

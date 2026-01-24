@@ -57,6 +57,99 @@ class TestWhittakerSmooth:
         assert np.std(d2_high) < np.std(d2_low)
 
 
+class TestComputeTraceHeights:
+    """Tests for compute_trace_heights function."""
+
+    @pytest.mark.unit
+    def test_evenly_spaced_traces(self):
+        """Test height computation for evenly spaced traces."""
+        # 5 traces spaced 20 pixels apart, constant across columns
+        traces = np.array(
+            [
+                [0.0, 0.0, 20.0],  # y = 20
+                [0.0, 0.0, 40.0],  # y = 40
+                [0.0, 0.0, 60.0],  # y = 60
+                [0.0, 0.0, 80.0],  # y = 80
+                [0.0, 0.0, 100.0],  # y = 100
+            ]
+        )
+        column_range = np.array([[0, 1000]] * 5)
+
+        heights = trace.compute_trace_heights(traces, column_range, ncol=1000)
+
+        assert len(heights) == 5
+        # First trace: distance to next neighbor = 20
+        assert heights[0] == pytest.approx(20.0, rel=0.01)
+        # Middle traces: half distance between neighbors = 20
+        assert heights[1] == pytest.approx(20.0, rel=0.01)
+        assert heights[2] == pytest.approx(20.0, rel=0.01)
+        assert heights[3] == pytest.approx(20.0, rel=0.01)
+        # Last trace: distance to previous neighbor = 20
+        assert heights[4] == pytest.approx(20.0, rel=0.01)
+
+    @pytest.mark.unit
+    def test_uneven_spacing(self):
+        """Test height computation for unevenly spaced traces."""
+        # Traces with varying spacing
+        traces = np.array(
+            [
+                [0.0, 0.0, 10.0],  # y = 10
+                [0.0, 0.0, 30.0],  # y = 30 (spacing 20 above)
+                [0.0, 0.0, 90.0],  # y = 90 (spacing 60 above)
+            ]
+        )
+        column_range = np.array([[0, 1000]] * 3)
+
+        heights = trace.compute_trace_heights(traces, column_range, ncol=1000)
+
+        # First: distance to next = 20
+        assert heights[0] == pytest.approx(20.0, rel=0.01)
+        # Middle: half distance between neighbors = (90-10)/2 = 40
+        assert heights[1] == pytest.approx(40.0, rel=0.01)
+        # Last: distance to prev = 60
+        assert heights[2] == pytest.approx(60.0, rel=0.01)
+
+    @pytest.mark.unit
+    def test_single_trace(self):
+        """Single trace should return NaN (no neighbors)."""
+        traces = np.array([[0.0, 0.0, 50.0]])
+        column_range = np.array([[0, 1000]])
+
+        heights = trace.compute_trace_heights(traces, column_range, ncol=1000)
+
+        assert len(heights) == 1
+        assert np.isnan(heights[0])
+
+    @pytest.mark.unit
+    def test_empty_traces(self):
+        """Empty traces should return empty array."""
+        traces = np.array([]).reshape(0, 3)
+        column_range = np.array([]).reshape(0, 2)
+
+        heights = trace.compute_trace_heights(traces, column_range, ncol=1000)
+
+        assert len(heights) == 0
+
+    @pytest.mark.unit
+    def test_varying_column_range(self):
+        """Height uses max across valid reference columns."""
+        # Trace with curvature: y varies across x
+        # y = 0.001*x + 50 (slight slope)
+        traces = np.array(
+            [
+                [0.001, 50.0],  # y = 0.001*x + 50
+                [0.001, 70.0],  # y = 0.001*x + 70
+            ]
+        )
+        column_range = np.array([[100, 900], [100, 900]])
+
+        heights = trace.compute_trace_heights(traces, column_range, ncol=1000)
+
+        # Spacing is constant at 20 pixels regardless of x
+        assert heights[0] == pytest.approx(20.0, rel=0.01)
+        assert heights[1] == pytest.approx(20.0, rel=0.01)
+
+
 class TestFit:
     """Tests for polynomial fitting functions."""
 
@@ -280,7 +373,7 @@ class TestOrganizeFibers:
         """Test organize_fibers with named groups using average merge."""
         traces, column_range = sample_traces
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, groups_config
         )
 
@@ -299,7 +392,7 @@ class TestOrganizeFibers:
             groups={"A": FiberGroupConfig(range=(1, 11), merge="center")}
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -312,7 +405,7 @@ class TestOrganizeFibers:
         """Test organize_fibers with bundle pattern."""
         traces, column_range = sample_traces
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, bundles_config
         )
 
@@ -359,7 +452,7 @@ class TestOrganizeFibers:
             groups={"A": FiberGroupConfig(range=(1, 11), merge=[1, 5, 10])}
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -396,7 +489,7 @@ class TestOrganizeFibers:
             },
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -450,7 +543,7 @@ class TestOrganizeFibers:
             )
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -506,7 +599,7 @@ class TestOrganizeFibers:
             )
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -550,7 +643,7 @@ class TestOrganizeFibers:
             )
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config, degree=2
         )
 
@@ -581,7 +674,7 @@ class TestOrganizeFibers:
             )
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces, column_range, config
         )
 
@@ -590,6 +683,52 @@ class TestOrganizeFibers:
         # Bundle 2 is empty
         assert group_counts["bundle_2"] == 0
         assert len(group_traces["bundle_2"]) == 0
+
+    @pytest.mark.unit
+    def test_organize_fibers_height_explicit(self, sample_traces):
+        """Test organize_fibers with explicit height."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 11), merge="center", height=50.0)}
+        )
+
+        _, _, _, group_heights = trace.organize_fibers(traces, column_range, config)
+
+        assert group_heights["A"] == 50.0
+
+    @pytest.mark.unit
+    def test_organize_fibers_height_derived(self, sample_traces):
+        """Test organize_fibers with derived height."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        # Traces are at y = 100, 110, 120, ..., 190 (spacing = 10)
+        # 10 fibers: span = 90, fiber_diameter = 10, total = 100
+        config = FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 11), merge="center", height="derived")
+            }
+        )
+
+        _, _, _, group_heights = trace.organize_fibers(traces, column_range, config)
+
+        assert group_heights["A"] == pytest.approx(100.0)
+
+    @pytest.mark.unit
+    def test_organize_fibers_height_none(self, sample_traces):
+        """Test organize_fibers with no height specified (default)."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, column_range = sample_traces
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 11), merge="center")}  # no height
+        )
+
+        _, _, _, group_heights = trace.organize_fibers(traces, column_range, config)
+
+        assert group_heights["A"] is None
 
 
 class TestSelectTracesForStep:
@@ -626,7 +765,7 @@ class TestSelectTracesForStep:
         result = trace.select_traces_for_step(traces, cr, {}, {}, None, "science")
 
         assert "all" in result
-        selected, selected_cr = result["all"]
+        selected, selected_cr, _ = result["all"]
         assert np.array_equal(selected, traces)
         assert np.array_equal(selected_cr, cr)
 
@@ -646,7 +785,7 @@ class TestSelectTracesForStep:
         )
 
         assert "all" in result
-        selected, _ = result["all"]
+        selected, _, _ = result["all"]
         assert np.array_equal(selected, traces)
 
     @pytest.mark.unit
@@ -666,7 +805,7 @@ class TestSelectTracesForStep:
 
         # "groups" stacks all into single "all" entry
         assert "all" in result
-        selected, _ = result["all"]
+        selected, _, _ = result["all"]
         # Should concatenate all groups (A and B)
         assert len(selected) == 2
 
@@ -688,7 +827,7 @@ class TestSelectTracesForStep:
         # Explicit list returns dict with named keys
         assert "A" in result
         assert len(result) == 1
-        selected, _ = result["A"]
+        selected, _, _ = result["A"]
         assert len(selected) == 1
 
     @pytest.mark.unit
@@ -708,7 +847,7 @@ class TestSelectTracesForStep:
 
         # Should default to "groups" when groups are defined
         assert "all" in result
-        selected, _ = result["all"]
+        selected, _, _ = result["all"]
         assert len(selected) == 2
 
     @pytest.mark.unit
@@ -769,8 +908,32 @@ class TestSelectTracesForStep:
         # Should return A with stacked traces from both orders
         assert "A" in result
         assert len(result) == 1
-        selected, _ = result["A"]
+        selected, _, _ = result["A"]
         assert len(selected) == 2  # 2 orders
+
+    @pytest.mark.unit
+    def test_select_traces_returns_height(self, raw_traces):
+        """Test that select_traces_for_step returns group heights."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces, cr = raw_traces
+        group_traces = {"A": np.array([[0.0, 0.0, 125.0]])}
+        group_cr = {"A": np.array([[10, 990]])}
+        group_heights = {"A": 42.0}
+
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 6), height=42.0)},
+            use={"science": ["A"]},
+        )
+
+        result = trace.select_traces_for_step(
+            traces, cr, group_traces, group_cr, config, "science", group_heights
+        )
+
+        # Should return height in tuple
+        assert "A" in result
+        _, _, height = result["A"]
+        assert height == 42.0
 
 
 class TestNoiseThreshold:
@@ -819,7 +982,7 @@ class TestNoiseThreshold:
             noise_relative=0,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) >= 1
 
         # With noise=150, signal should NOT be detected (100 < 150)
@@ -829,7 +992,7 @@ class TestNoiseThreshold:
             noise_relative=0,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) == 0
 
     @pytest.mark.unit
@@ -843,7 +1006,7 @@ class TestNoiseThreshold:
             noise_relative=0.05,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) >= 1
 
         # With noise_relative=0.15 (15%), signal should NOT be detected
@@ -853,7 +1016,7 @@ class TestNoiseThreshold:
             noise_relative=0.15,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) == 0
 
     @pytest.mark.unit
@@ -869,7 +1032,7 @@ class TestNoiseThreshold:
             noise_relative=0.05,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) >= 1
 
         # Threshold = 1000 * 1.08 + 30 = 1110
@@ -880,7 +1043,7 @@ class TestNoiseThreshold:
             noise_relative=0.08,
             manual=False,
         )
-        orders, column_range = result
+        orders, column_range, heights = result
         assert len(orders) == 0
 
 
@@ -912,7 +1075,7 @@ class TestChannelTemplateSubstitution:
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
         )
 
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces,
             column_range,
             config,
@@ -945,7 +1108,7 @@ class TestChannelTemplateSubstitution:
         )
 
         # Pass uppercase channel, should still find lowercase file
-        group_traces, group_cr, group_counts = trace.organize_fibers(
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
             traces,
             column_range,
             config,

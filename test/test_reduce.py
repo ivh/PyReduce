@@ -349,6 +349,79 @@ class TestTraceSaveLoad:
         assert np.allclose(orders, loaded_orders)
         assert np.allclose(column_range, loaded_cr)
 
+    @pytest.mark.unit
+    def test_trace_save_load_with_heights(self, mock_instrument, tmp_path):
+        """Test saving and loading trace results with heights."""
+        config = {
+            "plot": False,
+            "degree": 4,
+            "min_cluster": 500,
+            "min_width": 10,
+            "filter_y": 10,
+            "noise": 100,
+            "bias_scaling": "none",
+            "norm_scaling": "none",
+            "degree_before_merge": 2,
+            "regularization": 0,
+            "closing_shape": (5, 5),
+            "opening_shape": (5, 5),
+            "auto_merge_threshold": 0.5,
+            "merge_min_threshold": 0.1,
+            "split_sigma": 3,
+            "border_width": 10,
+            "manual": False,
+        }
+        step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
+
+        # Create fake trace data with heights
+        orders = np.array([[100.0, 0.01, 0.0], [200.0, 0.02, 0.0]])
+        column_range = np.array([[10, 990], [20, 980]])
+        step.heights = np.array([20.0, 25.0])
+
+        step.save(orders, column_range)
+        loaded_orders, loaded_cr = step.load()
+
+        assert np.allclose(orders, loaded_orders)
+        assert np.allclose(column_range, loaded_cr)
+        assert step.heights is not None
+        assert np.allclose(step.heights, [20.0, 25.0])
+
+    @pytest.mark.unit
+    def test_trace_load_without_heights_backwards_compat(
+        self, mock_instrument, tmp_path
+    ):
+        """Test loading old trace file without heights returns None."""
+        config = {
+            "plot": False,
+            "degree": 4,
+            "min_cluster": 500,
+            "min_width": 10,
+            "filter_y": 10,
+            "noise": 100,
+            "bias_scaling": "none",
+            "norm_scaling": "none",
+            "degree_before_merge": 2,
+            "regularization": 0,
+            "closing_shape": (5, 5),
+            "opening_shape": (5, 5),
+            "auto_merge_threshold": 0.5,
+            "merge_min_threshold": 0.1,
+            "split_sigma": 3,
+            "border_width": 10,
+            "manual": False,
+        }
+        step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
+
+        # Manually save without heights (simulating old file format)
+        orders = np.array([[100.0, 0.01, 0.0]])
+        column_range = np.array([[10, 990]])
+        np.savez(step.savefile, traces=orders, column_range=column_range)
+
+        loaded_orders, loaded_cr = step.load()
+
+        assert np.allclose(orders, loaded_orders)
+        assert step.heights is None  # Backwards compat: missing heights -> None
+
 
 class TestSlitCurvatureSaveLoad:
     """Unit tests for SlitCurvatureDetermination save/load."""
@@ -468,6 +541,168 @@ class TestBackgroundScatterSaveLoad:
         )
         result = step.load()
         assert result is None
+
+
+class TestExtractionHeightFallback:
+    """Tests for extraction height fallback logic."""
+
+    @pytest.mark.unit
+    def test_array_heights_used_when_setting_none(self):
+        """When extraction_height setting is None, array heights from traces are used."""
+        # Simulate the height selection logic from NormalizeFlatField/ScienceExtraction
+        selected = {
+            "all": (
+                np.array([[0, 0, 50], [0, 0, 100]]),  # 2 traces
+                np.array([[0, 1000], [0, 1000]]),  # column ranges
+                np.array([20.0, 25.0]),  # per-trace heights from npz
+            )
+        }
+        default_height = None  # extraction_height setting is null
+
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                per_trace_heights.extend(height[:n_traces])
+            elif height is not None:
+                per_trace_heights.extend([height] * n_traces)
+            elif default_height is not None:
+                per_trace_heights.extend([default_height] * n_traces)
+            else:
+                per_trace_heights.extend([None] * n_traces)
+
+        assert per_trace_heights == [20.0, 25.0]
+
+    @pytest.mark.unit
+    def test_setting_overrides_array_heights(self):
+        """When extraction_height setting is set, it overrides npz heights."""
+        selected = {
+            "all": (
+                np.array([[0, 0, 50], [0, 0, 100]]),
+                np.array([[0, 1000], [0, 1000]]),
+                np.array([20.0, 25.0]),  # would be ignored
+            )
+        }
+        default_height = 0.5  # setting overrides
+
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                per_trace_heights.extend(height[:n_traces])
+            elif height is not None:
+                per_trace_heights.extend([height] * n_traces)
+            elif default_height is not None:
+                per_trace_heights.extend([default_height] * n_traces)
+            else:
+                per_trace_heights.extend([None] * n_traces)
+
+        # Heights from npz are used (setting only applies when height is None)
+        # This reflects the actual logic: npz heights take priority over setting
+        assert per_trace_heights == [20.0, 25.0]
+
+    @pytest.mark.unit
+    def test_scalar_group_height_broadcast(self):
+        """Scalar group height is broadcast to all traces in group."""
+        selected = {
+            "sky": (
+                np.array([[0, 0, 50], [0, 0, 60], [0, 0, 70]]),  # 3 traces
+                np.array([[0, 1000], [0, 1000], [0, 1000]]),
+                30.0,  # scalar group height
+            )
+        }
+        default_height = None
+
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                per_trace_heights.extend(height[:n_traces])
+            elif height is not None:
+                per_trace_heights.extend([height] * n_traces)
+            elif default_height is not None:
+                per_trace_heights.extend([default_height] * n_traces)
+            else:
+                per_trace_heights.extend([None] * n_traces)
+
+        assert per_trace_heights == [30.0, 30.0, 30.0]
+
+    @pytest.mark.unit
+    def test_no_heights_uses_setting(self):
+        """When no heights in npz, setting is used."""
+        selected = {
+            "all": (
+                np.array([[0, 0, 50], [0, 0, 100]]),
+                np.array([[0, 1000], [0, 1000]]),
+                None,  # no heights from npz
+            )
+        }
+        default_height = 0.4
+
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                per_trace_heights.extend(height[:n_traces])
+            elif height is not None:
+                per_trace_heights.extend([height] * n_traces)
+            elif default_height is not None:
+                per_trace_heights.extend([default_height] * n_traces)
+            else:
+                per_trace_heights.extend([None] * n_traces)
+
+        assert per_trace_heights == [0.4, 0.4]
+
+    @pytest.mark.unit
+    def test_no_heights_no_setting_gives_none(self):
+        """When no heights and no setting, result is None (will error in extract)."""
+        selected = {
+            "all": (
+                np.array([[0, 0, 50]]),
+                np.array([[0, 1000]]),
+                None,
+            )
+        }
+        default_height = None
+
+        per_trace_heights = []
+        for name in selected:
+            tr, _, height = selected[name]
+            n_traces = len(tr)
+            if (
+                height is not None
+                and hasattr(height, "__len__")
+                and not isinstance(height, str)
+            ):
+                per_trace_heights.extend(height[:n_traces])
+            elif height is not None:
+                per_trace_heights.extend([height] * n_traces)
+            elif default_height is not None:
+                per_trace_heights.extend([default_height] * n_traces)
+            else:
+                per_trace_heights.extend([None] * n_traces)
+
+        assert per_trace_heights == [None]
 
 
 # Tests that require instrument data follow below

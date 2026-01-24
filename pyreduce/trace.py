@@ -37,6 +37,76 @@ from . import util
 logger = logging.getLogger(__name__)
 
 
+def compute_trace_heights(traces, column_range, ncol):
+    """Compute extraction heights for each trace based on neighbor distances.
+
+    For each trace, measures the distance to neighbors at multiple reference
+    columns (0.1, 0.2, ..., 0.9 of detector width) and uses the maximum.
+
+    Parameters
+    ----------
+    traces : array (ntrace, degree+1)
+        Polynomial coefficients for each trace
+    column_range : array (ntrace, 2)
+        Column range [start, end) for each trace
+    ncol : int
+        Number of columns in detector
+
+    Returns
+    -------
+    heights : array (ntrace,)
+        Extraction height in pixels for each trace. None values represented as NaN
+        for traces with no neighbors (single trace case).
+    """
+    ntrace = len(traces)
+    if ntrace == 0:
+        return np.array([])
+
+    if ntrace == 1:
+        # Single trace: no neighbors, return NaN (will need explicit setting)
+        return np.array([np.nan])
+
+    # Reference columns at 0.1, 0.2, ..., 0.9 of detector width
+    ref_fractions = np.linspace(0.1, 0.9, 9)
+    ref_cols = (ref_fractions * ncol).astype(int)
+
+    heights = np.zeros(ntrace)
+
+    for i in range(ntrace):
+        # Determine which reference columns are within this trace's range
+        valid_cols = ref_cols[
+            (ref_cols >= column_range[i, 0]) & (ref_cols < column_range[i, 1])
+        ]
+        if len(valid_cols) == 0:
+            # Fall back to midpoint of column range
+            valid_cols = [(column_range[i, 0] + column_range[i, 1]) // 2]
+
+        max_height = 0.0
+
+        for x in valid_cols:
+            y_i = np.polyval(traces[i], x)
+
+            if i == 0:
+                # First trace: use distance to next neighbor only
+                y_next = np.polyval(traces[i + 1], x)
+                height = abs(y_next - y_i)
+            elif i == ntrace - 1:
+                # Last trace: use distance to previous neighbor only
+                y_prev = np.polyval(traces[i - 1], x)
+                height = abs(y_i - y_prev)
+            else:
+                # Middle trace: half distance between neighbors
+                y_prev = np.polyval(traces[i - 1], x)
+                y_next = np.polyval(traces[i + 1], x)
+                height = (y_next - y_prev) / 2
+
+            max_height = max(max_height, height)
+
+        heights[i] = max_height
+
+    return heights
+
+
 def whittaker_smooth(y, lam, axis=0):
     """Whittaker smoother (optimal filter).
 
@@ -517,6 +587,11 @@ def trace(
     -------
     traces : array[ntrace, opower+1]
         trace polynomial coefficients (in numpy order, i.e. largest exponent first)
+    column_range : array[ntrace, 2]
+        first and last(+1) column that carries signal in each trace
+    heights : array[ntrace]
+        extraction height in pixels for each trace, computed from neighbor distances.
+        NaN for single-trace case (requires explicit extraction_height setting).
     """
 
     # Convert to signed integer, to avoid underflow problems
@@ -884,10 +959,13 @@ def trace(
 
     column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
 
+    # Compute extraction heights based on trace spacing
+    heights = compute_trace_heights(traces, column_range, im.shape[1])
+
     if plot:  # pragma: no cover
         plot_traces(im, x, y, n, traces, column_range, title=plot_title)
 
-    return traces, column_range
+    return traces, column_range, heights
 
 
 def merge_traces(
@@ -1342,6 +1420,62 @@ def _assign_traces_to_orders(traces, column_range, order_centers):
     return result
 
 
+def _compute_group_height(fiber_traces, fiber_cr, group_config):
+    """Compute extraction height for a fiber group.
+
+    Parameters
+    ----------
+    fiber_traces : ndarray (n_fibers, degree+1)
+        Polynomial coefficients for fibers in this group
+    fiber_cr : ndarray (n_fibers, 2)
+        Column range for each fiber
+    group_config : FiberGroupConfig
+        Configuration for this group including height specification
+
+    Returns
+    -------
+    height : float or None
+        Extraction height in pixels, or None to use settings.json default
+    """
+    if group_config.height is None:
+        return None
+
+    if group_config.height == "derived":
+        n_fibers = len(fiber_traces)
+        if n_fibers < 2:
+            logger.warning(
+                "Cannot derive height from %d fiber(s), using default", n_fibers
+            )
+            return None
+
+        # Evaluate traces at column center
+        col_min = int(np.max(fiber_cr[:, 0]))
+        col_max = int(np.min(fiber_cr[:, 1]))
+        x_center = (col_min + col_max) // 2
+
+        y_positions = np.array([np.polyval(t, x_center) for t in fiber_traces])
+        y_positions.sort()
+
+        # Fiber diameter = median spacing between adjacent traces
+        spacings = np.diff(y_positions)
+        fiber_diameter = np.median(spacings)
+
+        # Total height = span + one fiber diameter (to include full edge fibers)
+        span = y_positions[-1] - y_positions[0]
+        height = span + fiber_diameter
+
+        logger.debug(
+            "Derived group height: span=%.1f + diameter=%.1f = %.1f px",
+            span,
+            fiber_diameter,
+            height,
+        )
+        return height
+
+    # Explicit numeric value
+    return float(group_config.height)
+
+
 def organize_fibers(
     traces, column_range, fibers_config, degree=4, instrument_dir=None, channel=None
 ):
@@ -1377,11 +1511,14 @@ def organize_fibers(
         Same structure as group_traces but with column ranges
     group_fiber_counts : dict[str, int]
         Number of physical fibers in each group (per order if per_order=True)
+    group_heights : dict[str, float | None]
+        Extraction height for each group (None means use settings.json default)
     """
     n_fibers = len(traces)
     group_traces = {}
     group_column_range = {}
     group_fiber_counts = {}
+    group_heights = {}
 
     # Handle per-order grouping
     if fibers_config.per_order:
@@ -1414,6 +1551,7 @@ def organize_fibers(
                 group_traces[name] = {}
                 group_column_range[name] = {}
                 group_fiber_counts[name] = 0
+                group_heights[name] = None  # Will be set from first order
 
                 for m, (order_tr, order_cr) in sorted(order_traces.items()):
                     start, end = group_cfg.range
@@ -1438,6 +1576,12 @@ def organize_fibers(
 
                     fiber_tr = order_tr[start_idx:end_idx]
                     fiber_cr = order_cr[start_idx:end_idx]
+
+                    # Compute group height from raw fiber traces (only once)
+                    if group_heights[name] is None:
+                        group_heights[name] = _compute_group_height(
+                            fiber_tr, fiber_cr, group_cfg
+                        )
 
                     merged_tr, merged_cr = _merge_fiber_traces(
                         fiber_tr, fiber_cr, group_cfg.merge, degree
@@ -1467,6 +1611,7 @@ def organize_fibers(
                         group_traces[name] = {}
                         group_column_range[name] = {}
                         group_fiber_counts[name] = bundle_size
+                        group_heights[name] = None  # Bundles use settings.json default
 
                     start_idx = i * bundle_size
                     end_idx = (i + 1) * bundle_size
@@ -1481,7 +1626,7 @@ def organize_fibers(
                     group_traces[name][m] = merged_tr
                     group_column_range[name][m] = merged_cr
 
-        return group_traces, group_column_range, group_fiber_counts
+        return group_traces, group_column_range, group_fiber_counts, group_heights
 
     # Non-per-order grouping (original behavior)
     if fibers_config.groups is not None:
@@ -1506,6 +1651,9 @@ def organize_fibers(
             group_tr = traces[start_idx:end_idx]
             group_cr = column_range[start_idx:end_idx]
             n_in_group = len(group_tr)
+
+            # Compute group height from raw fiber traces before merging
+            group_heights[name] = _compute_group_height(group_tr, group_cr, group_cfg)
 
             merged_tr, merged_cr = _merge_fiber_traces(
                 group_tr, group_cr, group_cfg.merge, degree
@@ -1558,6 +1706,7 @@ def organize_fibers(
                 group_traces[name] = merged_tr
                 group_column_range[name] = merged_cr
                 group_fiber_counts[name] = n_in_bundle
+                group_heights[name] = None  # Bundles use settings.json default
 
             # Also handle bundles with zero traces (all fibers missing)
             for bundle_id in bundle_centers:
@@ -1567,6 +1716,7 @@ def organize_fibers(
                     group_traces[name] = np.empty((0, degree + 1))
                     group_column_range[name] = np.empty((0, 2))
                     group_fiber_counts[name] = 0
+                    group_heights[name] = None
 
         else:
             # Fixed-size division (original behavior, requires exact divisibility)
@@ -1598,8 +1748,9 @@ def organize_fibers(
                 group_traces[name] = merged_tr
                 group_column_range[name] = merged_cr
                 group_fiber_counts[name] = bundle_size
+                group_heights[name] = None  # Bundles use settings.json default
 
-    return group_traces, group_column_range, group_fiber_counts
+    return group_traces, group_column_range, group_fiber_counts, group_heights
 
 
 def _stack_per_order_traces(order_dict):
@@ -1618,6 +1769,8 @@ def select_traces_for_step(
     group_cr,
     fibers_config,
     step_name,
+    group_heights=None,
+    raw_heights=None,
 ):
     """Select which traces to use for a given reduction step.
 
@@ -1639,20 +1792,28 @@ def select_traces_for_step(
         Fiber configuration (may be None for single-fiber instruments)
     step_name : str
         Name of the reduction step (e.g., "science", "curvature")
+    group_heights : dict[str, float | None], optional
+        Extraction heights per group from organize_fibers()
+    raw_heights : ndarray (n_fibers,), optional
+        Per-trace extraction heights from trace step
 
     Returns
     -------
-    selected : dict[str, tuple[ndarray, ndarray]]
-        {group_name: (traces, column_range)} for each selected group
-        For "all" or "groups" selection, returns {"all": (traces, cr)}
+    selected : dict[str, tuple[ndarray, ndarray, heights]]
+        {group_name: (traces, column_range, height)} for each selected group
+        For "all" or "groups" selection, returns {"all": (traces, cr, height)}
+        height can be: scalar (group height), array (per-trace), or None (use setting)
     """
-    # No fiber config means use raw traces
-    if fibers_config is None:
-        return {"all": (raw_traces, raw_cr)}
+    if group_heights is None:
+        group_heights = {}
 
-    # No groups/bundles defined means use raw traces
+    # No fiber config means use raw traces with raw heights
+    if fibers_config is None:
+        return {"all": (raw_traces, raw_cr, raw_heights)}
+
+    # No groups/bundles defined means use raw traces with raw heights
     if fibers_config.groups is None and fibers_config.bundles is None:
-        return {"all": (raw_traces, raw_cr)}
+        return {"all": (raw_traces, raw_cr, raw_heights)}
 
     # Determine selection for this step
     selection = "groups"  # default when groups/bundles defined
@@ -1662,7 +1823,7 @@ def select_traces_for_step(
     per_order = fibers_config.per_order
 
     if selection == "all":
-        return {"all": (raw_traces, raw_cr)}
+        return {"all": (raw_traces, raw_cr, raw_heights)}
 
     elif selection == "groups":
         # Stack all group traces into single array
@@ -1679,31 +1840,33 @@ def select_traces_for_step(
                 all_traces.append(group_traces[name])
                 all_cr.append(group_cr[name])
         if all_traces:
-            return {"all": (np.vstack(all_traces), np.vstack(all_cr))}
+            # When stacking all groups, height is None (use settings.json default)
+            return {"all": (np.vstack(all_traces), np.vstack(all_cr), None)}
         else:
-            return {"all": (raw_traces, raw_cr)}
+            return {"all": (raw_traces, raw_cr, raw_heights)}
 
     elif isinstance(selection, list):
-        # Select specific groups by name - keep them separate
+        # Select specific groups by name - keep them separate with their heights
         result = {}
         for name in selection:
             if name not in group_traces:
                 logger.warning("Group '%s' not found in trace data", name)
                 continue
 
+            height = group_heights.get(name)
             if per_order:
                 # Per-order: stack orders for this group
                 traces, _ = _stack_per_order_traces(group_traces[name])
                 cr, _ = _stack_per_order_traces(group_cr[name])
-                result[name] = (traces, cr)
+                result[name] = (traces, cr, height)
             else:
-                result[name] = (group_traces[name], group_cr[name])
+                result[name] = (group_traces[name], group_cr[name], height)
 
         if not result:
             logger.warning("No valid groups selected, using all raw traces")
-            return {"all": (raw_traces, raw_cr)}
+            return {"all": (raw_traces, raw_cr, raw_heights)}
         return result
 
     else:
         logger.warning("Unknown selection type: %s, using raw traces", selection)
-        return {"all": (raw_traces, raw_cr)}
+        return {"all": (raw_traces, raw_cr, raw_heights)}
