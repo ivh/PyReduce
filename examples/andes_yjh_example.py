@@ -108,6 +108,5 @@ print(f"  Saved combined flat: {combined_file}")
 
 # --- Extract using the science step ---
 print("\nExtracting spectra (group A from fiber config)...")
-pipe.instrument.config.fibers.use["science"] = ["ring1"]
-pipe.config["science"]["extraction_height"] = 60
+pipe.instrument.config.fibers.use["science"] = ["ring2"]
 pipe.extract([combined_file]).run()

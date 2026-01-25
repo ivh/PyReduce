@@ -102,6 +102,7 @@ class FiberBundleConfig(BaseModel):
     size: int  # expected fibers per bundle
     count: int | None = None  # number of bundles (validated if provided)
     merge: str | list[int] = "center"  # "average", "center", or [indices]
+    height: str | float | None = "derived"  # "derived", explicit pixels, or None
 
     # Bundle centers for robust assignment (handles missing fibers)
     bundle_centers: dict[int, float] | None = None  # inline: bundle_id -> y_position

@@ -1420,27 +1420,27 @@ def _assign_traces_to_orders(traces, column_range, order_centers):
     return result
 
 
-def _compute_group_height(fiber_traces, fiber_cr, group_config):
-    """Compute extraction height for a fiber group.
+def _compute_group_height(fiber_traces, fiber_cr, config):
+    """Compute extraction height for a fiber group or bundle.
 
     Parameters
     ----------
     fiber_traces : ndarray (n_fibers, degree+1)
-        Polynomial coefficients for fibers in this group
+        Polynomial coefficients for fibers in this group/bundle
     fiber_cr : ndarray (n_fibers, 2)
         Column range for each fiber
-    group_config : FiberGroupConfig
-        Configuration for this group including height specification
+    config : FiberGroupConfig or FiberBundleConfig
+        Configuration with height specification
 
     Returns
     -------
     height : float or None
         Extraction height in pixels, or None to use settings.json default
     """
-    if group_config.height is None:
+    if config.height is None:
         return None
 
-    if group_config.height == "derived":
+    if config.height == "derived":
         n_fibers = len(fiber_traces)
         if n_fibers < 2:
             logger.warning(
@@ -1473,7 +1473,7 @@ def _compute_group_height(fiber_traces, fiber_cr, group_config):
         return height
 
     # Explicit numeric value
-    return float(group_config.height)
+    return float(config.height)
 
 
 def organize_fibers(
@@ -1611,13 +1611,19 @@ def organize_fibers(
                         group_traces[name] = {}
                         group_column_range[name] = {}
                         group_fiber_counts[name] = bundle_size
-                        group_heights[name] = None  # Bundles use settings.json default
+                        group_heights[name] = None  # Will compute from first order
 
                     start_idx = i * bundle_size
                     end_idx = (i + 1) * bundle_size
 
                     bundle_tr = order_tr[start_idx:end_idx]
                     bundle_cr = order_cr[start_idx:end_idx]
+
+                    # Compute bundle height from fibers (only once, from first order)
+                    if group_heights[name] is None:
+                        group_heights[name] = _compute_group_height(
+                            bundle_tr, bundle_cr, bundle_cfg
+                        )
 
                     merged_tr, merged_cr = _merge_fiber_traces(
                         bundle_tr, bundle_cr, bundle_cfg.merge, degree
@@ -1706,7 +1712,9 @@ def organize_fibers(
                 group_traces[name] = merged_tr
                 group_column_range[name] = merged_cr
                 group_fiber_counts[name] = n_in_bundle
-                group_heights[name] = None  # Bundles use settings.json default
+                group_heights[name] = _compute_group_height(
+                    bundle_tr, bundle_cr, bundle_cfg
+                )
 
             # Also handle bundles with zero traces (all fibers missing)
             for bundle_id in bundle_centers:
@@ -1748,7 +1756,9 @@ def organize_fibers(
                 group_traces[name] = merged_tr
                 group_column_range[name] = merged_cr
                 group_fiber_counts[name] = bundle_size
-                group_heights[name] = None  # Bundles use settings.json default
+                group_heights[name] = _compute_group_height(
+                    bundle_tr, bundle_cr, bundle_cfg
+                )
 
     return group_traces, group_column_range, group_fiber_counts, group_heights
 
