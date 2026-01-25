@@ -571,11 +571,13 @@ def normflat(step_args, settings, flat, orders, scatter, curvature):
 
     step = NormalizeFlatField(*step_args, **settings)
 
-    norm, blaze = step.load()
+    norm, blaze, *_ = step.load()
 
     if norm is None:
         try:
-            norm, blaze = step.run(flat, orders, scatter=scatter, curvature=curvature)
+            norm, blaze, *_ = step.run(
+                flat, orders, scatter=scatter, curvature=curvature
+            )
         except FileNotFoundError:
             norm, blaze = None, None
     return norm, blaze

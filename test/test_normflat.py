@@ -15,7 +15,7 @@ def test_normflat(flat, orders, settings, trace_range, scatter, instrument):
     if flat[0] is None:
         pytest.skip(f"No flat exists for instrument {instrument}")
 
-    norm, _, blaze, extracted_column_range = extract(
+    norm, _, blaze, _, extracted_column_range = extract(
         flat,
         orders,
         scatter=scatter,
