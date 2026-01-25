@@ -89,11 +89,22 @@ def _resolve_inheritance(config, seen=None):
     -------
     dict
         Fully resolved configuration with all inherited values merged
+
+    Notes
+    -----
+    The __inherits__ value should be an explicit path relative to the
+    instruments directory, e.g.:
+    - "defaults/settings.json" - inherit from pyreduce defaults
+    - "UVES/settings.json" - inherit from UVES instrument settings
+    - "MOSAIC/settings_VIS1.json" - inherit from channel-specific settings
+
+    Legacy values "defaults" and "pyreduce" are still supported for
+    backwards compatibility.
     """
     if seen is None:
         seen = set()
 
-    parent_name = config.pop("__inherits__", "defaults")
+    parent_name = config.pop("__inherits__", "defaults/settings.json")
 
     if parent_name is None:
         return config
@@ -103,10 +114,15 @@ def _resolve_inheritance(config, seen=None):
     seen.add(parent_name)
 
     instruments_dir = join(dirname(__file__), "instruments")
+
+    # Legacy support for short names
     if parent_name in ["pyreduce", "defaults"]:
-        parent_file = join(instruments_dir, "defaults", "settings.json")
-    else:
-        parent_file = join(instruments_dir, parent_name.upper(), "settings.json")
+        parent_name = "defaults/settings.json"
+    elif "/" not in parent_name and not parent_name.endswith(".json"):
+        # Legacy: bare instrument name -> INSTRUMENT/settings.json
+        parent_name = f"{parent_name.upper()}/settings.json"
+
+    parent_file = join(instruments_dir, parent_name)
 
     if not exists(parent_file):
         raise FileNotFoundError(f"Inherited settings file not found: {parent_file}")
