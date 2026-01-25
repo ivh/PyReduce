@@ -1,6 +1,6 @@
 {
     "__instrument__": "MOSAIC",
-    "__inherits__": "defaults",
+    "__inherits__": "defaults/settings.json",
     "trace": {
 
         "manual": false,

@@ -1,6 +1,6 @@
 {
     "__instrument__": "MICADO",
-    "__inherits__": "pyreduce",
+    "__inherits__": "defaults/settings.json",
     "flat": {
         "bias_scaling": "number_of_files"
     },

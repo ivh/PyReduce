@@ -1,6 +1,6 @@
 {
     "__instrument__": "LICK_APF",
-    "__inherits__": "pyreduce",
+    "__inherits__": "defaults/settings.json",
     "instrument": {},
     "bias": {},
     "flat": {},

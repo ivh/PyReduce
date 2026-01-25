@@ -1,6 +1,6 @@
 {
     "__instrument__": "NEID",
-    "__inherits__": "pyreduce",
+    "__inherits__": "defaults/settings.json",
     "trace": {
         "degree": 6,
         "filter_y": 80,

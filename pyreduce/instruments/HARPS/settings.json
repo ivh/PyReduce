@@ -1,6 +1,6 @@
 {
     "__instrument__": "HARPS",
-    "__inherits__": "pyreduce",
+    "__inherits__": "defaults/settings.json",
     "instrument": {
         "polarimetry": false,
         "fiber": "A"

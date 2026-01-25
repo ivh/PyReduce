@@ -1,6 +1,6 @@
 {
     "__instrument__": "MOSAIC",
-    "__inherits__": "MOSAIC",
+    "__inherits__": "MOSAIC/settings.json",
     "trace": {
         "degree": 9,
         "noise": 500,
@@ -9,7 +9,7 @@
         "min_width": 0.6,
         "filter_y": 12,
         "border_width": [0, 0,0,0],
-        "closing_shape": [1, 5],
+        "closing_shape": [1, 50],
         "opening_shape": [1, 5]
     },
     "curvature": {

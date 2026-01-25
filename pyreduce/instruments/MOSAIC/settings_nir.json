@@ -1,6 +1,6 @@
 {
     "__instrument__": "MOSAIC",
-    "__inherits__": "MOSAIC",
+    "__inherits__": "MOSAIC/settings.json",
     "trace": {
         "degree": 8,
         "noise": 500,
@@ -16,7 +16,6 @@
                 "extraction_height": 37
     },
         "science": {
-        "extraction_height": 37,
         "extraction_reject": 6
         }
 }

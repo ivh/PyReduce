@@ -1,6 +1,6 @@
 {
     "__instrument__": "HARPN",
-    "__inherits__": "HARPS",
+    "__inherits__": "HARPS/settings.json",
     "trace": {
         "min_cluster": 2000
     },

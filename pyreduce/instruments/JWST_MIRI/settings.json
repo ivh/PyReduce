@@ -1,6 +1,6 @@
 {
     "__instrument__": "JWST_MIRI",
-    "__inherits__": "pyreduce",
+    "__inherits__": "defaults/settings.json",
     "instrument": {},
     "trace": {
         "degree": 4,
