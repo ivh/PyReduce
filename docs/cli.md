@@ -197,7 +197,7 @@ $REDUCE_DATA/
     reduced/
       *_bias.fits    # Master bias
       *_flat.fits    # Master flat
-      *_orders.npz   # Order traces
+      *.traces.npz   # Traces and extraction heights
       *.science.fits # Extracted spectra
       *.final.fits   # Final output
 ```

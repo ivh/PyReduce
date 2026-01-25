@@ -883,7 +883,7 @@ result = (
     Pipeline(instrument, output_dir)
     .bias(files["bias"])           # → instrument_bias.fits
     .flat(files["flat"])           # → instrument_flat.fits
-    .trace()                # → instrument_orders.npz
+    .trace()                       # → instrument.traces.npz
     .normalize_flat()              # → instrument_norm_flat.npz
     .wavelength_calibration(files["wavecal"])
     .extract(files["science"])     # → instrument_science_001.fits
@@ -893,7 +893,7 @@ result = (
 # For prototyping - start from existing intermediate products
 result = (
     Pipeline(instrument, output_dir)
-    .load_orders("instrument_orders.npz")  # load instead of compute
+    .load_traces("instrument.traces.npz")  # load instead of compute
     .extract(files["science"])
     .run()
 )

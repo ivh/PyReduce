@@ -13,6 +13,18 @@ This means:
 - **Traces** are polynomial functions of x, giving y-position
 - **`extraction_height`** refers to pixels above/below each trace (in y)
 
+## Mask Convention
+
+PyReduce uses the **numpy masked array convention** for bad pixel masks:
+
+- **1 = bad** (masked/excluded)
+- **0 = good** (valid data)
+
+This applies to:
+- Bad pixel mask files (`mask_*.fits.gz`)
+- The `mask` array passed between pipeline steps
+- Masks returned from extraction (indicating rejected pixels)
+
 ## Command Line Interface
 
 The CLI is the simplest way to run reductions. See [CLI Reference](cli.md) for full details.
