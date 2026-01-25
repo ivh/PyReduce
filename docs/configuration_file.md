@@ -25,7 +25,7 @@ extraction parameters, etc.
   },
   "science": {
     "extraction_method": "optimal",
-    "extraction_height": 0.5,
+    "extraction_height": null,
     "oversampling": 10
   }
 }
@@ -49,17 +49,31 @@ pyreduce/instruments/MOSAIC/
     settings_VIS1.json      # Overrides for VIS1 channel
 ```
 
-Channel settings should inherit from the base instrument:
+Channel settings should inherit from the base instrument using explicit paths:
 
 ```json
 {
     "__instrument__": "MOSAIC",
-    "__inherits__": "MOSAIC",
+    "__inherits__": "MOSAIC/settings.json",
     "science": {
         "extraction_height": 50
     }
 }
 ```
+
+You can also inherit from another channel's settings to avoid duplication:
+
+```json
+{
+    "__instrument__": "MOSAIC",
+    "__inherits__": "MOSAIC/settings_VIS1.json",
+    "trace": {
+        "closing_shape": [1, 50]
+    }
+}
+```
+
+The `__inherits__` path is relative to `pyreduce/instruments/`. Use `"defaults/settings.json"` to inherit only from the base defaults.
 
 When using `Pipeline.from_instrument(..., channel="NIR1")`, PyReduce will
 automatically load `settings_NIR1.json` if it exists, falling back to
@@ -138,13 +152,23 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `extraction_method` | "optimal" or "simple" | "optimal" |
-| `extraction_height` | Width in order widths | 0.5 |
+| `extraction_height` | Extraction aperture (see below) | null |
 | `oversampling` | Slit function oversampling | 10 |
 | `smooth_slitfunction` | Smoothing factor | 0.1 |
 | `smooth_spectrum` | Spectrum smoothing factor | 1e-7 |
 | `swath_width` | Width of extraction swaths | 300 |
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
 | `maxiter` | Maximum extraction iterations | 30 |
+
+#### extraction_height
+
+The extraction aperture can be specified as:
+
+- **`null`** (default) - Use per-trace heights computed during tracing, stored in `traces.npz`. This provides optimal apertures based on actual trace spacing.
+- **Pixels** (≥2) - Explicit pixel height, e.g., `20` for 20 pixels total (10 above, 10 below trace)
+- **Fraction** (<2) - Fraction of order separation, e.g., `0.5` for half the distance to neighbors
+
+The automatic heights (null) are recommended for most cases. They adapt to varying trace spacing across the detector and between orders.
 
 #### Using a Pre-computed Slit Function
 

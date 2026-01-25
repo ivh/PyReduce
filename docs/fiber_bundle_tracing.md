@@ -8,9 +8,11 @@ PyReduce supports multi-fiber instruments where each spectral order contains mul
 
 - **Trace**: Polynomial describing one fiber's path across detector
 - **Fiber**: Physical fiber in bundle (numbered 1-N)
-- **Group**: Named collection of fibers (e.g., "A", "cal", "B")
-- **Bundle**: Repeating pattern of fibers (e.g., 7 fibers per IFU target)
+- **Group**: Named collection of fibers with semantic meaning (e.g., "A", "cal", "B"). Use groups when fibers have distinct roles - science targets, calibration sources, sky fibers, etc.
+- **Bundle**: Numbered groups of identical fibers (e.g., "bundle_1", "bundle_2", ...). Use bundles for repeating patterns like IFU spaxels where each bundle has the same structure.
 - **Spectral Order**: Wavelength range; multi-order instruments have same fiber pattern repeated across orders
+
+In short: **groups** are for named, semantically distinct fiber sets; **bundles** are for numbered, structurally identical fiber sets.
 
 ## Configuration
 
@@ -178,18 +180,32 @@ For per_order=False:
 ```
 traces          - Raw traces (n_fibers, degree+1)
 column_range    - Raw column ranges (n_fibers, 2)
+heights         - Per-trace extraction heights in pixels (n_fibers,)
 group_A_traces  - Merged traces for group A
 group_A_cr      - Column ranges for group A
+group_A_height  - Extraction height for group A (scalar, pixels)
 ```
 
 For per_order=True:
 ```
 traces          - Raw traces (n_total_fibers, degree+1)
 column_range    - Raw column ranges
+heights         - Per-trace extraction heights in pixels
 A_order_90      - Merged trace for group A in spectral order 90
 A_cr_90         - Column range for group A in spectral order 90
 ...
 ```
+
+### Automatic Extraction Heights
+
+The `heights` array stores per-trace extraction heights computed from trace geometry:
+- For middle traces: half the distance between neighboring traces
+- For edge traces: distance to the single neighbor
+- Measured at multiple reference columns; maximum is used
+
+These heights are used automatically when `extraction_height` is set to `null` in settings.json. This provides optimal per-trace apertures without manual tuning.
+
+For groups/bundles, heights are derived from fiber spacing within each group (span + fiber diameter).
 
 ## Example Instruments
 
