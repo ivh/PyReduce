@@ -1,6 +1,24 @@
 # Changelog
 
 
+## [0.7] - 2026-01-25
+
+First stable release of the 0.7 series!
+
+### Changed
+- Rename `OrderTracing` class to `Trace`, save file from `.orders.npz` to `.traces.npz`
+- Store per-trace extraction heights in traces.npz
+- Compute extraction heights for fiber bundles automatically
+- CLI: consistent `-t/--target` option across all commands
+- Allow explicit paths in settings `__inherits__` directive
+
+### Fixed
+- Limit trace overlay to column_range in science step plot
+
+### Documentation
+- Add WhatsNew.md summarizing 0.7 series improvements
+- Update docs for traces.npz rename and mask convention
+
 ## [0.7b4] - 2026-01-22
 
 ### Added
