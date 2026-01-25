@@ -109,3 +109,72 @@ def test_per_channel_settings(tmp_path):
     finally:
         if os.path.exists(channel_file):
             os.remove(channel_file)
+
+
+def test_explicit_path_inheritance(tmp_path):
+    """Test that explicit path inheritance works (e.g., 'MOSAIC/settings_VIS1.json')."""
+    inst_dir = os.path.join(os.path.dirname(conf.__file__), "instruments", "UVES")
+    parent_file = os.path.join(inst_dir, "settings_PARENT.json")
+    child_file = os.path.join(inst_dir, "settings_CHILD.json")
+
+    try:
+        # Create parent settings
+        parent_settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "defaults/settings.json",
+            "trace": {"degree": 7, "noise": 999},
+        }
+        with open(parent_file, "w") as f:
+            json.dump(parent_settings, f)
+
+        # Create child that inherits from parent using explicit path
+        child_settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES/settings_PARENT.json",
+            "trace": {"noise": 123},
+        }
+        with open(child_file, "w") as f:
+            json.dump(child_settings, f)
+
+        # Test: child inherits from parent
+        config = conf.get_configuration_for_instrument("UVES", channel="CHILD")
+        assert config["trace"]["degree"] == 7  # from parent
+        assert config["trace"]["noise"] == 123  # overridden in child
+
+        # Test: values from defaults are still inherited
+        assert "min_cluster" in config["trace"]  # from defaults
+
+    finally:
+        for f in [parent_file, child_file]:
+            if os.path.exists(f):
+                os.remove(f)
+
+
+def test_inheritance_file_not_found():
+    """Test that missing inheritance file raises FileNotFoundError."""
+    from pyreduce.configuration import _resolve_inheritance
+
+    config = {"__inherits__": "NONEXISTENT/settings.json", "trace": {}}
+    with pytest.raises(FileNotFoundError):
+        _resolve_inheritance(config)
+
+
+def test_legacy_inheritance_formats():
+    """Test that legacy inheritance formats still work."""
+    from pyreduce.configuration import _resolve_inheritance
+
+    # "defaults" should work
+    config1 = {"__inherits__": "defaults", "trace": {"degree": 5}}
+    result1 = _resolve_inheritance(config1.copy())
+    assert "trace" in result1
+    assert result1["trace"]["degree"] == 5
+
+    # "pyreduce" should work
+    config2 = {"__inherits__": "pyreduce", "trace": {"degree": 6}}
+    result2 = _resolve_inheritance(config2.copy())
+    assert result2["trace"]["degree"] == 6
+
+    # Bare instrument name should work (e.g., "UVES" -> "UVES/settings.json")
+    config3 = {"__inherits__": "UVES", "science": {"extraction_height": 42}}
+    result3 = _resolve_inheritance(config3.copy())
+    assert result3["science"]["extraction_height"] == 42
