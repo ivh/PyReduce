@@ -333,14 +333,19 @@ To release a new version (e.g., `0.7a6`):
    # ///
    ```
 
-5. **Commit, tag, and push**:
+5. **Run unit tests** to catch issues before release:
+   ```bash
+   uv run pytest -m unit
+   ```
+
+6. **Commit, tag, and push**:
    ```bash
    git add -A && git commit -m "Release v0.7a6"
    git tag v0.7a6
    git push && git push --tags
    ```
 
-6. **Monitor GitHub Actions** - the tag push triggers:
+7. **Monitor GitHub Actions** - the tag push triggers:
    - Tests on Python 3.13
    - Wheel builds (Linux, Windows, macOS)
    - PyPI upload
