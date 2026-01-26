@@ -1,7 +1,8 @@
 """
-Handles instrument specific info for the HARPS spectrograph
+CRIRES+ instrument - upgraded CRIRES at ESO VLT.
 
-Mostly reading data from the header
+Cross-dispersed IR spectrograph for YJHKLM bands with 3 detectors.
+Channels are {setting}_{detector}, e.g. J1228_det1.
 """
 
 import logging
