@@ -91,7 +91,7 @@ This approach handles arbitrary patterns of missing fibers without requiring the
 
 ### Per-Order Grouping (echelle multi-fiber)
 
-For echelle instruments where fiber groups repeat across spectral orders (e.g., AJ with 75 fibers per order across 18 orders):
+For echelle instruments where fiber groups repeat across spectral orders (e.g., ANDES_YJH with 75 fibers per order across 18 orders):
 
 ```yaml
 fibers:
@@ -209,7 +209,7 @@ For groups/bundles, heights are derived from fiber spacing within each group (sp
 
 ## Example Instruments
 
-### AJ (75 fibers x 18 orders)
+### ANDES_YJH (75 fibers x 18 orders)
 
 Simulated echelle with science fibers A/B and calibration fiber:
 - Fibers 1-35: Science fiber A
