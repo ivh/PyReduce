@@ -2,12 +2,12 @@
     "__instrument__": "MOSAIC",
     "__inherits__": "MOSAIC/settings.json",
     "trace": {
-        "degree": 9,
-        "noise": 500,
+        "degree": 4,
+        "noise": 50,
         "noise_relative": 0.05,
         "min_cluster": 100,
         "min_width": 0.6,
-        "filter_y": 12,
+        "filter_y": 5,
         "border_width": [0, 0,0,0],
         "closing_shape": [1, 50],
         "opening_shape": [1, 5]
