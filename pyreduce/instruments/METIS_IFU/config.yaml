@@ -1,18 +1,21 @@
 # METIS IFU instrument configuration
+# ELT/METIS integral field unit spectrograph, L/M bands
+# ~100 wavelength settings × 4 detectors = ~400 channels
+# Channel format: {wavelength}_{detector}, e.g. 4.555_det1
 
 __instrument__: METIS_IFU
 instrument: INSTRUME
-id_instrument: METIS_IFU
+id_instrument: METIS
 telescope: ELT
 
 date: MJD-OBS
 date_format: mjd
 
-channels: [IFU_NOMINAL, IFU_EXTENDED]
-kw_channel: INSTMODE
-id_channel: [ifu_nom, ifu_ext]
-extension: 0
-orientation: [1, 1, 1]
+# Detectors - data in DET1.DATA through DET4.DATA extensions
+chips: [det1, det2, det3, det4]
+extension: DET1.DATA
+orientation: 0
+transpose: false
 
 prescan_x: 0
 overscan_x: 0
@@ -23,40 +26,38 @@ naxis_y: NAXIS2
 
 gain: 1
 readnoise: 4
-dark: 10
-exposure_time: "HIERARCH OBS_EXPTIME"
+dark: "ESO DET DIT"
+exposure_time: "ESO DET DIT"
 
 ra: RA
 dec: DEC
 jd: MJD-OBS
-longitude: -70
-latitude: -24
+longitude: -70.1918
+latitude: -24.5899
 altitude: 3060
-instrument_mode: "HIERARCH ESO INS MODE"
-observation_type: "HIERARCH ESO DPR TYPE"
-observation_category: "HIERARCH ESO DPR CATG"
-target: ""
-object: OBJECT
+target: OBJECT
 
-id_dark: DARK
-id_format: "LAMP,FMTCHK"
-id_tell: "STD,TELLURIC"
+# Wavelength setting from header
+id_wavelength: "ESO INS WLEN CEN"
+instrument_mode: "ESO INS MODE"
+observation_type: "ESO DPR TYPE"
+observation_category: "ESO DPR CATG"
 
 # File classification keywords and patterns
-kw_bias: "HIERARCH ESO DPR TYPE"
-kw_flat: "HIERARCH ESO DPR TYPE"
-kw_curvature: "HIERARCH ESO DPR TYPE"
-kw_scatter: "HIERARCH ESO DPR TYPE"
-kw_orders: "HIERARCH ESO DPR TYPE"
-kw_wave: "HIERARCH ESO DPR TYPE"
+kw_bias: "ESO DPR TYPE"
+kw_flat: "ESO DPR TYPE"
+kw_curvature: "ESO DPR TYPE"
+kw_scatter: "ESO DPR TYPE"
+kw_orders: "ESO DPR TYPE"
+kw_wave: "ESO DPR TYPE"
 kw_comb: null
-kw_spec: "HIERARCH ESO DPR TYPE"
+kw_spec: "ESO DPR TYPE"
 
 id_bias: DARK
-id_flat: "LAMP,FLAT"
-id_orders: "FLAT,PINHOLE"
-id_curvature: "SKY,WAVE"
-id_scatter: "LAMP,FLAT"
-id_wave: "SKY,WAVE"
+id_flat: RSRF
+id_orders: RSRF
+id_curvature: WAVE
+id_scatter: RSRF
+id_wave: WAVE
 id_comb: null
 id_spec: OBJECT
