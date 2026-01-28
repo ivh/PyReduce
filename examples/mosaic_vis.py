@@ -75,8 +75,11 @@ pipe = Pipeline(
 
 # Run pipeline steps
 pipe.trace([flat_file])
-# pipe.curvature([thar_file])
-# pipe.extract([thar_file, flat_file])
+pipe.curvature([thar_file])
+pipe.norm_flat()
+pipe.wavecal_master([thar_file])
+pipe.wavecal_init()
+pipe.wavecal()
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()

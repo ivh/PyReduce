@@ -58,4 +58,5 @@ fibers:
     bundle_centers_file: bundle_centers_{channel}.yaml
   use:
     curvature: groups
+    wavecal_master: groups
     science: groups
