@@ -140,7 +140,9 @@ class FibersConfig(BaseModel):
 
     groups: dict[str, FiberGroupConfig] | None = None
     bundles: FiberBundleConfig | None = None
-    use: dict[str, TraceSelection] | None = None  # step_name -> selection
+    use: dict[str, TraceSelection] | None = (
+        None  # step_name -> selection; "default" key for fallback
+    )
 
     # Per-order grouping for echelle instruments
     # These can be lists for multi-channel instruments (indexed by channel)

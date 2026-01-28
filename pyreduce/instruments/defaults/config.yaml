@@ -55,3 +55,9 @@ id_comb: COMB
 id_spec: SPEC
 
 wavelength_range: null
+
+# Fiber selection defaults
+# Instruments with fiber bundles can override per-step
+fibers:
+  use:
+    default: groups

@@ -1825,10 +1825,13 @@ def select_traces_for_step(
     if fibers_config.groups is None and fibers_config.bundles is None:
         return {"all": (raw_traces, raw_cr, raw_heights)}
 
-    # Determine selection for this step
-    selection = "groups"  # default when groups/bundles defined
-    if fibers_config.use is not None and step_name in fibers_config.use:
-        selection = fibers_config.use[step_name]
+    # Determine selection for this step from config
+    if fibers_config.use is not None:
+        selection = fibers_config.use.get(
+            step_name, fibers_config.use.get("default", "all")
+        )
+    else:
+        selection = "all"
 
     per_order = fibers_config.per_order
 
