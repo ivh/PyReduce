@@ -77,7 +77,7 @@ def _slitdec_charslit(
     gain : float
         Detector gain
     reject_threshold : float
-        Outlier rejection threshold (not used by charslit currently)
+        Outlier rejection threshold in sigma units (passed as kappa to charslit)
     preset_slitfunc : array or None
         Preset slit function (not supported by charslit yet, ignored)
 
@@ -144,6 +144,7 @@ def _slitdec_charslit(
         lambda_sP=float(lambda_sp),
         lambda_sL=float(lambda_sf),
         maxiter=maxiter,
+        kappa=float(reject_threshold),
     )
 
     sp = result["spectrum"]
