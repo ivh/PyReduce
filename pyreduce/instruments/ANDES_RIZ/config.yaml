@@ -1,0 +1,87 @@
+# ANDES_RIZ instrument configuration
+
+__instrument__: ANDES_RIZ
+instrument: HIERARCH ANDES_E2E
+id_instrument: ".*"
+telescope: ELT
+
+date: DATE-OBS
+date_format: fits
+
+channels: [R0, R1, R2]
+extension: 0
+orientation: 0
+transpose: false
+
+prescan_x: 0
+overscan_x: 0
+prescan_y: 0
+overscan_y: 0
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: 1
+readnoise: 0
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: null
+dec: null
+target: PYE1
+
+# Additional ANDES E2E simulation headers
+hdfmodel: HDFMODEL
+simtype: SIMTYPE
+srctype: SRCTYPE
+fibmode: FIBMODE
+vshift: VSHIFT
+wl_min: WL_MIN
+wl_max: WL_MAX
+
+# File classification using ANDES E2E headers
+# Channel is determined by BAND header
+# File type is determined by SIMTYPE header
+# Even/odd flats are determined by FIBMODE header
+kw_bias: SIMTYPE
+kw_flat: SIMTYPE
+kw_flat_even: FIBMODE
+kw_flat_odd: FIBMODE
+kw_orders: SIMTYPE
+kw_wave: SIMTYPE
+kw_spec: SIMTYPE
+kw_channel: HDFMODEL
+
+id_bias: "^bias$"
+id_flat: "^flat_field$"
+id_flat_even: "^even$"
+id_flat_odd: "^odd$"
+id_orders: "^flat_field$"
+id_wave: "^(fabry_perot|lfc)$"
+id_spec: "^spectrum$"
+id_channel: ["^ANDES_123_R3.hdf$", "^ANDES_full_F18A33_win_jmr_MC_T0019_Rband_p0.hdf$", "^Andes_full_F18A33_win_jmr_MC_T0108_Rband_P0_cfg1.hdf$"]
+
+# Fiber grouping configuration
+# A/B/cal: spatial division of the slit
+fibers:
+  per_order: true
+  fibers_per_order: 66
+  order_centers_file: order_centers_{channel}.yaml
+  groups:
+    # Spatial groups
+    A:
+      range: [1, 32]
+      merge: average
+      height: derived
+    cal:
+      range: [33, 35]
+      merge: average
+      height: derived
+    B:
+      range: [36, 67]
+      merge: average
+      height: derived
+  use:
+    science: [A, B]
+    wavecal: [cal]
+    norm_flat: all
