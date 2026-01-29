@@ -35,7 +35,7 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "ANDES_RIZ"
 target = "psf_comp"
 night = ""
-channel = "R1"  # R0, R1, or R2 (different optical models)
+channel = "R0"  # R0, R1, or R2 (different optical models)
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
