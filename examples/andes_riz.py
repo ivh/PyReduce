@@ -23,7 +23,10 @@ Or import and run steps interactively:
 import os
 from os.path import join
 
+from astropy.io import fits
+
 from pyreduce import util
+from pyreduce.combine_frames import combine_calibrate
 from pyreduce.configuration import load_config
 from pyreduce.instruments import instrument_info
 from pyreduce.pipeline import Pipeline
@@ -32,7 +35,7 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "ANDES_RIZ"
 target = "psf_comp"
 night = ""
-channel = "R0"  # R0, R1, or R2 (different optical models)
+channel = "R1"  # R0, R1, or R2 (different optical models)
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
@@ -91,94 +94,39 @@ if pipe.instrument.config.fibers:
     print(f"Groups: {list(fc.groups.keys())}")
 
 
-def run_trace(keep_orders=None):
-    """Step 1: Trace orders from flat field.
-
-    Parameters
-    ----------
-    keep_orders : list of int, optional
-        If specified, filter the saved npz to only keep these orders.
-        E.g., keep_orders=[87] to keep only order 87.
-    """
-    pipe.trace(trace_files)
-    results = pipe.run()
-
-    if keep_orders is not None:
-        filter_trace_orders(keep_orders)
-
-    return results
-
-
-def filter_trace_orders(keep_orders):
-    """Filter the trace npz file to only keep specified orders.
-
-    Parameters
-    ----------
-    keep_orders : list of int
-        Order numbers to keep (e.g., [87])
-    """
+def combine_lfc_files(lfc_files, output_path):
+    """Combine odd+even LFC files into a single frame."""
+    print(f"Combining {len(lfc_files)} LFC files...")
+    combined, head = combine_calibrate(
+        lfc_files,
+        pipe.instrument,
+        channel,
+        mask=None,
+    )
+    # Convert masked array to regular array for FITS writing
     import numpy as np
 
-    npz_path = join(output_dir, f"andes_riz_{channel.lower()}.traces.npz")
-    data = dict(np.load(npz_path, allow_pickle=True))
-
-    # Group data is stored as group_{name}_traces, group_{name}_cr
-    group_names = data.get("group_names", [])
-    if hasattr(group_names, "tolist"):
-        group_names = group_names.tolist()
-
-    modified = False
-    for name in group_names:
-        for suffix in ["traces", "cr"]:
-            key = f"group_{name}_{suffix}"
-            if key in data:
-                group_data = data[key].item()  # 0-d array containing dict
-                if isinstance(group_data, dict):
-                    filtered = {
-                        o: v for o, v in group_data.items() if int(o) in keep_orders
-                    }
-                    data[key] = np.array(filtered, dtype=object)
-                    modified = True
-
-    if modified:
-        np.savez(npz_path, **data)
-        print(f"Filtered traces to orders {keep_orders}")
-
-
-def run_normalize_flat():
-    """Step 2: Normalize flat field (requires trace)."""
-    pipe.normalize_flat()
-    return pipe.run()
-
-
-def run_wavecal():
-    """Steps 3-5: Full wavelength calibration."""
-    pipe.wavecal_master(wavecal_files)
-    pipe.wavecal_init()
-    pipe.wavecal()
-    return pipe.run()
-
-
-def run_all():
-    """Run all steps in sequence."""
-    pipe.trace(trace_files)
-    pipe.normalize_flat()
-    pipe.wavecal_master(wavecal_files)
-    pipe.wavecal_init()
-    pipe.wavecal()
-    return pipe.run()
+    data = np.asarray(combined.filled(0) if hasattr(combined, "filled") else combined)
+    fits.writeto(output_path, data, head, overwrite=True)
+    print(f"Saved combined LFC: {output_path}")
+    return output_path
 
 
 if __name__ == "__main__":
-    # Only order 87 spans the full detector in the test data
-    # Orders 86 and 88 are partial (edge only)
-    KEEP_ORDERS = [87]
+    # Combine odd+even LFC files before extraction
+    lfc_combined_path = join(output_dir, "lfc_combined.fits")
+    if wavecal_files:
+        combine_lfc_files(wavecal_files, lfc_combined_path)
 
-    print("\n=== Running trace step ===")
-    results = run_trace(keep_orders=KEEP_ORDERS)
+    print("\n=== Running pipeline ===")
+    # pipe.trace(trace_files)
+    # pipe.curvature(wavecal_files)
+    pipe.extract([lfc_combined_path])
+
+    results = pipe.run()
 
     if "trace" in results:
-        traces, column_range = results["trace"]
+        traces, column_range, *_ = results["trace"]
         print(f"Traces found: {len(traces)}")
 
     if "trace_groups" in results and results["trace_groups"]:

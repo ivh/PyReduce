@@ -83,6 +83,7 @@ fibers:
       merge: average
       height: derived
   use:
+    curvature: [A, B]
+    norm_flat: [A, B]
+    wavecal: [A, B]
     science: [A, B]
-    wavecal: [cal]
-    norm_flat: all
