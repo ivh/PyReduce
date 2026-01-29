@@ -1,8 +1,8 @@
 # ANDES_RIZ instrument configuration
 
 __instrument__: ANDES_RIZ
-instrument: HIERARCH ANDES_E2E
-id_instrument: ".*"
+instrument: INSTRUME
+id_instrument: "ANDES"
 telescope: ELT
 
 date: DATE-OBS
@@ -64,6 +64,7 @@ id_channel: ["^ANDES_123_R3.hdf$", "^ANDES_full_F18A33_win_jmr_MC_T0019_Rband_p0
 # Fiber grouping configuration
 # A/B/cal: spatial division of the slit
 fibers:
+  trace_by: FIBMODE
   per_order: true
   fibers_per_order: 66
   order_centers_file: order_centers_{channel}.yaml

@@ -6,7 +6,7 @@
         "noise": 0,
         "min_cluster": 2000,
         "min_width": 0.5,
-        "filter_y": 8,
+        "filter_y": 14,
         "border_width": 0,
         "closing_shape": [
             1,
