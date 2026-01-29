@@ -46,10 +46,23 @@ from .combine_frames import (
 )
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
+from .curvature_model import SlitCurvature, load_curvature, save_curvature
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, fix_parameters
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
+
+
+def _get_curvature_coeffs(curvature):
+    """Extract curvature coefficients array from SlitCurvature or return None."""
+    if curvature is None:
+        return None
+    if isinstance(curvature, SlitCurvature):
+        return curvature.coeffs
+    # Legacy: assume it's already the coeffs array
+    return curvature
+
+
 from .trace import organize_fibers, select_traces_for_step
 from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
@@ -463,7 +476,7 @@ class ExtractionStep(Step):
 
     def extract(self, img, head, trace, curvature, scatter=None):
         traces, column_range = trace[:2] if trace is not None else (None, None)
-        p1, p2 = curvature if curvature is not None else (None, None)
+        curv_coeffs = _get_curvature_coeffs(curvature)
 
         data, unc, slitfu, cr = extract(
             img,
@@ -476,8 +489,7 @@ class ExtractionStep(Step):
             trace_range=self.trace_range,
             plot=self.plot,
             plot_title=self.plot_title,
-            p1=p1,
-            p2=p2,
+            curvature=curv_coeffs,
             scatter=scatter,
             **self.extraction_kwargs,
         )
@@ -1285,7 +1297,7 @@ class NormalizeFlatField(Step):
         all_cr = [cr for _, cr, _ in selected.values()]
         traces = np.vstack(all_traces)
         column_range = np.vstack(all_cr)
-        p1, p2 = curvature if curvature is not None else (None, None)
+        curv_coeffs = _get_curvature_coeffs(curvature)
 
         # Build per-trace extraction heights
         # Priority: group height > raw height from trace > setting default
@@ -1346,8 +1358,7 @@ class NormalizeFlatField(Step):
             threshold=threshold,
             threshold_lower=self.threshold_lower,
             extraction_type=self.extraction_method,
-            p1=p1,
-            p2=p2,
+            curvature=curv_coeffs,
             plot=self.plot,
             plot_title=self.plot_title,
             **extraction_kwargs,
@@ -1973,10 +1984,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
         Returns
         -------
-        p1 : array of shape (ntrace, ncol)
-            first order slit curvature at each point
-        p2 : array of shape (ntrace, ncol)
-            second order slit curvature at each point
+        curvature : SlitCurvature
+            Slit curvature data including polynomial coefficients
         """
 
         logger.info("Slit curvature files: %s", files)
@@ -2012,43 +2021,37 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             plot=self.plot,
             plot_title=self.plot_title,
         )
-        p1, p2 = module.execute(orig)
-        self.save(p1, p2)
-        return p1, p2
+        curvature = module.execute(orig)
+        self.save(curvature)
+        return curvature
 
-    def save(self, p1, p2):
-        """Save results from the curvature
+    def save(self, curvature):
+        """Save curvature results.
 
         Parameters
         ----------
-        p1 : array of shape (ntrace, ncol)
-            first order slit curvature at each point
-        p2 : array of shape (ntrace, ncol)
-            second order slit curvature at each point
+        curvature : SlitCurvature
+            Slit curvature data to save
         """
-        np.savez(self.savefile, p1=p1, p2=p2)
-        logger.info("Created slit curvature file: %s", self.savefile)
+        save_curvature(self.savefile, curvature)
 
     def load(self):
-        """Load the curvature if possible, otherwise return None, None, i.e. use vertical extraction
+        """Load the curvature if possible, otherwise return None.
 
         Returns
         -------
-        p1 : array of shape (ntrace, ncol)
-            first order slit curvature at each point
-        p2 : array of shape (ntrace, ncol)
-            second order slit curvature at each point
+        curvature : SlitCurvature or None
+            Slit curvature data, or None if not found
         """
         try:
-            data = np.load(self.savefile, allow_pickle=True)
+            curvature = load_curvature(self.savefile)
             logger.info("Slit curvature file: %s", self.savefile)
+            return curvature
         except FileNotFoundError:
-            logger.warning("No data for slit curvature found, setting it to 0.")
-            data = {"p1": None, "p2": None}
-
-        p1 = data["p1"]
-        p2 = data["p2"]
-        return p1, p2
+            logger.warning(
+                "No data for slit curvature found, using vertical extraction."
+            )
+            return None
 
 
 class RectifyImage(Step):
@@ -2067,7 +2070,13 @@ class RectifyImage(Step):
 
     def run(self, files, trace, curvature=None, mask=None, freq_comb=None):
         traces, column_range = trace[:2]
-        p1, p2 = curvature if curvature is not None else (None, None)
+        # rectify_image still uses p1, p2 - extract from curvature coeffs
+        if curvature is not None:
+            curv_coeffs = _get_curvature_coeffs(curvature)
+            p1 = curv_coeffs[:, :, 1] if curv_coeffs.shape[2] > 1 else None
+            p2 = curv_coeffs[:, :, 2] if curv_coeffs.shape[2] > 2 else None
+        else:
+            p1, p2 = None, None
         wave = freq_comb
 
         files = files[self.input_files]
@@ -2148,7 +2157,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
     ):
         """Extract with custom extraction kwargs (for per-group heights)."""
         traces, column_range = trace[:2] if trace is not None else (None, None)
-        p1, p2 = curvature if curvature is not None else (None, None)
+        curv_coeffs = _get_curvature_coeffs(curvature)
 
         data, unc, slitfu, cr = extract(
             img,
@@ -2161,8 +2170,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             trace_range=self.trace_range,
             plot=self.plot,
             plot_title=self.plot_title,
-            p1=p1,
-            p2=p2,
+            curvature=curv_coeffs,
             scatter=scatter,
             **extraction_kwargs,
         )

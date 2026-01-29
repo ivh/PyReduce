@@ -79,9 +79,11 @@ class TestCurvatureInit:
 
     @pytest.mark.unit
     def test_invalid_curve_degree(self, simple_orders):
-        """curve_degree must be 1 or 2."""
-        with pytest.raises(ValueError, match="curvature degrees"):
-            CurvatureModule(simple_orders, curve_degree=3)
+        """curve_degree must be 1-5."""
+        with pytest.raises(ValueError, match="Curvature degree must be 1-5"):
+            CurvatureModule(simple_orders, curve_degree=6)
+        with pytest.raises(ValueError, match="Curvature degree must be 1-5"):
+            CurvatureModule(simple_orders, curve_degree=0)
 
     @pytest.mark.unit
     def test_invalid_mode(self, simple_orders):
@@ -138,35 +140,44 @@ class TestCurvatureFitting:
     @pytest.mark.unit
     def test_fit_1d_mode(self, simple_orders):
         """Test fitting in 1D mode with synthetic data."""
-        module = CurvatureModule(simple_orders, mode="1D", fit_degree=1)
+        module = CurvatureModule(simple_orders, mode="1D", fit_degree=1, curve_degree=2)
 
-        # Synthetic peaks and curvature values
+        # Synthetic peaks and curvature values (now as coeffs arrays)
         peaks = [np.array([100, 200, 300]), np.array([150, 250])]
-        p1 = [np.array([0.01, 0.01, 0.01]), np.array([0.02, 0.02])]
-        p2 = [np.array([0.001, 0.001, 0.001]), np.array([0.002, 0.002])]
+        # coeffs[i] has shape (n_peaks, curve_degree) = (n_peaks, 2)
+        all_coeffs = [
+            np.array([[0.01, 0.001], [0.01, 0.001], [0.01, 0.001]]),  # order 0
+            np.array([[0.02, 0.002], [0.02, 0.002]]),  # order 1
+        ]
 
-        coef_p1, coef_p2 = module.fit(peaks, p1, p2)
+        fitted_coeffs = module.fit(peaks, all_coeffs)
 
-        assert coef_p1.shape == (2, 2)  # 2 orders, degree 1 + 1
-        assert coef_p2.shape == (2, 2)
+        # Shape: (n_orders, curve_degree, fit_degree + 1)
+        assert fitted_coeffs.shape == (2, 2, 2)
 
     @pytest.mark.unit
     def test_eval_1d_mode(self, simple_orders):
         """Test evaluating curvature in 1D mode."""
-        module = CurvatureModule(simple_orders, mode="1D", fit_degree=1)
+        module = CurvatureModule(simple_orders, mode="1D", fit_degree=1, curve_degree=2)
 
-        # Coefficients in polyval format: [high_degree, ..., constant]
-        # [0.0, 0.01] means p1 = 0.0*x + 0.01 = 0.01 (constant)
-        coef_p1 = np.array([[0.0, 0.01], [0.0, 0.02]])
-        coef_p2 = np.array([[0.0, 0.001], [0.0, 0.002]])
+        # fitted_coeffs has shape (n_orders, curve_degree, fit_degree + 1)
+        # Each [i, j, :] is polyval coefficients for order i, curvature term j
+        # [0.0, 0.01] means value = 0.0*x + 0.01 = 0.01 (constant)
+        fitted_coeffs = np.array(
+            [
+                [[0.0, 0.01], [0.0, 0.001]],  # order 0: c1=0.01, c2=0.001
+                [[0.0, 0.02], [0.0, 0.002]],  # order 1: c1=0.02, c2=0.002
+            ]
+        )
 
         peaks = np.array([100, 200])
         order = np.array([0, 1])
 
-        p1, p2 = module.eval(peaks, order, coef_p1, coef_p2)
+        coeffs = module.eval(peaks, order, fitted_coeffs)
 
-        assert p1[0] == pytest.approx(0.01, rel=0.1)
-        assert p1[1] == pytest.approx(0.02, rel=0.1)
+        # coeffs has shape (n_points, curve_degree)
+        assert coeffs[0, 0] == pytest.approx(0.01, rel=0.1)  # c1 for order 0
+        assert coeffs[1, 0] == pytest.approx(0.02, rel=0.1)  # c1 for order 1
 
 
 class TestCurvatureFitFromPositions:
@@ -183,23 +194,23 @@ class TestCurvatureFitFromPositions:
         module = CurvatureModule(simple_orders, mode="1D", curve_degree=1)
 
         # Simulate peak positions that shift linearly with y-offset
-        # If p1 = 0.05, then at y-offsets [-2, -1, 0, 1, 2],
+        # If c1 = 0.05, then at y-offsets [-2, -1, 0, 1, 2],
         # positions shift by [-0.1, -0.05, 0, 0.05, 0.1]
         peaks = np.array([100, 200, 300])
         offsets = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
 
-        # For each peak, create positions that follow x(y) = x0 + p1*y
-        p1_true = 0.05
+        # For each peak, create positions that follow x(y) = x0 + c1*y
+        c1_true = 0.05
         positions = np.zeros((3, 5))
         for i, peak in enumerate(peaks):
-            positions[i, :] = peak + p1_true * offsets
+            positions[i, :] = peak + c1_true * offsets
 
-        p1, p2 = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
 
-        # p1 should be close to 0.05 for all peaks
-        assert np.allclose(p1, p1_true, atol=0.01)
-        # p2 should be close to 0 for linear case
-        assert np.allclose(p2, 0.0, atol=0.001)
+        # coeffs has shape (n_peaks, curve_degree) = (3, 1)
+        assert coeffs.shape == (3, 1)
+        # c1 should be close to 0.05 for all peaks
+        assert np.allclose(coeffs[:, 0], c1_true, atol=0.01)
 
     @pytest.mark.unit
     def test_fit_curvature_quadratic(self, simple_orders):
@@ -209,17 +220,19 @@ class TestCurvatureFitFromPositions:
         peaks = np.array([100, 200, 300])
         offsets = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
 
-        # Positions follow x(y) = x0 + p1*y + p2*y^2
-        p1_true = 0.05
-        p2_true = 0.01
+        # Positions follow x(y) = x0 + c1*y + c2*y^2
+        c1_true = 0.05
+        c2_true = 0.01
         positions = np.zeros((3, 5))
         for i, peak in enumerate(peaks):
-            positions[i, :] = peak + p1_true * offsets + p2_true * offsets**2
+            positions[i, :] = peak + c1_true * offsets + c2_true * offsets**2
 
-        p1, p2 = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
 
-        assert np.allclose(p1, p1_true, atol=0.01)
-        assert np.allclose(p2, p2_true, atol=0.005)
+        # coeffs has shape (n_peaks, curve_degree) = (3, 2)
+        assert coeffs.shape == (3, 2)
+        assert np.allclose(coeffs[:, 0], c1_true, atol=0.01)
+        assert np.allclose(coeffs[:, 1], c2_true, atol=0.005)
 
     @pytest.mark.unit
     def test_fit_curvature_insufficient_data(self, simple_orders):
@@ -230,11 +243,12 @@ class TestCurvatureFitFromPositions:
         offsets = np.array([0.0, 1.0])  # Only 2 points, need 3 for quadratic
         positions = np.array([[np.nan, 100.0]])  # Only 1 valid point
 
-        p1, p2 = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
 
         # Should return zeros when insufficient data
-        assert p1[0] == 0.0
-        assert p2[0] == 0.0
+        assert coeffs.shape == (1, 2)
+        assert coeffs[0, 0] == 0.0
+        assert coeffs[0, 1] == 0.0
 
 
 # Tests that require instrument data follow below
@@ -253,6 +267,8 @@ def original(files, instrument, channel, mask):
 
 @pytest.mark.slow
 def test_curvature(original, orders, trace_range, settings):
+    from pyreduce.curvature_model import SlitCurvature
+
     original, chead = original
     orders, column_range = orders
     settings = settings["curvature"]
@@ -277,14 +293,18 @@ def test_curvature(original, orders, trace_range, settings):
         plot=False,
         plot_title=None,
     )
-    p1, p2 = module.execute(original)
+    curvature = module.execute(original)
 
+    assert isinstance(curvature, SlitCurvature)
+    assert curvature.degree == 2
+    assert curvature.coeffs.ndim == 3
+    assert curvature.coeffs.shape[0] == trace_range[1] - trace_range[0]
+    assert curvature.coeffs.shape[1] == original.shape[1]
+    assert curvature.coeffs.shape[2] == 3  # degree + 1
+
+    # Test backward compatibility
+    p1, p2 = curvature.to_p1_p2()
     assert isinstance(p1, np.ndarray)
-    assert p1.ndim == 2
-    assert p1.shape[0] == trace_range[1] - trace_range[0]
-    assert p1.shape[1] == original.shape[1]
-
-    assert isinstance(p2, np.ndarray)
     assert p2.ndim == 2
     assert p2.shape[0] == trace_range[1] - trace_range[0]
     assert p2.shape[1] == original.shape[1]
@@ -309,17 +329,13 @@ def test_curvature(original, orders, trace_range, settings):
         plot=False,
         plot_title=None,
     )
-    p1, p2 = module.execute(original)
+    curvature = module.execute(original)
 
-    assert isinstance(p1, np.ndarray)
-    assert p1.ndim == 2
-    assert p1.shape[0] == trace_range[1] - trace_range[0]
-    assert p1.shape[1] == original.shape[1]
-
-    assert isinstance(p2, np.ndarray)
-    assert p2.ndim == 2
-    assert p2.shape[0] == trace_range[1] - trace_range[0]
-    assert p2.shape[1] == original.shape[1]
+    assert curvature is not None
+    assert curvature.coeffs.ndim == 3
+    assert curvature.coeffs.shape[0] == trace_range[1] - trace_range[0]
+    assert curvature.coeffs.shape[1] == original.shape[1]
+    assert curvature.degree == 1
 
 
 @pytest.mark.slow
@@ -335,19 +351,19 @@ def test_curvature_exception(original, orders, trace_range):
 
     original = np.copy(original)
 
-    # Wrong curve_degree input
+    # Wrong curve_degree input (must be 1-5)
     with pytest.raises(ValueError):
         module = CurvatureModule(
-            orders, column_range=column_range, plot=False, curve_degree=3
+            orders, column_range=column_range, plot=False, curve_degree=6
         )
-        p1, p2 = module.execute(original)
+        module.execute(original)
 
     # Wrong mode
     with pytest.raises(ValueError):
         module = CurvatureModule(
             orders, column_range=column_range, plot=False, mode="3D"
         )
-        p1, p2 = module.execute(original)
+        module.execute(original)
 
 
 @pytest.mark.slow
@@ -366,4 +382,4 @@ def test_curvature_zero(original, orders, trace_range):
     module = CurvatureModule(
         orders, column_range=column_range, plot=False, sigma_cutoff=0
     )
-    p1, p2 = module.execute(original)
+    _ = module.execute(original)

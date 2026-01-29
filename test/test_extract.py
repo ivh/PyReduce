@@ -214,11 +214,10 @@ def test_simple_extraction(sample_data, orders, width, oversample):
     column_range = np.array([[0, width]])
 
     nord = len(orders)
-    p1 = np.zeros((nord, width))
-    p2 = np.zeros((nord, width))
+    curvature = np.zeros((nord, width, 6))
 
     spec_out, unc_out = extract.simple_extraction(
-        img, orders, extraction_height, column_range, p1=p1, p2=p2
+        img, orders, extraction_height, column_range, curvature=curvature
     )
 
     assert isinstance(spec_out, np.ndarray)
@@ -261,14 +260,13 @@ def test_vertical_extraction(sample_data, orders, width, height, oversample):
     # assert np.abs(sunc_vert / spec_vert).max() <= 1e-2
 
 
-def test_curved_equal_vertical_extraction(sample_data, orders):
-    # Currently extract always uses the vertical extraction, making this kind of useless
+def test_curved_equal_vertical_extraction(sample_data, orders, width):
+    # Curved extraction with zero curvature should match vertical extraction
     img, spec, slitf = sample_data
-    p1 = 0
-    p2 = 0
+    curvature = np.zeros((1, width, 6))
 
     spec_curved, sunc_curved, slitf_curved, _ = extract.extract(
-        img, orders, p1=p1, p2=p2
+        img, orders, curvature=curvature
     )
     spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
@@ -281,10 +279,11 @@ def test_optimal_extraction(sample_data, orders, height, width):
     img, spec, slitf = sample_data
     xwd = np.array([height])  # full height
     cr = np.array([[0, width]])
-    p1 = p2 = np.zeros((1, width))
+    # curvature shape: (ntrace, ncol, n_coeffs), all zeros for vertical extraction
+    curvature = np.zeros((1, width, 6))
 
     res_spec, res_slitf, res_unc = extract.optimal_extraction(
-        img, orders, xwd, cr, p1, p2
+        img, orders, xwd, cr, curvature=curvature
     )
 
     assert isinstance(res_spec, np.ndarray)

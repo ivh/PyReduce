@@ -593,10 +593,10 @@ def curvature(step_args, settings, files, orders, mask):
     step = SlitCurvatureDetermination(*step_args, **settings)
 
     try:
-        p1, p2 = step.load()
+        curv = step.load()
     except FileNotFoundError:
-        p1, p2 = step.run(files, orders, mask=mask)
-    return p1, p2
+        curv = step.run(files, orders, mask=mask)
+    return curv
 
 
 @pytest.fixture
