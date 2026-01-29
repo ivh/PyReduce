@@ -14,7 +14,6 @@ import logging
 import os
 import time
 
-import charslit
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Button
@@ -25,6 +24,18 @@ from . import util
 from .util import make_index
 
 logger = logging.getLogger(__name__)
+
+# Backend selection: set PYREDUCE_USE_CHARSLIT=1 to use charslit
+USE_CHARSLIT = os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
+
+if USE_CHARSLIT:
+    import charslit
+
+    logger.info("Using charslit extraction backend")
+else:
+    from . import cwrappers
+
+    logger.info("Using CFFI extraction backend")
 
 
 def _slitdec_charslit(
@@ -153,6 +164,51 @@ def _slitdec_charslit(
         info = np.array([float(return_code == 0), 0.0, float(return_code), 0.0, 0.0])
 
     return sp, sl, model, unc, mask_out, info
+
+
+def _slitdec_cffi(
+    img,
+    ycen,
+    curvature,
+    lambda_sp,
+    lambda_sf,
+    osample,
+    yrange,
+    maxiter,
+    gain,
+    reject_threshold,
+    preset_slitfunc,
+):
+    """Call CFFI slitfunc_curved and return results in the same format as charslit.
+
+    This is the legacy extraction backend using the CFFI C extension.
+    Only supports curvature degrees 1-2 (p1, p2).
+    """
+    # Extract p1, p2 from curvature array
+    if curvature is not None:
+        p1 = curvature[:, 1] if curvature.shape[1] > 1 else np.zeros(curvature.shape[0])
+        p2 = curvature[:, 2] if curvature.shape[1] > 2 else np.zeros(curvature.shape[0])
+    else:
+        ncols = len(ycen)
+        p1 = np.zeros(ncols)
+        p2 = np.zeros(ncols)
+
+    sp, sl, model, unc, mask, info = cwrappers.slitfunc_curved(
+        img,
+        ycen,
+        p1,
+        p2,
+        lambda_sp,
+        lambda_sf,
+        osample,
+        yrange,
+        maxiter=maxiter,
+        gain=gain,
+        reject_threshold=reject_threshold,
+        preset_slitfunc=preset_slitfunc,
+    )
+
+    return sp, sl, model, unc, mask, info
 
 
 def _ensure_slitcurve(curvature, ncols, n_coeffs=6):
@@ -1049,26 +1105,48 @@ def extract_spectrum(
 
             swath_img -= scatter_correction + telluric_correction
 
-            # Do Slitfunction extraction using charslit
+            # Do Slitfunction extraction
             swath_ncols = iend - ibeg
             swath_curv = curvature[ibeg:iend] if curvature is not None else None
-            slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
-            slitdeltas = np.zeros(swath_img.shape[0], dtype=np.float64)
             input_mask = np.ma.getmaskarray(swath_img).copy()
-            swath[ihalf] = _slitdec_charslit(
-                swath_img,
-                swath_ycen,
-                slitcurve,
-                slitdeltas,
-                lambda_sp=lambda_sp,
-                lambda_sf=lambda_sf,
-                osample=osample,
-                yrange=yrange,
-                maxiter=maxiter,
-                gain=gain,
-                reject_threshold=reject_threshold,
-                preset_slitfunc=preset_slitfunc,
-            )
+
+            if USE_CHARSLIT:
+                slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
+                slitdeltas = np.zeros(swath_img.shape[0], dtype=np.float64)
+                swath[ihalf] = _slitdec_charslit(
+                    swath_img,
+                    swath_ycen,
+                    slitcurve,
+                    slitdeltas,
+                    lambda_sp=lambda_sp,
+                    lambda_sf=lambda_sf,
+                    osample=osample,
+                    yrange=yrange,
+                    maxiter=maxiter,
+                    gain=gain,
+                    reject_threshold=reject_threshold,
+                    preset_slitfunc=preset_slitfunc,
+                )
+            else:
+                # CFFI backend only supports degree <= 2
+                if swath_curv is not None and swath_curv.shape[1] > 3:
+                    raise ValueError(
+                        "curve_degree > 2 requires charslit. "
+                        "Set PYREDUCE_USE_CHARSLIT=1 to enable."
+                    )
+                swath[ihalf] = _slitdec_cffi(
+                    swath_img,
+                    swath_ycen,
+                    swath_curv,
+                    lambda_sp=lambda_sp,
+                    lambda_sf=lambda_sf,
+                    osample=osample,
+                    yrange=yrange,
+                    maxiter=maxiter,
+                    gain=gain,
+                    reject_threshold=reject_threshold,
+                    preset_slitfunc=preset_slitfunc,
+                )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
             if normalize:
