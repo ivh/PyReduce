@@ -144,6 +144,10 @@ class FibersConfig(BaseModel):
         None  # step_name -> selection; "default" key for fallback
     )
 
+    # Trace files separately by header value, then merge traces
+    # e.g., trace_by: "FIBMODE" groups files by FIBMODE header (even/odd/etc)
+    trace_by: str | None = None
+
     # Per-order grouping for echelle instruments
     # These can be lists for multi-channel instruments (indexed by channel)
     per_order: bool = False

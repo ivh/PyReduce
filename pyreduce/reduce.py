@@ -869,34 +869,20 @@ class Trace(CalibrationStep):
 
         logger.info("Tracing files: %s", files)
 
-        trace_img, ohead = self.calibrate(files, mask, bias, None)
+        # Check if we should trace file groups separately
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        trace_by = getattr(fibers_config, "trace_by", None) if fibers_config else None
 
-        traces, column_range, heights = mark_orders(
-            trace_img,
-            min_cluster=self.min_cluster,
-            min_width=self.min_width,
-            filter_x=self.filter_x,
-            filter_y=self.filter_y,
-            filter_type=self.filter_type,
-            noise=self.noise,
-            noise_relative=self.noise_relative,
-            degree=self.fit_degree,
-            degree_before_merge=self.degree_before_merge,
-            regularization=self.regularization,
-            closing_shape=self.closing_shape,
-            opening_shape=self.opening_shape,
-            border_width=self.border_width,
-            manual=self.manual,
-            auto_merge_threshold=self.auto_merge_threshold,
-            merge_min_threshold=self.merge_min_threshold,
-            sigma=self.sigma,
-            plot=self.plot,
-            plot_title=self.plot_title,
-        )
+        if trace_by and len(files) > 1:
+            traces, column_range, heights = self._trace_by_groups(
+                files, mask, bias, trace_by
+            )
+        else:
+            traces, column_range, heights = self._trace_single(files, mask, bias)
+
         self.heights = heights
 
         # Organize fibers into groups if configured
-        fibers_config = getattr(self.instrument.config, "fibers", None)
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
@@ -923,6 +909,101 @@ class Trace(CalibrationStep):
         self.save(traces, column_range)
 
         return traces, column_range
+
+    def _trace_by_groups(self, files, mask, bias, trace_by):
+        """Trace files grouped by header value, then merge traces.
+
+        Parameters
+        ----------
+        files : list(str)
+            Files to trace
+        mask : array, optional
+            Bad pixel mask
+        bias : tuple, optional
+            Bias correction
+        trace_by : str
+            Header keyword to group files by
+
+        Returns
+        -------
+        traces, column_range, heights : merged results from all groups
+        """
+        # Group files by header value
+        file_groups = {}
+        for f in files:
+            hdr = fits.getheader(f)
+            group_key = hdr.get(trace_by, "unknown")
+            if group_key not in file_groups:
+                file_groups[group_key] = []
+            file_groups[group_key].append(f)
+
+        logger.info(
+            "Tracing %d file groups separately (grouped by %s): %s",
+            len(file_groups),
+            trace_by,
+            list(file_groups.keys()),
+        )
+
+        # Trace each group
+        all_traces = []
+        all_column_range = []
+        all_heights = []
+        for group_key, group_files in file_groups.items():
+            logger.info("Tracing group '%s': %d files", group_key, len(group_files))
+            traces, column_range, heights = self._trace_single(group_files, mask, bias)
+            logger.info("  Found %d traces", len(traces))
+            all_traces.append(traces)
+            all_column_range.append(column_range)
+            all_heights.extend(heights if heights is not None else [])
+
+        # Merge traces from all groups
+        traces = np.vstack(all_traces)
+        column_range = np.vstack(all_column_range)
+        heights = np.array(all_heights) if all_heights else None
+
+        # Sort by y-position (trace constant term = y-intercept at x=0)
+        mid_x = traces.shape[1] // 2 if traces.shape[1] > 1 else 0
+        y_positions = np.polyval(traces[:, ::-1].T, mid_x)
+        sort_idx = np.argsort(y_positions)
+        traces = traces[sort_idx]
+        column_range = column_range[sort_idx]
+        if heights is not None:
+            heights = heights[sort_idx]
+
+        logger.info(
+            "Merged %d total traces from %d groups", len(traces), len(file_groups)
+        )
+
+        return traces, column_range, heights
+
+    def _trace_single(self, files, mask, bias):
+        """Trace a single set of files."""
+        trace_img, ohead = self.calibrate(files, mask, bias, None)
+
+        traces, column_range, heights = mark_orders(
+            trace_img,
+            min_cluster=self.min_cluster,
+            min_width=self.min_width,
+            filter_x=self.filter_x,
+            filter_y=self.filter_y,
+            filter_type=self.filter_type,
+            noise=self.noise,
+            noise_relative=self.noise_relative,
+            degree=self.fit_degree,
+            degree_before_merge=self.degree_before_merge,
+            regularization=self.regularization,
+            closing_shape=self.closing_shape,
+            opening_shape=self.opening_shape,
+            border_width=self.border_width,
+            manual=self.manual,
+            auto_merge_threshold=self.auto_merge_threshold,
+            merge_min_threshold=self.merge_min_threshold,
+            sigma=self.sigma,
+            plot=self.plot,
+            plot_title=self.plot_title,
+        )
+
+        return traces, column_range, heights
 
     def save(self, traces, column_range):
         """Save tracing results to disk

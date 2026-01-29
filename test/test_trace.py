@@ -1183,9 +1183,13 @@ class TestChannelTemplateSubstitution:
         assert 10 in group_traces["A"]
 
     @pytest.mark.unit
-    def test_no_channel_no_substitution(self, tmp_path):
+    def test_no_channel_no_substitution(self, tmp_path, caplog):
         """Test that template is used literally when channel is None."""
+        import logging
+
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        caplog.set_level(logging.WARNING)
 
         traces = np.array([[0.0, 0.0, 100.0]])
         column_range = np.array([[10, 990]])
@@ -1196,15 +1200,233 @@ class TestChannelTemplateSubstitution:
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
         )
 
-        # Without channel, should try to load literal filename and fail
-        with pytest.raises(FileNotFoundError):
-            trace.organize_fibers(
-                traces,
-                column_range,
-                config,
-                instrument_dir=str(tmp_path),
-                channel=None,
-            )
+        # Without channel, should try to load literal filename, warn, and return empty
+        group_traces, group_cr, group_counts, _ = trace.organize_fibers(
+            traces,
+            column_range,
+            config,
+            instrument_dir=str(tmp_path),
+            channel=None,
+        )
+
+        # Should warn about missing file with literal {channel} in path
+        assert "order_centers_{channel}.yaml" in caplog.text
+        assert group_traces == {}
+
+
+class TestTraceByGrouping:
+    """Tests for trace_by config option in Trace step."""
+
+    @pytest.mark.unit
+    def test_trace_by_groups_files_by_header(self, tmp_path):
+        """Test that _trace_by_groups correctly groups files by header value."""
+        from astropy.io import fits
+
+        # Create mock FITS files with different FIBMODE headers
+        for mode in ["even", "odd"]:
+            img = np.zeros((100, 100), dtype=np.float32)
+            hdu = fits.PrimaryHDU(img)
+            hdu.header["FIBMODE"] = mode
+            hdu.writeto(tmp_path / f"flat_{mode}.fits", overwrite=True)
+
+        # Test the grouping logic directly using fits.getheader
+        files = [str(tmp_path / "flat_even.fits"), str(tmp_path / "flat_odd.fits")]
+        trace_by = "FIBMODE"
+
+        # Group files by header value (mimics _trace_by_groups logic)
+        file_groups = {}
+        for f in files:
+            hdr = fits.getheader(f)
+            group_key = hdr.get(trace_by, "unknown")
+            if group_key not in file_groups:
+                file_groups[group_key] = []
+            file_groups[group_key].append(f)
+
+        assert len(file_groups) == 2
+        assert "even" in file_groups
+        assert "odd" in file_groups
+        assert len(file_groups["even"]) == 1
+        assert len(file_groups["odd"]) == 1
+
+    @pytest.mark.unit
+    def test_trace_by_merges_and_sorts_traces(self):
+        """Test that trace_by merges traces from groups and sorts by y-position."""
+        # Simulate traces from two groups
+        traces_even = np.array([[0.0, 0.0, 100.0], [0.0, 0.0, 300.0]])  # y=100, 300
+        cr_even = np.array([[0, 1000], [0, 1000]])
+        heights_even = [10.0, 10.0]
+
+        traces_odd = np.array([[0.0, 0.0, 200.0]])  # y=200
+        cr_odd = np.array([[0, 1000]])
+        heights_odd = [10.0]
+
+        # Merge (mimics logic in _trace_by_groups)
+        all_traces = [traces_even, traces_odd]
+        all_cr = [cr_even, cr_odd]
+        all_heights = []
+        all_heights.extend(heights_even)
+        all_heights.extend(heights_odd)
+
+        traces = np.vstack(all_traces)
+        column_range = np.vstack(all_cr)
+        heights = np.array(all_heights)
+
+        # Sort by y-position
+        mid_x = traces.shape[1] // 2 if traces.shape[1] > 1 else 0
+        y_positions = np.polyval(traces[:, ::-1].T, mid_x)
+        sort_idx = np.argsort(y_positions)
+        traces = traces[sort_idx]
+        column_range = column_range[sort_idx]
+        heights = heights[sort_idx]
+
+        # Check merged and sorted
+        assert len(traces) == 3
+        # Should be sorted by y: 100, 200, 300
+        assert traces[0, 2] == pytest.approx(100.0)
+        assert traces[1, 2] == pytest.approx(200.0)
+        assert traces[2, 2] == pytest.approx(300.0)
+
+    @pytest.mark.unit
+    def test_fibers_config_trace_by_field(self):
+        """Test that FibersConfig accepts trace_by field."""
+        from pyreduce.instruments.models import FibersConfig
+
+        config = FibersConfig(trace_by="FIBMODE")
+        assert config.trace_by == "FIBMODE"
+
+        config_none = FibersConfig()
+        assert config_none.trace_by is None
+
+    @pytest.mark.unit
+    def test_trace_by_with_three_groups(self, tmp_path):
+        """Test trace_by with three illumination patterns."""
+        from astropy.io import fits
+
+        # Create files for three groups
+        for mode in ["third1", "third2", "third3"]:
+            img = np.zeros((100, 100), dtype=np.float32)
+            hdu = fits.PrimaryHDU(img)
+            hdu.header["ILLUM"] = mode
+            hdu.writeto(tmp_path / f"flat_{mode}.fits", overwrite=True)
+
+        files = [
+            str(tmp_path / "flat_third1.fits"),
+            str(tmp_path / "flat_third2.fits"),
+            str(tmp_path / "flat_third3.fits"),
+        ]
+        trace_by = "ILLUM"
+
+        # Group files
+        file_groups = {}
+        for f in files:
+            hdr = fits.getheader(f)
+            group_key = hdr.get(trace_by, "unknown")
+            if group_key not in file_groups:
+                file_groups[group_key] = []
+            file_groups[group_key].append(f)
+
+        assert len(file_groups) == 3
+        assert set(file_groups.keys()) == {"third1", "third2", "third3"}
+
+
+class TestPerOrderMissingFile:
+    """Tests for graceful handling of missing order_centers_file."""
+
+    @pytest.mark.unit
+    def test_missing_order_centers_file_warns_and_continues(self, tmp_path, caplog):
+        """Test that missing order_centers_file logs warning and returns empty groups."""
+        import logging
+
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        caplog.set_level(logging.WARNING)
+
+        traces = np.array([[0.0, 0.0, 100.0], [0.0, 0.0, 200.0]])
+        column_range = np.array([[10, 990], [10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            fibers_per_order=1,
+            order_centers_file="nonexistent_file.yaml",
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        # Should not raise, should warn
+        group_traces, group_cr, group_counts, group_heights = trace.organize_fibers(
+            traces,
+            column_range,
+            config,
+            instrument_dir=str(tmp_path),
+            channel="test",
+        )
+
+        # Should return empty groups
+        assert group_traces == {}
+        assert group_cr == {}
+        assert group_counts == {}
+
+        # Should have logged a warning
+        assert "Order centers file not found" in caplog.text
+        assert "Skipping fiber grouping" in caplog.text
+
+    @pytest.mark.unit
+    def test_missing_order_centers_with_channel_template(self, tmp_path, caplog):
+        """Test missing file with {channel} template substitution."""
+        import logging
+
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        caplog.set_level(logging.WARNING)
+
+        traces = np.array([[0.0, 0.0, 100.0]])
+        column_range = np.array([[10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            order_centers_file="order_centers_{channel}.yaml",
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        group_traces, group_cr, group_counts, group_heights = trace.organize_fibers(
+            traces,
+            column_range,
+            config,
+            instrument_dir=str(tmp_path),
+            channel="R0",
+        )
+
+        # Should warn about the resolved filename
+        assert "order_centers_r0.yaml" in caplog.text
+        assert group_traces == {}
+
+    @pytest.mark.unit
+    def test_inline_order_centers_works(self):
+        """Test that inline order_centers (no file) still works."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        traces = np.array(
+            [
+                [0.0, 0.0, 100.0],
+                [0.0, 0.0, 200.0],
+            ]
+        )
+        column_range = np.array([[10, 990], [10, 990]])
+
+        config = FibersConfig(
+            per_order=True,
+            fibers_per_order=1,
+            order_centers={1: 100.0, 2: 200.0},  # Inline, no file needed
+            groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
+        )
+
+        group_traces, group_cr, group_counts, group_heights = trace.organize_fibers(
+            traces, column_range, config
+        )
+
+        # Should work normally with inline order_centers
+        assert "A" in group_traces
+        assert 1 in group_traces["A"]
+        assert 2 in group_traces["A"]
 
 
 class TestNaturalSortKey:

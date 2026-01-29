@@ -1529,7 +1529,26 @@ def organize_fibers(
             # Substitute {channel} template with channel name (lowercase)
             if channel and "{channel}" in centers_file:
                 centers_file = centers_file.format(channel=channel.lower())
-            order_centers = _load_order_centers(centers_file, instrument_dir)
+            try:
+                order_centers = _load_order_centers(centers_file, instrument_dir)
+            except FileNotFoundError:
+                # Resolve path for error message
+                from pathlib import Path
+
+                path = Path(centers_file)
+                if not path.is_absolute() and instrument_dir:
+                    path = Path(instrument_dir) / centers_file
+                logger.warning(
+                    "Order centers file not found: %s. "
+                    "Skipping fiber grouping. Create this file to enable per-order organization.",
+                    path,
+                )
+                return (
+                    group_traces,
+                    group_column_range,
+                    group_fiber_counts,
+                    group_heights,
+                )
 
         order_traces = _assign_traces_to_orders(traces, column_range, order_centers)
 
