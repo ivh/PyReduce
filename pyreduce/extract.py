@@ -1101,6 +1101,14 @@ def extract_spectrum(
             f"Ensure norm_flat and extraction use the same extraction_height and osample."
         )
 
+    # CFFI backend only supports curvature degree <= 2; truncate if needed
+    if not USE_CHARSLIT and curvature is not None and curvature.shape[1] > 3:
+        logger.warning(
+            "curve_degree > 2 requires charslit backend. "
+            "Truncating to degree 2. Set PYREDUCE_USE_CHARSLIT=1 for full curvature support."
+        )
+        curvature = curvature[:, :3]
+
     ycen_int = np.floor(ycen).astype(int)
 
     spec = np.zeros(ncol) if out_spec is None else out_spec
@@ -1192,12 +1200,6 @@ def extract_spectrum(
                     preset_slitfunc=preset_slitfunc,
                 )
             else:
-                # CFFI backend only supports degree <= 2
-                if swath_curv is not None and swath_curv.shape[1] > 3:
-                    raise ValueError(
-                        "curve_degree > 2 requires charslit. "
-                        "Set PYREDUCE_USE_CHARSLIT=1 to enable."
-                    )
                 swath[ihalf] = _slitdec_cffi(
                     swath_img,
                     swath_ycen_abs,
