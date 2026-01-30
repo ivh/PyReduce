@@ -63,6 +63,15 @@ def _get_curvature_coeffs(curvature):
     return curvature
 
 
+def _get_slitdeltas(curvature):
+    """Extract slitdeltas array from SlitCurvature or return None."""
+    if curvature is None:
+        return None
+    if isinstance(curvature, SlitCurvature):
+        return curvature.slitdeltas
+    return None
+
+
 from .trace import organize_fibers, select_traces_for_step
 from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
@@ -477,6 +486,7 @@ class ExtractionStep(Step):
     def extract(self, img, head, trace, curvature, scatter=None):
         traces, column_range = trace[:2] if trace is not None else (None, None)
         curv_coeffs = _get_curvature_coeffs(curvature)
+        slitdeltas = _get_slitdeltas(curvature)
 
         data, unc, slitfu, cr = extract(
             img,
@@ -490,6 +500,7 @@ class ExtractionStep(Step):
             plot=self.plot,
             plot_title=self.plot_title,
             curvature=curv_coeffs,
+            slitdeltas=slitdeltas,
             scatter=scatter,
             **self.extraction_kwargs,
         )

@@ -335,9 +335,14 @@ class Curvature:
         coeffs : array of shape (n_peaks, curve_degree)
             Polynomial coefficients (excluding c0) for each peak.
             coeffs[i, 0] is c1 (linear), coeffs[i, 1] is c2 (quadratic), etc.
+        residuals : array of shape (n_peaks, n_offsets)
+            Residuals (measured - fitted) at each offset for each peak.
+            NaN where no valid measurement.
         """
         n_peaks = len(peaks)
+        n_offsets = len(offsets)
         coeffs = np.zeros((n_peaks, self.curve_degree))
+        residuals = np.full((n_peaks, n_offsets), np.nan)
         min_points = self.curve_degree + 1
 
         for i in range(n_peaks):
@@ -363,10 +368,14 @@ class Curvature:
                 # poly_coef[-2] is c_1, poly_coef[-3] is c_2, etc.
                 for j in range(self.curve_degree):
                     coeffs[i, j] = poly_coef[-(j + 2)]
+
+                # Compute residuals: measured - fitted
+                dx_fitted = np.polyval(poly_coef, offsets)
+                residuals[i, :] = positions[i] - x0 - dx_fitted
             except Exception:
                 pass
 
-        return coeffs
+        return coeffs, residuals
 
     def _fit_curvature_single_order(self, peaks, coeffs):
         """Fit smooth polynomial to curvature coefficients across an order.
@@ -432,11 +441,18 @@ class Curvature:
         all_coeffs : list of arrays
             Curvature coefficients for each peak in each order.
             Each entry has shape (n_peaks, curve_degree).
+        all_offsets : list of arrays
+            Y-offsets used for each order
+        all_residuals : list of arrays
+            Fit residuals for each peak at each offset.
+            Each entry has shape (n_peaks, n_offsets).
         plot_vec : list of arrays
             Middle spectrum for each order (for plotting)
         """
         all_peaks = []
         all_coeffs = []
+        all_offsets = []
+        all_residuals = []
         plot_vec = []
 
         for j in tqdm(range(self.n), desc="Trace"):
@@ -459,17 +475,23 @@ class Curvature:
             if len(peaks) == 0:
                 all_peaks.append(np.array([]))
                 all_coeffs.append(np.zeros((0, self.curve_degree)))
+                all_offsets.append(offsets)
+                all_residuals.append(np.zeros((0, len(offsets))))
                 plot_vec.append(vec)
                 continue
 
             # Fit curvature from peak positions
-            coeffs = self._fit_curvature_from_positions(peaks, positions, offsets)
+            coeffs, residuals = self._fit_curvature_from_positions(
+                peaks, positions, offsets
+            )
 
             all_peaks.append(peaks)
             all_coeffs.append(coeffs)
+            all_offsets.append(offsets)
+            all_residuals.append(residuals)
             plot_vec.append(vec)
 
-        return all_peaks, all_coeffs, plot_vec
+        return all_peaks, all_coeffs, all_offsets, all_residuals, plot_vec
 
     def fit(self, peaks, all_coeffs):
         """Fit smooth polynomial to curvature coefficients.
@@ -674,7 +696,9 @@ class Curvature:
 
         util.show_or_save("curvature_fit")
 
-    def plot_comparison(self, original, coeffs_array, peaks):  # pragma: no cover
+    def plot_comparison(
+        self, original, coeffs_array, peaks, slitdeltas=None
+    ):  # pragma: no cover
         """Plot comparison of curvature model vs data.
 
         Parameters
@@ -685,6 +709,9 @@ class Curvature:
             Curvature coefficients at each point
         peaks : list of arrays
             Peak columns for each order
+        slitdeltas : array of shape (ntrace, nrows), optional
+            Per-row residual offsets. If provided, plotted as white lines
+            offset from the polynomial (red lines).
         """
         plt.figure()
         _, ncol = original.shape
@@ -722,7 +749,19 @@ class Curvature:
                         dx += coeffs_array[i, p, k + 1] * (yt ** (k + 1))
                     curve_x[j] = p + dx
                 y_plot = y_offsets + pos[i] + half
-                plt.plot(curve_x, y_plot, "r")
+                # Red line: polynomial curvature only
+                plt.plot(curve_x, y_plot, "r", linewidth=1)
+
+                # White line: polynomial + slitdeltas (if available)
+                if slitdeltas is not None and i < slitdeltas.shape[0]:
+                    # Interpolate slitdeltas to curve_height resolution
+                    sd = slitdeltas[i]
+                    if len(sd) != ew:
+                        sd_x = np.linspace(0, 1, len(sd))
+                        curve_x_interp = np.linspace(0, 1, ew)
+                        sd = np.interp(curve_x_interp, sd_x, sd)
+                    curve_x_with_delta = curve_x + sd
+                    plt.plot(curve_x_with_delta, y_plot, "w", linewidth=0.5, alpha=0.8)
 
         locs = self.curve_height + 1
         locs = np.array([0, *np.cumsum(locs)[:-1]])
@@ -736,18 +775,67 @@ class Curvature:
         plt.ylabel("order")
         util.show_or_save("curvature_comparison")
 
-    def execute(self, original):
+    def _compute_slitdeltas(self, all_offsets, all_residuals, nrows):
+        """Compute per-row slitdeltas from fit residuals.
+
+        For each trace, average residuals across peaks at each offset,
+        then interpolate to per-row values.
+
+        Parameters
+        ----------
+        all_offsets : list of arrays
+            Y-offsets used for each order
+        all_residuals : list of arrays
+            Fit residuals, shape (n_peaks, n_offsets) per order
+        nrows : int
+            Number of rows in extraction swath
+
+        Returns
+        -------
+        slitdeltas : array of shape (ntrace, nrows)
+            Per-row residual offsets for each trace
+        """
+        slitdeltas = np.zeros((self.n, nrows))
+
+        for j in range(self.n):
+            offsets = all_offsets[j]
+            residuals = all_residuals[j]
+
+            if len(residuals) == 0:
+                continue
+
+            # Average residuals across peaks at each offset (ignoring NaN)
+            mean_resid = np.nanmedian(residuals, axis=0)
+
+            # Map offsets to row indices
+            # offsets are relative to trace center
+            xwd = self.extraction_height[j]
+            half = xwd // 2
+            row_offsets = np.linspace(-half, xwd - half, nrows)
+
+            # Interpolate from measured offsets to per-row
+            valid = ~np.isnan(mean_resid)
+            if np.sum(valid) >= 2:
+                slitdeltas[j] = np.interp(
+                    row_offsets, offsets[valid], mean_resid[valid], left=0, right=0
+                )
+
+        return slitdeltas
+
+    def execute(self, original, compute_slitdeltas=True):
         """Execute curvature determination using row-tracking method.
 
         Parameters
         ----------
         original : array of shape (nrow, ncol)
             Original image
+        compute_slitdeltas : bool
+            Whether to compute slitdeltas from fit residuals (default: True)
 
         Returns
         -------
         curvature : SlitCurvature
-            Curvature data including polynomial coefficients.
+            Curvature data including polynomial coefficients and optionally slitdeltas.
         """
         logger.info("Determining the Slit Curvature")
 
@@ -755,7 +843,9 @@ class Curvature:
 
         self._fix_inputs(original)
 
-        peaks, all_coeffs, vec = self._determine_curvature_all_lines(original)
+        peaks, all_coeffs, all_offsets, all_residuals, vec = (
+            self._determine_curvature_all_lines(original)
+        )
 
         fitted_coeffs = self.fit(peaks, all_coeffs)
 
@@ -771,12 +861,25 @@ class Curvature:
         coeffs = np.zeros((self.n, ncol, self.curve_degree + 1))
         coeffs[:, :, 1:] = coeffs_flat.reshape(self.n, ncol, self.curve_degree)
 
+        # Compute slitdeltas from residuals
+        slitdeltas = None
+        if compute_slitdeltas:
+            # Use max extraction height to determine nrows
+            max_xwd = int(np.max(self.extraction_height)) + 1
+            slitdeltas = self._compute_slitdeltas(all_offsets, all_residuals, max_xwd)
+            logger.info(
+                "Computed slitdeltas with shape %s, range [%.4f, %.4f]",
+                slitdeltas.shape,
+                np.nanmin(slitdeltas),
+                np.nanmax(slitdeltas),
+            )
+
         if self.plot:  # pragma: no cover
-            self.plot_comparison(original, coeffs, peaks)
+            self.plot_comparison(original, coeffs, peaks, slitdeltas=slitdeltas)
 
         curvature = SlitCurvature(
             coeffs=coeffs,
-            slitdeltas=None,
+            slitdeltas=slitdeltas,
             degree=self.curve_degree,
         )
         return curvature

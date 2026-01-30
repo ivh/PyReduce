@@ -952,6 +952,7 @@ def extract_spectrum(
     normalize=False,
     threshold=0,
     curvature=None,
+    slitdeltas=None,
     plot=False,
     plot_title=None,
     im_norm=None,
@@ -1022,6 +1023,9 @@ def extract_spectrum(
         threshold for normalization (default: 0)
     curvature : array[ncol, n_coeffs], optional
         Slit curvature polynomial coefficients for this trace (default: None, i.e. vertical extraction)
+    slitdeltas : array[nrows_stored], optional
+        Per-row residual offsets from polynomial curvature fit (default: None).
+        Will be interpolated to match swath nrows if lengths differ.
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional
@@ -1113,12 +1117,23 @@ def extract_spectrum(
 
             if USE_CHARSLIT:
                 slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
-                slitdeltas = np.zeros(swath_img.shape[0], dtype=np.float64)
+                swath_nrows = swath_img.shape[0]
+                if slitdeltas is not None and len(slitdeltas) > 0:
+                    # Interpolate slitdeltas to match swath nrows if needed
+                    if len(slitdeltas) == swath_nrows:
+                        swath_slitdeltas = slitdeltas.astype(np.float64)
+                    else:
+                        x_stored = np.linspace(0, 1, len(slitdeltas))
+                        x_swath = np.linspace(0, 1, swath_nrows)
+                        swath_slitdeltas = np.interp(x_swath, x_stored, slitdeltas)
+                        swath_slitdeltas = swath_slitdeltas.astype(np.float64)
+                else:
+                    swath_slitdeltas = np.zeros(swath_nrows, dtype=np.float64)
                 swath[ihalf] = _slitdec_charslit(
                     swath_img,
                     swath_ycen,
                     slitcurve,
-                    slitdeltas,
+                    swath_slitdeltas,
                     lambda_sp=lambda_sp,
                     lambda_sf=lambda_sf,
                     osample=osample,
@@ -1295,6 +1310,7 @@ def optimal_extraction(
     extraction_height,
     column_range,
     curvature=None,
+    slitdeltas=None,
     plot=False,
     plot_title=None,
     **kwargs,
@@ -1315,6 +1331,8 @@ def optimal_extraction(
         column range to use
     curvature : array[ntrace, ncol, n_coeffs] or None
         Slit curvature polynomial coefficients (default: None for vertical extraction)
+    slitdeltas : array[ntrace, nrows] or None
+        Per-row residual offsets from curvature fit (default: None)
     **kwargs
         other parameters for the extraction (see extract_spectrum)
 
@@ -1373,12 +1391,14 @@ def optimal_extraction(
         if preset_slitfunc is not None and i < len(preset_slitfunc):
             order_slitfunc = preset_slitfunc[i]
         trace_curv = curvature[i] if curvature is not None else None
+        trace_slitdeltas = slitdeltas[i] if slitdeltas is not None else None
         extract_spectrum(
             img,
             ycen,
             yrange,
             column_range[i],
             curvature=trace_curv,
+            slitdeltas=trace_slitdeltas,
             out_spec=spectrum[i],
             out_sunc=uncertainties[i],
             out_slitf=slitfunction[i],
@@ -1654,6 +1674,7 @@ def extract(
     extraction_height=0.5,
     extraction_type="optimal",
     curvature=None,
+    slitdeltas=None,
     **kwargs,
 ):
     """
@@ -1675,6 +1696,8 @@ def extract(
         which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
     curvature : array[ntrace, ncol, n_coeffs], optional
         Slit curvature polynomial coefficients (default: None for vertical extraction)
+    slitdeltas : array[ntrace, nrows], optional
+        Per-row residual offsets from curvature fit (default: None)
     polarization : bool, optional
         if true, pairs of traces are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
     **kwargs, optional
@@ -1713,6 +1736,8 @@ def extract(
     extraction_height = extraction_height[trace_range[0] : trace_range[1]]
     if curvature is not None:
         curvature = curvature[trace_range[0] : trace_range[1]]
+    if slitdeltas is not None:
+        slitdeltas = slitdeltas[trace_range[0] : trace_range[1]]
 
     if extraction_type == "optimal":
         # the "normal" case, except for wavelength calibration files
@@ -1722,6 +1747,7 @@ def extract(
             extraction_height,
             column_range,
             curvature=curvature,
+            slitdeltas=slitdeltas,
             **kwargs,
         )
     elif extraction_type == "normalize":
@@ -1738,6 +1764,7 @@ def extract(
             extraction_height,
             column_range,
             curvature=curvature,
+            slitdeltas=slitdeltas,
             normalize=True,
             im_norm=im_norm,
             im_ordr=im_ordr,

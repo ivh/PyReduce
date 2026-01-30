@@ -205,12 +205,17 @@ class TestCurvatureFitFromPositions:
         for i, peak in enumerate(peaks):
             positions[i, :] = peak + c1_true * offsets
 
-        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs, residuals = module._fit_curvature_from_positions(
+            peaks, positions, offsets
+        )
 
         # coeffs has shape (n_peaks, curve_degree) = (3, 1)
         assert coeffs.shape == (3, 1)
         # c1 should be close to 0.05 for all peaks
         assert np.allclose(coeffs[:, 0], c1_true, atol=0.01)
+        # residuals should be near zero for perfect polynomial data
+        assert residuals.shape == (3, 5)
+        assert np.allclose(residuals, 0, atol=0.01)
 
     @pytest.mark.unit
     def test_fit_curvature_quadratic(self, simple_orders):
@@ -227,12 +232,17 @@ class TestCurvatureFitFromPositions:
         for i, peak in enumerate(peaks):
             positions[i, :] = peak + c1_true * offsets + c2_true * offsets**2
 
-        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs, residuals = module._fit_curvature_from_positions(
+            peaks, positions, offsets
+        )
 
         # coeffs has shape (n_peaks, curve_degree) = (3, 2)
         assert coeffs.shape == (3, 2)
         assert np.allclose(coeffs[:, 0], c1_true, atol=0.01)
         assert np.allclose(coeffs[:, 1], c2_true, atol=0.005)
+        # residuals should be near zero for perfect polynomial data
+        assert residuals.shape == (3, 5)
+        assert np.allclose(residuals, 0, atol=0.01)
 
     @pytest.mark.unit
     def test_fit_curvature_insufficient_data(self, simple_orders):
@@ -243,12 +253,172 @@ class TestCurvatureFitFromPositions:
         offsets = np.array([0.0, 1.0])  # Only 2 points, need 3 for quadratic
         positions = np.array([[np.nan, 100.0]])  # Only 1 valid point
 
-        coeffs = module._fit_curvature_from_positions(peaks, positions, offsets)
+        coeffs, residuals = module._fit_curvature_from_positions(
+            peaks, positions, offsets
+        )
 
         # Should return zeros when insufficient data
         assert coeffs.shape == (1, 2)
         assert coeffs[0, 0] == 0.0
         assert coeffs[0, 1] == 0.0
+        # Residuals should be NaN when fit fails
+        assert residuals.shape == (1, 2)
+        assert np.all(np.isnan(residuals))
+
+
+class TestSlitdeltasComputation:
+    """Tests for slitdeltas computation from fit residuals."""
+
+    @pytest.fixture
+    def simple_orders(self):
+        """Simple set of 2 polynomial trace coefficients."""
+        return np.array([[50.0, 0.0], [70.0, 0.0]])
+
+    @pytest.fixture
+    def configured_module(self, simple_orders):
+        """Module with extraction_height properly configured."""
+        module = CurvatureModule(
+            simple_orders,
+            mode="1D",
+            curve_degree=1,
+            curve_height=10,
+            extraction_height=5,
+        )
+        # Manually set up extraction_height (normally done in _fix_inputs)
+        module.extraction_height = np.array([[5, 5], [5, 5]])
+        module.trace_range = (0, 2)  # Sets n = 2 via property
+        return module
+
+    @pytest.mark.unit
+    def test_compute_slitdeltas_basic(self, configured_module):
+        """Test basic slitdeltas computation from residuals."""
+        module = configured_module
+
+        # Create mock offsets and residuals for 2 traces
+        all_offsets = [
+            np.array([-2.0, -1.0, 0.0, 1.0, 2.0]),
+            np.array([-2.0, -1.0, 0.0, 1.0, 2.0]),
+        ]
+        all_residuals = [
+            np.array(
+                [
+                    [0.1, 0.05, 0.0, -0.05, -0.1],
+                    [0.12, 0.06, 0.0, -0.06, -0.12],
+                ]
+            ),
+            np.array(
+                [
+                    [0.2, 0.1, 0.0, -0.1, -0.2],
+                ]
+            ),
+        ]
+
+        nrows = 5
+        slitdeltas = module._compute_slitdeltas(all_offsets, all_residuals, nrows)
+
+        assert slitdeltas.shape == (2, nrows)
+        assert not np.any(np.isnan(slitdeltas))
+
+    @pytest.mark.unit
+    def test_compute_slitdeltas_interpolation(self, configured_module):
+        """Test that slitdeltas are correctly interpolated to nrows."""
+        module = configured_module
+        module.trace_range = (0, 1)
+        module.extraction_height = np.array([[5, 5]])
+
+        # Offsets must span the extraction range [-5, 5] for interpolation
+        all_offsets = [np.array([-5.0, -2.5, 0.0, 2.5, 5.0])]
+        all_residuals = [np.array([[0.5, 0.25, 0.0, -0.25, -0.5]])]
+
+        nrows = 5
+        slitdeltas = module._compute_slitdeltas(all_offsets, all_residuals, nrows)
+
+        assert slitdeltas.shape == (1, nrows)
+        # Should be monotonically decreasing (positive to negative)
+        assert slitdeltas[0, 0] > slitdeltas[0, -1]
+        # Check approximate values
+        assert np.isclose(slitdeltas[0, 2], 0.0, atol=0.01)
+
+    @pytest.mark.unit
+    def test_compute_slitdeltas_empty_residuals(self, configured_module):
+        """Test handling of empty residuals."""
+        module = configured_module
+        module.trace_range = (0, 1)
+        module.extraction_height = np.array([[5, 5]])
+
+        all_offsets = [np.array([-1.0, 0.0, 1.0])]
+        all_residuals = [np.zeros((0, 3))]
+
+        nrows = 5
+        slitdeltas = module._compute_slitdeltas(all_offsets, all_residuals, nrows)
+
+        assert slitdeltas.shape == (1, nrows)
+        assert np.allclose(slitdeltas, 0)
+
+    @pytest.mark.unit
+    def test_compute_slitdeltas_nan_handling(self, configured_module):
+        """Test that NaN residuals are properly ignored."""
+        module = configured_module
+        module.trace_range = (0, 1)
+        module.extraction_height = np.array([[5, 5]])
+
+        all_offsets = [np.array([-1.0, 0.0, 1.0])]
+        all_residuals = [
+            np.array(
+                [
+                    [0.2, 0.0, -0.2],
+                    [np.nan, 0.0, np.nan],
+                ]
+            )
+        ]
+
+        nrows = 5
+        slitdeltas = module._compute_slitdeltas(all_offsets, all_residuals, nrows)
+
+        assert slitdeltas.shape == (1, nrows)
+        assert not np.any(np.isnan(slitdeltas))
+
+    @pytest.mark.unit
+    def test_execute_returns_slitdeltas(self, simple_orders):
+        """Test that execute() returns SlitCurvature with slitdeltas."""
+        from pyreduce.curvature_model import SlitCurvature
+
+        module = CurvatureModule(
+            simple_orders,
+            mode="1D",
+            curve_degree=1,
+            curve_height=10,
+            extraction_height=5,
+        )
+
+        nrow, ncol = 100, 500
+        img = np.random.normal(100, 10, (nrow, ncol))
+        for x in [100, 200, 300, 400]:
+            img[:, x] += 500
+
+        result = module.execute(img, compute_slitdeltas=True)
+
+        assert isinstance(result, SlitCurvature)
+        assert result.slitdeltas is not None
+        assert result.slitdeltas.shape[0] == 2  # 2 traces
+
+    @pytest.mark.unit
+    def test_execute_without_slitdeltas(self, simple_orders):
+        """Test that execute() can skip slitdeltas computation."""
+        module = CurvatureModule(
+            simple_orders,
+            mode="1D",
+            curve_degree=1,
+            curve_height=10,
+            extraction_height=5,
+        )
+
+        nrow, ncol = 100, 500
+        img = np.random.normal(100, 10, (nrow, ncol))
+
+        result = module.execute(img, compute_slitdeltas=False)
+
+        assert result.slitdeltas is None
 
 
 # Tests that require instrument data follow below

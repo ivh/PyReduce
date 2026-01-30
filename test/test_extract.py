@@ -549,3 +549,156 @@ class TestAdaptSlitfunc:
         assert len(result) == tgt_nslitf
         # Should be normalized to target osample
         assert abs(result.sum() - tgt_osample) < 0.1
+
+
+class TestSlitdeltasExtraction:
+    """Tests for slitdeltas handling in extraction."""
+
+    def test_extract_spectrum_with_slitdeltas(self):
+        """Test that slitdeltas parameter is accepted and used."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        slitdeltas = np.linspace(-0.1, 0.1, 11)
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+        assert not np.all(np.isnan(spec[xrange[0] : xrange[1]]))
+
+    def test_extract_spectrum_slitdeltas_interpolation(self):
+        """Test that slitdeltas are interpolated when length differs."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        # Provide different length slitdeltas
+        slitdeltas = np.linspace(-0.1, 0.1, 21)
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+
+    def test_extract_spectrum_no_slitdeltas(self):
+        """Test extraction works without slitdeltas (None)."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=None,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+
+    def test_optimal_extraction_with_slitdeltas(self):
+        """Test optimal_extraction passes slitdeltas to extract_spectrum."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100  # Add signal at trace location
+
+        # Trace polynomial: y = 0*x + 25 (constant at row 25)
+        traces = np.array([[0.0, 25.0]])
+        extraction_height = np.array([[5, 5]])
+        column_range = np.array([[0, ncol]])
+
+        # slitdeltas has shape (ntrace, nrows)
+        slitdeltas = np.zeros((1, 11))
+        slitdeltas[0, :] = np.linspace(-0.05, 0.05, 11)
+
+        spec, slitf, unc = extract.optimal_extraction(
+            img,
+            traces,
+            extraction_height,
+            column_range,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (1, ncol)
+
+    def test_extract_with_slitdeltas(self):
+        """Test main extract() function passes slitdeltas through."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Trace polynomial: y = 0*x + 25
+        traces = np.array([[0.0, 25.0]])
+        column_range = np.array([[0, ncol]])
+
+        slitdeltas = np.zeros((1, 11))
+        slitdeltas[0, :] = np.linspace(-0.02, 0.02, 11)
+
+        spec, unc, slitf, cr = extract.extract(
+            img,
+            traces,
+            column_range=column_range,
+            extraction_height=10,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (1, ncol)
+
+    def test_extract_slitdeltas_trace_range(self):
+        """Test that slitdeltas are correctly sliced by trace_range."""
+        nrow, ncol = 80, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100  # First trace
+        img[50:60, :] += 100  # Second trace
+
+        # Two traces: y = 25 and y = 55
+        traces = np.array([[0.0, 25.0], [0.0, 55.0]])
+        column_range = np.array([[0, ncol], [0, ncol]])
+
+        # slitdeltas for both traces
+        slitdeltas = np.zeros((2, 11))
+        slitdeltas[0, :] = 0.1  # First trace
+        slitdeltas[1, :] = 0.2  # Second trace
+
+        # Extract only second trace
+        spec, unc, slitf, cr = extract.extract(
+            img,
+            traces,
+            column_range=column_range,
+            extraction_height=10,
+            trace_range=(1, 2),
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        # Should only have one trace extracted
+        assert spec.shape == (1, ncol)
