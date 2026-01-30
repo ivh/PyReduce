@@ -470,10 +470,10 @@
                             "minimum": 1
                         },
                         "curve_degree": {
-                            "description": "Number of orders of the curvature to fit. I.e. 1: only linear curvature, 2: second order curvature",
+                            "description": "Polynomial degree of slit curvature (1=linear, 2=quadratic, up to 5)",
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": 2
+                            "maximum": 5
                         },
                         "curve_height": {
                             "description": "Height of the 2D cutout for curvature fitting (per side). If a value under 1.5 is given it will be understood as the fractional difference to the next order.",

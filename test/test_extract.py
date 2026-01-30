@@ -214,11 +214,10 @@ def test_simple_extraction(sample_data, orders, width, oversample):
     column_range = np.array([[0, width]])
 
     nord = len(orders)
-    p1 = np.zeros((nord, width))
-    p2 = np.zeros((nord, width))
+    curvature = np.zeros((nord, width, 3))
 
     spec_out, unc_out = extract.simple_extraction(
-        img, orders, extraction_height, column_range, p1=p1, p2=p2
+        img, orders, extraction_height, column_range, curvature=curvature
     )
 
     assert isinstance(spec_out, np.ndarray)
@@ -261,14 +260,13 @@ def test_vertical_extraction(sample_data, orders, width, height, oversample):
     # assert np.abs(sunc_vert / spec_vert).max() <= 1e-2
 
 
-def test_curved_equal_vertical_extraction(sample_data, orders):
-    # Currently extract always uses the vertical extraction, making this kind of useless
+def test_curved_equal_vertical_extraction(sample_data, orders, width):
+    # Curved extraction with zero curvature should match vertical extraction
     img, spec, slitf = sample_data
-    p1 = 0
-    p2 = 0
+    curvature = np.zeros((1, width, 3))
 
     spec_curved, sunc_curved, slitf_curved, _ = extract.extract(
-        img, orders, p1=p1, p2=p2
+        img, orders, curvature=curvature
     )
     spec_vert, sunc_vert, slitf_vert, _ = extract.extract(img, orders)
 
@@ -281,10 +279,11 @@ def test_optimal_extraction(sample_data, orders, height, width):
     img, spec, slitf = sample_data
     xwd = np.array([height])  # full height
     cr = np.array([[0, width]])
-    p1 = p2 = np.zeros((1, width))
+    # curvature shape: (ntrace, ncol, n_coeffs), all zeros for vertical extraction
+    curvature = np.zeros((1, width, 3))
 
     res_spec, res_slitf, res_unc = extract.optimal_extraction(
-        img, orders, xwd, cr, p1, p2
+        img, orders, xwd, cr, curvature=curvature
     )
 
     assert isinstance(res_spec, np.ndarray)
@@ -550,3 +549,156 @@ class TestAdaptSlitfunc:
         assert len(result) == tgt_nslitf
         # Should be normalized to target osample
         assert abs(result.sum() - tgt_osample) < 0.1
+
+
+class TestSlitdeltasExtraction:
+    """Tests for slitdeltas handling in extraction."""
+
+    def test_extract_spectrum_with_slitdeltas(self):
+        """Test that slitdeltas parameter is accepted and used."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        slitdeltas = np.linspace(-0.1, 0.1, 11)
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+        assert not np.all(np.isnan(spec[xrange[0] : xrange[1]]))
+
+    def test_extract_spectrum_slitdeltas_interpolation(self):
+        """Test that slitdeltas are interpolated when length differs."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        # Provide different length slitdeltas
+        slitdeltas = np.linspace(-0.1, 0.1, 21)
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+
+    def test_extract_spectrum_no_slitdeltas(self):
+        """Test extraction works without slitdeltas (None)."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        ycen = np.full(ncol, 25.0)
+        yrange = (5, 5)
+        xrange = np.array([10, 90])
+
+        spec, slitf, mask, unc = extract.extract_spectrum(
+            img,
+            ycen,
+            yrange,
+            xrange,
+            slitdeltas=None,
+            osample=1,
+        )
+
+        assert spec.shape == (ncol,)
+
+    def test_optimal_extraction_with_slitdeltas(self):
+        """Test optimal_extraction passes slitdeltas to extract_spectrum."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100  # Add signal at trace location
+
+        # Trace polynomial: y = 0*x + 25 (constant at row 25)
+        traces = np.array([[0.0, 25.0]])
+        extraction_height = np.array([10])
+        column_range = np.array([[0, ncol]])
+
+        # slitdeltas has shape (ntrace, nrows)
+        slitdeltas = np.zeros((1, 10))
+        slitdeltas[0, :] = np.linspace(-0.05, 0.05, 10)
+
+        spec, slitf, unc = extract.optimal_extraction(
+            img,
+            traces,
+            extraction_height,
+            column_range,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (1, ncol)
+
+    def test_extract_with_slitdeltas(self):
+        """Test main extract() function passes slitdeltas through."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Trace polynomial: y = 0*x + 25
+        traces = np.array([[0.0, 25.0]])
+        column_range = np.array([[0, ncol]])
+
+        slitdeltas = np.zeros((1, 10))
+        slitdeltas[0, :] = np.linspace(-0.02, 0.02, 10)
+
+        spec, unc, slitf, cr = extract.extract(
+            img,
+            traces,
+            column_range=column_range,
+            extraction_height=10,
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        assert spec.shape == (1, ncol)
+
+    def test_extract_slitdeltas_trace_range(self):
+        """Test that slitdeltas are correctly sliced by trace_range."""
+        nrow, ncol = 80, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100  # First trace
+        img[50:60, :] += 100  # Second trace
+
+        # Two traces: y = 25 and y = 55
+        traces = np.array([[0.0, 25.0], [0.0, 55.0]])
+        column_range = np.array([[0, ncol], [0, ncol]])
+
+        # slitdeltas for both traces
+        slitdeltas = np.zeros((2, 10))
+        slitdeltas[0, :] = 0.1  # First trace
+        slitdeltas[1, :] = 0.2  # Second trace
+
+        # Extract only second trace
+        spec, unc, slitf, cr = extract.extract(
+            img,
+            traces,
+            column_range=column_range,
+            extraction_height=10,
+            trace_range=(1, 2),
+            slitdeltas=slitdeltas,
+            osample=1,
+        )
+
+        # Should only have one trace extracted
+        assert spec.shape == (1, ncol)

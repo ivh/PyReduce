@@ -223,6 +223,34 @@ wheels = [
 ]
 
 [[package]]
+name = "charslit"
+version = "0.1.0"
+source = { directory = "../CharSlit.git" }
+dependencies = [
+    { name = "astropy" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "astropy", specifier = ">=5.0.0" },
+    { name = "matplotlib", specifier = ">=3.5.0" },
+    { name = "numpy", specifier = ">=1.20.0" },
+    { name = "scipy", specifier = ">=1.7.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "ipython" },
+    { name = "nanobind" },
+    { name = "pre-commit", specifier = ">=3.0.0" },
+    { name = "pytest", specifier = ">=7.0.0" },
+    { name = "ruff", specifier = ">=0.8.0" },
+]
+
+[[package]]
 name = "click"
 version = "8.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1446,6 +1474,11 @@ dependencies = [
     { name = "tqdm" },
 ]
 
+[package.optional-dependencies]
+charslit = [
+    { name = "charslit" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "ipython" },
@@ -1468,6 +1501,7 @@ ipynb = [
 requires-dist = [
     { name = "astropy", specifier = ">=5.3.0" },
     { name = "cffi", specifier = ">=1.17.1" },
+    { name = "charslit", marker = "extra == 'charslit'", directory = "../CharSlit.git" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "colorlog", specifier = ">=6.8.0" },
     { name = "corner", specifier = ">=2.2.0" },
@@ -1485,6 +1519,7 @@ requires-dist = [
     { name = "spectres", specifier = ">=2.2.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
 ]
+provides-extras = ["charslit"]
 
 [package.metadata.requires-dev]
 dev = [

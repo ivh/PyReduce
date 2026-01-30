@@ -11,7 +11,7 @@ This means:
 - **Columns (x)** = wavelength/dispersion direction
 - **Rows (y)** = spatial/cross-dispersion direction
 - **Traces** are polynomial functions of x, giving y-position
-- **`extraction_height`** refers to pixels above/below each trace (in y)
+- **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
 
 ## Mask Convention
 
@@ -96,6 +96,8 @@ result = pipe.run()
 | `PYREDUCE_PLOT_DIR` | Save plots to directory as PNG files |
 | `PYREDUCE_PLOT_SHOW` | Display mode: `block` (default), `defer`, or `off` |
 | `PYREDUCE_PLOT_ANIMATION_SPEED` | Frame delay in seconds for extraction animation (default: 0.3) |
+| `PYREDUCE_USE_CHARSLIT` | Use charslit extraction backend (default: 0) |
+| `PYREDUCE_USE_DELTAS` | Enable slitdelta correction with charslit backend (default: 1) |
 
 ## Plot Modes
 

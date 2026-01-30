@@ -479,12 +479,19 @@ class TestSlitCurvatureSaveLoad:
             mock_instrument, "", "", "", str(tmp_path), None, **config
         )
 
-        # Create fake curvature data
+        # Create fake curvature data using SlitCurvature
+        from pyreduce.curvature_model import SlitCurvature
+
         p1 = np.random.rand(10, 1000) * 0.01
         p2 = np.random.rand(10, 1000) * 0.001
+        coeffs = np.zeros((10, 1000, 3), dtype=np.float64)
+        coeffs[:, :, 1] = p1
+        coeffs[:, :, 2] = p2
+        curvature = SlitCurvature(coeffs=coeffs, slitdeltas=None, degree=2)
 
-        step.save(p1, p2)
-        loaded_p1, loaded_p2 = step.load()
+        step.save(curvature)
+        loaded = step.load()
+        loaded_p1, loaded_p2 = loaded.to_p1_p2()
 
         assert np.allclose(p1, loaded_p1)
         assert np.allclose(p2, loaded_p2)
@@ -512,9 +519,8 @@ class TestSlitCurvatureSaveLoad:
         step = reduce.SlitCurvatureDetermination(
             mock_instrument, "", "", "", str(tmp_path), None, **config
         )
-        p1, p2 = step.load()
-        assert p1 is None
-        assert p2 is None
+        curvature = step.load()
+        assert curvature is None
 
 
 class TestBackgroundScatterSaveLoad:
