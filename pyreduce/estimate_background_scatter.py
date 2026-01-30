@@ -38,8 +38,8 @@ def estimate_background_scatter(
         trace polynomial coefficients
     column_range : array[ntrace, 2], optional
         range of columns to use in each trace (default: None == all columns)
-    extraction_height : float, array[ntrace, 2], optional
-        extraction width for each trace, values below 1.5 are considered fractional, others as number of pixels (default: 0.1)
+    extraction_height : float or array[ntrace], optional
+        extraction full height for each trace, values below 2 are considered fractional, others as number of pixels (default: 0.1)
     scatter_degree : int, optional
         polynomial degree of the 2d fit for the background scatter (default: 4)
     plot : bool, optional

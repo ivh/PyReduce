@@ -186,7 +186,7 @@ class Curvature:
         for i, offset in enumerate(offsets):
             # Y bounds for this offset spectrum
             yb = ycen_int + int(offset) - half
-            yt = ycen_int + int(offset) + half
+            yt = yb + xwd - 1
 
             # Check bounds
             if np.any(yb < 0) or np.any(yt >= nrow):

@@ -315,7 +315,8 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
 
     out_spec = np.zeros(width)
     out_sunc = np.zeros(width)
-    out_slitf = np.zeros(10 + 10 + 2 + 1)
+    nslitf = sum(yrange) + 2 + 1  # osample=1
+    out_slitf = np.zeros(nslitf)
     out_mask = np.zeros(width)
 
     extract.extract_spectrum(

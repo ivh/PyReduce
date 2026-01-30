@@ -31,7 +31,8 @@ def rectify_image(
         # Then the center of the trace is within one pixel variations
         ycen = np.polyval(traces[i], x).astype(int)
         half = extraction_height[i] // 2
-        yb, yt = ycen - half, ycen + half
+        yb = ycen - half
+        yt = yb + extraction_height[i] - 1
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 

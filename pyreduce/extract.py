@@ -1025,9 +1025,10 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
     -------
     y_low, y_high : int, int
         lower and upper y bound for extraction (pixels below/above trace)
+        These satisfy: y_low + y_high + 1 = extraction_height
     """
     ycen = ycen[xrange[0] : xrange[1]]
-    half = extraction_height / 2
+    half = extraction_height // 2
 
     ymin = ycen - half
     ymin = np.floor(ymin)
@@ -1036,10 +1037,10 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
     if max(ymin) >= nrow:
         ymin = ymin - max(ymin) + nrow - 1  # helps at edge
 
-    ymax = ycen + half
-    ymax = np.ceil(ymax)
+    ymax = ymin + extraction_height - 1
     if max(ymax) >= nrow:
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
+        ymin = ymax - extraction_height + 1
 
     # Define a fixed height area containing one spectral order
     y_lower_lim = int(np.min(ycen - ymin))  # Pixels below center line
@@ -1069,8 +1070,8 @@ def optimal_extraction(
         image to extract
     traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[ntrace, 2]
-        extraction width in pixels
+    extraction_height : array[ntrace]
+        extraction full height in pixels
     column_range : array[ntrace, 2]
         column range to use
     scatter : array[ntrace, 4, ncol]
@@ -1294,7 +1295,8 @@ def simple_extraction(
         # Then the center of the trace is within one pixel variations
         ycen = np.polyval(traces[i], x).astype(int)
         half = extraction_height[i] // 2
-        yb, yt = ycen - half, ycen + half
+        yb = ycen - half
+        yt = yb + extraction_height[i] - 1
         index = make_index(yb, yt, x_left_lim, x_right_lim)
         img_trace = img[index]
 
@@ -1354,7 +1356,7 @@ def plot_comparison(
         ycen = np.polyval(traces[i], x)
         half = extraction_height[i] // 2
         yb = ycen - half
-        yt = ycen + half
+        yt = yb + extraction_height[i] - 1
         xl, xr = column_range[i]
         index = make_index(yb, yt, xl, xr)
         yl = pos[i]
