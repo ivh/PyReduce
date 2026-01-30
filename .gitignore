@@ -24,3 +24,4 @@ logs/
 *.ipynb
 tmp/*
 .obsidian/
+uv.toml
