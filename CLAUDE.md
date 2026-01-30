@@ -31,6 +31,7 @@ pyreduce/
 ├── reduce.py            # Step class implementations
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction algorithm
+├── curvature_model.py   # SlitCurvature dataclass for curvature data
 ├── trace.py             # Order detection and tracing
 ├── wavelength_calibration.py  # Wavelength solution fitting
 ├── combine_frames.py    # Frame combination/calibration
@@ -68,7 +69,7 @@ This means:
 - **Columns (x)** = wavelength/dispersion direction
 - **Rows (y)** = spatial/cross-dispersion direction
 - **Traces** are polynomial functions of x, giving y-position
-- **`extraction_height`** refers to pixels above/below each trace (in y)
+- **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
 
 ## Pipeline Steps
 
@@ -80,7 +81,7 @@ The reduction pipeline consists of these steps (in typical order):
 | `bias` | `Bias` | Combine bias frames into master bias |
 | `flat` | `Flat` | Combine flat frames, subtract bias |
 | `trace` | `Trace` | Trace echelle order positions on flat |
-| `curvature` | `SlitCurvatureDetermination` | Measure slit curvature from arc lamp |
+| `curvature` | `SlitCurvatureDetermination` | Measure slit curvature (polynomial degree 1-5) |
 | `scatter` | `BackgroundScatter` | Model inter-order scattered light |
 | `norm_flat` | `NormalizeFlatField` | Normalize flat, extract blaze function |
 | `wavecal_master` | `WavelengthCalibrationMaster` | Extract wavelength calibration spectrum |
@@ -261,8 +262,12 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
+- `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_USE_DELTAS` - Enable slitdelta correction in extraction (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
+
+The charslit backend supports higher-degree curvature polynomials (up to degree 5) and per-row slitdelta corrections. It requires the optional `charslit` dependency.
 
 ## Development
 
@@ -303,6 +308,8 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 | `pyreduce/pipeline.py` | Fluent Pipeline API, `from_instrument()` |
 | `pyreduce/reduce.py` | Step class implementations |
 | `pyreduce/extract.py` | Optimal extraction algorithm |
+| `pyreduce/curvature_model.py` | SlitCurvature dataclass, save/load |
+| `pyreduce/slit_curve.py` | Slit curvature fitting (degree 1-5) |
 | `pyreduce/wavelength_calibration.py` | Wavelength solution fitting |
 | `pyreduce/trace.py` | Order detection and tracing |
 | `pyreduce/instruments/common.py` | Base Instrument class |
