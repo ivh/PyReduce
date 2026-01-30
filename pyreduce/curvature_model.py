@@ -28,6 +28,7 @@ class SlitCurvature:
         Coefficient order: [c0, c1, c2, ...] where y_offset = c0 + c1*y + c2*y^2 + ...
     slitdeltas : np.ndarray | None
         Per-row residual offsets of shape (ntrace, nrow), or None if not computed.
+        Covers the curve_height range; interpolated to swath size during extraction.
         These capture deviations not modeled by the polynomial.
     degree : int
         Polynomial degree (1-5).

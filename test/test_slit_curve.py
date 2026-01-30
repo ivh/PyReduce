@@ -284,8 +284,9 @@ class TestSlitdeltasComputation:
             curve_height=10,
             extraction_height=5,
         )
-        # Manually set up extraction_height (normally done in _fix_inputs)
+        # Manually set up heights as arrays (normally done in _fix_inputs)
         module.extraction_height = np.array([[5, 5], [5, 5]])
+        module.curve_height = np.array([[10, 10], [10, 10]])
         module.trace_range = (0, 2)  # Sets n = 2 via property
         return module
 
@@ -325,8 +326,9 @@ class TestSlitdeltasComputation:
         module = configured_module
         module.trace_range = (0, 1)
         module.extraction_height = np.array([[5, 5]])
+        module.curve_height = np.array([[5, 5]])
 
-        # Offsets must span the extraction range [-5, 5] for interpolation
+        # Offsets must span the curve_height range [-5, 5] for interpolation
         all_offsets = [np.array([-5.0, -2.5, 0.0, 2.5, 5.0])]
         all_residuals = [np.array([[0.5, 0.25, 0.0, -0.25, -0.5]])]
 
@@ -345,6 +347,7 @@ class TestSlitdeltasComputation:
         module = configured_module
         module.trace_range = (0, 1)
         module.extraction_height = np.array([[5, 5]])
+        module.curve_height = np.array([[5, 5]])
 
         all_offsets = [np.array([-1.0, 0.0, 1.0])]
         all_residuals = [np.zeros((0, 3))]
@@ -361,6 +364,7 @@ class TestSlitdeltasComputation:
         module = configured_module
         module.trace_range = (0, 1)
         module.extraction_height = np.array([[5, 5]])
+        module.curve_height = np.array([[5, 5]])
 
         all_offsets = [np.array([-1.0, 0.0, 1.0])]
         all_residuals = [

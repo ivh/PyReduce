@@ -788,12 +788,13 @@ class Curvature:
         all_residuals : list of arrays
             Fit residuals, shape (n_peaks, n_offsets) per order
         nrows : int
-            Number of rows in extraction swath
+            Number of rows covering curve_height range
 
         Returns
         -------
         slitdeltas : array of shape (ntrace, nrows)
-            Per-row residual offsets for each trace
+            Per-row residual offsets for each trace, covering curve_height range.
+            During extraction, interpolated to match swath size.
         """
         slitdeltas = np.zeros((self.n, nrows))
 
@@ -809,7 +810,7 @@ class Curvature:
 
             # Map offsets to row indices
             # offsets are relative to trace center
-            xwd = self.extraction_height[j]
+            xwd = self.curve_height[j]
             half = xwd // 2
             row_offsets = np.linspace(-half, xwd - half, nrows)
 
@@ -864,9 +865,9 @@ class Curvature:
         # Compute slitdeltas from residuals
         slitdeltas = None
         if compute_slitdeltas:
-            # Use max extraction height to determine nrows
-            max_xwd = int(np.max(self.extraction_height)) + 1
-            slitdeltas = self._compute_slitdeltas(all_offsets, all_residuals, max_xwd)
+            # Use max curve height to determine nrows (full measured range)
+            max_curve = int(np.max(self.curve_height)) + 1
+            slitdeltas = self._compute_slitdeltas(all_offsets, all_residuals, max_curve)
             logger.info(
                 "Computed slitdeltas with shape %s, range [%.4f, %.4f]",
                 slitdeltas.shape,
