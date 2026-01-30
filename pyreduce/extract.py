@@ -392,6 +392,8 @@ class ProgressPlot:  # pragma: no cover
         info=None,
         swath_idx=0,
         save=True,
+        slitcurve=None,
+        slitdeltas=None,
     ):
         # Save swath data to debug directory
         if save:
@@ -407,6 +409,8 @@ class ProgressPlot:  # pragma: no cover
                 input_mask=input_mask,
                 output_mask=output_mask,
                 info=info,
+                slitcurve=slitcurve,
+                slitdeltas=slitdeltas,
             )
 
         img = np.copy(img)
@@ -416,8 +420,8 @@ class ProgressPlot:  # pragma: no cover
 
         ny = img.shape[0]
         nspec = img.shape[1]
-        x_spec, y_spec = self.get_spec(img, spec, slitf, ycen)
-        x_slit, y_slit = self.get_slitf(img, spec, slitf, ycen)
+        x_spec, y_spec = self.get_spec(img, spec, slitf, ycen, slitcurve, slitdeltas)
+        x_slit, y_slit = self.get_slitf(img, spec, slitf, ycen, slitcurve, slitdeltas)
         ycen = ycen + ny / 2
 
         old = np.linspace(-1, ny, len(slitf))
@@ -537,27 +541,57 @@ class ProgressPlot:  # pragma: no cover
         plt.ioff()
         plt.close()
 
-    def get_spec(self, img, spec, slitf, ycen):
+    def get_spec(self, img, spec, slitf, ycen, slitcurve=None, slitdeltas=None):
         """get the spectrum corrected by the slit function"""
         nrow, ncol = img.shape
-        x, y = np.indices(img.shape)
-        ycen = ycen - ycen.astype(int)
+        row_idx, col_idx = np.indices(img.shape)
+        ycen_frac = ycen - ycen.astype(int)
 
-        x = x - ycen + 0.5
+        # Slit position for slit function interpolation
+        slit_pos = row_idx - ycen_frac + 0.5
         old = np.linspace(-1, nrow - 1 + 1, len(slitf))
-        sf = np.interp(x, old, slitf)
+        sf = np.interp(slit_pos, old, slitf)
 
-        x = img / sf
+        # Spectrum contribution: image divided by slit function
+        spec_val = img / sf
 
-        x = x.ravel()
-        y = y.ravel()
-        return y, x
+        # Compute column position, accounting for curvature
+        col_pos = col_idx.astype(float)
+        if slitcurve is not None:
+            # t = offset from trace center within swath
+            # ycen is the full trace center position (ylow + fractional_part)
+            t = row_idx - ycen
+            delta = np.zeros_like(t, dtype=float)
+            for i in range(1, min(6, slitcurve.shape[1])):
+                delta += slitcurve[:, i] * (t**i)
+            if slitdeltas is not None:
+                delta += slitdeltas[:, np.newaxis]
+            col_pos = col_pos - delta
 
-    def get_slitf(self, img, spec, slitf, ycen):
+        return col_pos.ravel(), spec_val.ravel()
+
+    def get_slitf(self, img, spec, slitf, ycen, slitcurve=None, slitdeltas=None):
         """get the slit function"""
-        x = np.indices(img.shape)[0]
-        ycen = ycen - ycen.astype(int)
+        nrow, ncol = img.shape
+        row_idx, col_idx = np.indices(img.shape)
+        ycen_frac = ycen - ycen.astype(int)
 
+        # Slit position for display
+        slit_pos = row_idx - ycen_frac + 0.5
+
+        # Compute effective column position for spectrum lookup
+        col_eff = col_idx.astype(float)
+        if slitcurve is not None:
+            # t = offset from trace center within swath
+            t = row_idx - ycen
+            delta = np.zeros_like(t, dtype=float)
+            for i in range(1, min(6, slitcurve.shape[1])):
+                delta += slitcurve[:, i] * (t**i)
+            if slitdeltas is not None:
+                delta += slitdeltas[:, np.newaxis]
+            col_eff = col_eff - delta
+
+        # Handle zeros in spectrum
         if np.any(spec == 0):
             i = np.arange(len(spec))
             try:
@@ -566,12 +600,15 @@ class ProgressPlot:  # pragma: no cover
                 )(i)
             except ValueError:
                 spec[spec == 0] = np.median(spec)
-        y = img / spec[None, :]
-        y = y.ravel()
 
-        x = x - ycen + 0.5
-        x = x.ravel()
-        return x, y
+        # Get spectrum value at effective column position (with interpolation)
+        col_indices = np.arange(len(spec))
+        spec_at_col = np.interp(col_eff, col_indices, spec)
+
+        # Slit function contribution: image divided by spectrum
+        slitf_val = img / spec_at_col
+
+        return slit_pos.ravel(), slitf_val.ravel()
 
 
 class Swath:
@@ -1116,28 +1153,35 @@ def extract_spectrum(
 
             # Do Slitfunction extraction
             swath_ncols = iend - ibeg
+            swath_nrows = swath_img.shape[0]
             swath_curv = curvature[ibeg:iend] if curvature is not None else None
             input_mask = np.ma.getmaskarray(swath_img).copy()
 
-            if USE_CHARSLIT:
-                slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
-                swath_nrows = swath_img.shape[0]
-                if USE_DELTAS and slitdeltas is not None and len(slitdeltas) > 0:
-                    # Interpolate slitdeltas to match swath nrows if needed
-                    if len(slitdeltas) == swath_nrows:
-                        swath_slitdeltas = slitdeltas.astype(np.float64)
-                    else:
-                        x_stored = np.linspace(0, 1, len(slitdeltas))
-                        x_swath = np.linspace(0, 1, swath_nrows)
-                        swath_slitdeltas = np.interp(x_swath, x_stored, slitdeltas)
-                        swath_slitdeltas = swath_slitdeltas.astype(np.float64)
+            # Prepare curvature for both backends and visualization
+            slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
+            if USE_DELTAS and slitdeltas is not None and len(slitdeltas) > 0:
+                # Interpolate slitdeltas to match swath nrows if needed
+                if len(slitdeltas) == swath_nrows:
+                    swath_slitdeltas = slitdeltas.astype(np.float64)
                 else:
-                    swath_slitdeltas = np.zeros(swath_nrows, dtype=np.float64)
+                    x_stored = np.linspace(0, 1, len(slitdeltas))
+                    x_swath = np.linspace(0, 1, swath_nrows)
+                    swath_slitdeltas = np.interp(x_swath, x_stored, slitdeltas)
+                    swath_slitdeltas = swath_slitdeltas.astype(np.float64)
+            else:
+                swath_slitdeltas = None
+
+            if USE_CHARSLIT:
+                charslit_slitdeltas = (
+                    swath_slitdeltas
+                    if swath_slitdeltas is not None
+                    else np.zeros(swath_nrows, dtype=np.float64)
+                )
                 swath[ihalf] = _slitdec_charslit(
                     swath_img,
                     swath_ycen_abs,
                     slitcurve,
-                    swath_slitdeltas,
+                    charslit_slitdeltas,
                     lambda_sp=lambda_sp,
                     lambda_sf=lambda_sf,
                     osample=osample,
@@ -1205,6 +1249,8 @@ def extract_spectrum(
                     swath.unc[ihalf],
                     swath.info[ihalf],
                     ihalf,
+                    slitcurve=slitcurve,
+                    slitdeltas=swath_slitdeltas,
                 )
 
     # Remove points at the border of the each swath, if order has curvature
@@ -1655,7 +1701,7 @@ def plot_comparison(
         except:
             pass
 
-    locs = np.sum(extraction_height, axis=1) + 1
+    locs = np.asarray(extraction_height) + 1
     locs = np.array([0, *np.cumsum(locs)[:-1]])
     locs[:-1] += (np.diff(locs) * 0.5).astype(int)
     locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
