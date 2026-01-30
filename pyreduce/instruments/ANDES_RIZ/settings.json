@@ -17,8 +17,8 @@
     },
     "curvature": {
         "curve_height": 160,
-        "extraction_height": 16,
-        "curve_degree": 2,
+        "extraction_height": 1,
+        "curve_degree": 1,
         "degree": 5
     },
     "science": {

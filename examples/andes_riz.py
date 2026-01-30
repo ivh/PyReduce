@@ -94,33 +94,70 @@ if pipe.instrument.config.fibers:
     print(f"Groups: {list(fc.groups.keys())}")
 
 
-def combine_lfc_files(lfc_files, output_path):
-    """Combine odd+even LFC files into a single frame."""
-    print(f"Combining {len(lfc_files)} LFC files...")
-    combined, head = combine_calibrate(
+def combine_lfc_with_flats(lfc_files, flat_files, output_path):
+    """Combine LFC files with flat-field frames to add continuum."""
+    import numpy as np
+
+    print(f"Combining {len(lfc_files)} LFC + {len(flat_files)} flat files...")
+
+    # Combine LFC files
+    lfc_combined, head = combine_calibrate(
         lfc_files,
         pipe.instrument,
         channel,
         mask=None,
     )
-    # Convert masked array to regular array for FITS writing
-    import numpy as np
+    lfc_data = np.asarray(
+        lfc_combined.filled(0) if hasattr(lfc_combined, "filled") else lfc_combined
+    )
 
-    data = np.asarray(combined.filled(0) if hasattr(combined, "filled") else combined)
-    fits.writeto(output_path, data, head, overwrite=True)
-    print(f"Saved combined LFC: {output_path}")
+    if flat_files:
+        # Combine flat files
+        flat_combined, _ = combine_calibrate(
+            flat_files,
+            pipe.instrument,
+            channel,
+            mask=None,
+        )
+        flat_data = np.asarray(
+            flat_combined.filled(0)
+            if hasattr(flat_combined, "filled")
+            else flat_combined
+        )
+
+        # Add flat continuum to LFC (scale flat to ~10% of LFC peak to not overwhelm lines)
+        lfc_peak = (
+            np.percentile(lfc_data[lfc_data > 0], 95) if np.any(lfc_data > 0) else 1
+        )
+        flat_peak = (
+            np.percentile(flat_data[flat_data > 0], 95) if np.any(flat_data > 0) else 1
+        )
+        scale = 0.1 * lfc_peak / flat_peak
+        combined = lfc_data + flat_data * scale
+        print(
+            f"  LFC peak: {lfc_peak:.0f}, flat peak: {flat_peak:.0f}, scale: {scale:.4f}"
+        )
+    else:
+        combined = lfc_data
+        print("  No flats available, using LFC only")
+
+    fits.writeto(output_path, combined.astype(np.float32), head, overwrite=True)
+    print(f"Saved combined LFC+flat: {output_path}")
     return output_path
 
 
 if __name__ == "__main__":
-    # Combine odd+even LFC files before extraction
+    # Combine LFC + flat files before extraction
     lfc_combined_path = join(output_dir, "lfc_combined.fits")
-    if wavecal_files:
-        combine_lfc_files(wavecal_files, lfc_combined_path)
+    if wavecal_files and flat_files:
+        combine_lfc_with_flats(wavecal_files, flat_files, lfc_combined_path)
+    elif wavecal_files:
+        # Fallback to LFC only if no flats
+        combine_lfc_with_flats(wavecal_files, [], lfc_combined_path)
 
     print("\n=== Running pipeline ===")
     # pipe.trace(trace_files)
-    # pipe.curvature(wavecal_files)
+    pipe.curvature(wavecal_files)
     pipe.extract([lfc_combined_path])
 
     results = pipe.run()
