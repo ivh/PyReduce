@@ -1456,7 +1456,6 @@ source = { editable = "." }
 dependencies = [
     { name = "astropy" },
     { name = "cffi" },
-    { name = "charslit" },
     { name = "click" },
     { name = "colorlog" },
     { name = "corner" },
@@ -1473,6 +1472,11 @@ dependencies = [
     { name = "scipy" },
     { name = "spectres" },
     { name = "tqdm" },
+]
+
+[package.optional-dependencies]
+charslit = [
+    { name = "charslit" },
 ]
 
 [package.dev-dependencies]
@@ -1497,7 +1501,7 @@ ipynb = [
 requires-dist = [
     { name = "astropy", specifier = ">=5.3.0" },
     { name = "cffi", specifier = ">=1.17.1" },
-    { name = "charslit", directory = "../CharSlit.git" },
+    { name = "charslit", marker = "extra == 'charslit'", directory = "../CharSlit.git" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "colorlog", specifier = ">=6.8.0" },
     { name = "corner", specifier = ">=2.2.0" },
@@ -1515,6 +1519,7 @@ requires-dist = [
     { name = "spectres", specifier = ">=2.2.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
 ]
+provides-extras = ["charslit"]
 
 [package.metadata.requires-dev]
 dev = [
