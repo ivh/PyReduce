@@ -421,28 +421,16 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, ntrace, ignore_column_range=Fals
     if xwd is None:
         xwd = 1.0
     if np.isscalar(xwd):
-        # xwd is full extraction height, split evenly above/below trace
-        half = xwd / 2
-        xwd = np.tile([half, half], (ntrace, 1))
+        xwd = np.full(ntrace, xwd)
     else:
         xwd = np.asarray(xwd)
         if xwd.ndim == 1:
-            if len(xwd) == ntrace:
-                # Per-trace heights: each value is full height for one trace
-                xwd = np.array([[h / 2, h / 2] for h in xwd])
-            elif len(xwd) == 2:
-                # Deprecated [below, above] format - convert to full height
-                import warnings
-
-                warnings.warn(
-                    "extraction_height as [below, above] list is deprecated. "
-                    "Use a single value for full extraction height.",
-                    DeprecationWarning,
-                    stacklevel=4,
+            if len(xwd) != ntrace:
+                raise ValueError(
+                    f"extraction_height array length {len(xwd)} doesn't match ntrace {ntrace}"
                 )
-                xwd = np.tile(xwd, (ntrace, 1))
-            else:
-                xwd = np.tile(xwd, (ntrace, 1))
+        else:
+            raise ValueError("extraction_height must be a scalar or 1D array")
 
     if cr is None:
         cr = np.tile([0, ncol], (ntrace, 1))
@@ -497,15 +485,14 @@ def extend_traces(traces, nrow):
 
 
 def fix_extraction_height(xwd, traces, cr, ncol):
-    """Convert fractional extraction width to pixel range.
+    """Convert fractional extraction height to pixel range.
 
-    Internal function that works on [below, above] representation.
-    Fractions (< 1 per side, i.e. < 2 total) are multiplied by trace spacing.
+    Fractions (< 2) are multiplied by the minimum distance to neighboring traces.
 
     Parameters
     ----------
-    xwd : array[ntrace, 2]
-        extraction width as [below, above] per trace
+    xwd : array[ntrace]
+        extraction full height per trace
     traces : array[ntrace, degree]
         trace polynomial coefficients
     cr : array[ntrace, 2]
@@ -515,17 +502,17 @@ def fix_extraction_height(xwd, traces, cr, ncol):
 
     Returns
     -------
-    xwd : array[ntrace, 2]
-        updated extraction width in pixels
+    xwd : array[ntrace]
+        updated extraction full height in pixels
     """
 
-    if not np.all(xwd >= 1):
-        # if extraction width is in relative scale transform to pixel scale
+    if not np.all(xwd >= 2):
         x = np.arange(ncol)
         for i in range(1, len(xwd) - 1):
-            for j in [0, 1]:
-                if xwd[i, j] < 1:
-                    k = i - 1 if j == 0 else i + 1
+            if xwd[i] < 2:
+                # Find minimum distance to neighboring traces
+                min_dist = np.inf
+                for k in [i - 1, i + 1]:
                     left = max(cr[[i, k], 0])
                     right = min(cr[[i, k], 1])
 
@@ -535,8 +522,10 @@ def fix_extraction_height(xwd, traces, cr, ncol):
                         )
 
                     current = np.polyval(traces[i], x[left:right])
-                    below = np.polyval(traces[k], x[left:right])
-                    xwd[i, j] *= np.min(np.abs(current - below))
+                    neighbor = np.polyval(traces[k], x[left:right])
+                    min_dist = min(min_dist, np.min(np.abs(current - neighbor)))
+
+                xwd[i] *= min_dist
 
         xwd[0] = xwd[1]
         xwd[-1] = xwd[-2]
@@ -555,8 +544,8 @@ def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
         image
     traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[ntrace, 2]
-        extraction width in pixels, (below, above)
+    extraction_height : array[ntrace]
+        extraction full height in pixels
     column_range : array[ntrace, 2]
         current column range
     no_clip : bool, optional
@@ -572,12 +561,13 @@ def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
 
     ix = np.arange(ncol)
     to_remove = []
+    half = extraction_height / 2
     # Loop over non extension traces
     for i, trace in zip(range(1, len(traces) - 1), traces[1:-1], strict=False):
-        # Shift trace up/down by extraction_height
+        # Shift trace up/down by half extraction_height
         coeff_bot, coeff_top = np.copy(trace), np.copy(trace)
-        coeff_bot[-1] -= extraction_height[i, 0]
-        coeff_top[-1] += extraction_height[i, 1]
+        coeff_bot[-1] -= half[i]
+        coeff_top[-1] += half[i]
 
         y_bot = np.polyval(coeff_bot, ix)  # low edge of arc
         y_top = np.polyval(coeff_top, ix)  # high edge of arc
@@ -1018,8 +1008,7 @@ def model(spec, slitf):
 
 
 def get_y_scale(ycen, xrange, extraction_height, nrow):
-    """Calculate the y limits of the order
-    This is especially important at the edges
+    """Calculate the y limits of the order for C extraction code.
 
     Parameters
     ----------
@@ -1027,26 +1016,27 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
         order trace
     xrange : tuple(int, int)
         column range
-    extraction_height : tuple(int, int)
-        extraction width in pixels below and above the order
+    extraction_height : int
+        extraction full height in pixels
     nrow : int
         number of rows in the image, defines upper edge
 
     Returns
     -------
     y_low, y_high : int, int
-        lower and upper y bound for extraction
+        lower and upper y bound for extraction (pixels below/above trace)
     """
     ycen = ycen[xrange[0] : xrange[1]]
+    half = extraction_height / 2
 
-    ymin = ycen - extraction_height[0]
+    ymin = ycen - half
     ymin = np.floor(ymin)
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
     if max(ymin) >= nrow:
         ymin = ymin - max(ymin) + nrow - 1  # helps at edge
 
-    ymax = ycen + extraction_height[1]
+    ymax = ycen + half
     ymax = np.ceil(ymax)
     if max(ymax) >= nrow:
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
@@ -1125,7 +1115,7 @@ def optimal_extraction(
     ix = np.arange(ncol)
     if plot >= 2 and util.is_interactive_plot_mode():  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
-        nrow_swath = np.sum(extraction_height, axis=1).max()
+        nrow_swath = np.max(extraction_height)
         nslitf_swath = (nrow_swath + 2) * kwargs.get("osample", 1) + 1
         progress = ProgressPlot(nrow_swath, ncol_swath, nslitf_swath, title=plot_title)
     else:
@@ -1184,11 +1174,22 @@ def optimal_extraction(
 
 
 def correct_for_curvature(img_order, p1, p2, xwd):
-    # img_order = np.ma.filled(img_order, np.nan)
+    """Apply curvature correction to a rectified order image.
+
+    Parameters
+    ----------
+    img_order : array
+        Rectified order image
+    p1, p2 : array
+        Linear and quadratic curvature coefficients
+    xwd : int
+        Extraction full height in pixels
+    """
     mask = ~np.ma.getmaskarray(img_order)
+    half = xwd // 2
 
     xt = np.arange(img_order.shape[1])
-    for y, yt in zip(range(xwd[0] + xwd[1]), range(-xwd[0], xwd[1]), strict=False):
+    for y, yt in zip(range(xwd), range(-half, xwd - half), strict=False):
         xi = xt + yt * p1 + yt**2 * p2
         img_order[y] = np.interp(
             xi, xt[mask[y]], img_order[y][mask[y]], left=0, right=0
@@ -1246,8 +1247,8 @@ def simple_extraction(
         image to extract
     traces : array[ntrace, degree]
         trace polynomial coefficients
-    extraction_height : array[ntrace, 2]
-        extraction width in pixels
+    extraction_height : array[ntrace]
+        extraction full height in pixels
     column_range : array[ntrace, 2]
         column range to use
     gain : float, optional
@@ -1292,8 +1293,8 @@ def simple_extraction(
         # Rectify the image, i.e. remove the shape of the trace
         # Then the center of the trace is within one pixel variations
         ycen = np.polyval(traces[i], x).astype(int)
-        yb, yt = ycen - extraction_height[i, 0], ycen + extraction_height[i, 1]
-        extraction_height[i, 0] + extraction_height[i, 1] + 1
+        half = extraction_height[i] // 2
+        yb, yt = ycen - half, ycen + half
         index = make_index(yb, yt, x_left_lim, x_right_lim)
         img_trace = img[index]
 
@@ -1351,8 +1352,9 @@ def plot_comparison(
     x = np.arange(ncol)
     for i in range(ntrace):
         ycen = np.polyval(traces[i], x)
-        yb = ycen - extraction_height[i, 0]
-        yt = ycen + extraction_height[i, 1]
+        half = extraction_height[i] // 2
+        yb = ycen - half
+        yt = ycen + half
         xl, xr = column_range[i]
         index = make_index(yb, yt, xl, xr)
         yl = pos[i]

@@ -30,8 +30,8 @@ def rectify_image(
         # Rectify the image, i.e. remove the shape of the trace
         # Then the center of the trace is within one pixel variations
         ycen = np.polyval(traces[i], x).astype(int)
-        yb, yt = ycen - extraction_height[i, 0], ycen + extraction_height[i, 1]
-        extraction_height[i, 0] + extraction_height[i, 1] + 1
+        half = extraction_height[i] // 2
+        yb, yt = ycen - half, ycen + half
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
@@ -65,11 +65,12 @@ def merge_images(images, wave, column_range, extraction_height):
         img1 = images[iord1]
 
         xwd0, xwd1 = extraction_height[iord0], extraction_height[iord1]
-        y0_low = y_mid - xwd0[0]
-        y0_high = y_mid + xwd0[1] + 1
+        half0, half1 = xwd0 // 2, xwd1 // 2
+        y0_low = y_mid - half0
+        y0_high = y_mid + half0 + 1
 
-        y1_low = y_mid - xwd1[0]
-        y1_high = y_mid + xwd1[1] + 1
+        y1_low = y_mid - half1
+        y1_high = y_mid + half1 + 1
 
         # Calculate Overlap
         cr0, cr1 = column_range[iord0], column_range[iord1]

@@ -167,8 +167,8 @@ class Curvature:
         curve_xwd = self.curve_height[order_idx]
 
         # Number of spectra to extract
-        total_extraction = xwd[0] + xwd[1]
-        total_curve = curve_xwd[0] + curve_xwd[1]
+        total_extraction = xwd
+        total_curve = curve_xwd
         n_offsets = max(1, int(total_curve // total_extraction))
 
         # Compute offset centers, symmetric around trace
@@ -182,10 +182,11 @@ class Curvature:
         spectra = np.ma.zeros((n_offsets, ncol))
         spectra[:, :] = np.ma.masked
 
+        half = xwd // 2
         for i, offset in enumerate(offsets):
             # Y bounds for this offset spectrum
-            yb = ycen_int + int(offset) - xwd[0]
-            yt = ycen_int + int(offset) + xwd[1]
+            yb = ycen_int + int(offset) - half
+            yt = ycen_int + int(offset) + half
 
             # Check bounds
             if np.any(yb < 0) or np.any(yt >= nrow):

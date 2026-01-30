@@ -124,7 +124,7 @@ def test_fix_column_range():
     # Some orders will be shortened
     nrow, ncol = 50, 1000
     orders = np.array([[0.2, 3], [0.2, 5], [0.2, 7], [0.2, 9]])
-    ew = np.array([[10, 10], [10, 10], [10, 10], [10, 10]])
+    ew = np.array([20, 20, 20, 20])  # full height = 20 (10 each side)
     cr = np.array([[0, 1000], [0, 1000], [0, 1000], [0, 1000]])
 
     fixed_cr, fixed_orders = extract.fix_column_range(cr, orders, ew, nrow, ncol)
@@ -137,7 +137,7 @@ def test_fix_column_range():
 
     # Nothing should change here
     orders = np.array([[20], [20], [20]])
-    ew = np.array([[10, 10], [10, 10], [10, 10]])
+    ew = np.array([20, 20, 20])  # full height = 20
     cr = np.array([[0, 1000], [0, 1000], [0, 1000]])
 
     fixed_cr, fixed_orders = extract.fix_column_range(
@@ -183,7 +183,7 @@ def test_fix_parameters():
     ncol, nrow, nord = 100, 100, 1
 
     # Everything None, i.e. most default settings
-    # extraction_height is now full height (split evenly above/below trace)
+    # extraction_height is now full height, stored internally as half-height
     for xwd in [None, 0.4, 8, 20]:
         for cr in [None, (1, 90), [[4, 100]]]:
             xwd, cr, orders = extract.fix_parameters(xwd, cr, orders, ncol, nrow, nord)
@@ -191,9 +191,8 @@ def test_fix_parameters():
             assert isinstance(cr, np.ndarray)
             assert isinstance(orders, np.ndarray)
 
-            assert xwd.ndim == 2
+            assert xwd.ndim == 1
             assert xwd.shape[0] == nord
-            assert xwd.shape[1] == 2
             assert cr.ndim == 2
             assert cr.shape[0] == nord
             assert cr.shape[1] == 2
@@ -211,7 +210,7 @@ def test_fix_parameters():
 def test_simple_extraction(sample_data, orders, width, oversample):
     img, spec, slitf = sample_data
 
-    extraction_height = np.array([[10, 10]])
+    extraction_height = np.array([20])  # full height = 20 pixels (10 each side)
     column_range = np.array([[0, width]])
 
     nord = len(orders)
@@ -280,7 +279,7 @@ def test_curved_equal_vertical_extraction(sample_data, orders):
 
 def test_optimal_extraction(sample_data, orders, height, width):
     img, spec, slitf = sample_data
-    xwd = np.array([[height // 2, height // 2]])
+    xwd = np.array([height])  # full height
     cr = np.array([[0, width]])
     p1 = p2 = np.zeros((1, width))
 
@@ -309,7 +308,7 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
     img, spec, slitf = sample_data
 
     column_range = np.array([[20, width]])
-    extraction_height = np.array([[10, 10]])
+    extraction_height = np.array([20])  # full height
 
     yrange = extract.get_y_scale(ycen, column_range[0], extraction_height[0], height)
     xrange = column_range[0]
@@ -347,7 +346,7 @@ def test_extract_spectrum(sample_data, orders, ycen, width, height):
 
 def test_get_y_scale(ycen, height, width):
     xrange = (0, width)
-    xwd = (10, 10)
+    xwd = 20  # full height
     y_lower_lim, y_upper_lim = extract.get_y_scale(ycen, xrange, xwd, height)
 
     assert isinstance(y_lower_lim, int)
@@ -355,7 +354,7 @@ def test_get_y_scale(ycen, height, width):
     assert y_lower_lim >= 0
     assert y_upper_lim < height
 
-    xwd = (2 * height, 2 * height)
+    xwd = 4 * height  # full height = 4 * height
     y_lower_lim, y_upper_lim = extract.get_y_scale(ycen, xrange, xwd, height)
     assert isinstance(y_lower_lim, int)
     assert isinstance(y_upper_lim, int)
@@ -363,7 +362,7 @@ def test_get_y_scale(ycen, height, width):
     assert y_upper_lim < height
 
     ycen_tmp = ycen + height
-    xwd = (10, 10)
+    xwd = 20  # full height
     y_lower_lim, y_upper_lim = extract.get_y_scale(ycen_tmp, xrange, xwd, height)
     assert isinstance(y_lower_lim, int)
     assert isinstance(y_upper_lim, int)

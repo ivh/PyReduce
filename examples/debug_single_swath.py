@@ -186,7 +186,7 @@ def main():
 
     print(f"Trace {TRACE_INDEX}:")
     print(f"  Column range: {trace_cr}")
-    print(f"  Extraction height: {trace_xwd} (below, above)")
+    print(f"  Extraction height: {trace_xwd}")
 
     # Extract single swath
     result = extract_single_swath(

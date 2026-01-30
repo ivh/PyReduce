@@ -73,16 +73,17 @@ def estimate_background_scatter(
         mask[:bw] = mask[-bw:] = mask[:, :bw] = mask[:, -bw:] = False
     for i in range(ntrace):
         left, right = column_range[i]
-        left -= extraction_height[i, 1] * 2
-        right += extraction_height[i, 0] * 2
+        left -= extraction_height[i]
+        right += extraction_height[i]
         left = max(0, left)
         right = min(ncol, right)
 
         x_trace = np.arange(left, right)
         y_trace = np.polyval(traces[i], x_trace)
 
-        y_above = y_trace + extraction_height[i, 1]
-        y_below = y_trace - extraction_height[i, 0]
+        half = extraction_height[i] / 2
+        y_above = y_trace + half
+        y_below = y_trace - half
 
         y_above = np.floor(y_above)
         y_below = np.ceil(y_below)

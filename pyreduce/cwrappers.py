@@ -467,9 +467,9 @@ def extract_with_slitfunc(
     slitfunc_meta : dict
         Metadata about the slit function source, must contain:
         - "osample": oversampling factor used when slitfunc was computed
-        - "extraction_height": extraction height used (or yrange tuple)
+        - "extraction_height": extraction half-height used
     yrange : tuple(int, int)
-        Target extraction height: pixels (below, above) the trace center
+        Target extraction bounds: pixels (below, above) the trace center
     osample : int
         Target oversampling factor for slit function
     p1 : array[ncols] or float
