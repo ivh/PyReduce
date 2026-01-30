@@ -581,8 +581,9 @@ class Curvature:
         x = np.arange(ncol)
         for i in range(self.ntrace):
             ycen = np.polyval(self.traces[i], x)
-            yb = ycen - self.curve_height[i, 0]
-            yt = ycen + self.curve_height[i, 1]
+            half = self.curve_height[i] // 2
+            yb = ycen - half
+            yt = yb + self.curve_height[i] - 1
             xl, xr = self.column_range[i]
             index = make_index(yb, yt, xl, xr)
             yl = pos[i]
@@ -596,14 +597,15 @@ class Curvature:
         for i in range(self.ntrace):
             for p in peaks[i]:
                 ew = self.curve_height[i]
-                x = np.zeros(ew[0] + ew[1] + 1)
-                y = np.arange(-ew[0], ew[1] + 1)
+                half = ew // 2
+                x = np.zeros(ew)
+                y = np.arange(-half, ew - half)
                 for j, yt in enumerate(y):
                     x[j] = p + yt * p1[i, p] + yt**2 * p2[i, p]
-                y += pos[i] + ew[0]
+                y += pos[i] + half
                 plt.plot(x, y, "r")
 
-        locs = np.sum(self.curve_height, axis=1) + 1
+        locs = self.curve_height + 1
         locs = np.array([0, *np.cumsum(locs)[:-1]])
         locs[:-1] += (np.diff(locs) * 0.5).astype(int)
         locs[-1] += ((output.shape[0] - locs[-1]) * 0.5).astype(int)
