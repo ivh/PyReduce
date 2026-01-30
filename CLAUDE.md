@@ -263,7 +263,7 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 - `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
-- `PYREDUCE_USE_DELTAS` - Enable slitdelta correction in extraction (default: 1)
+- `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
