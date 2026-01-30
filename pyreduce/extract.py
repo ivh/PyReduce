@@ -27,11 +27,15 @@ logger = logging.getLogger(__name__)
 
 # Backend selection: set PYREDUCE_USE_CHARSLIT=1 to use charslit
 USE_CHARSLIT = os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
+# Slitdelta correction: set PYREDUCE_USE_DELTAS=0 to disable (default enabled)
+USE_DELTAS = os.environ.get("PYREDUCE_USE_DELTAS", "1") == "1"
 
 if USE_CHARSLIT:
     import charslit
 
     logger.info("Using charslit extraction backend")
+    if not USE_DELTAS:
+        logger.info("Slitdelta correction disabled (PYREDUCE_USE_DELTAS=0)")
 else:
     from . import cwrappers
 
@@ -1118,7 +1122,7 @@ def extract_spectrum(
             if USE_CHARSLIT:
                 slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
                 swath_nrows = swath_img.shape[0]
-                if slitdeltas is not None and len(slitdeltas) > 0:
+                if USE_DELTAS and slitdeltas is not None and len(slitdeltas) > 0:
                     # Interpolate slitdeltas to match swath nrows if needed
                     if len(slitdeltas) == swath_nrows:
                         swath_slitdeltas = slitdeltas.astype(np.float64)
@@ -1131,7 +1135,7 @@ def extract_spectrum(
                     swath_slitdeltas = np.zeros(swath_nrows, dtype=np.float64)
                 swath[ihalf] = _slitdec_charslit(
                     swath_img,
-                    swath_ycen,
+                    swath_ycen_abs,
                     slitcurve,
                     swath_slitdeltas,
                     lambda_sp=lambda_sp,
@@ -1152,7 +1156,7 @@ def extract_spectrum(
                     )
                 swath[ihalf] = _slitdec_cffi(
                     swath_img,
-                    swath_ycen,
+                    swath_ycen_abs,
                     swath_curv,
                     lambda_sp=lambda_sp,
                     lambda_sf=lambda_sf,
