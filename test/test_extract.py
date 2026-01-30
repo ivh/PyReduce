@@ -631,12 +631,12 @@ class TestSlitdeltasExtraction:
 
         # Trace polynomial: y = 0*x + 25 (constant at row 25)
         traces = np.array([[0.0, 25.0]])
-        extraction_height = np.array([[5, 5]])
+        extraction_height = np.array([10])
         column_range = np.array([[0, ncol]])
 
         # slitdeltas has shape (ntrace, nrows)
-        slitdeltas = np.zeros((1, 11))
-        slitdeltas[0, :] = np.linspace(-0.05, 0.05, 11)
+        slitdeltas = np.zeros((1, 10))
+        slitdeltas[0, :] = np.linspace(-0.05, 0.05, 10)
 
         spec, slitf, unc = extract.optimal_extraction(
             img,
@@ -659,8 +659,8 @@ class TestSlitdeltasExtraction:
         traces = np.array([[0.0, 25.0]])
         column_range = np.array([[0, ncol]])
 
-        slitdeltas = np.zeros((1, 11))
-        slitdeltas[0, :] = np.linspace(-0.02, 0.02, 11)
+        slitdeltas = np.zeros((1, 10))
+        slitdeltas[0, :] = np.linspace(-0.02, 0.02, 10)
 
         spec, unc, slitf, cr = extract.extract(
             img,
@@ -685,7 +685,7 @@ class TestSlitdeltasExtraction:
         column_range = np.array([[0, ncol], [0, ncol]])
 
         # slitdeltas for both traces
-        slitdeltas = np.zeros((2, 11))
+        slitdeltas = np.zeros((2, 10))
         slitdeltas[0, :] = 0.1  # First trace
         slitdeltas[1, :] = 0.2  # Second trace
 

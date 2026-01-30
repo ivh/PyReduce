@@ -285,8 +285,8 @@ class TestSlitdeltasComputation:
             extraction_height=5,
         )
         # Manually set up heights as arrays (normally done in _fix_inputs)
-        module.extraction_height = np.array([[5, 5], [5, 5]])
-        module.curve_height = np.array([[10, 10], [10, 10]])
+        module.extraction_height = np.array([10, 10])
+        module.curve_height = np.array([20, 20])
         module.trace_range = (0, 2)  # Sets n = 2 via property
         return module
 
@@ -325,8 +325,8 @@ class TestSlitdeltasComputation:
         """Test that slitdeltas are correctly interpolated to nrows."""
         module = configured_module
         module.trace_range = (0, 1)
-        module.extraction_height = np.array([[5, 5]])
-        module.curve_height = np.array([[5, 5]])
+        module.extraction_height = np.array([10])
+        module.curve_height = np.array([10])
 
         # Offsets must span the curve_height range [-5, 5] for interpolation
         all_offsets = [np.array([-5.0, -2.5, 0.0, 2.5, 5.0])]
@@ -346,8 +346,8 @@ class TestSlitdeltasComputation:
         """Test handling of empty residuals."""
         module = configured_module
         module.trace_range = (0, 1)
-        module.extraction_height = np.array([[5, 5]])
-        module.curve_height = np.array([[5, 5]])
+        module.extraction_height = np.array([10])
+        module.curve_height = np.array([10])
 
         all_offsets = [np.array([-1.0, 0.0, 1.0])]
         all_residuals = [np.zeros((0, 3))]
@@ -363,8 +363,8 @@ class TestSlitdeltasComputation:
         """Test that NaN residuals are properly ignored."""
         module = configured_module
         module.trace_range = (0, 1)
-        module.extraction_height = np.array([[5, 5]])
-        module.curve_height = np.array([[5, 5]])
+        module.extraction_height = np.array([10])
+        module.curve_height = np.array([10])
 
         all_offsets = [np.array([-1.0, 0.0, 1.0])]
         all_residuals = [
