@@ -464,6 +464,11 @@
                 {
                     "type": "object",
                     "properties": {
+                        "extraction_height": {
+                            "description": "Number of rows to bin together when measuring curvature. Unlike other steps, this is always interpreted as literal pixels (no fractional conversion). Use 1 for row-by-row analysis.",
+                            "type": "integer",
+                            "minimum": 1
+                        },
                         "curve_degree": {
                             "description": "Number of orders of the curvature to fit. I.e. 1: only linear curvature, 2: second order curvature",
                             "type": "integer",

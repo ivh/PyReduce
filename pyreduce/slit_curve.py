@@ -114,9 +114,12 @@ class Curvature:
         curve_height, column_range, traces = fix_parameters(
             curve_height, column_range, traces, nrow, ncol, ntrace
         )
-        extraction_height, _, _ = fix_parameters(
-            extraction_height, column_range, traces, nrow, ncol, ntrace
-        )
+
+        # For curvature, extraction_height is always literal pixels (no fractional conversion)
+        if np.isscalar(extraction_height):
+            extraction_height = np.full(ntrace, int(extraction_height))
+        else:
+            extraction_height = np.asarray(extraction_height, dtype=int)
 
         self.column_range = column_range[self.trace_range[0] : self.trace_range[1]]
         self.curve_height = curve_height[self.trace_range[0] : self.trace_range[1]]
@@ -166,18 +169,36 @@ class Curvature:
         xwd = self.extraction_height[order_idx]
         curve_xwd = self.curve_height[order_idx]
 
-        # Number of spectra to extract
-        total_extraction = xwd
-        total_curve = curve_xwd
-        n_offsets = max(1, int(total_curve // total_extraction))
-
-        # Compute offset centers, symmetric around trace
-        offsets = (np.arange(n_offsets) - (n_offsets - 1) / 2) * total_extraction
-
         # Get trace position
         x = np.arange(ncol)
         ycen = np.polyval(self.traces[order_idx], x)
         ycen_int = ycen.astype(int)
+
+        # Special case: extraction_height=1 means row-by-row without extraction
+        if xwd == 1:
+            half = curve_xwd // 2
+            offsets = np.arange(-half, curve_xwd - half)
+            n_offsets = len(offsets)
+
+            spectra = np.ma.zeros((n_offsets, ncol))
+            spectra[:, :] = np.ma.masked
+
+            for i, offset in enumerate(offsets):
+                # Row position follows trace + offset
+                row = ycen_int + offset
+                # Check bounds
+                if np.any(row < 0) or np.any(row >= nrow):
+                    continue
+                # Direct indexing along the curved trace
+                spectra[i, cr[0] : cr[1]] = original[
+                    row[cr[0] : cr[1]], x[cr[0] : cr[1]]
+                ]
+
+            return spectra, offsets.astype(float)
+
+        # General case: extract and collapse multiple rows per offset
+        n_offsets = max(1, int(curve_xwd // xwd))
+        offsets = (np.arange(n_offsets) - (n_offsets - 1) / 2) * xwd
 
         spectra = np.ma.zeros((n_offsets, ncol))
         spectra[:, :] = np.ma.masked
