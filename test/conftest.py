@@ -559,7 +559,7 @@ def scatter(step_args, settings, files, mask, bias, traces):
 
 
 @pytest.fixture
-def normflat(step_args, settings, flat, traces, scatter, curvature):
+def normflat(step_args, settings, flat, traces, scatter):
     """Load or create the normalized flat field
 
     Parameters
@@ -567,7 +567,7 @@ def normflat(step_args, settings, flat, traces, scatter, curvature):
     flat : array(float)
         flat field calibration data and header
     traces : list[TraceData]
-        Trace objects from trace step
+        Trace objects from trace step (curvature is embedded in traces)
     settings : dict(str:obj)
         run settings
     output_dir : str
@@ -591,9 +591,7 @@ def normflat(step_args, settings, flat, traces, scatter, curvature):
 
     if norm is None:
         try:
-            norm, blaze, *_ = step.run(
-                flat, traces, scatter=scatter, curvature=curvature
-            )
+            norm, blaze, *_ = step.run(flat, traces, scatter=scatter)
         except FileNotFoundError:
             norm, blaze = None, None
     return norm, blaze
@@ -616,7 +614,7 @@ def curvature(step_args, settings, files, traces, mask):
 
 
 @pytest.fixture
-def wave_master(step_args, settings, files, traces, mask, curvature, bias, normflat):
+def wave_master(step_args, settings, files, traces, mask, bias, normflat):
     """Load or create wavelength calibration files
 
     Parameters
@@ -624,11 +622,9 @@ def wave_master(step_args, settings, files, traces, mask, curvature, bias, normf
     files : dict(str:str)
         calibration file names
     traces : list[TraceData]
-        Trace objects from trace step
+        Trace objects from trace step (curvature is embedded in traces)
     mask : array(bool)
         Bad pixel mask
-    curvature : SlitCurvature
-        Slit curvature data
     settings : dict(str:obj)
         run settings
     bias : tuple
@@ -657,7 +653,6 @@ def wave_master(step_args, settings, files, traces, mask, curvature, bias, normf
                 files,
                 traces,
                 mask=mask,
-                curvature=curvature,
                 bias=bias,
                 norm_flat=normflat,
             )
@@ -705,7 +700,13 @@ def wlen(step_args, settings, wave_master, wave_init):
 
 
 @pytest.fixture
-def spec(step_args, settings, files, bias, traces, normflat, curvature, scatter, mask):
+def wave(wlen):
+    """Alias for wlen fixture for test_continuum.py compatibility."""
+    return wlen
+
+
+@pytest.fixture
+def spec(step_args, settings, files, bias, traces, normflat, scatter, mask):
     """Load or create science spectrum
 
     Returns
@@ -723,15 +724,21 @@ def spec(step_args, settings, files, bias, traces, normflat, curvature, scatter,
 
     try:
         heads, specs, sigmas, slitfus, column_ranges = step.load(files)
+        return specs[0], sigmas[0]
     except FileNotFoundError:
-        files = files[name][:1]
-        heads, specs, sigmas, slitfus, column_ranges = step.run(
-            files,
+        files_list = files[name][:1]
+        heads, all_spectra = step.run(
+            files_list,
             traces,
             bias=bias,
             norm_flat=normflat,
-            curvature=curvature,
             scatter=scatter,
             mask=mask,
         )
-    return specs[0], sigmas[0]
+        # Convert list[Spectrum] to arrays
+        import numpy as np
+
+        spectra = all_spectra[0]
+        specs = np.array([s.spec for s in spectra])
+        sigmas = np.array([s.sig for s in spectra])
+        return specs, sigmas

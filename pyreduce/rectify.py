@@ -6,7 +6,7 @@ from . import util
 from .extract import correct_for_curvature
 
 
-def rectify_image(img, traces, extraction_height, trace_range, p1=None, p2=None):
+def rectify_image(img, traces, extraction_height, trace_range):
     """Rectify image by extracting and straightening each trace.
 
     Parameters
@@ -14,13 +14,11 @@ def rectify_image(img, traces, extraction_height, trace_range, p1=None, p2=None)
     img : array
         Input image
     traces : list[Trace]
-        Trace objects with pos, column_range attributes
+        Trace objects with pos, column_range, and optional slit curvature
     extraction_height : float
         Extraction height (fraction if < 3, else pixels)
     trace_range : tuple
         (start, end) indices of traces to process
-    p1, p2 : array, optional
-        Curvature polynomial coefficients
 
     Returns
     -------
@@ -69,16 +67,14 @@ def rectify_image(img, traces, extraction_height, trace_range, p1=None, p2=None)
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
-        # Correct for curvature
-        # For each row of the rectified order, interpolate onto the shifted row
-        # Masked pixels are set to 0, similar to the summation
-        if p1 is not None and p2 is not None:
-            img_order = correct_for_curvature(
-                img_order,
-                p1[i, x_left_lim:x_right_lim],
-                p2[i, x_left_lim:x_right_lim],
-                xwd_arr[i],
-            )
+        # Correct for curvature using trace.slit if available
+        # slit[1, :] = linear term coeffs, slit[2, :] = quadratic term coeffs
+        if trace.slit is not None and trace.slit.shape[0] > 2:
+            # Evaluate curvature polynomials at each column
+            x_range = np.arange(x_left_lim, x_right_lim)
+            p1 = np.polyval(trace.slit[1, :], x_range)
+            p2 = np.polyval(trace.slit[2, :], x_range)
+            img_order = correct_for_curvature(img_order, p1, p2, xwd_arr[i])
         images[i] = img_order
 
     return images, column_range, xwd_arr

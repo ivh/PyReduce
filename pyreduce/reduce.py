@@ -46,12 +46,14 @@ from .combine_frames import (
 )
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
-from .curvature_model import SlitCurvature, load_curvature, save_curvature
+from .curvature_model import load_curvature, save_curvature
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, extract_normalize
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
 from .spectra import ExtractionParams, Spectra, Spectrum
+from .trace import create_trace_objects, organize_fibers, select_traces_for_step
+from .trace import trace as mark_orders
 from .trace_model import (
     Trace as TraceData,
 )
@@ -59,29 +61,6 @@ from .trace_model import (
     load_traces,
     save_traces,
 )
-
-
-def _get_curvature_coeffs(curvature):
-    """Extract curvature coefficients array from SlitCurvature or return None."""
-    if curvature is None:
-        return None
-    if isinstance(curvature, SlitCurvature):
-        return curvature.coeffs
-    # Legacy: assume it's already the coeffs array
-    return curvature
-
-
-def _get_slitdeltas(curvature):
-    """Extract slitdeltas array from SlitCurvature or return None."""
-    if curvature is None:
-        return None
-    if isinstance(curvature, SlitCurvature):
-        return curvature.slitdeltas
-    return None
-
-
-from .trace import create_trace_objects, organize_fibers, select_traces_for_step
-from .trace import trace as mark_orders
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .wavelength_calibration import (
@@ -2109,7 +2088,7 @@ class RectifyImage(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["files", "trace", "curvature", "mask", "freq_comb"]
+        self._dependsOn += ["files", "trace", "mask", "freq_comb"]
         # self._loadDependsOn += []
 
         self.extraction_height = config["extraction_height"]
@@ -2118,16 +2097,7 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(
-        self, files, trace: list[TraceData], curvature=None, mask=None, freq_comb=None
-    ):
-        # Extract p1, p2 from curvature coeffs for rectification
-        if curvature is not None:
-            curv_coeffs = _get_curvature_coeffs(curvature)
-            p1 = curv_coeffs[:, :, 1] if curv_coeffs.shape[2] > 1 else None
-            p2 = curv_coeffs[:, :, 2] if curv_coeffs.shape[2] > 2 else None
-        else:
-            p1, p2 = None, None
+    def run(self, files, trace: list[TraceData], mask=None, freq_comb=None):
         wave = freq_comb
 
         files = files[self.input_files]
@@ -2143,8 +2113,6 @@ class RectifyImage(Step):
                 trace,
                 self.extraction_height,
                 self.trace_range,
-                p1,
-                p2,
             )
             wavelength, image = merge_images(images, wave, cr, xwd)
 

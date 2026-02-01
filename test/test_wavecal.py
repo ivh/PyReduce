@@ -344,30 +344,33 @@ class TestWavelengthCalibrationMakeWave:
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_wavecal(
-    files, instr, instrument, channel, mask, orders, settings, trace_range
+    files, instr, instrument, channel, mask, traces, settings, trace_range
 ):
     name = "wavecal_master"
     if len(files[name]) == 0:
         pytest.skip(f"No wavecal files found for instrument {instrument}")
 
-    orders, column_range = orders
     files = files[name][0]
     orig, thead = instr.load_fits(files, channel, mask=mask)
     thead["obase"] = (0, "base order number")
 
+    # Apply trace_range to traces
+    traces_subset = traces[trace_range[0] : trace_range[1]]
+
     # Extract wavecal spectrum
-    wavecal_spec, _, _, _ = extract(
+    spectra = extract(
         orig,
-        orders,
+        traces_subset,
         gain=thead["e_gain"],
         readnoise=thead["e_readn"],
         dark=thead["e_drk"],
         extraction_type="simple",
-        column_range=column_range,
-        trace_range=trace_range,
         extraction_height=settings[name]["extraction_height"],
         plot=False,
     )
+
+    # Convert Spectrum objects to array for assertions
+    wavecal_spec = np.array([s.spec for s in spectra])
 
     assert isinstance(wavecal_spec, np.ndarray)
     assert wavecal_spec.ndim == 2

@@ -444,19 +444,17 @@ def original(files, instrument, channel, mask):
 
 
 @pytest.mark.slow
-def test_curvature(original, orders, trace_range, settings):
+def test_curvature(original, traces, trace_range, settings):
     from pyreduce.curvature_model import SlitCurvature
 
     original, chead = original
-    orders, column_range = orders
     settings = settings["curvature"]
 
     if original is None:
         pytest.skip("No curvature files")
 
     module = CurvatureModule(
-        orders,
-        column_range=column_range,
+        traces,
         trace_range=trace_range,
         extraction_height=settings["extraction_height"],
         curve_height=settings.get("curve_height", 0.5),
@@ -488,12 +486,10 @@ def test_curvature(original, orders, trace_range, settings):
     assert p2.shape[1] == original.shape[1]
 
     # Reduce the number of orders this way
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     module = CurvatureModule(
-        orders,
-        column_range=column_range,
+        traces_subset,
         extraction_height=settings["extraction_height"],
         curve_height=settings.get("curve_height", 0.5),
         window_width=settings["window_width"],
@@ -517,47 +513,37 @@ def test_curvature(original, orders, trace_range, settings):
 
 
 @pytest.mark.slow
-def test_curvature_exception(original, orders, trace_range):
+def test_curvature_exception(original, traces, trace_range):
     original, chead = original
-    orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
 
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     original = np.copy(original)
 
     # Wrong curve_degree input (must be 1-5)
     with pytest.raises(ValueError):
-        module = CurvatureModule(
-            orders, column_range=column_range, plot=False, curve_degree=6
-        )
+        module = CurvatureModule(traces_subset, plot=False, curve_degree=6)
         module.execute(original)
 
     # Wrong mode
     with pytest.raises(ValueError):
-        module = CurvatureModule(
-            orders, column_range=column_range, plot=False, mode="3D"
-        )
+        module = CurvatureModule(traces_subset, plot=False, mode="3D")
         module.execute(original)
 
 
 @pytest.mark.slow
-def test_curvature_zero(original, orders, trace_range):
+def test_curvature_zero(original, traces, trace_range):
     original, chead = original
-    orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     original = np.zeros_like(original)
 
     # With zero image, should produce zero curvature
-    module = CurvatureModule(
-        orders, column_range=column_range, plot=False, sigma_cutoff=0
-    )
+    module = CurvatureModule(traces_subset, plot=False, sigma_cutoff=0)
     _ = module.execute(original)

@@ -69,21 +69,32 @@ def estimate_background_scatter(
 
     for trace in traces:
         left, right = trace.column_range
-        left = int(max(0, left - xwd))
-        right = int(min(ncol, right + xwd))
+        left = int(max(0, left))
+        right = int(min(ncol, right))
 
         x_trace = np.arange(left, right)
         y_trace = np.polyval(trace.pos, x_trace)
 
-        half = xwd / 2
-        y_above = y_trace + half
-        y_below = y_trace - half
+        # Compute aperture with fixed height
+        half = int(np.ceil(xwd / 2))
+        height = 2 * half  # constant height
+        y_center = np.round(y_trace).astype(int)
+        y_below = y_center - half
+        y_above = y_below + height - 1  # ensures constant height
 
-        y_above = np.floor(y_above)
-        y_below = np.ceil(y_below)
+        # Find columns where full aperture fits within image
+        valid = (y_below >= 0) & (y_above < nrow)
+        if not np.any(valid):
+            continue
 
-        index = make_index(y_below, y_above, left, right, zero=True)
-        np.clip(index[0], 0, nrow - 1, out=index[0])
+        valid_idx = np.where(valid)[0]
+        new_left = left + valid_idx[0]
+        new_right = left + valid_idx[-1] + 1
+
+        y_below = y_below[valid]
+        y_above = y_above[valid]
+
+        index = make_index(y_below, y_above, new_left, new_right, zero=True)
 
         mask[index] = False
 

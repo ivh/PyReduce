@@ -1,30 +1,29 @@
 import numpy as np
 import pytest
 
-from pyreduce.extract import extract
+from pyreduce.extract import extract_normalize
 
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
 
 
 @pytest.mark.slow
-def test_normflat(flat, orders, settings, trace_range, scatter, instrument):
-    flat, fhead = flat
-    orders, column_range = orders
+def test_normflat(flat, traces, settings, trace_range, scatter, instrument):
+    flat_img, fhead = flat
     settings = settings["norm_flat"]
 
-    if flat[0] is None:
+    if flat_img is None:
         pytest.skip(f"No flat exists for instrument {instrument}")
 
-    norm, _, blaze, _, extracted_column_range = extract(
-        flat,
-        orders,
+    # Apply trace_range
+    traces_subset = traces[trace_range[0] : trace_range[1]]
+
+    norm, _, blaze, _, extracted_column_range = extract_normalize(
+        flat_img,
+        traces_subset,
         scatter=scatter,
         gain=fhead["e_gain"],
         readnoise=fhead["e_readn"],
         dark=fhead["e_drk"],
-        column_range=column_range,
-        trace_range=trace_range,
-        extraction_type="normalize",
         extraction_height=settings["extraction_height"],
         threshold=settings["threshold"],
         lambda_sf=settings["smooth_slitfunction"],
@@ -34,17 +33,17 @@ def test_normflat(flat, orders, settings, trace_range, scatter, instrument):
     )
 
     assert isinstance(norm, np.ndarray)
-    assert norm.ndim == flat.ndim
-    assert norm.shape[0] == flat.shape[0]
-    assert norm.shape[1] == flat.shape[1]
-    assert norm.dtype == flat.dtype
+    assert norm.ndim == flat_img.ndim
+    assert norm.shape[0] == flat_img.shape[0]
+    assert norm.shape[1] == flat_img.shape[1]
+    assert norm.dtype == flat_img.dtype
     assert np.ma.min(norm) > 0
     assert not np.any(np.isnan(norm))
 
     assert isinstance(blaze, np.ndarray)
     assert blaze.ndim == 2
     assert blaze.shape[0] == len(extracted_column_range)
-    assert blaze.shape[1] == flat.shape[1]
+    assert blaze.shape[1] == flat_img.shape[1]
     assert np.issubdtype(blaze.dtype, np.floating)
     assert not np.any(np.isnan(blaze))
 
