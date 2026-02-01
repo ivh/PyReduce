@@ -356,7 +356,7 @@ def test_wavecal(
     thead["obase"] = (0, "base order number")
 
     # Extract wavecal spectrum
-    thar, _, _, _ = extract(
+    wavecal_spec, _, _, _ = extract(
         orig,
         orders,
         gain=thead["e_gain"],
@@ -369,14 +369,14 @@ def test_wavecal(
         plot=False,
     )
 
-    assert isinstance(thar, np.ndarray)
-    assert thar.ndim == 2
-    assert thar.shape[0] == trace_range[1] - trace_range[0]
-    assert thar.shape[1] == orig.shape[1]
-    assert np.issubdtype(thar.dtype, np.floating)
+    assert isinstance(wavecal_spec, np.ndarray)
+    assert wavecal_spec.ndim == 2
+    assert wavecal_spec.shape[0] == trace_range[1] - trace_range[0]
+    assert wavecal_spec.shape[1] == orig.shape[1]
+    assert np.issubdtype(wavecal_spec.dtype, np.floating)
 
-    # assert np.min(thar) == 0
-    # assert np.max(thar) == 1
+    # assert np.min(wavecal_spec) == 0
+    # assert np.max(wavecal_spec) == 1
 
     reference = instr.get_wavecal_filename(thead, channel, **settings["instrument"])
     reference = np.load(reference, allow_pickle=True)
@@ -389,7 +389,7 @@ def test_wavecal(
         threshold=settings[name]["threshold"],
         degree=settings[name]["degree"],
     )
-    wave, solution, lines = module.execute(thar, linelist)
+    wave, solution, lines = module.execute(wavecal_spec, linelist)
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2

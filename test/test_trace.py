@@ -732,231 +732,204 @@ class TestOrganizeFibers:
 
 
 class TestSelectTracesForStep:
-    """Tests for select_traces_for_step function."""
+    """Tests for select_traces_for_step function with Trace objects."""
 
     @pytest.fixture
-    def raw_traces(self):
-        """Create raw traces."""
-        traces = np.array([[0.0, 0.0, 100.0 + i * 10] for i in range(10)])
-        column_range = np.array([[10, 990]] * 10)
-        return traces, column_range
+    def trace_objects(self):
+        """Create Trace objects with different fiber assignments."""
+        from pyreduce.trace_model import Trace
+
+        traces = []
+        for i in range(10):
+            # Assign fibers: first 5 to "A", last 5 to "B"
+            fiber = "A" if i < 5 else "B"
+            traces.append(
+                Trace(
+                    m=i,
+                    fiber=fiber,
+                    pos=np.array([0.0, 0.0, 100.0 + i * 10]),
+                    column_range=(10, 990),
+                )
+            )
+        return traces
 
     @pytest.fixture
-    def group_traces(self):
-        """Create grouped traces."""
-        return {
-            "A": np.array([[0.0, 0.0, 125.0]]),  # Averaged
-            "B": np.array([[0.0, 0.0, 175.0]]),  # Averaged
-        }
+    def all_fiber_traces(self):
+        """Create Trace objects all with default fiber (0)."""
+        from pyreduce.trace_model import Trace
 
-    @pytest.fixture
-    def group_cr(self):
-        """Create grouped column ranges."""
-        return {
-            "A": np.array([[10, 990]]),
-            "B": np.array([[10, 990]]),
-        }
+        return [
+            Trace(
+                m=i,
+                fiber=0,
+                pos=np.array([0.0, 0.0, 100.0 + i * 10]),
+                column_range=(10, 990),
+            )
+            for i in range(10)
+        ]
 
     @pytest.mark.unit
-    def test_select_traces_no_config(self, raw_traces):
-        """Test that None config returns raw traces in 'all' key."""
-        traces, cr = raw_traces
-
-        result = trace.select_traces_for_step(traces, cr, {}, {}, None, "science")
+    def test_select_traces_no_config(self, all_fiber_traces):
+        """Test that None config returns all traces in 'all' key."""
+        result = trace.select_traces_for_step(all_fiber_traces, None, "science")
 
         assert "all" in result
-        selected, selected_cr, _ = result["all"]
-        assert np.array_equal(selected, traces)
-        assert np.array_equal(selected_cr, cr)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_all(self, raw_traces, group_traces, group_cr):
-        """Test selecting all raw traces."""
+    def test_select_traces_all(self, trace_objects):
+        """Test selecting all traces with use='all'."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
-            groups={"A": FiberGroupConfig(range=(1, 11))},
+            groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"science": "all"},
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         assert "all" in result
-        selected, _, _ = result["all"]
-        assert np.array_equal(selected, traces)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_groups(self, raw_traces, group_traces, group_cr):
-        """Test selecting all grouped traces stacked."""
+    def test_select_traces_groups(self, trace_objects):
+        """Test selecting grouped traces with use='groups'."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"science": "groups"},
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
-        # "groups" stacks all into single "all" entry
+        # "groups" returns all non-default fiber traces
         assert "all" in result
-        selected, _, _ = result["all"]
-        # Should concatenate all groups (A and B)
-        assert len(selected) == 2
+        # All 10 traces have fiber A or B (non-default)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_specific_groups(self, raw_traces, group_traces, group_cr):
+    def test_select_traces_specific_groups(self, trace_objects):
         """Test selecting specific named groups returns dict per group."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"science": ["A"]},  # Only group A
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         # Explicit list returns dict with named keys
         assert "A" in result
         assert len(result) == 1
-        selected, _, _ = result["A"]
-        assert len(selected) == 1
+        assert len(result["A"]) == 5  # First 5 traces have fiber="A"
 
     @pytest.mark.unit
-    def test_select_traces_explicit_default(self, raw_traces, group_traces, group_cr):
+    def test_select_traces_explicit_default(self, trace_objects):
         """Test explicit default key in use config."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"default": "groups"},  # explicit default
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         # Should use the explicit default "groups"
         assert "all" in result
-        selected, _, _ = result["all"]
-        assert len(selected) == 2
+        # All traces have non-default fiber
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_default_all(self, raw_traces, group_traces, group_cr):
-        """Test explicit default: all returns raw traces."""
+    def test_select_traces_default_all(self, trace_objects):
+        """Test explicit default: all returns all traces."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"default": "all"},
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         assert "all" in result
-        selected, _, _ = result["all"]
-        assert np.array_equal(selected, traces)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_step_overrides_default(
-        self, raw_traces, group_traces, group_cr
-    ):
+    def test_select_traces_step_overrides_default(self, trace_objects):
         """Test step-specific config takes precedence over default."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
-            use={"default": "groups", "science": "all"},  # science overrides
+            use={"default": ["A"], "science": "all"},  # science overrides
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
-        # science: all should override default: groups
+        # science: all should override default
         assert "all" in result
-        selected, _, _ = result["all"]
-        assert np.array_equal(selected, traces)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_no_default_falls_back_to_all(
-        self, raw_traces, group_traces, group_cr
-    ):
+    def test_select_traces_no_default_falls_back_to_all(self, trace_objects):
         """Test missing default key falls back to 'all'."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"other_step": "groups"},  # no default, science not specified
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         # Without default key, should fall back to "all"
         assert "all" in result
-        selected, _, _ = result["all"]
-        assert np.array_equal(selected, traces)
+        assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_missing_group_warns(
-        self, raw_traces, group_traces, group_cr
-    ):
+    def test_select_traces_missing_group_warns(self, trace_objects):
         """Test warning when requested group doesn't exist."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
-        traces, cr = raw_traces
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
             use={"science": ["A", "nonexistent"]},
         )
 
         # Should warn but still return valid groups
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(trace_objects, config, "science")
 
         # Only A found as named key
         assert "A" in result
         assert len(result) == 1
+        assert len(result["A"]) == 5
 
     @pytest.mark.unit
     def test_select_traces_per_order(self):
-        """Test selecting from per-order grouped traces."""
+        """Test selecting traces with different order numbers."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace
 
-        # Raw traces (not used when selecting groups)
-        raw_traces = np.array([[0.0, 0.0, 100.0 + i * 10] for i in range(6)])
-        raw_cr = np.array([[10, 990]] * 6)
-
-        # Per-order grouped traces: {group: {order: trace}}
-        group_traces = {
-            "A": {1: np.array([[0.0, 0.0, 100.0]]), 2: np.array([[0.0, 0.0, 200.0]])},
-            "B": {1: np.array([[0.0, 0.0, 110.0]]), 2: np.array([[0.0, 0.0, 210.0]])},
-        }
-        group_cr = {
-            "A": {1: np.array([[10, 990]]), 2: np.array([[10, 990]])},
-            "B": {1: np.array([[10, 990]]), 2: np.array([[10, 990]])},
-        }
+        # Create traces with order numbers and fiber assignments
+        traces = [
+            Trace(
+                m=1, fiber="A", pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990)
+            ),
+            Trace(
+                m=1, fiber="B", pos=np.array([0.0, 0.0, 110.0]), column_range=(10, 990)
+            ),
+            Trace(
+                m=2, fiber="A", pos=np.array([0.0, 0.0, 200.0]), column_range=(10, 990)
+            ),
+            Trace(
+                m=2, fiber="B", pos=np.array([0.0, 0.0, 210.0]), column_range=(10, 990)
+            ),
+        ]
 
         config = FibersConfig(
-            per_order=True,
-            order_centers={1: 100.0, 2: 200.0},
             groups={
                 "A": FiberGroupConfig(range=(1, 2)),
                 "B": FiberGroupConfig(range=(2, 3)),
@@ -964,39 +937,39 @@ class TestSelectTracesForStep:
             use={"science": ["A"]},
         )
 
-        result = trace.select_traces_for_step(
-            raw_traces, raw_cr, group_traces, group_cr, config, "science"
-        )
+        result = trace.select_traces_for_step(traces, config, "science")
 
-        # Should return A with stacked traces from both orders
+        # Should return A with traces from both orders
         assert "A" in result
         assert len(result) == 1
-        selected, _, _ = result["A"]
-        assert len(selected) == 2  # 2 orders
+        assert len(result["A"]) == 2  # 2 orders with fiber A
 
     @pytest.mark.unit
-    def test_select_traces_returns_height(self, raw_traces):
-        """Test that select_traces_for_step returns group heights."""
+    def test_select_traces_with_height(self):
+        """Test that Trace objects preserve height information."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace
 
-        traces, cr = raw_traces
-        group_traces = {"A": np.array([[0.0, 0.0, 125.0]])}
-        group_cr = {"A": np.array([[10, 990]])}
-        group_heights = {"A": 42.0}
+        traces = [
+            Trace(
+                m=0,
+                fiber="A",
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(10, 990),
+                height=42.0,
+            )
+        ]
 
         config = FibersConfig(
-            groups={"A": FiberGroupConfig(range=(1, 6), height=42.0)},
+            groups={"A": FiberGroupConfig(range=(1, 2))},
             use={"science": ["A"]},
         )
 
-        result = trace.select_traces_for_step(
-            traces, cr, group_traces, group_cr, config, "science", group_heights
-        )
+        result = trace.select_traces_for_step(traces, config, "science")
 
-        # Should return height in tuple
         assert "A" in result
-        _, _, height = result["A"]
-        assert height == 42.0
+        assert len(result["A"]) == 1
+        assert result["A"][0].height == 42.0
 
 
 class TestNoiseThreshold:

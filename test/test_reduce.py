@@ -313,7 +313,7 @@ class TestTraceSaveLoad:
         step = reduce.Trace(
             mock_instrument, "RED", "", "", str(tmp_path), None, **config
         )
-        assert step.savefile.endswith(".traces.npz")
+        assert step.savefile.endswith(".traces.fits")
 
     @pytest.mark.unit
     def test_trace_save_load_roundtrip(self, mock_instrument, tmp_path):
@@ -344,7 +344,12 @@ class TestTraceSaveLoad:
         column_range = np.array([[10, 990], [20, 980]])
 
         step.save(orders, column_range)
-        loaded_orders, loaded_cr = step.load()
+        trace_objects = step.load()
+
+        # Verify via conversion to arrays
+        from pyreduce.trace_model import traces_to_arrays
+
+        loaded_orders, loaded_cr, _ = traces_to_arrays(trace_objects)
 
         assert np.allclose(orders, loaded_orders)
         assert np.allclose(column_range, loaded_cr)
@@ -379,12 +384,17 @@ class TestTraceSaveLoad:
         step.heights = np.array([20.0, 25.0])
 
         step.save(orders, column_range)
-        loaded_orders, loaded_cr = step.load()
+        trace_objects = step.load()
+
+        # Verify via conversion to arrays
+        from pyreduce.trace_model import traces_to_arrays
+
+        loaded_orders, loaded_cr, loaded_heights = traces_to_arrays(trace_objects)
 
         assert np.allclose(orders, loaded_orders)
         assert np.allclose(column_range, loaded_cr)
-        assert step.heights is not None
-        assert np.allclose(step.heights, [20.0, 25.0])
+        assert loaded_heights is not None
+        assert np.allclose(loaded_heights, [20.0, 25.0])
 
     @pytest.mark.unit
     def test_trace_load_without_heights_backwards_compat(
@@ -412,15 +422,22 @@ class TestTraceSaveLoad:
         }
         step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
 
-        # Manually save without heights (simulating old file format)
+        # Manually save without heights (simulating old NPZ file format)
         orders = np.array([[100.0, 0.01, 0.0]])
         column_range = np.array([[10, 990]])
-        np.savez(step.savefile, traces=orders, column_range=column_range)
+        # Save to old NPZ path to test backwards compatibility
+        np.savez(step._old_savefile_npz, traces=orders, column_range=column_range)
 
-        loaded_orders, loaded_cr = step.load()
+        trace_objects = step.load()
+
+        # Verify via conversion to arrays
+        from pyreduce.trace_model import traces_to_arrays
+
+        loaded_orders, loaded_cr, loaded_heights = traces_to_arrays(trace_objects)
 
         assert np.allclose(orders, loaded_orders)
-        assert step.heights is None  # Backwards compat: missing heights -> None
+        # Backwards compat: missing heights -> NaN in array
+        assert np.all(np.isnan(loaded_heights))
 
 
 class TestSlitCurvatureSaveLoad:

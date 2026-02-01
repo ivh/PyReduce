@@ -126,7 +126,7 @@ def test_wavelength_correction(fname, clight):
 
     # Apply only barycentric correction
     ech = echelle.Echelle.read(
-        fname, barycentric_correction=True, radial_velociy_correction=False
+        fname, barycentric_correction=True, radial_velocity_correction=False
     )
     assert np.allclose(ech["wave"], wave * (1 - bc / clight))
     assert ech.header["barycorr"] == 0
@@ -134,7 +134,7 @@ def test_wavelength_correction(fname, clight):
 
     # Apply only radial velocity correction
     ech = echelle.Echelle.read(
-        fname, barycentric_correction=False, radial_velociy_correction=True
+        fname, barycentric_correction=False, radial_velocity_correction=True
     )
     assert np.allclose(ech["wave"], wave * (1 + rv / clight))
     assert ech.header["barycorr"] == bc
@@ -142,7 +142,7 @@ def test_wavelength_correction(fname, clight):
 
     # Apply both corrections
     ech = echelle.Echelle.read(
-        fname, barycentric_correction=True, radial_velociy_correction=True
+        fname, barycentric_correction=True, radial_velocity_correction=True
     )
     assert np.allclose(ech["wave"], wave * (1 + (rv - bc) / clight))
     assert ech.header["barycorr"] == 0
