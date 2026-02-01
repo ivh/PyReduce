@@ -1333,6 +1333,16 @@ class NormalizeFlatField(Step):
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
 
+        # Apply curvature data to traces if available
+        if curvature is not None:
+            for i, t in enumerate(trace_list):
+                if i < curvature.coeffs.shape[0]:
+                    compact = curvature.get_compact_for_trace(i)
+                    if compact is not None:
+                        t.slit = compact
+                    if curvature.slitdeltas is not None:
+                        t.slitdelta = curvature.slitdeltas[i]
+
         extraction_kwargs = dict(self.extraction_kwargs)
         default_height = extraction_kwargs.pop("extraction_height", 0.5)
 
@@ -1488,6 +1498,16 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "wavecal_master")
         trace_list = [t for traces in selected.values() for t in traces]
+
+        # Apply curvature data to traces if available
+        if curvature is not None:
+            for i, t in enumerate(trace_list):
+                if i < curvature.coeffs.shape[0]:
+                    compact = curvature.get_compact_for_trace(i)
+                    if compact is not None:
+                        t.slit = compact
+                    if curvature.slitdeltas is not None:
+                        t.slitdelta = curvature.slitdeltas[i]
 
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
@@ -1834,6 +1854,16 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         if len(files) == 0:
             raise FileNotFoundError("No files for Laser Frequency Comb found")
         logger.info("Frequency comb files: %s", files)
+
+        # Apply curvature data to traces if available
+        if curvature is not None:
+            for i, t in enumerate(trace):
+                if i < curvature.coeffs.shape[0]:
+                    compact = curvature.get_compact_for_trace(i)
+                    if compact is not None:
+                        t.slit = compact
+                    if curvature.slitdeltas is not None:
+                        t.slitdelta = curvature.slitdeltas[i]
 
         # Combine the input files and calibrate
         orig, chead = self.calibrate(files, mask, bias, norm_flat)
@@ -2262,6 +2292,16 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         # Apply trace_range if specified
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
+
+        # Apply curvature data to traces if available
+        if curvature is not None:
+            for i, t in enumerate(trace_list):
+                if i < curvature.coeffs.shape[0]:
+                    compact = curvature.get_compact_for_trace(i)
+                    if compact is not None:
+                        t.slit = compact
+                    if curvature.slitdeltas is not None:
+                        t.slitdelta = curvature.slitdeltas[i]
 
         # Get arrays for calibration visualization
         traces_arr, column_range, heights_arr = traces_to_arrays(trace_list)
