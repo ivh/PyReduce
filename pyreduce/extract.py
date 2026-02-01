@@ -1525,21 +1525,6 @@ def correct_for_curvature(img_order, curvature, xwd, inverse=False):
     return img_order
 
 
-def model_image(img, xwd, curvature):
-    """Create model image from curvature-corrected data."""
-    img = correct_for_curvature(img, curvature, xwd)
-    # Find slitfunction using the median to avoid outliers
-    slitf = np.ma.median(img, axis=1)
-    slitf /= np.ma.sum(slitf)
-    # Use the slitfunction to find spectrum
-    spec = np.ma.median(img / slitf[:, None], axis=0)
-    # Create model from slitfunction and spectrum
-    model = spec[None, :] * slitf[:, None]
-    # Reapply curvature to the model (inverse)
-    model = correct_for_curvature(model, curvature, xwd, inverse=True)
-    return model, spec, slitf
-
-
 def simple_extraction(
     img,
     traces,
