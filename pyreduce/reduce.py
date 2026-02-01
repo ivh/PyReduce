@@ -1270,7 +1270,7 @@ class NormalizeFlatField(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "trace", "scatter", "curvature"]
+        self._dependsOn += ["flat", "trace", "scatter"]
 
         #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -1298,7 +1298,7 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, trace: list[TraceData], scatter=None, curvature=None):
+    def run(self, flat, trace: list[TraceData], scatter=None):
         """Calculate the 'normalized' flat field
 
         Parameters
@@ -1309,8 +1309,6 @@ class NormalizeFlatField(Step):
             Trace objects from trace step
         scatter : array, optional
             Background scatter model
-        curvature : SlitCurvature, optional
-            Slit curvature data
 
         Returns
         -------
@@ -1332,16 +1330,6 @@ class NormalizeFlatField(Step):
         # Apply trace_range if specified
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
-
-        # Apply curvature data to traces if available
-        if curvature is not None:
-            for i, t in enumerate(trace_list):
-                if i < curvature.coeffs.shape[0]:
-                    compact = curvature.get_compact_for_trace(i)
-                    if compact is not None:
-                        t.slit = compact
-                    if curvature.slitdeltas is not None:
-                        t.slitdelta = curvature.slitdeltas[i]
 
         extraction_kwargs = dict(self.extraction_kwargs)
         default_height = extraction_kwargs.pop("extraction_height", 0.5)
@@ -1448,7 +1436,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "bias"]
+        self._dependsOn += ["norm_flat", "bias"]
 
     @property
     def savefile(self):
@@ -1460,7 +1448,6 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         files,
         trace: list[TraceData],
         mask=None,
-        curvature=None,
         bias=None,
         norm_flat=None,
     ):
@@ -1477,8 +1464,6 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
             Trace objects from trace step
         mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        curvature : SlitCurvature, optional
-            Slit curvature data
         bias : tuple, optional
             Master bias
         norm_flat : tuple, optional
@@ -1498,16 +1483,6 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "wavecal_master")
         trace_list = [t for traces in selected.values() for t in traces]
-
-        # Apply curvature data to traces if available
-        if curvature is not None:
-            for i, t in enumerate(trace_list):
-                if i < curvature.coeffs.shape[0]:
-                    compact = curvature.get_compact_for_trace(i)
-                    if compact is not None:
-                        t.slit = compact
-                    if curvature.slitdeltas is not None:
-                        t.slitdelta = curvature.slitdeltas[i]
 
         # Load wavecal image
         orig, thead = self.calibrate(files, mask, bias, norm_flat)
@@ -1810,7 +1785,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature"]
+        self._dependsOn += ["norm_flat"]
 
     @property
     def savefile(self):
@@ -1822,7 +1797,6 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         files,
         trace: list[TraceData],
         mask=None,
-        curvature=None,
         bias=None,
         norm_flat=None,
     ):
@@ -1836,8 +1810,6 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
             Trace objects from trace step
         mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        curvature : SlitCurvature, optional
-            results from the curvature step
         bias : tuple, optional
             results from the bias step
         norm_flat : tuple, optional
@@ -1854,16 +1826,6 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         if len(files) == 0:
             raise FileNotFoundError("No files for Laser Frequency Comb found")
         logger.info("Frequency comb files: %s", files)
-
-        # Apply curvature data to traces if available
-        if curvature is not None:
-            for i, t in enumerate(trace):
-                if i < curvature.coeffs.shape[0]:
-                    compact = curvature.get_compact_for_trace(i)
-                    if compact is not None:
-                        t.slit = compact
-                    if curvature.slitdeltas is not None:
-                        t.slitdelta = curvature.slitdeltas[i]
 
         # Combine the input files and calibrate
         orig, chead = self.calibrate(files, mask, bias, norm_flat)
@@ -2088,6 +2050,16 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             plot_title=self.plot_title,
         )
         curvature = module.execute(orig)
+
+        # Update traces in-place with curvature data
+        for i, t in enumerate(trace_list):
+            if i < curvature.coeffs.shape[0]:
+                compact = curvature.get_compact_for_trace(i)
+                if compact is not None:
+                    t.slit = compact
+                if curvature.slitdeltas is not None:
+                    t.slitdelta = curvature.slitdeltas[i]
+
         self.save(curvature)
         return curvature
 
@@ -2231,7 +2203,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "scatter"]
+        self._dependsOn += ["norm_flat", "scatter"]
         self._loadDependsOn += ["files"]
 
     def science_file(self, name):
@@ -2255,7 +2227,6 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         trace: list[TraceData],
         bias=None,
         norm_flat=None,
-        curvature=None,
         scatter=None,
         mask=None,
     ):
@@ -2271,8 +2242,6 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             results from master bias step
         norm_flat : tuple, optional
             results from flat normalization
-        curvature : SlitCurvature, optional
-            results from slit curvature step
         scatter : array, optional
             background scatter model
         mask : array of shape (nrow, ncol), optional
@@ -2292,16 +2261,6 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         # Apply trace_range if specified
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
-
-        # Apply curvature data to traces if available
-        if curvature is not None:
-            for i, t in enumerate(trace_list):
-                if i < curvature.coeffs.shape[0]:
-                    compact = curvature.get_compact_for_trace(i)
-                    if compact is not None:
-                        t.slit = compact
-                    if curvature.slitdeltas is not None:
-                        t.slitdelta = curvature.slitdeltas[i]
 
         # Get arrays for calibration visualization
         traces_arr, column_range, heights_arr = traces_to_arrays(trace_list)
