@@ -736,3 +736,282 @@ class TestSlitdeltasExtraction:
         assert len(spectra) == 2
         assert spectra[0].spec.shape == (ncol,)
         assert spectra[1].spec.shape == (ncol,)
+
+
+class TestTraceCurvatureExtraction:
+    """Tests for Trace.slit curvature being used in extraction."""
+
+    def test_extract_with_trace_slit(self):
+        """Test extraction accepts and uses Trace.slit curvature."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Create trace with slit curvature polynomial
+        # slit[i, :] = coefficients for y^i term as function of x
+        # Linear tilt: offset = 0.01 * y (slight tilt)
+        slit = np.array([[0.0, 0.0], [0.0, 0.01]])  # (deg_y+1, deg_x+1)
+
+        traces = [
+            Trace(
+                m=5,
+                fiber="A",
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                slit=slit,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        assert len(spectra) == 1
+        assert spectra[0].spec.shape == (ncol,)
+        # Verify identity preserved
+        assert spectra[0].m == 5
+        assert spectra[0].fiber == "A"
+
+    def test_extract_with_both_slit_and_slitdelta(self):
+        """Test extraction with both Trace.slit and Trace.slitdelta."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Curvature polynomial
+        slit = np.array([[0.0, 0.0], [0.0, 0.005]])
+        # Per-row corrections
+        slitdelta = np.linspace(-0.02, 0.02, 10)
+
+        traces = [
+            Trace(
+                m=10,
+                fiber="cal",
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                slit=slit,
+                slitdelta=slitdelta,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        assert len(spectra) == 1
+        assert spectra[0].m == 10
+        assert spectra[0].fiber == "cal"
+
+    def test_extract_mixed_traces_some_with_curvature(self):
+        """Test extraction when some traces have curvature and others don't."""
+        nrow, ncol = 80, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+        img[50:60, :] += 100
+
+        slit = np.array([[0.0, 0.0], [0.0, 0.01]])
+
+        traces = [
+            Trace(
+                m=1,
+                fiber="A",
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                slit=slit,  # Has curvature
+            ),
+            Trace(
+                m=2,
+                fiber="B",
+                pos=np.array([0.0, 55.0]),
+                column_range=(0, ncol),
+                # No curvature
+            ),
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        assert len(spectra) == 2
+        assert spectra[0].m == 1
+        assert spectra[1].m == 2
+
+    def test_extract_higher_degree_curvature(self):
+        """Test extraction with higher-degree curvature polynomial."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Quadratic curvature: offset = c0 + c1*y + c2*y^2
+        # Each row is coefficients for y^i term as polynomial in x
+        slit = np.array(
+            [
+                [0.0, 0.0, 0.0],  # y^0 term
+                [0.0, 0.0, 0.01],  # y^1 term (linear tilt)
+                [0.0, 0.0, 0.001],  # y^2 term (curvature)
+            ]
+        )
+
+        traces = [
+            Trace(
+                m=1,
+                fiber=0,
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                slit=slit,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        assert len(spectra) == 1
+
+    def test_trace_slit_at_x_used_correctly(self):
+        """Verify slit_at_x evaluates curvature polynomial correctly."""
+        # This tests the Trace method that extract() uses internally
+        # slit[i, :] = polyval coefficients for y^i term as function of x
+        # np.polyval([a, b], x) = a*x + b (highest power first)
+        # So [0.0, 0.1] means 0*x + 0.1 = 0.1 (constant)
+        slit = np.array(
+            [
+                [0.0, 0.1],  # y^0 term: constant 0.1
+                [0.0, 0.02],  # y^1 term: constant 0.02
+            ]
+        )
+
+        trace = Trace(
+            m=1, fiber=0, pos=np.array([0.0, 100.0]), column_range=(0, 1000), slit=slit
+        )
+
+        # At x=0: coeffs should be [0.1, 0.02]
+        coeffs = trace.slit_at_x(0)
+        np.testing.assert_array_almost_equal(coeffs, [0.1, 0.02])
+
+        # At x=500: same since polynomials are constant
+        coeffs = trace.slit_at_x(500)
+        np.testing.assert_array_almost_equal(coeffs, [0.1, 0.02])
+
+        # Test with x-varying polynomial: [0.001, 0.1] means 0.001*x + 0.1
+        slit_varying = np.array(
+            [
+                [0.001, 0.0],  # y^0 term: 0.001*x
+                [0.0, 0.02],  # y^1 term: constant 0.02
+            ]
+        )
+        trace2 = Trace(
+            m=1,
+            fiber=0,
+            pos=np.array([0.0, 100.0]),
+            column_range=(0, 1000),
+            slit=slit_varying,
+        )
+        coeffs = trace2.slit_at_x(1000)
+        np.testing.assert_array_almost_equal(coeffs, [1.0, 0.02])
+
+    def test_trace_identity_preserved_through_extraction(self):
+        """Verify m, fiber are copied from Trace to Spectrum."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        traces = [
+            Trace(
+                m=42,
+                fiber="science_A",
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                height=12.0,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,  # Should be overridden by trace.height
+            osample=1,
+        )
+
+        assert spectra[0].m == 42
+        assert spectra[0].fiber == "science_A"
+
+    def test_trace_height_overrides_default(self):
+        """Verify Trace.height overrides default extraction_height."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[15:35, :] += 100  # Wider signal for larger extraction
+
+        traces = [
+            Trace(
+                m=1,
+                fiber=0,
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                height=20.0,  # Override to 20 pixels
+            )
+        ]
+
+        # Default is 10, but trace says 20
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        # The extraction_height used should be from trace (20)
+        assert spectra[0].extraction_height == pytest.approx(20.0)
+
+    def test_trace_wave_available_for_evaluation(self):
+        """Verify Trace.wave can be evaluated after extraction.
+
+        Note: extract() does not copy wave to Spectrum - that's done by
+        pipeline steps. But the trace.wave should remain accessible for
+        later evaluation.
+        """
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[20:30, :] += 100
+
+        # Wavelength polynomial: wave = 0.5*x + 5000
+        wave_coef = np.array([0.5, 5000.0])
+
+        traces = [
+            Trace(
+                m=1,
+                fiber=0,
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                wave=wave_coef,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=10,
+            osample=1,
+        )
+
+        # Extraction doesn't copy wave, but trace.wave should still work
+        x = np.arange(ncol)
+        wave = traces[0].wlen(x)
+        assert wave is not None
+        assert wave[0] == pytest.approx(5000.0)
+        assert wave[99] == pytest.approx(5000.0 + 0.5 * 99)
+
+        # The spectrum itself doesn't have wave (added by pipeline)
+        assert spectra[0].wave is None
