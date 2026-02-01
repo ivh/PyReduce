@@ -386,9 +386,7 @@ class TestSlitdeltasComputation:
     @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
     @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_execute_returns_slitdeltas(self, simple_orders):
-        """Test that execute() returns SlitCurvature with slitdeltas."""
-        from pyreduce.curvature_model import SlitCurvature
-
+        """Test that execute() returns dict with slitdeltas."""
         module = CurvatureModule(
             simple_orders,
             mode="1D",
@@ -404,9 +402,9 @@ class TestSlitdeltasComputation:
 
         result = module.execute(img, compute_slitdeltas=True)
 
-        assert isinstance(result, SlitCurvature)
-        assert result.slitdeltas is not None
-        assert result.slitdeltas.shape[0] == 2  # 2 traces
+        assert isinstance(result, dict)
+        assert result["slitdeltas"] is not None
+        assert result["slitdeltas"].shape[0] == 2  # 2 traces
 
     @pytest.mark.unit
     @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
@@ -426,7 +424,7 @@ class TestSlitdeltasComputation:
 
         result = module.execute(img, compute_slitdeltas=False)
 
-        assert result.slitdeltas is None
+        assert result["slitdeltas"] is None
 
 
 # Tests that require instrument data follow below
@@ -445,8 +443,6 @@ def original(files, instrument, channel, mask):
 
 @pytest.mark.slow
 def test_curvature(original, traces, trace_range, settings):
-    from pyreduce.curvature_model import SlitCurvature
-
     original, chead = original
     settings = settings["curvature"]
 
@@ -471,12 +467,12 @@ def test_curvature(original, traces, trace_range, settings):
     )
     curvature = module.execute(original)
 
-    assert isinstance(curvature, SlitCurvature)
-    assert curvature.degree == 2
-    assert curvature.coeffs.ndim == 3
-    assert curvature.coeffs.shape[0] == trace_range[1] - trace_range[0]
-    assert curvature.coeffs.shape[1] == original.shape[1]
-    assert curvature.coeffs.shape[2] == 3  # degree + 1
+    assert isinstance(curvature, dict)
+    assert curvature["degree"] == 2
+    assert curvature["coeffs"].ndim == 3
+    assert curvature["coeffs"].shape[0] == trace_range[1] - trace_range[0]
+    assert curvature["coeffs"].shape[1] == original.shape[1]
+    assert curvature["coeffs"].shape[2] == 3  # degree + 1
 
     # Test backward compatibility
     p1, p2 = curvature.to_p1_p2()

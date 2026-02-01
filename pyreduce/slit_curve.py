@@ -26,7 +26,6 @@ from scipy.optimize import least_squares
 from tqdm import tqdm
 
 from . import util
-from .curvature_model import SlitCurvature
 from .util import make_index
 from .util import polyfit2d_2 as polyfit2d
 
@@ -856,8 +855,8 @@ class Curvature:
 
         Returns
         -------
-        curvature : SlitCurvature
-            Curvature data including polynomial coefficients and optionally slitdeltas.
+        dict
+            Curvature data with keys: coeffs, slitdeltas, degree, fitted_coeffs, fit_degree.
         """
         logger.info("Determining the Slit Curvature")
 
@@ -915,14 +914,13 @@ class Curvature:
             compact = None
             fit_deg = None
 
-        curvature = SlitCurvature(
-            coeffs=coeffs,
-            slitdeltas=slitdeltas,
-            degree=self.curve_degree,
-            fitted_coeffs=compact,
-            fit_degree=fit_deg,
-        )
-        return curvature
+        return {
+            "coeffs": coeffs,
+            "slitdeltas": slitdeltas,
+            "degree": self.curve_degree,
+            "fitted_coeffs": compact,
+            "fit_degree": fit_deg,
+        }
 
 
 # TODO allow other line shapes

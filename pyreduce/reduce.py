@@ -46,7 +46,6 @@ from .combine_frames import (
 )
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
-from .curvature_model import load_curvature, save_curvature
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, extract_normalize
 from .rectify import merge_images, rectify_image
@@ -2015,45 +2014,35 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         curvature = module.execute(orig)
 
         # Update traces in-place with curvature data
+        fitted_coeffs = curvature["fitted_coeffs"]
+        slitdeltas = curvature["slitdeltas"]
         for i, t in enumerate(trace_list):
-            if i < curvature.coeffs.shape[0]:
-                compact = curvature.get_compact_for_trace(i)
-                if compact is not None:
-                    t.slit = compact
-                if curvature.slitdeltas is not None:
-                    t.slitdelta = curvature.slitdeltas[i]
+            if fitted_coeffs is not None and i < fitted_coeffs.shape[0]:
+                t.slit = fitted_coeffs[i]
+            if slitdeltas is not None and i < slitdeltas.shape[0]:
+                t.slitdelta = slitdeltas[i]
 
-        self.save(curvature)
-        return curvature
+        self.save(trace_list)
+        return trace_list
 
-    def save(self, curvature):
-        """Save curvature results.
-
-        Saves both the NPZ file (for backwards compatibility) and updates
-        the traces.fits file with compact slit coefficients.
+    def save(self, traces):
+        """Save curvature results by updating traces.fits.
 
         Parameters
         ----------
-        curvature : SlitCurvature
-            Slit curvature data to save
+        traces : list[Trace]
+            Traces with updated slit/slitdelta data
         """
-        # Save NPZ for backwards compatibility
-        save_curvature(self.savefile, curvature)
-
-        # Update traces.fits with compact slit coefficients
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
         if os.path.exists(trace_file):
             try:
                 trace_objects, header = load_traces(trace_file)
 
-                # Update each trace with slit data
-                ntrace = min(len(trace_objects), curvature.coeffs.shape[0])
-                for i in range(ntrace):
-                    compact = curvature.get_compact_for_trace(i)
-                    if compact is not None:
-                        trace_objects[i].slit = compact
-                    if curvature.slitdeltas is not None:
-                        trace_objects[i].slitdelta = curvature.slitdeltas[i]
+                # Update each trace with slit data from fitted traces
+                for i, t in enumerate(traces):
+                    if i < len(trace_objects):
+                        trace_objects[i].slit = t.slit
+                        trace_objects[i].slitdelta = t.slitdelta
 
                 # Save updated traces
                 steps = header.get("E_STEPS", "trace").split(",")
@@ -2065,22 +2054,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
                 logger.warning("Could not update traces.fits with curvature: %s", e)
 
     def load(self):
-        """Load the curvature if possible, otherwise return None.
-
-        Returns
-        -------
-        curvature : SlitCurvature or None
-            Slit curvature data, or None if not found
-        """
-        try:
-            curvature = load_curvature(self.savefile)
-            logger.info("Slit curvature file: %s", self.savefile)
-            return curvature
-        except FileNotFoundError:
-            logger.warning(
-                "No data for slit curvature found, using vertical extraction."
-            )
-            return None
+        """Curvature is now stored in traces, not separate files."""
+        return None
 
 
 class RectifyImage(Step):

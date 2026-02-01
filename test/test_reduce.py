@@ -435,41 +435,16 @@ class TestTraceSaveLoad:
         assert trace_objects[0].height is None
 
 
-class TestSlitCurvatureSaveLoad:
-    """Unit tests for SlitCurvatureDetermination save/load."""
+class TestSlitCurvatureDetermination:
+    """Unit tests for SlitCurvatureDetermination."""
 
     @pytest.fixture
     def mock_instrument(self):
         return load_instrument("UVES")
 
     @pytest.mark.unit
-    def test_curvature_savefile_name(self, mock_instrument, tmp_path):
-        """Test curvature savefile naming."""
-        config = {
-            "plot": False,
-            "curvature_cutoff": 3,
-            "extraction_height": 0.5,
-            "curve_height": 0.5,
-            "degree": 2,
-            "curve_degree": 2,
-            "dimensionality": "1D",
-            "peak_threshold": 10,
-            "peak_width": 1,
-            "window_width": 9,
-            "peak_function": "gaussian",
-            "bias_scaling": "none",
-            "norm_scaling": "none",
-            "extraction_method": "simple",
-            "collapse_function": "sum",
-        }
-        step = reduce.SlitCurvatureDetermination(
-            mock_instrument, "RED", "", "", str(tmp_path), None, **config
-        )
-        assert step.savefile.endswith(".curve.npz")
-
-    @pytest.mark.unit
-    def test_curvature_save_load_roundtrip(self, mock_instrument, tmp_path):
-        """Test saving and loading curvature results."""
+    def test_curvature_load_returns_none(self, mock_instrument, tmp_path):
+        """Curvature is stored in traces, load() always returns None."""
         config = {
             "plot": False,
             "curvature_cutoff": 3,
@@ -490,49 +465,7 @@ class TestSlitCurvatureSaveLoad:
         step = reduce.SlitCurvatureDetermination(
             mock_instrument, "", "", "", str(tmp_path), None, **config
         )
-
-        # Create fake curvature data using SlitCurvature
-        from pyreduce.curvature_model import SlitCurvature
-
-        p1 = np.random.rand(10, 1000) * 0.01
-        p2 = np.random.rand(10, 1000) * 0.001
-        coeffs = np.zeros((10, 1000, 3), dtype=np.float64)
-        coeffs[:, :, 1] = p1
-        coeffs[:, :, 2] = p2
-        curvature = SlitCurvature(coeffs=coeffs, slitdeltas=None, degree=2)
-
-        step.save(curvature)
-        loaded = step.load()
-        loaded_p1, loaded_p2 = loaded.to_p1_p2()
-
-        assert np.allclose(p1, loaded_p1)
-        assert np.allclose(p2, loaded_p2)
-
-    @pytest.mark.unit
-    def test_curvature_load_missing_returns_none(self, mock_instrument, tmp_path):
-        """Test loading missing curvature returns None."""
-        config = {
-            "plot": False,
-            "curvature_cutoff": 3,
-            "extraction_height": 0.5,
-            "curve_height": 0.5,
-            "degree": 2,
-            "curve_degree": 2,
-            "dimensionality": "1D",
-            "peak_threshold": 10,
-            "peak_width": 1,
-            "window_width": 9,
-            "peak_function": "gaussian",
-            "bias_scaling": "none",
-            "norm_scaling": "none",
-            "extraction_method": "simple",
-            "collapse_function": "sum",
-        }
-        step = reduce.SlitCurvatureDetermination(
-            mock_instrument, "", "", "", str(tmp_path), None, **config
-        )
-        curvature = step.load()
-        assert curvature is None
+        assert step.load() is None
 
 
 class TestBackgroundScatterSaveLoad:
