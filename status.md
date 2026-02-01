@@ -42,11 +42,8 @@ Legacy formats (NPZ traces, echelle v1) are read but not written.
 
 ## Future work
 
-Remaining array-based internal code:
-- `wavelength_calibration` (uses `nord`/`iord` internally)
-- `continuum_normalization` (uses `nord` internally)
-
-These work with 2D arrays internally but could be updated to use Trace objects.
+- `wavelength_calibration` and `continuum_normalization` still work with 2D arrays internally
+- These could be updated to use Trace objects in the future
 
 ## Branch
 

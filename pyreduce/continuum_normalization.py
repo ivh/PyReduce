@@ -25,13 +25,13 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
 
     Parameters
     ----------
-    spec : array[nord, ncol]
+    spec : array[ntrace, ncol]
         Spectrum to splice, with seperate orders
-    wave : array[nord, ncol]
+    wave : array[ntrace, ncol]
         Wavelength solution for each point
-    cont : array[nord, ncol]
+    cont : array[ntrace, ncol]
         Continuum, blaze function will do fine as well
-    sigm : array[nord, ncol]
+    sigm : array[ntrace, ncol]
         Errors on the spectrum
     scaling : bool, optional
         If true, the spectrum/continuum will be scaled to 1 (default: False)
@@ -45,10 +45,10 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
 
     Returns
     -------
-    spec, wave, cont, sigm : array[nord, ncol]
+    spec, wave, cont, sigm : array[ntrace, ncol]
         spliced spectrum
     """
-    nord, _ = spec.shape  # Number of sp. orders, Order length in pixels
+    ntrace, _ = spec.shape  # Number of sp. orders, Order length in pixels
 
     if cont is None:
         cont = np.ones_like(spec)
@@ -86,21 +86,21 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
         plt.ylim((0, np.ma.median(sigm[i] / cont[i]) * 2))
 
     # Order with largest signal, everything is scaled relative to this order
-    iord0 = np.argmax(np.ma.median(spec / cont, axis=1))
+    idx0 = np.argmax(np.ma.median(spec / cont, axis=1))
 
-    # Loop from iord0 outwards, first to the top, then to the bottom
-    tmp0 = chain(range(iord0, 0, -1), range(iord0, nord - 1))
-    tmp1 = chain(range(iord0 - 1, -1, -1), range(iord0 + 1, nord))
+    # Loop from idx0 outwards, first to the top, then to the bottom
+    tmp0 = chain(range(idx0, 0, -1), range(idx0, ntrace - 1))
+    tmp1 = chain(range(idx0 - 1, -1, -1), range(idx0 + 1, ntrace))
 
     # Looping over order pairs
-    for iord0, iord1 in zip(tmp0, tmp1, strict=False):
+    for idx0, idx1 in zip(tmp0, tmp1, strict=False):
         # Get data for current order
         # Note that those are just references to parts of the original data
         # any changes will also affect spec, wave, cont, and sigm
-        s0, s1 = spec[iord0], spec[iord1]
-        w0, w1 = wave[iord0], wave[iord1]
-        c0, c1 = cont[iord0], cont[iord1]
-        u0, u1 = sigm[iord0], sigm[iord1]
+        s0, s1 = spec[idx0], spec[idx1]
+        w0, w1 = wave[idx0], wave[idx1]
+        c0, c1 = cont[idx0], cont[idx1]
+        u0, u1 = sigm[idx0], sigm[idx1]
 
         # Calculate Overlap
         i0 = np.ma.where((w0 >= np.ma.min(w1)) & (w0 <= np.ma.max(w1)))
@@ -139,13 +139,13 @@ def splice_orders(spec, wave, cont, sigm, scaling=True, plot=False, plot_title=N
     if plot:  # pragma: no cover
         plt.subplot(413)
         plt.title("After")
-        for i in range(nord):
+        for i in range(ntrace):
             plt.plot(wave[i], spec[i] / cont[i], label="order=%i" % i)
         plt.ylim((0, 2))
 
         plt.subplot(414)
         plt.title("Error")
-        for i in range(nord):
+        for i in range(ntrace):
             plt.plot(wave[i], sigm[i] / cont[i], label="order=%i" % i)
         plt.ylim((0, np.ma.median(sigm[i] / cont[i]) * 2))
         util.show_or_save("continuum_sigma")
@@ -209,13 +209,13 @@ def continuum_normalize(
 
     Parameters
     ----------
-    spec : masked array of shape (nord, ncol)
+    spec : masked array of shape (ntrace, ncol)
         Observed input spectrum, masked values describe column ranges
-    wave : masked array of shape (nord, ncol)
+    wave : masked array of shape (ntrace, ncol)
         Wavelength solution of the spectrum
-    cont : masked array of shape (nord, ncol)
+    cont : masked array of shape (ntrace, ncol)
         Initial continuum guess, for example based on the blaze
-    sigm : masked array of shape (nord, ncol)
+    sigm : masked array of shape (ntrace, ncol)
         Uncertainties of the spectrum
     iterations : int, optional
         Number of iterations of the algorithm,
@@ -232,18 +232,18 @@ def continuum_normalize(
 
     Returns
     -------
-    cont : masked array of shape (nord, ncol)
+    cont : masked array of shape (ntrace, ncol)
         New continuum
     """
 
-    nord, ncol = spec.shape
+    ntrace, ncol = spec.shape
 
     par2 = 1e-4
     par4 = 0.01 * (1 - np.clip(2, None, 1 / np.sqrt(np.ma.median(spec))))
 
     b = np.clip(cont, 1, None)
     mask = ~np.ma.getmaskarray(b)
-    for i in range(nord):
+    for i in range(ntrace):
         b[i, mask[i]] = util.middle(b[i, mask[i]], 1)
     cont = b
 

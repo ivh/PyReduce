@@ -568,8 +568,8 @@ def _expand_polynomial(ncol: int, poly: np.ndarray) -> np.ndarray:
 
     Handles three formats:
     1. 1D array (REDUCE make_wave format) - full 2D expansion
-    2. Shape (nord, degree+1) - 1D polynomial per order
-    3. Already expanded (nord, ncol) - pass through
+    2. Shape (ntrace, degree+1) - 1D polynomial per order
+    3. Already expanded (ntrace, ncol) - pass through
     """
     if poly.ndim == 1:
         return _calc_2dpolynomial(poly)
@@ -581,7 +581,7 @@ def _expand_polynomial(ncol: int, poly: np.ndarray) -> np.ndarray:
 def _calc_2dpolynomial(solution2d: np.ndarray) -> np.ndarray:
     """Expand a 2D polynomial in REDUCE make_wave format."""
     ncol = int(solution2d[1])
-    nord = int(solution2d[2])
+    ntrace = int(solution2d[2])
     order_base = int(solution2d[3])
     deg_cross, deg_column, deg_order = (
         int(solution2d[7]),
@@ -603,7 +603,7 @@ def _calc_2dpolynomial(solution2d: np.ndarray) -> np.ndarray:
         coeff[1, 3] = coeff_in[deg_column + deg_order + 5]
         coeff[3, 1] = coeff_in[deg_column + deg_order + 6]
 
-    x = np.arange(order_base, order_base + nord, dtype=float)
+    x = np.arange(order_base, order_base + ntrace, dtype=float)
     y = np.arange(ncol, dtype=float)
 
     return np.polynomial.polynomial.polygrid2d(x / 100, y / 1000, coeff) / x[:, None]
@@ -611,9 +611,9 @@ def _calc_2dpolynomial(solution2d: np.ndarray) -> np.ndarray:
 
 def _calc_1dpolynomials(ncol: int, poly: np.ndarray) -> np.ndarray:
     """Expand 1D polynomials (one per order)."""
-    nord = poly.shape[0]
+    ntrace = poly.shape[0]
     x = np.arange(ncol)
-    result = np.zeros((nord, ncol))
+    result = np.zeros((ntrace, ncol))
     for i, coef in enumerate(poly):
         result[i] = np.polyval(coef, x)
     return result

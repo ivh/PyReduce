@@ -249,7 +249,7 @@ class TestWavelengthCalibrationCreateImage:
     def test_create_image_basic(self):
         """Test creating reference image from lines."""
         wc = WavelengthCalibration(plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         lines = np.zeros(2, dtype=LineList.dtype)
@@ -298,7 +298,7 @@ class TestWavelengthCalibrationMakeWave:
     def test_make_wave_1d(self):
         """Test creating wavelength image in 1D mode."""
         wc = WavelengthCalibration(dimensionality="1D", degree=1, plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         solution = np.array(
@@ -319,7 +319,7 @@ class TestWavelengthCalibrationMakeWave:
     def test_make_wave_2d(self):
         """Test creating wavelength image in 2D mode."""
         wc = WavelengthCalibration(dimensionality="2D", degree=(1, 1), plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         # Solution: wavelength = 5000 + 0.1*x + 1000*order
