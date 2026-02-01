@@ -383,6 +383,8 @@ class TestSlitdeltasComputation:
         assert not np.any(np.isnan(slitdeltas))
 
     @pytest.mark.unit
+    @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_execute_returns_slitdeltas(self, simple_orders):
         """Test that execute() returns SlitCurvature with slitdeltas."""
         from pyreduce.curvature_model import SlitCurvature
@@ -407,6 +409,8 @@ class TestSlitdeltasComputation:
         assert result.slitdeltas.shape[0] == 2  # 2 traces
 
     @pytest.mark.unit
+    @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_execute_without_slitdeltas(self, simple_orders):
         """Test that execute() can skip slitdeltas computation."""
         module = CurvatureModule(

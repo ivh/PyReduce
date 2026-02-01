@@ -802,7 +802,7 @@ class Curvature:
             offsets = all_offsets[j]
             residuals = all_residuals[j]
 
-            if len(residuals) == 0:
+            if len(residuals) == 0 or np.all(np.isnan(residuals)):
                 continue
 
             # Average residuals across peaks at each offset (ignoring NaN)
