@@ -340,6 +340,8 @@ class ProgressPlot:  # pragma: no cover
 
         self.paused = False
         self.advance_one = False
+        self.closed = False
+        self.fig.canvas.mpl_connect("close_event", self._on_close)
         ax_slower = self.fig.add_axes([0.30, 0.02, 0.08, 0.04])
         ax_faster = self.fig.add_axes([0.39, 0.02, 0.08, 0.04])
         ax_pause = self.fig.add_axes([0.48, 0.02, 0.08, 0.04])
@@ -372,8 +374,14 @@ class ProgressPlot:  # pragma: no cover
         if self.paused:
             self.advance_one = True
 
+    def _on_close(self, event=None):
+        self.closed = True
+        self.paused = False
+
     def wait_if_paused(self):
         while self.paused and not self.advance_one:
+            if self.closed:
+                break
             self.fig.canvas.flush_events()
             time.sleep(0.05)
         self.advance_one = False
@@ -397,6 +405,9 @@ class ProgressPlot:  # pragma: no cover
         slitcurve=None,
         slitdeltas=None,
     ):
+        if self.closed:
+            return
+
         # Save swath data to debug directory
         if save:
             outfile = self.save_dir / f"swath_trace{trace_idx}_swath{swath_idx}.npz"
@@ -540,6 +551,7 @@ class ProgressPlot:  # pragma: no cover
         self.wait_if_paused()
 
     def close(self):
+        self.closed = True
         plt.ioff()
         plt.close()
 
