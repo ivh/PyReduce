@@ -878,10 +878,28 @@ class Curvature:
         if self.plot:  # pragma: no cover
             self.plot_comparison(original, coeffs, peaks, slitdeltas=slitdeltas)
 
+        # Build compact fitted_coeffs with c0=0 row prepended
+        # fitted_coeffs from fit() has shape (ntrace, curve_degree, fit_degree+1) for 1D mode
+        # We want (ntrace, curve_degree+1, fit_degree+1) with c0 row = 0
+        if self.mode == "1D":
+            compact = np.zeros(
+                (self.n, self.curve_degree + 1, self.fit_degree + 1),
+                dtype=np.float64,
+            )
+            compact[:, 1:, :] = fitted_coeffs
+            fit_deg = self.fit_degree
+        else:
+            # 2D mode: fitted_coeffs has shape (curve_degree, ...) - more complex
+            # For now, only store compact form for 1D mode
+            compact = None
+            fit_deg = None
+
         curvature = SlitCurvature(
             coeffs=coeffs,
             slitdeltas=slitdeltas,
             degree=self.curve_degree,
+            fitted_coeffs=compact,
+            fit_degree=fit_deg,
         )
         return curvature
 

@@ -120,7 +120,7 @@ class Echelle:
         raw=False,
         continuum_normalization=True,
         barycentric_correction=True,
-        radial_velociy_correction=True,
+        radial_velocity_correction=True,
     ):
         """
         Read data from an echelle file
@@ -147,7 +147,7 @@ class Echelle:
             apply continuum normalization (default: True)
         barycentric_correction : bool, optional
             apply barycentric correction (default: True)
-        radial_velociy_correction : bool, optional
+        radial_velocity_correction : bool, optional
             apply radial velocity correction (default: True)
 
         Returns
@@ -180,7 +180,7 @@ class Echelle:
                 if barycentric_correction:
                     velocity_correction -= header.get("barycorr", 0)
                     header["barycorr"] = 0
-                if radial_velociy_correction:
+                if radial_velocity_correction:
                     velocity_correction += header.get("radvel", 0)
                     header["radvel"] = 0
 

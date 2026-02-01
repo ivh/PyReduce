@@ -32,11 +32,20 @@ class SlitCurvature:
         These capture deviations not modeled by the polynomial.
     degree : int
         Polynomial degree (1-5).
+    fitted_coeffs : np.ndarray | None
+        Compact polynomial representation of shape (ntrace, degree+1, fit_degree+1).
+        fitted_coeffs[trace, i, :] are polynomial coefficients (in x) for the y^i term.
+        This is the polynomial-of-polynomials representation that gets expanded to coeffs.
+        None for legacy files or when not computed.
+    fit_degree : int | None
+        Degree of polynomial fit in x direction. None if fitted_coeffs not available.
     """
 
     coeffs: np.ndarray
     slitdeltas: np.ndarray | None
     degree: int
+    fitted_coeffs: np.ndarray | None = None
+    fit_degree: int | None = None
 
     def get_coeffs_for_trace(self, trace_idx: int, pad_to: int = 6) -> np.ndarray:
         """Get coefficients for a single trace, optionally padded.
@@ -93,6 +102,28 @@ class SlitCurvature:
         p2 = self.coeffs[:, :, 2] if self.degree >= 2 else np.zeros((ntrace, ncol))
         return p1, p2
 
+    def get_compact_for_trace(self, trace_idx: int) -> np.ndarray | None:
+        """Get compact polynomial coefficients for a single trace.
+
+        Returns the polynomial-of-polynomials representation suitable for
+        storing in Trace.slit.
+
+        Parameters
+        ----------
+        trace_idx : int
+            Index of the trace.
+
+        Returns
+        -------
+        np.ndarray or None
+            Compact coefficients of shape (degree+1, fit_degree+1).
+            slit[i, :] are polynomial coefficients (in x) for the y^i term.
+            Returns None if compact form not available.
+        """
+        if self.fitted_coeffs is None:
+            return None
+        return self.fitted_coeffs[trace_idx]
+
 
 def save_curvature(path: str | Path, curvature: SlitCurvature) -> None:
     """Save curvature data to an npz file.
@@ -104,13 +135,17 @@ def save_curvature(path: str | Path, curvature: SlitCurvature) -> None:
     curvature : SlitCurvature
         Curvature data to save.
     """
-    np.savez(
-        path,
-        version=2,
-        degree=curvature.degree,
-        coeffs=curvature.coeffs,
-        slitdeltas=curvature.slitdeltas,
-    )
+    save_data = {
+        "version": 3,
+        "degree": curvature.degree,
+        "coeffs": curvature.coeffs,
+        "slitdeltas": curvature.slitdeltas,
+    }
+    # Save compact fitted_coeffs if available
+    if curvature.fitted_coeffs is not None:
+        save_data["fitted_coeffs"] = curvature.fitted_coeffs
+        save_data["fit_degree"] = curvature.fit_degree
+    np.savez(path, **save_data)
     logger.info("Saved curvature to: %s", path)
 
 
@@ -154,7 +189,7 @@ def load_curvature(path: str | Path) -> SlitCurvature:
         logger.info("Loaded curvature from legacy format (version 1)")
         return SlitCurvature(coeffs=coeffs, slitdeltas=None, degree=degree)
 
-    # New format
+    # New format (version 2 or 3)
     coeffs = data["coeffs"]
     slitdeltas = data.get("slitdeltas")
     if slitdeltas is not None:
@@ -163,8 +198,21 @@ def load_curvature(path: str | Path) -> SlitCurvature:
             slitdeltas = None
     degree = int(data["degree"])
 
+    # Load compact fitted_coeffs if available (version 3+)
+    fitted_coeffs = None
+    fit_degree = None
+    if "fitted_coeffs" in data:
+        fitted_coeffs = data["fitted_coeffs"]
+        fit_degree = int(data.get("fit_degree", fitted_coeffs.shape[-1] - 1))
+
     logger.info("Loaded curvature (version %d, degree %d)", version, degree)
-    return SlitCurvature(coeffs=coeffs, slitdeltas=slitdeltas, degree=degree)
+    return SlitCurvature(
+        coeffs=coeffs,
+        slitdeltas=slitdeltas,
+        degree=degree,
+        fitted_coeffs=fitted_coeffs,
+        fit_degree=fit_degree,
+    )
 
 
 def curvature_from_p1_p2(
