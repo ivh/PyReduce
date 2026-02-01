@@ -33,6 +33,7 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from . import util
+from .trace_model import Trace as TraceData
 
 logger = logging.getLogger(__name__)
 
@@ -1782,67 +1783,41 @@ def organize_fibers(
     return group_traces, group_column_range, group_fiber_counts, group_heights
 
 
-def _stack_per_order_traces(order_dict):
-    """Stack per-order traces {order_m: trace} into arrays ordered by m."""
-    if not order_dict:
-        return np.empty((0, 1)), np.empty((0, 2))
-    sorted_orders = sorted(order_dict.keys())
-    traces = np.vstack([order_dict[m] for m in sorted_orders])
-    return traces, sorted_orders
-
-
 def select_traces_for_step(
-    raw_traces,
-    raw_cr,
-    group_traces,
-    group_cr,
+    traces: list[TraceData],
     fibers_config,
-    step_name,
-    group_heights=None,
-    raw_heights=None,
-):
+    step_name: str,
+) -> dict[str, list[TraceData]]:
     """Select which traces to use for a given reduction step.
 
     Looks up fibers_config.use[step_name] to determine selection.
+    Filters traces by their fiber attribute.
 
     Parameters
     ----------
-    raw_traces : ndarray (n_fibers, degree+1)
-        All individual fiber traces
-    raw_cr : ndarray (n_fibers, 2)
-        Column ranges for individual fibers
-    group_traces : dict
-        Grouped/merged traces from organize_fibers()
-        Non-per-order: {group_name: ndarray}
-        Per-order: {group_name: {order_m: ndarray}}
-    group_cr : dict
-        Column ranges with same structure as group_traces
+    traces : list[Trace]
+        All trace objects with identity (m, fiber) set
     fibers_config : FibersConfig or None
         Fiber configuration (may be None for single-fiber instruments)
     step_name : str
         Name of the reduction step (e.g., "science", "curvature")
-    group_heights : dict[str, float | None], optional
-        Extraction heights per group from organize_fibers()
-    raw_heights : ndarray (n_fibers,), optional
-        Per-trace extraction heights from trace step
 
     Returns
     -------
-    selected : dict[str, tuple[ndarray, ndarray, heights]]
-        {group_name: (traces, column_range, height)} for each selected group
-        For "all" or "groups" selection, returns {"all": (traces, cr, height)}
-        height can be: scalar (group height), array (per-trace), or None (use setting)
+    selected : dict[str, list[Trace]]
+        {group_name: [traces]} for each selected group
+        For "all" or "groups" selection, returns {"all": [traces]}
     """
-    if group_heights is None:
-        group_heights = {}
+    if not traces:
+        return {"all": []}
 
-    # No fiber config means use raw traces with raw heights
+    # No fiber config means use all traces
     if fibers_config is None:
-        return {"all": (raw_traces, raw_cr, raw_heights)}
+        return {"all": traces}
 
-    # No groups/bundles defined means use raw traces with raw heights
+    # No groups/bundles defined means use all traces
     if fibers_config.groups is None and fibers_config.bundles is None:
-        return {"all": (raw_traces, raw_cr, raw_heights)}
+        return {"all": traces}
 
     # Determine selection for this step from config
     if fibers_config.use is not None:
@@ -1852,53 +1827,137 @@ def select_traces_for_step(
     else:
         selection = "all"
 
-    per_order = fibers_config.per_order
-
     if selection == "all":
-        return {"all": (raw_traces, raw_cr, raw_heights)}
+        return {"all": traces}
 
     elif selection == "groups":
-        # Stack all group traces into single array
-        all_traces = []
-        all_cr = []
-        for name in sorted(group_traces.keys(), key=_natural_sort_key):
-            if per_order:
-                # Per-order: {group: {order: trace}} - stack orders for each group
-                traces, _ = _stack_per_order_traces(group_traces[name])
-                cr, _ = _stack_per_order_traces(group_cr[name])
-                all_traces.append(traces)
-                all_cr.append(cr)
-            else:
-                all_traces.append(group_traces[name])
-                all_cr.append(group_cr[name])
-        if all_traces:
-            # When stacking all groups, height is None (use settings.json default)
-            return {"all": (np.vstack(all_traces), np.vstack(all_cr), None)}
-        else:
-            return {"all": (raw_traces, raw_cr, raw_heights)}
+        # Return all traces that have non-default fiber assignment
+        fibers = {t.fiber for t in traces}
+        # If only default fiber (0 or single value), return all
+        if len(fibers) == 1 and (0 in fibers or fibers == {0}):
+            return {"all": traces}
+        # Filter to only grouped traces (exclude default fiber 0)
+        grouped = [t for t in traces if t.fiber != 0]
+        if grouped:
+            return {"all": grouped}
+        return {"all": traces}
 
     elif isinstance(selection, list):
-        # Select specific groups by name - keep them separate with their heights
+        # Select specific groups by name - keep them separate
         result = {}
         for name in selection:
-            if name not in group_traces:
+            # Match by fiber (convert to string for comparison)
+            group_traces = [t for t in traces if str(t.fiber) == name]
+            if not group_traces:
                 logger.warning("Group '%s' not found in trace data", name)
                 continue
-
-            height = group_heights.get(name)
-            if per_order:
-                # Per-order: stack orders for this group
-                traces, _ = _stack_per_order_traces(group_traces[name])
-                cr, _ = _stack_per_order_traces(group_cr[name])
-                result[name] = (traces, cr, height)
-            else:
-                result[name] = (group_traces[name], group_cr[name], height)
+            # Sort by m (order number) for consistent ordering
+            group_traces.sort(
+                key=lambda t: (t.m if t.m is not None else 0, str(t.fiber))
+            )
+            result[name] = group_traces
 
         if not result:
-            logger.warning("No valid groups selected, using all raw traces")
-            return {"all": (raw_traces, raw_cr, raw_heights)}
+            logger.warning("No valid groups selected, using all traces")
+            return {"all": traces}
         return result
 
     else:
-        logger.warning("Unknown selection type: %s, using raw traces", selection)
-        return {"all": (raw_traces, raw_cr, raw_heights)}
+        logger.warning("Unknown selection type: %s, using all traces", selection)
+        return {"all": traces}
+
+
+def create_trace_objects(
+    traces,
+    column_range,
+    heights=None,
+    group_traces=None,
+    group_cr=None,
+    group_heights=None,
+    per_order=False,
+):
+    """Convert array-based trace data to Trace dataclass objects.
+
+    Creates Trace objects with identity (m, fiber) preserved from fiber
+    grouping configuration.
+
+    Parameters
+    ----------
+    traces : ndarray (ntrace, degree+1)
+        Raw polynomial coefficients for all traces
+    column_range : ndarray (ntrace, 2)
+        Column ranges for all traces
+    heights : ndarray (ntrace,), optional
+        Per-trace extraction heights
+    group_traces : dict, optional
+        Grouped traces from organize_fibers():
+        - Non-per-order: {group_name: ndarray}
+        - Per-order: {group_name: {order_m: ndarray}}
+    group_cr : dict, optional
+        Column ranges with same structure as group_traces
+    group_heights : dict[str, float | None], optional
+        Extraction heights per group
+    per_order : bool
+        Whether group_traces uses per-order structure
+
+    Returns
+    -------
+    list[TraceData]
+        Trace objects sorted by (m, fiber, y-position)
+    """
+    result = []
+
+    if group_traces is not None and len(group_traces) > 0:
+        # Create traces from organized fiber groups
+        for fiber_name in sorted(group_traces.keys(), key=_natural_sort_key):
+            fiber_data = group_traces[fiber_name]
+            fiber_cr_data = group_cr[fiber_name]
+            group_height = group_heights.get(fiber_name) if group_heights else None
+
+            if per_order:
+                # Per-order: {order_m: ndarray}
+                for m in sorted(fiber_data.keys()):
+                    order_traces = fiber_data[m]
+                    order_cr = fiber_cr_data[m]
+                    for i in range(len(order_traces)):
+                        cr = (int(order_cr[i, 0]), int(order_cr[i, 1]))
+                        result.append(
+                            TraceData(
+                                m=m,
+                                fiber=fiber_name,
+                                pos=order_traces[i],
+                                column_range=cr,
+                                height=group_height,
+                            )
+                        )
+            else:
+                # Non-per-order: ndarray directly
+                for i in range(len(fiber_data)):
+                    cr = (int(fiber_cr_data[i, 0]), int(fiber_cr_data[i, 1]))
+                    result.append(
+                        TraceData(
+                            m=i,  # Sequential index as order number
+                            fiber=fiber_name,
+                            pos=fiber_data[i],
+                            column_range=cr,
+                            height=group_height,
+                        )
+                    )
+    else:
+        # No fiber grouping - create from raw traces
+        for i in range(len(traces)):
+            h = None
+            if heights is not None and not np.isnan(heights[i]):
+                h = float(heights[i])
+            cr = (int(column_range[i, 0]), int(column_range[i, 1]))
+            result.append(
+                TraceData(
+                    m=i,
+                    fiber=0,
+                    pos=traces[i],
+                    column_range=cr,
+                    height=h,
+                )
+            )
+
+    return result
