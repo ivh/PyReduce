@@ -172,16 +172,25 @@ The automatic heights (null) are recommended for most cases. They adapt to varyi
 
 #### Using a Pre-computed Slit Function
 
-For faster extraction, the slit function computed during `norm_flat` can be reused in subsequent steps. The normalized flat step saves the slit function to `.slitfunc.npz` with metadata (extraction_height, osample). To use it:
+For faster extraction, the slit function computed during `norm_flat` can be reused in subsequent steps. The normalized flat step saves the slit function to `.flat_norm.npz` with metadata (extraction_height, osample). To use it:
 
 ```python
-from pyreduce.echelle import read
+import numpy as np
+from pyreduce.extract import extract
 
 # Load slit function from norm_flat output
-slitfunc_data = read("output/UVES.2010-04-01.slitfunc.npz")
+norm_data = np.load("output/uves.flat_norm.npz", allow_pickle=True)
+slitfunc_list = list(norm_data["slitfunc"])
+slitfunc_meta = norm_data["slitfunc_meta"].item()
 
-# Pass to science extraction
-pipe.science(science_files, preset_slitfunc=slitfunc_data["slitfunc"])
+# Extract with preset slit function
+spectra = extract(
+    image,
+    traces,
+    extraction_height=slitfunc_meta["extraction_height"],
+    osample=slitfunc_meta["osample"],
+    preset_slitfunc=slitfunc_list,
+)
 ```
 
 This performs single-pass extraction without iterating to find the slit function shape, which is useful for instruments with stable slit profiles.

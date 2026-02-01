@@ -9,7 +9,7 @@ import numpy as np
 from spectres import spectres
 from tqdm import tqdm
 
-from .. import echelle, util
+from .. import util
 from ..spectra import Spectra, Spectrum
 
 logger = logging.getLogger(__name__)
@@ -118,56 +118,40 @@ def combine(files, output, plot=None):
 def _load_spectrum(file):
     """Load spectrum from FITS file, supporting both new and legacy formats.
 
+    Spectra.read() handles both formats via E_FMTVER check.
+
     Returns
     -------
     dict
         Dictionary with keys: spec, sig, wave, cont, ntrace, ncol, header,
         m_values, fiber_values
     """
-    try:
-        # Try new Spectra format first
-        spectra = Spectra.read(file, continuum_normalization=False)
-        ntrace = spectra.ntrace
-        ncol = spectra.ncol
+    spectra = Spectra.read(file, continuum_normalization=False)
+    ntrace = spectra.ntrace
+    ncol = spectra.ncol
 
-        spec = np.array([s.spec for s in spectra.data])
-        sig = np.array([s.sig for s in spectra.data])
-        wave = np.array(
-            [s.wave if s.wave is not None else np.zeros(ncol) for s in spectra.data]
-        )
-        cont = np.array(
-            [s.cont if s.cont is not None else np.ones(ncol) for s in spectra.data]
-        )
-        m_values = [s.m for s in spectra.data]
-        fiber_values = [s.fiber for s in spectra.data]
+    spec = np.array([s.spec for s in spectra.data])
+    sig = np.array([s.sig for s in spectra.data])
+    wave = np.array(
+        [s.wave if s.wave is not None else np.zeros(ncol) for s in spectra.data]
+    )
+    cont = np.array(
+        [s.cont if s.cont is not None else np.ones(ncol) for s in spectra.data]
+    )
+    m_values = [s.m for s in spectra.data]
+    fiber_values = [s.fiber for s in spectra.data]
 
-        return {
-            "spec": spec,
-            "sig": sig,
-            "wave": wave,
-            "cont": cont,
-            "ntrace": ntrace,
-            "ncol": ncol,
-            "header": spectra.header,
-            "m_values": m_values,
-            "fiber_values": fiber_values,
-        }
-    except Exception:
-        # Fall back to legacy Echelle format
-        e = echelle.read(file, continuum_normalization=False)
-        ntrace, ncol = e.spec.shape
-
-        return {
-            "spec": np.ma.filled(e.spec, 0),
-            "sig": np.ma.filled(e.sig, 1),
-            "wave": np.ma.getdata(e.wave),
-            "cont": np.ma.filled(e.cont, 0),
-            "ntrace": ntrace,
-            "ncol": ncol,
-            "header": e.header,
-            "m_values": list(range(ntrace)),
-            "fiber_values": [0] * ntrace,
-        }
+    return {
+        "spec": spec,
+        "sig": sig,
+        "wave": wave,
+        "cont": cont,
+        "ntrace": ntrace,
+        "ncol": ncol,
+        "header": spectra.header,
+        "m_values": m_values,
+        "fiber_values": fiber_values,
+    }
 
 
 def _save_combined(output, first_spec, spec, sig, wave, cont):

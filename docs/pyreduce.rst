@@ -52,14 +52,6 @@ pyreduce.datasets module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.echelle module
------------------------
-
-.. automodule:: pyreduce.echelle
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pyreduce.estimate\_background\_scatter module
 ---------------------------------------------
 
@@ -93,6 +85,13 @@ pyreduce.reduce module
     :undoc-members:
     :show-inheritance:
 
+pyreduce.spectra module
+-----------------------
+
+.. automodule:: pyreduce.spectra
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 pyreduce.trace module
 ---------------------

@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
-from .spectra import Spectra, Spectrum
+from .spectra import Spectra
 from .trace_model import Trace, arrays_to_traces, save_traces
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,9 @@ def convert_echelle_to_spectra(
 ) -> Spectra:
     """Convert a legacy Echelle FITS file to new Spectra format.
 
+    Spectra.read() handles both formats, so this just reads and re-saves
+    to upgrade the file format.
+
     Parameters
     ----------
     echelle_path : str or Path
@@ -155,14 +158,12 @@ def convert_echelle_to_spectra(
     Spectra
         Converted Spectra object.
     """
-    from . import echelle
-
     echelle_path = Path(echelle_path)
     if spectra_path is None:
         spectra_path = echelle_path.with_stem(echelle_path.stem + "_v2")
 
-    # Load from legacy format
-    ech = echelle.read(
+    # Spectra.read() handles legacy format via _read_legacy_format()
+    spectra = Spectra.read(
         echelle_path,
         raw=True,
         continuum_normalization=False,
@@ -170,45 +171,7 @@ def convert_echelle_to_spectra(
         radial_velocity_correction=False,
     )
 
-    ntrace, ncol = ech.spec.shape
-
-    # Convert mask to NaN
-    spec_arr = np.array(ech.spec)
-    sig_arr = np.array(ech.sig)
-
-    if ech.columns is not None:
-        for i in range(ntrace):
-            spec_arr[i, : ech.columns[i, 0]] = np.nan
-            spec_arr[i, ech.columns[i, 1] :] = np.nan
-            sig_arr[i, : ech.columns[i, 0]] = np.nan
-            sig_arr[i, ech.columns[i, 1] :] = np.nan
-    elif hasattr(ech.spec, "mask"):
-        spec_arr[ech.spec.mask] = np.nan
-        sig_arr[ech.sig.mask] = np.nan
-
-    # Build Spectrum objects
-    spectra_list = []
-    for i in range(ntrace):
-        wave = None
-        if ech.wave is not None:
-            wave = np.array(ech.wave[i]) if hasattr(ech.wave, "__getitem__") else None
-
-        cont = None
-        if ech.cont is not None:
-            cont = np.array(ech.cont[i]) if hasattr(ech.cont, "__getitem__") else None
-
-        spectra_list.append(
-            Spectrum(
-                m=i,  # Sequential index (no real order info in legacy format)
-                fiber=0,  # Default fiber
-                spec=spec_arr[i],
-                sig=sig_arr[i],
-                wave=wave,
-                cont=cont,
-            )
-        )
-
-    spectra = Spectra(header=ech.header, data=spectra_list)
+    # Save in new format
     spectra.save(spectra_path, steps=["migration"])
     logger.info("Converted Echelle file: %s -> %s", echelle_path, spectra_path)
 

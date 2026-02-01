@@ -38,7 +38,7 @@ warnings.simplefilter("ignore", category=AstropyUserWarning, append=True)
 from tqdm import tqdm
 
 # PyReduce subpackages
-from . import __version__, echelle, instruments, util
+from . import __version__, instruments, util
 from .combine_frames import (
     combine_bias,
     combine_calibrate,
@@ -2336,7 +2336,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
     def load(self, files):
         """Load all science spectra from disk.
 
-        Supports both new Spectra format and legacy Echelle format.
+        Supports both new Spectra format (E_FMTVER >= 2) and legacy format.
 
         Returns
         -------
@@ -2361,52 +2361,37 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
         heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in files:
-            try:
-                # Try new Spectra format first
-                spectra = Spectra.read(
-                    fname,
-                    raw=True,
-                    continuum_normalization=False,
-                    barycentric_correction=False,
-                    radial_velocity_correction=False,
-                )
-                heads.append(spectra.header)
+            # Spectra.read handles both new and legacy formats via E_FMTVER
+            spectra = Spectra.read(
+                fname,
+                raw=True,
+                continuum_normalization=False,
+                barycentric_correction=False,
+                radial_velocity_correction=False,
+            )
+            heads.append(spectra.header)
 
-                # Stack arrays from Spectrum objects
-                spec_arr = np.array([s.spec for s in spectra.data])
-                sig_arr = np.array([s.sig for s in spectra.data])
-                specs.append(spec_arr)
-                sigmas.append(sig_arr)
+            # Stack arrays from Spectrum objects
+            spec_arr = np.array([s.spec for s in spectra.data])
+            sig_arr = np.array([s.sig for s in spectra.data])
+            specs.append(spec_arr)
+            sigmas.append(sig_arr)
 
-                # Extract column range from NaN masking
-                ntrace, ncol = spec_arr.shape
-                cr = np.zeros((ntrace, 2), dtype=np.int32)
-                for i in range(ntrace):
-                    valid = ~np.isnan(spec_arr[i])
-                    if np.any(valid):
-                        cr[i, 0] = np.argmax(valid)
-                        cr[i, 1] = ncol - np.argmax(valid[::-1])
-                columns.append(cr)
+            # Extract column range from NaN masking
+            ntrace, ncol = spec_arr.shape
+            cr = np.zeros((ntrace, 2), dtype=np.int32)
+            for i in range(ntrace):
+                valid = ~np.isnan(spec_arr[i])
+                if np.any(valid):
+                    cr[i, 0] = np.argmax(valid)
+                    cr[i, 1] = ncol - np.argmax(valid[::-1])
+            columns.append(cr)
 
-                # Extract slit functions
-                has_slitfu = any(s.slitfu is not None for s in spectra.data)
-                if has_slitfu:
-                    slitfus.append([s.slitfu for s in spectra.data])
-                else:
-                    slitfus.append(None)
-
-            except Exception:
-                # Fall back to legacy Echelle format
-                science = echelle.read(
-                    fname,
-                    continuum_normalization=False,
-                    barycentric_correction=False,
-                    radial_velocity_correction=False,
-                )
-                heads.append(science.header)
-                specs.append(science["spec"])
-                sigmas.append(science["sig"])
-                columns.append(science["columns"])
+            # Extract slit functions
+            has_slitfu = any(s.slitfu is not None for s in spectra.data)
+            if has_slitfu:
+                slitfus.append([s.slitfu for s in spectra.data])
+            else:
                 slitfus.append(None)
 
         return heads, specs, sigmas, slitfus, columns
@@ -2672,8 +2657,36 @@ class Finalize(Step):
         """
         original_name = os.path.splitext(head["e_input"])[0]
         out_file = self.output_file(i, original_name)
-        echelle.save(
-            out_file, head, spec=spec, sig=sigma, cont=cont, wave=wave, columns=columns
-        )
+
+        ntrace = spec.shape[0]
+
+        # Convert arrays to list[Spectrum], masking outside column range with NaN
+        spectra_list = []
+        for j in range(ntrace):
+            spec_row = np.array(spec[j], dtype=np.float32)
+            sig_row = np.array(sigma[j], dtype=np.float32)
+            wave_row = np.array(wave[j], dtype=np.float64) if wave is not None else None
+            cont_row = np.array(cont[j], dtype=np.float32) if cont is not None else None
+
+            # Apply column mask as NaN
+            if columns is not None:
+                spec_row[: columns[j, 0]] = np.nan
+                spec_row[columns[j, 1] :] = np.nan
+                sig_row[: columns[j, 0]] = np.nan
+                sig_row[columns[j, 1] :] = np.nan
+
+            spectra_list.append(
+                Spectrum(
+                    m=j,
+                    fiber=0,
+                    spec=spec_row,
+                    sig=sig_row,
+                    wave=wave_row,
+                    cont=cont_row,
+                )
+            )
+
+        spectra = Spectra(header=head, data=spectra_list)
+        spectra.save(out_file, steps=["finalize"])
         logger.info("Final science file: %s", out_file)
         return out_file
