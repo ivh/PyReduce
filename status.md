@@ -2,7 +2,7 @@
 
 ## Summary
 
-Refactoring complete. `Trace` objects are now the standard interface throughout the pipeline.
+Refactoring complete. `Trace` and `Spectrum` objects are the standard interface.
 
 ## Completed
 
@@ -12,8 +12,21 @@ Refactoring complete. `Trace` objects are now the standard interface throughout 
 - All step `run()` methods use `trace: list[Trace]` parameter
 - Eliminated `.wavecal.npz` - data now in traces.fits + .linelist.npz
 - Added `Trace.wlen(x)` method to evaluate wavelength polynomial
-- Fixed `LaserFrequencyCombMaster.run()` bug
-- All 549 unit tests pass
+- Removed `echelle.py` - `Spectra` class handles all spectrum I/O
+- `Finalize` step uses `Spectra` format (not legacy echelle)
+- Added `docs/output_formats.md` documenting v1 vs v2 FITS formats
+- All unit tests pass
+
+## File formats
+
+| File | Format |
+|------|--------|
+| `*.traces.fits` | FITS binary table, one row per trace |
+| `*.science.fits` | Spectra v2 format (E_FMTVER=2) |
+| `*.final.fits` | Spectra v2 format (E_FMTVER=2) |
+| `*.linelist.npz` | Wavelength calibration line list |
+
+Legacy formats (NPZ traces, echelle v1) are read but not written.
 
 ## Naming conventions
 
@@ -32,8 +45,10 @@ Internal `traces_to_arrays()` calls remain in steps that use legacy algorithms:
 - `CurvatureModule`
 - `combine_calibrate` plotting
 - `rectify_image`
+- `wavelength_calibration` (uses `nord`/`iord` internally)
+- `continuum_normalization` (uses `nord` internally)
 
-These could be updated to work with Trace objects directly.
+These work with 2D arrays internally but could be updated to use Trace objects.
 
 ## Branch
 
