@@ -31,11 +31,11 @@ pyreduce/
 ├── reduce.py            # Step class implementations
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction algorithm
-├── curvature_model.py   # SlitCurvature dataclass for curvature data
+├── trace_model.py       # Trace dataclass (geometry, curvature, wavelength)
+├── spectra.py           # Spectrum/Spectra classes for I/O
 ├── trace.py             # Order detection and tracing
 ├── wavelength_calibration.py  # Wavelength solution fitting
 ├── combine_frames.py    # Frame combination/calibration
-├── echelle.py           # Echelle spectrum I/O
 ├── util.py              # Utilities, plotting helpers
 ├── cwrappers.py         # CFFI C extension wrappers
 │
@@ -308,7 +308,8 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 | `pyreduce/pipeline.py` | Fluent Pipeline API, `from_instrument()` |
 | `pyreduce/reduce.py` | Step class implementations |
 | `pyreduce/extract.py` | Optimal extraction algorithm |
-| `pyreduce/curvature_model.py` | SlitCurvature dataclass, save/load |
+| `pyreduce/trace_model.py` | Trace dataclass (pos, slit, wave, column_range) |
+| `pyreduce/spectra.py` | Spectrum/Spectra classes for FITS I/O |
 | `pyreduce/slit_curve.py` | Slit curvature fitting (degree 1-5) |
 | `pyreduce/wavelength_calibration.py` | Wavelength solution fitting |
 | `pyreduce/trace.py` | Order detection and tracing |
