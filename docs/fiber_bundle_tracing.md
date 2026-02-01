@@ -174,27 +174,20 @@ Steps not listed in `use` default to `groups` when groups/bundles are defined.
 
 ## Output Format
 
-Tracing saves both raw and grouped traces to the `.traces.npz` file.
+Tracing saves all traces to a FITS binary table (`.traces.fits`) with one row per trace:
 
-For per_order=False:
-```
-traces          - Raw traces (n_fibers, degree+1)
-column_range    - Raw column ranges (n_fibers, 2)
-heights         - Per-trace extraction heights in pixels (n_fibers,)
-group_A_traces  - Merged traces for group A
-group_A_cr      - Column ranges for group A
-group_A_height  - Extraction height for group A (scalar, pixels)
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| M | int16 | Spectral order number (-1 if N/A) |
+| FIBER | 16A | Group/fiber identifier ('A', 'B', 'cal', etc.) |
+| POS | float64[deg+1] | Position polynomial coefficients |
+| COL_RANGE | int32[2] | Valid x range [start, end) |
+| HEIGHT | float32 | Extraction aperture height in pixels |
+| SLIT | float64[...] | Curvature coefficients (if available) |
+| SLITDELTA | float32[...] | Per-row curvature residuals (if available) |
+| WAVE | float64[...] | Wavelength polynomial (if available) |
 
-For per_order=True:
-```
-traces          - Raw traces (n_total_fibers, degree+1)
-column_range    - Raw column ranges
-heights         - Per-trace extraction heights in pixels
-A_order_90      - Merged trace for group A in spectral order 90
-A_cr_90         - Column range for group A in spectral order 90
-...
-```
+The `FIBER` column identifies which group/bundle each trace belongs to. For grouped extraction, multiple raw fibers may be merged into a single trace with the group name as the FIBER value.
 
 ### Automatic Extraction Heights
 

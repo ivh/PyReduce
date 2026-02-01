@@ -1962,11 +1962,6 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         #:str: Function shape that is fit to individual peaks
         self.peak_function = config["peak_function"]
 
-    @property
-    def savefile(self):
-        """str: Name of the curvature save file"""
-        return join(self.output_dir, self.prefix + ".curve.npz")
-
     def run(self, files, trace: list[TraceData], mask=None, bias=None):
         """Determine the curvature of the slit
 

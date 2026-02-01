@@ -103,18 +103,3 @@ spectra = Spectra.read("old_file.fits")
 for s in spectra.data:
     print(f"Order {s.m}: {len(s.spec)} pixels")
 ```
-
-## Migration
-
-To convert legacy files to the new format:
-
-```python
-from pyreduce.migration import convert_echelle_to_spectra
-
-# Convert single file
-spectra = convert_echelle_to_spectra("old.fits", "new.fits")
-
-# Batch convert a directory
-from pyreduce.migration import migrate_directory
-results = migrate_directory("/path/to/data", dry_run=False)
-```

@@ -164,7 +164,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 
 The extraction aperture can be specified as:
 
-- **`null`** (default) - Use per-trace heights computed during tracing, stored in `traces.npz`. This provides optimal apertures based on actual trace spacing.
+- **`null`** (default) - Use per-trace heights computed during tracing, stored in `traces.fits`. This provides optimal apertures based on actual trace spacing.
 - **Pixels** (≥2) - Explicit pixel height, e.g., `20` for 20 pixels total (10 above, 10 below trace)
 - **Fraction** (<2) - Fraction of order separation, e.g., `0.5` for half the distance to neighbors
 

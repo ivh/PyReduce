@@ -199,7 +199,6 @@ The field `m` on Trace/Spectrum is the actual spectral order number.
 | Function | Replacement |
 |----------|-------------|
 | `traces_to_arrays()` | Use `list[Trace]` directly |
-| `fix_parameters()` | Trace objects handle their own data |
 
 ### Simplified Step Signatures
 
@@ -222,22 +221,12 @@ def run(self, files, bias, trace, norm_flat, scatter, mask): ...
 All readers auto-detect format:
 
 ```python
+from pyreduce.trace_model import load_traces
+from pyreduce.spectra import Spectra
+
 # Works for both old and new formats
-traces = Trace.load("file.traces.fits")  # or .npz
+traces, header = load_traces("file.traces.fits")  # or .npz
 spectra = Spectra.read("file.science.fits")
-```
-
-### Converting Files
-
-```python
-from pyreduce.migration import convert_echelle_to_spectra
-
-# Convert single file
-spectra = convert_echelle_to_spectra("old.fits", "new.fits")
-
-# Batch convert
-from pyreduce.migration import migrate_directory
-migrate_directory("/path/to/data", dry_run=False)
 ```
 
 ---
