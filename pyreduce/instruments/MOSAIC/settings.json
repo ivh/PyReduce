@@ -16,7 +16,7 @@
     },
     "science": {
         "extraction_height": 37,
-        "extraction_reject": 6,
+        "extraction_reject": 12,
         "oversampling": 8,
         "swath_width": 500,
         "smooth_slitfunction": 4,
