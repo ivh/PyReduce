@@ -48,7 +48,7 @@ from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .curvature_model import SlitCurvature, load_curvature, save_curvature
 from .estimate_background_scatter import estimate_background_scatter
-from .extract import extract, extract_normalize, fix_parameters
+from .extract import extract, extract_normalize
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
 from .spectra import ExtractionParams, Spectra, Spectrum
@@ -58,7 +58,6 @@ from .trace_model import (
 from .trace_model import (
     load_traces,
     save_traces,
-    traces_to_arrays,
 )
 
 
@@ -409,7 +408,6 @@ class CalibrationStep(Step):
         bias=None,
         norm_flat=None,
         traces=None,
-        column_range=None,
         extraction_height=None,
     ):
         bias, bhead = bias if bias is not None else (None, None)
@@ -427,7 +425,6 @@ class CalibrationStep(Step):
             plot=self.plot,
             plot_title=self.plot_title,
             traces=traces,
-            column_range=column_range,
             extraction_height=extraction_height,
         )
 
@@ -1216,13 +1213,9 @@ class BackgroundScatter(CalibrationStep):
         # Flatten all selected groups
         trace_list = [t for traces in selected.values() for t in traces]
 
-        # Convert to arrays for estimate_background_scatter
-        traces_arr, column_range, _ = traces_to_arrays(trace_list)
-
         scatter = estimate_background_scatter(
             scatter_img,
-            traces_arr,
-            column_range=column_range,
+            trace_list,
             extraction_height=self.extraction_height,
             scatter_degree=self.scatter_degree,
             sigma_cutoff=self.sigma_cutoff,
@@ -2024,17 +2017,8 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         selected = self._select_traces(trace, "curvature")
         trace_list = [t for traces in selected.values() for t in traces]
 
-        # Convert to arrays for curvature module
-        traces, column_range, _ = traces_to_arrays(trace_list)
-        nrow, ncol = orig.shape
-        ntrace = len(traces)
-        _, column_range, traces = fix_parameters(
-            self.curve_height, column_range, traces, nrow, ncol, ntrace
-        )
-
         module = CurvatureModule(
-            traces,
-            column_range=column_range,
+            trace_list,
             curve_height=self.curve_height,
             extraction_height=self.extraction_height,
             trace_range=self.trace_range,
@@ -2137,9 +2121,7 @@ class RectifyImage(Step):
     def run(
         self, files, trace: list[TraceData], curvature=None, mask=None, freq_comb=None
     ):
-        # Convert trace objects to arrays for rectify_image
-        traces, column_range, _ = traces_to_arrays(trace)
-        # rectify_image still uses p1, p2 - extract from curvature coeffs
+        # Extract p1, p2 from curvature coeffs for rectification
         if curvature is not None:
             curv_coeffs = _get_curvature_coeffs(curvature)
             p1 = curv_coeffs[:, :, 1] if curv_coeffs.shape[2] > 1 else None
@@ -2158,8 +2140,7 @@ class RectifyImage(Step):
 
             images, cr, xwd = rectify_image(
                 img,
-                traces,
-                column_range,
+                trace,
                 self.extraction_height,
                 self.trace_range,
                 p1,
@@ -2262,9 +2243,6 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
 
-        # Get arrays for calibration visualization
-        traces_arr, column_range, heights_arr = traces_to_arrays(trace_list)
-
         # Extraction parameters
         extraction_kwargs = dict(self.extraction_kwargs)
         default_height = extraction_kwargs.pop("extraction_height", 0.5)
@@ -2279,8 +2257,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
                 mask,
                 bias,
                 norm_flat,
-                traces=traces_arr,
-                column_range=column_range,
+                traces=trace_list,
                 extraction_height=default_height,
             )
 

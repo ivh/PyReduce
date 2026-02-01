@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from . import util
-from .extract import fix_parameters
 from .util import make_index, polyfit2d
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 def estimate_background_scatter(
     img,
     traces,
-    column_range=None,
     extraction_height=0.1,
     scatter_degree=4,
     sigma_cutoff=2,
@@ -34,12 +32,10 @@ def estimate_background_scatter(
     ----------
     img : array[nrow, ncol]
         (flat) image data
-    traces : array[ntrace, degree]
-        trace polynomial coefficients
-    column_range : array[ntrace, 2], optional
-        range of columns to use in each trace (default: None == all columns)
-    extraction_height : float or array[ntrace], optional
-        extraction full height for each trace, values below 2 are considered fractional, others as number of pixels (default: 0.1)
+    traces : list[Trace]
+        Trace objects with pos, column_range attributes
+    extraction_height : float, optional
+        extraction full height, values below 2 are considered fractional (default: 0.1)
     scatter_degree : int, optional
         polynomial degree of the 2d fit for the background scatter (default: 4)
     plot : bool, optional
@@ -47,41 +43,39 @@ def estimate_background_scatter(
 
     Returns
     -------
-    array[ntrace+1, ncol]
-        background scatter between traces
-    array[ntrace+1, ncol]
-        y positions of the inter-trace lines, the scatter values are taken from
+    coeff : array
+        2D polynomial coefficients for background scatter
     """
 
     nrow, ncol = img.shape
-    ntrace, _ = traces.shape
 
-    extraction_height, column_range, traces = fix_parameters(
-        extraction_height,
-        column_range,
-        traces,
-        nrow,
-        ncol,
-        ntrace,
-        ignore_column_range=True,
-    )
+    # Compute extraction height in pixels if fractional
+    xwd = extraction_height
+    if xwd is not None and xwd < 3:
+        # Fraction of order spacing - estimate from trace separation
+        x_mid = ncol // 2
+        y_mids = np.array([np.polyval(t.pos, x_mid) for t in traces])
+        if len(y_mids) > 1:
+            spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
+            xwd = xwd * spacing
+        else:
+            xwd = 10  # fallback
 
     # Method 1: Select all pixels, but those known to be in traces
     bw = border_width
     mask = np.full(img.shape, True)
     if bw is not None and bw != 0:
         mask[:bw] = mask[-bw:] = mask[:, :bw] = mask[:, -bw:] = False
-    for i in range(ntrace):
-        left, right = column_range[i]
-        left -= extraction_height[i]
-        right += extraction_height[i]
-        left = max(0, left)
-        right = min(ncol, right)
+
+    for trace in traces:
+        left, right = trace.column_range
+        left = int(max(0, left - xwd))
+        right = int(min(ncol, right + xwd))
 
         x_trace = np.arange(left, right)
-        y_trace = np.polyval(traces[i], x_trace)
+        y_trace = np.polyval(trace.pos, x_trace)
 
-        half = extraction_height[i] / 2
+        half = xwd / 2
         y_above = y_trace + half
         y_below = y_trace - half
 

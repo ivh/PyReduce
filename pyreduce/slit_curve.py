@@ -27,7 +27,6 @@ from tqdm import tqdm
 
 from . import util
 from .curvature_model import SlitCurvature
-from .extract import fix_parameters
 from .util import make_index
 from .util import polyfit2d_2 as polyfit2d
 
@@ -40,7 +39,6 @@ class Curvature:
         traces,
         curve_height=0.5,
         extraction_height=0.2,
-        column_range=None,
         trace_range=None,
         window_width=9,
         peak_threshold=10,
@@ -53,10 +51,9 @@ class Curvature:
         peak_function="gaussian",
         curve_degree=2,
     ):
-        self.traces = traces
+        self.traces = traces  # list[Trace]
         self.curve_height = curve_height
         self.extraction_height = extraction_height
-        self.column_range = column_range
         if trace_range is None:
             trace_range = (0, self.ntrace)
         self.trace_range = trace_range
@@ -85,7 +82,7 @@ class Curvature:
 
     @property
     def ntrace(self):
-        return self.traces.shape[0]
+        return len(self.traces)
 
     @property
     def n(self):
@@ -104,31 +101,55 @@ class Curvature:
         self._mode = value
 
     def _fix_inputs(self, original):
-        traces = self.traces
-        curve_height = self.curve_height
-        extraction_height = self.extraction_height
-        column_range = self.column_range
-
         nrow, ncol = original.shape
+
+        # Apply trace_range slicing
+        traces = self.traces[self.trace_range[0] : self.trace_range[1]]
         ntrace = len(traces)
 
-        curve_height, column_range, traces = fix_parameters(
-            curve_height, column_range, traces, nrow, ncol, ntrace
-        )
+        # Build column_range array from trace objects
+        column_range = np.array([t.column_range for t in traces])
 
-        # For curvature, extraction_height is always literal pixels (no fractional conversion)
+        # Compute curve_height in pixels if fractional
+        curve_height = self.curve_height
+        if np.isscalar(curve_height) and curve_height < 3:
+            # Fraction of order spacing
+            x_mid = ncol // 2
+            y_mids = np.array([np.polyval(t.pos, x_mid) for t in traces])
+            if len(y_mids) > 1:
+                spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
+                curve_height = int(curve_height * spacing)
+            else:
+                curve_height = 10
+        if np.isscalar(curve_height):
+            curve_height = np.full(ntrace, int(curve_height))
+        else:
+            curve_height = np.asarray(curve_height, dtype=int)
+
+        # For curvature, extraction_height is always literal pixels
+        extraction_height = self.extraction_height
         if np.isscalar(extraction_height):
             extraction_height = np.full(ntrace, int(extraction_height))
         else:
             extraction_height = np.asarray(extraction_height, dtype=int)
 
-        self.column_range = column_range[self.trace_range[0] : self.trace_range[1]]
-        self.curve_height = curve_height[self.trace_range[0] : self.trace_range[1]]
-        self.extraction_height = extraction_height[
-            self.trace_range[0] : self.trace_range[1]
-        ]
-        self.traces = traces[self.trace_range[0] : self.trace_range[1]]
-        self.trace_range = (0, self.ntrace)
+        # Clip column_range to image bounds considering curve_height
+        for i in range(ntrace):
+            x = np.arange(ncol)
+            ycen = np.polyval(traces[i].pos, x)
+            half = curve_height[i] // 2
+            # Find valid column range where trace fits in image
+            valid = (ycen - half >= 0) & (ycen + half < nrow)
+            if np.any(valid):
+                valid_cols = np.where(valid)[0]
+                column_range[i, 0] = max(column_range[i, 0], valid_cols[0])
+                column_range[i, 1] = min(column_range[i, 1], valid_cols[-1] + 1)
+
+        self.column_range = column_range
+        self.curve_height = curve_height
+        self.extraction_height = extraction_height
+        self.traces = traces
+        self.trace_range = (0, ntrace)
 
     def _find_peaks(self, vec, cr):
         # This should probably be the same as in the wavelength calibration
@@ -172,7 +193,7 @@ class Curvature:
 
         # Get trace position
         x = np.arange(ncol)
-        ycen = np.polyval(self.traces[order_idx], x)
+        ycen = np.polyval(self.traces[order_idx].pos, x)
         ycen_int = ycen.astype(int)
 
         # Special case: extraction_height=1 means row-by-row without extraction
@@ -719,7 +740,7 @@ class Curvature:
         pos = [0]
         x = np.arange(ncol)
         for i in range(self.ntrace):
-            ycen = np.polyval(self.traces[i], x)
+            ycen = np.polyval(self.traces[i].pos, x)
             half = self.curve_height[i] // 2
             yb = ycen - half
             yt = yb + self.curve_height[i] - 1

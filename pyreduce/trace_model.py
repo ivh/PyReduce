@@ -411,43 +411,6 @@ def _load_traces_npz(path: Path) -> tuple[list[Trace], fits.Header]:
     return traces, fits.Header()
 
 
-def traces_to_arrays(traces: list[Trace]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Convert list of Traces to legacy array format.
-
-    Useful for interfacing with code that expects the old array-based format.
-
-    Parameters
-    ----------
-    traces : list[Trace]
-        Traces to convert.
-
-    Returns
-    -------
-    trace_coeffs : np.ndarray
-        Position polynomial coefficients, shape (ntrace, max_deg+1).
-    column_range : np.ndarray
-        Column ranges, shape (ntrace, 2).
-    heights : np.ndarray
-        Extraction heights, shape (ntrace,). NaN where not set.
-    """
-    if not traces:
-        return np.array([]), np.array([]).reshape(0, 2), np.array([])
-
-    max_deg = max(len(t.pos) for t in traces)
-    ntrace = len(traces)
-
-    trace_coeffs = np.zeros((ntrace, max_deg), dtype=np.float64)
-    for i, t in enumerate(traces):
-        trace_coeffs[i, : len(t.pos)] = t.pos
-
-    column_range = np.array([t.column_range for t in traces], dtype=np.int32)
-    heights = np.array(
-        [t.height if t.height is not None else np.nan for t in traces], dtype=np.float64
-    )
-
-    return trace_coeffs, column_range, heights
-
-
 def arrays_to_traces(
     trace_coeffs: np.ndarray,
     column_range: np.ndarray,

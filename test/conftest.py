@@ -5,6 +5,7 @@ from shutil import rmtree
 
 # Stop matplotlib from crashing if interactive plotting does not work
 import matplotlib as mpl
+import numpy as np
 import pytest
 
 mpl.use("agg")
@@ -533,9 +534,9 @@ def orders(traces):
 
     Use 'traces' fixture directly for new code.
     """
-    from pyreduce.trace_model import traces_to_arrays
-
-    orders_arr, column_range, _ = traces_to_arrays(traces)
+    # Build arrays from Trace objects for legacy test compatibility
+    orders_arr = np.array([t.pos for t in traces])
+    column_range = np.array([t.column_range for t in traces])
     return orders_arr, column_range
 
 

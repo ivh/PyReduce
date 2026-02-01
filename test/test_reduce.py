@@ -346,13 +346,12 @@ class TestTraceSaveLoad:
         step.save(orders, column_range)
         trace_objects = step.load()
 
-        # Verify via conversion to arrays
-        from pyreduce.trace_model import traces_to_arrays
-
-        loaded_orders, loaded_cr, _ = traces_to_arrays(trace_objects)
-
-        assert np.allclose(orders, loaded_orders)
-        assert np.allclose(column_range, loaded_cr)
+        # Verify trace objects match saved data
+        assert len(trace_objects) == 2
+        assert np.allclose(trace_objects[0].pos, orders[0])
+        assert np.allclose(trace_objects[1].pos, orders[1])
+        assert trace_objects[0].column_range == tuple(column_range[0])
+        assert trace_objects[1].column_range == tuple(column_range[1])
 
     @pytest.mark.unit
     def test_trace_save_load_with_heights(self, mock_instrument, tmp_path):
@@ -386,15 +385,14 @@ class TestTraceSaveLoad:
         step.save(orders, column_range)
         trace_objects = step.load()
 
-        # Verify via conversion to arrays
-        from pyreduce.trace_model import traces_to_arrays
-
-        loaded_orders, loaded_cr, loaded_heights = traces_to_arrays(trace_objects)
-
-        assert np.allclose(orders, loaded_orders)
-        assert np.allclose(column_range, loaded_cr)
-        assert loaded_heights is not None
-        assert np.allclose(loaded_heights, [20.0, 25.0])
+        # Verify trace objects match saved data
+        assert len(trace_objects) == 2
+        assert np.allclose(trace_objects[0].pos, orders[0])
+        assert np.allclose(trace_objects[1].pos, orders[1])
+        assert trace_objects[0].column_range == tuple(column_range[0])
+        assert trace_objects[1].column_range == tuple(column_range[1])
+        assert trace_objects[0].height == pytest.approx(20.0)
+        assert trace_objects[1].height == pytest.approx(25.0)
 
     @pytest.mark.unit
     def test_trace_load_without_heights_backwards_compat(
@@ -430,14 +428,11 @@ class TestTraceSaveLoad:
 
         trace_objects = step.load()
 
-        # Verify via conversion to arrays
-        from pyreduce.trace_model import traces_to_arrays
-
-        loaded_orders, loaded_cr, loaded_heights = traces_to_arrays(trace_objects)
-
-        assert np.allclose(orders, loaded_orders)
-        # Backwards compat: missing heights -> NaN in array
-        assert np.all(np.isnan(loaded_heights))
+        # Verify trace objects match saved data
+        assert len(trace_objects) == 1
+        assert np.allclose(trace_objects[0].pos, orders[0])
+        # Backwards compat: missing heights -> None in Trace
+        assert trace_objects[0].height is None
 
 
 class TestSlitCurvatureSaveLoad:

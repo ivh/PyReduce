@@ -4,6 +4,7 @@ import pytest
 from pyreduce.combine_frames import combine_frames
 from pyreduce.slit_curve import Curvature as CurvatureModule
 from pyreduce.slit_curve import gaussian, lorentzian
+from pyreduce.trace_model import Trace
 
 
 class TestGaussianLorentzian:
@@ -66,16 +67,13 @@ class TestCurvatureInit:
 
     @pytest.fixture
     def simple_orders(self):
-        """Create simple polynomial orders for testing."""
-        # 3 orders, each a polynomial of degree 2
-        orders = np.array(
-            [
-                [100.0, 0.0, 0.0],  # y = 100
-                [200.0, 0.0, 0.0],  # y = 200
-                [300.0, 0.0, 0.0],  # y = 300
-            ]
-        )
-        return orders
+        """Create simple Trace objects for testing."""
+        # 3 traces with constant y positions
+        return [
+            Trace(m=0, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, fiber=0, pos=np.array([200.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=2, fiber=0, pos=np.array([300.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_invalid_curve_degree(self, simple_orders):
@@ -128,14 +126,11 @@ class TestCurvatureFitting:
 
     @pytest.fixture
     def simple_orders(self):
-        """Create simple polynomial orders for testing."""
-        orders = np.array(
-            [
-                [50.0, 0.0, 0.0],
-                [100.0, 0.0, 0.0],
-            ]
-        )
-        return orders
+        """Create simple Trace objects for testing."""
+        return [
+            Trace(m=0, fiber=0, pos=np.array([50.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_fit_1d_mode(self, simple_orders):
@@ -185,8 +180,9 @@ class TestCurvatureFitFromPositions:
 
     @pytest.fixture
     def simple_orders(self):
-        orders = np.array([[100.0, 0.0, 0.0]])
-        return orders
+        return [
+            Trace(m=0, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_fit_curvature_linear(self, simple_orders):
@@ -271,8 +267,11 @@ class TestSlitdeltasComputation:
 
     @pytest.fixture
     def simple_orders(self):
-        """Simple set of 2 polynomial trace coefficients."""
-        return np.array([[50.0, 0.0], [70.0, 0.0]])
+        """Simple set of 2 Trace objects."""
+        return [
+            Trace(m=0, fiber=0, pos=np.array([50.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, fiber=0, pos=np.array([70.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.fixture
     def configured_module(self, simple_orders):
@@ -287,6 +286,7 @@ class TestSlitdeltasComputation:
         # Manually set up heights as arrays (normally done in _fix_inputs)
         module.extraction_height = np.array([10, 10])
         module.curve_height = np.array([20, 20])
+        module.column_range = np.array([[0, 500], [0, 500]])
         module.trace_range = (0, 2)  # Sets n = 2 via property
         return module
 

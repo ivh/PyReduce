@@ -16,6 +16,8 @@ Refactoring complete. `Trace` and `Spectrum` objects are the standard interface.
 - `Finalize` step uses `Spectra` format (not legacy echelle)
 - Added `docs/output_formats.md` documenting v1 vs v2 FITS formats
 - All unit tests pass
+- Removed `traces_to_arrays()` - all modules use `list[Trace]` directly
+- Curvature step updates traces in-place (no separate curvature parameter needed)
 
 ## File formats
 
@@ -40,11 +42,7 @@ Legacy formats (NPZ traces, echelle v1) are read but not written.
 
 ## Future work
 
-Internal `traces_to_arrays()` calls remain in steps that use legacy algorithms:
-- `estimate_background_scatter`
-- `CurvatureModule`
-- `combine_calibrate` plotting
-- `rectify_image`
+Remaining array-based internal code:
 - `wavelength_calibration` (uses `nord`/`iord` internally)
 - `continuum_normalization` (uses `nord` internally)
 
