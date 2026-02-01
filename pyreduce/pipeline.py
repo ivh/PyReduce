@@ -310,9 +310,6 @@ class Pipeline:
             ncol = self.instrument.config.naxis[0]
         heights = compute_trace_heights(traces, column_range, ncol)
 
-        # Store as trace result (with heights)
-        self._data["trace"] = (traces, column_range, heights)
-
         # Get config and context
         fibers_config = getattr(self.instrument.config, "fibers", None)
         inst_dir = getattr(self.instrument, "_inst_dir", None)
@@ -337,22 +334,35 @@ class Pipeline:
                 inst_dir,
                 channel=self.channel,
             )
-            self._data["trace_groups"] = (group_traces, group_cr, group_heights)
-
             for name, count in group_counts.items():
                 height = group_heights.get(name)
                 height_str = f", height={height:.1f}px" if height else ""
                 logger.info("  Group %s: %d fibers%s", name, count, height_str)
+        else:
+            group_traces, group_cr, group_heights = None, None, None
+
+        # Create and save Trace objects
+        from .trace import create_trace_objects
+
+        per_order = (
+            getattr(fibers_config, "per_order", False) if fibers_config else False
+        )
+        trace_objects = create_trace_objects(
+            traces,
+            column_range,
+            heights=heights,
+            group_traces=group_traces,
+            group_cr=group_cr,
+            group_heights=group_heights,
+            per_order=per_order,
+        )
+        self._data["trace"] = trace_objects
 
         # Save to disk
         step_config["plot"] = self.plot
         step = Trace(*self._get_step_inputs(), **step_config)
-        trace_groups = self._data.get("trace_groups", (None, None, None))
-        step.group_traces = trace_groups[0]
-        step.group_column_range = trace_groups[1]
-        step.group_heights = trace_groups[2] if len(trace_groups) > 2 else {}
+        step.trace_objects = trace_objects
         step.heights = heights
-        step.group_fiber_counts = group_counts
         step.save(traces, column_range)
 
         return self
@@ -470,20 +480,6 @@ class Pipeline:
             try:
                 logger.info("Loading data from step '%s'", name)
                 result = step.load(**dep_args)
-                # Store fiber group traces if loaded (from Trace)
-                # Heights are stored in the trace tuple itself
-                if name == "trace":
-                    # Augment trace result with heights
-                    if hasattr(step, "heights") and step.heights is not None:
-                        traces, column_range = result
-                        result = (traces, column_range, step.heights)
-                        self._data["trace"] = result
-                    if hasattr(step, "group_traces") and step.group_traces:
-                        self._data["trace_groups"] = (
-                            step.group_traces,
-                            step.group_column_range,
-                            step.group_heights or {},
-                        )
                 return result
             except FileNotFoundError:
                 if files is None:
@@ -501,16 +497,6 @@ class Pipeline:
             dep_args["files"] = files
         result = step.run(**dep_args)
 
-        # Store fiber group traces if available (from Trace)
-        # Heights are included in the trace result tuple
-        if name == "trace":
-            if hasattr(step, "group_traces") and step.group_traces:
-                self._data["trace_groups"] = (
-                    step.group_traces,
-                    step.group_column_range,
-                    step.group_heights or {},
-                )
-
         return result
 
     def _ensure_dependency(self, name: str):
@@ -521,11 +507,6 @@ class Pipeline:
         # 'config' is a special dependency - it's the full config dict, not a step
         if name == "config":
             self._data["config"] = self.config
-            return
-
-        # 'trace_groups' is derived from 'trace', not a separate step
-        if name == "trace_groups":
-            self._data["trace_groups"] = None  # Will be populated if available
             return
 
         files = self._files.get(name)

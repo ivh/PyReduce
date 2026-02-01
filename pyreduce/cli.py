@@ -247,7 +247,7 @@ def run(config_file: str, steps: str, skip_existing: bool, plot: int):
         files:
           bias: /data/raw/bias/*.fits
           flat: /data/raw/flat/*.fits
-          wavecal: /data/raw/thar/*.fits
+          wavecal: /data/raw/wavecal/*.fits
           science: /data/raw/science/*.fits
         steps: [bias, flat, trace, wavecal, extract]
     """
