@@ -2,7 +2,7 @@
 
 __instrument__: METIS_LSS
 instrument: INSTRUME
-id_instrument: METIS_LSS
+id_instrument: METIS  # janus: match FITS keyword value
 telescope: ELT
 
 date: MJD-OBS

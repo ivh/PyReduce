@@ -8,12 +8,12 @@
         "bias_scaling": "exposure_time"
     },
     "trace": {
-        "degree": 4,
+        "degree": 3,
         "degree_before_merge": "best",
         "filter_y": 20,
-        "min_cluster": 100,
+        "min_cluster": 1000,
         "noise": 120,
-        "border_width": 6,
+        "border_width": 5,
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.01,
         "bias_scaling": "exposure_time"
@@ -25,22 +25,22 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 1000.0,
-        "extraction_height": 0.28,
+        "extraction_height": 7,
         "oversampling": 12,
         "swath_width": 200,
-        "threshold": 1000
+        "threshold": 100
     },
     "curvature": {
         "extraction_method": "simple",
         "dimensionality": "1D",
-        "curve_degree": 2,
+        "curve_degree": 1,
         "collapse_function": "mean",
-        "curve_height": 1.54,
-        "extraction_height": 1,
-        "curvature_cutoff": 3,
-        "peak_threshold": 0.9725,
-        "peak_width": 1,
-        "window_width": 1,
+        "curve_height": 14,
+        "extraction_height": 7,
+        "curvature_cutoff": 2,
+        "peak_threshold": 1,
+        "peak_width": 5,
+        "window_width": 10,
         "peak_function": "lorentzian",
         "bias_scaling": "exposure_time",
         "degree": 2

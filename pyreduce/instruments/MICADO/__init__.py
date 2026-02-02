@@ -30,7 +30,7 @@ class MICADO(Instrument):
         return header
 
     def get_extension(self, header, channel):
-        extension = 5
+        extension = 4  # janus: changed from 5
 
         return extension
 

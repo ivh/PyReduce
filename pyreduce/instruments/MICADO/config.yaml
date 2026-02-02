@@ -8,7 +8,7 @@ telescope: ELT
 date: MJD-OBS
 date_format: mjd
 
-channels: [NIR]
+channels: [SPEC]  # janus: renamed from NIR
 kw_channel: "ESO DET CHIP*NAME"
 id_channel: [Hawaii4RG]
 extension: 0
@@ -32,7 +32,7 @@ jd: MJD-OBS
 longitude: -70
 latitude: -24
 altitude: 3060
-instrument_mode: "HIERARCH ESO SEQ ARM"
+instrument_mode: "HIERARCH ESO DPR TECH"  # janus: changed from SEQ ARM
 observation_type: "HIERARCH ESO DPR TYPE"
 observation_category: "HIERARCH ESO DPR CATG"
 target: ""
@@ -53,8 +53,8 @@ kw_comb: null
 kw_spec: "HIERARCH ESO DPR TYPE"
 
 id_bias: DARK
-id_flat: SFLATSLIT
-id_orders: SFLAT_PINH
+id_flat: SFLAT  # janus: simplified from SFLATSLIT
+id_orders: PINH  # janus: simplified from SFLAT_PINH
 id_curvature: WAVE
 id_scatter: "LAMP,FLAT"
 id_wave: WAVE

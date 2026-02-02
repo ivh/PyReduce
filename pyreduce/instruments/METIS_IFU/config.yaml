@@ -39,7 +39,7 @@ target: OBJECT
 
 # Wavelength setting from header
 id_wavelength: "ESO INS WLEN CEN"
-instrument_mode: "ESO INS MODE"
+instrument_mode: "HIERARCH ESO INS MODE"  # janus: added HIERARCH prefix
 observation_type: "ESO DPR TYPE"
 observation_category: "ESO DPR CATG"
 
@@ -53,11 +53,12 @@ kw_wave: "ESO DPR TYPE"
 kw_comb: null
 kw_spec: "ESO DPR TYPE"
 
-id_bias: DARK
-id_flat: RSRF
-id_orders: RSRF
-id_curvature: WAVE
-id_scatter: RSRF
-id_wave: WAVE
+# janus: updated patterns to match simulated data DPR TYPE values
+id_bias: IFU_WCU_OFF_RAW
+id_flat: IFU_RSRF_PINH_RAW
+id_orders: IFU_RSRF_PINH_RAW
+id_curvature: SKY
+id_scatter: IFU_RSRF_PINH_RAW
+id_wave: SKY
 id_comb: null
 id_spec: OBJECT
