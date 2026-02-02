@@ -468,6 +468,7 @@ class Pipeline:
         step_config = self.config.get(name, {}).copy()
         step_config["plot"] = self.plot  # Runtime plot setting
         step = step_class(*self._get_step_inputs(), **step_config)
+        step.files = self._files  # Make input files available to step
 
         # Get dependencies
         deps = step.loadDependsOn if load_only else step.dependsOn

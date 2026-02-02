@@ -255,6 +255,8 @@ class Step:
     ):
         self._dependsOn = []
         self._loadDependsOn = []
+        #:dict: Input files dict, set by pipeline before load()
+        self.files = None
         #:str: Name of the instrument
         self.instrument = instrument
         #:str: Name of the instrument channel
@@ -1663,7 +1665,7 @@ class WavelengthCalibrationFinalize(Step):
 
         Parameters
         ----------
-        wave : array of shape (ndegrees,)
+        wave : array of shape (deg_x+1, deg_m+1) for 2D or (ntrace, deg+1) for 1D
             polynomial coefficients of the wavelength fit
         linelist : LineList
             Updated line information with refined positions
@@ -1678,18 +1680,24 @@ class WavelengthCalibrationFinalize(Step):
             try:
                 trace_objects, header = load_traces(trace_file)
 
+                # Update trace.m with actual order numbers if obase is available
+                obase = linelist.obase
+                if obase is not None:
+                    for i, t in enumerate(trace_objects):
+                        t.m = obase + i
+                    logger.info("Updated trace order numbers with obase=%d", obase)
+
                 # Store wavelength polynomial in each trace
-                # wave can be 1D (per-order polys) or 2D (global poly)
-                if wave.ndim == 2:
+                if self.dimensionality == "1D":
                     # Per-order polynomials: wave[i] is poly for trace i
                     for i, t in enumerate(trace_objects):
                         if i < len(wave):
                             t.wave = wave[i]
                 else:
-                    # Global polynomial - can't store per-trace
-                    logger.info(
-                        "Global wavelength polynomial - not storing in traces.fits"
-                    )
+                    # 2D polynomial - store same poly in each trace
+                    # Each trace uses its m value to evaluate
+                    for t in trace_objects:
+                        t.wave = wave
 
                 steps = header.get("E_STEPS", "trace").split(",")
                 if "wavecal" not in steps:
@@ -1721,13 +1729,32 @@ class WavelengthCalibrationFinalize(Step):
 
             # Check if traces have wavelength data
             if trace_objects and trace_objects[0].wave is not None:
-                # Build wave array from trace polynomials
-                wave = np.array([t.wave for t in trace_objects])
+                first_wave = trace_objects[0].wave
+
+                if first_wave.ndim == 2:
+                    # 2D polynomial - same for all traces
+                    wave = first_wave
+                else:
+                    # 1D polynomials - per trace (pad to same length)
+                    max_len = max(
+                        len(t.wave) for t in trace_objects if t.wave is not None
+                    )
+                    wave = np.zeros((len(trace_objects), max_len))
+                    for i, t in enumerate(trace_objects):
+                        if t.wave is not None:
+                            wave[i, : len(t.wave)] = t.wave
 
                 # Compute wlen by evaluating polynomials
-                ncol = self.instrument.config.naxis[0]
+                # Use standard detector width (round up column range to power of 2)
+                max_col = max(t.column_range[1] for t in trace_objects)
+                ncol = 2 ** int(np.ceil(np.log2(max_col)))  # Round up to power of 2
                 x = np.arange(ncol)
-                wlen = np.array([t.wlen(x) for t in trace_objects])
+                wlen = np.array(
+                    [
+                        t.wlen(x) if t.wave is not None else np.full(ncol, np.nan)
+                        for t in trace_objects
+                    ]
+                )
 
                 # Load linelist
                 linelist = LineList.load(self.savefile)
@@ -2123,7 +2150,6 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["norm_flat", "scatter"]
-        self._loadDependsOn += ["files"]
 
     def science_file(self, name):
         """Name of the science file in disk, based on the input file
@@ -2247,7 +2273,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         spectra_container.save(nameout, steps=["science"])
         logger.info("Created science file: %s", nameout)
 
-    def load(self, files):
+    def load(self):
         """Load all science spectra from disk.
 
         Supports both new Spectra format (E_FMTVER >= 2) and legacy format.
@@ -2265,7 +2291,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
-        files = files["science"]
+        files = self.files["science"]
         files = [self.science_file(fname) for fname in files]
 
         if len(files) == 0:
@@ -2331,7 +2357,7 @@ class ContinuumNormalization(Step):
         Parameters
         ----------
         science : tuple
-            results from science step
+            results from science step: (heads, list[list[Spectrum]])
         freq_comb : tuple
             results from freq_comb step (or wavecal if those don't exist)
         norm_flat : tuple
@@ -2350,9 +2376,29 @@ class ContinuumNormalization(Step):
         columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
-        wave = freq_comb
-        heads, specs, sigmas, _, columns = science
+        wave = freq_comb  # freq_comb returns wavelength array directly
         norm, blaze, *_ = norm_flat
+
+        # Apply trace_range to wavelength if it has more traces than blaze
+        # (blaze was saved with trace_range already applied)
+        if self.trace_range is not None and len(wave) > len(blaze):
+            wave = wave[self.trace_range[0] : self.trace_range[1]]
+
+        # Handle both old format (5 elements from load) and new format (2 elements from run)
+        if len(science) == 2:
+            # New Spectrum-based format from science.run()
+            heads, spectra_lists = science
+            specs = []
+            sigmas = []
+            columns = []
+            for spectra in spectra_lists:
+                specs.append(np.array([s.spec for s in spectra]))
+                sigmas.append(np.array([s.sig for s in spectra]))
+                # Get column ranges from spectrum lengths
+                columns.append(np.array([[0, len(s.spec)] for s in spectra]))
+        else:
+            # Old array format from science.load()
+            heads, specs, sigmas, _, columns = science
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]

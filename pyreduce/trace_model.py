@@ -33,7 +33,31 @@ class Trace:
     Attributes
     ----------
     m : int | None
-        Spectral order number. None if unknown (e.g., MOSAIC mode).
+        Spectral order number (diffraction order). This is the physical order
+        number from the grating equation, not a sequential index. In echelle
+        spectrographs, higher order numbers correspond to shorter wavelengths.
+
+        The order number is assigned in one of three ways:
+
+        1. **From order_centers.yaml** (preferred): If the instrument provides
+           an ``order_centers_{channel}.yaml`` file with known order positions,
+           traces are matched to these centers during detection and assigned
+           the corresponding order numbers immediately.
+
+        2. **From wavelength calibration**: If no order_centers file exists,
+           ``m`` is initially None. During wavelength calibration, the linelist
+           file provides ``obase`` (the base order number). Each trace is then
+           assigned ``m = obase + trace_index``.
+
+        3. **Sequential fallback**: For legacy files or MOSAIC mode where order
+           identity cannot be determined, ``m`` may remain None or be assigned
+           sequentially from 0.
+
+        The order number is critical for 2D wavelength calibration, which fits
+        a polynomial in both pixel position (x) and order number (m). When
+        evaluating wavelengths via ``Trace.wlen()``, the trace's ``m`` value
+        is used as the second coordinate in the 2D polynomial.
+
     fiber : str | int
         Fiber identifier. String for named groups ('A', 'B', 'cal'),
         int for bundle indices.
@@ -52,8 +76,10 @@ class Trace:
         Per-row slit correction, shape (height_pixels,).
         Residual offsets beyond polynomial fit.
     wave : np.ndarray | None
-        Wavelength polynomial coefficients, shape (deg+1,).
-        Evaluates wavelength as a function of x.
+        Wavelength polynomial coefficients. Can be:
+        - 1D array, shape (deg+1,): per-trace polynomial, wavelength = polyval(x)
+        - 2D array, shape (deg_x+1, deg_m+1): global 2D polynomial shared across
+          all traces. Wavelength = polyval2d(x, m) where m is this trace's order.
     """
 
     # Identity
@@ -107,7 +133,14 @@ class Trace:
         """
         if self.wave is None:
             return None
-        return np.polyval(self.wave, x)
+        if self.wave.ndim == 2:
+            # 2D polynomial: wave[i,j] is coeff for x^i * m^j
+            # polyval2d requires x and m arrays to have same shape
+            m_arr = np.full_like(x, self.m, dtype=float)
+            return np.polynomial.polynomial.polyval2d(x, m_arr, self.wave)
+        else:
+            # 1D polynomial: standard polyval
+            return np.polyval(self.wave, x)
 
     def y_at_x(self, x: np.ndarray) -> np.ndarray:
         """Evaluate trace y-position at column positions.
@@ -159,7 +192,18 @@ def save_traces(
 
     # Determine array sizes
     max_pos_deg = max(len(t.pos) for t in traces)
-    max_wave_deg = max((len(t.wave) if t.wave is not None else 0) for t in traces)
+
+    # Determine wave dimensions - can be 1D (per-trace) or 2D (global poly)
+    wave_shapes = [t.wave.shape if t.wave is not None else () for t in traces]
+    wave_is_2d = any(len(s) == 2 for s in wave_shapes)
+    if wave_is_2d:
+        max_wave_x = max((s[0] if len(s) == 2 else 0) for s in wave_shapes)
+        max_wave_m = max((s[1] if len(s) == 2 else 0) for s in wave_shapes)
+        max_wave_deg = 0  # Not used for 2D
+    else:
+        max_wave_deg = max((s[0] if len(s) >= 1 else 0) for s in wave_shapes)
+        max_wave_x = max_wave_m = 0
+
     max_slitdelta_len = max(
         (len(t.slitdelta) if t.slitdelta is not None else 0) for t in traces
     )
@@ -184,10 +228,18 @@ def save_traces(
         pos_arr[i, : len(t.pos)] = t.pos
 
     wave_arr = None
-    if max_wave_deg > 0:
+    if wave_is_2d and max_wave_x > 0 and max_wave_m > 0:
+        # 2D wavelength polynomial
+        wave_arr = np.full((ntrace, max_wave_x, max_wave_m), np.nan, dtype=np.float64)
+        for i, t in enumerate(traces):
+            if t.wave is not None and t.wave.ndim == 2:
+                wx, wm = t.wave.shape
+                wave_arr[i, :wx, :wm] = t.wave
+    elif max_wave_deg > 0:
+        # 1D wavelength polynomial per trace
         wave_arr = np.full((ntrace, max_wave_deg), np.nan, dtype=np.float64)
         for i, t in enumerate(traces):
-            if t.wave is not None:
+            if t.wave is not None and t.wave.ndim == 1:
                 wave_arr[i, : len(t.wave)] = t.wave
 
     slit_arr = None
@@ -235,9 +287,22 @@ def save_traces(
         )
 
     if wave_arr is not None:
-        columns.append(
-            fits.Column(name="WAVE", format=f"{max_wave_deg}D", array=wave_arr)
-        )
+        if wave_is_2d:
+            wave_flat = wave_arr.reshape(ntrace, -1)
+            columns.append(
+                fits.Column(
+                    name="WAVE",
+                    format=f"{wave_flat.shape[1]}D",
+                    array=wave_flat,
+                    dim=f"({max_wave_m},{max_wave_x})",
+                )
+            )
+            header["WAVE_X"] = (max_wave_x, "Wave polynomial x-degree + 1")
+            header["WAVE_M"] = (max_wave_m, "Wave polynomial m-degree + 1")
+        else:
+            columns.append(
+                fits.Column(name="WAVE", format=f"{max_wave_deg}D", array=wave_arr)
+            )
 
     # Create HDU list
     primary = fits.PrimaryHDU(header=header)
@@ -296,6 +361,15 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
             if slit_y > 0 and slit_x > 0:
                 slit_arr = slit_arr.reshape(-1, slit_y, slit_x)
 
+        # Reshape wave if 2D polynomial
+        wave_is_2d = False
+        if wave_arr is not None:
+            wave_x = header.get("WAVE_X", 0)
+            wave_m = header.get("WAVE_M", 0)
+            if wave_x > 0 and wave_m > 0:
+                wave_arr = wave_arr.reshape(-1, wave_x, wave_m)
+                wave_is_2d = True
+
         traces = []
         for i in range(len(m_arr)):
             m = int(m_arr[i]) if m_arr[i] >= 0 else None
@@ -337,7 +411,13 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
                 wave = wave_arr[i]
                 if np.all(np.isnan(wave)):
                     wave = None
+                elif wave_is_2d:
+                    # 2D polynomial - remove all-NaN rows/cols
+                    mask_x = ~np.all(np.isnan(wave), axis=1)
+                    mask_m = ~np.all(np.isnan(wave), axis=0)
+                    wave = wave[mask_x][:, mask_m]
                 else:
+                    # 1D polynomial - remove trailing NaN
                     wave = wave[~np.isnan(wave)]
 
             traces.append(

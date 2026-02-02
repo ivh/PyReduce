@@ -42,6 +42,67 @@ to run once.
 The MCMC determines the best fit based on a combination of cross correlation
 and least squares matching between the observed and reference spectra.
 
+## Spectral Order Numbers
+
+PyReduce uses physical spectral order numbers (`m`) in wavelength calibration. Understanding
+how these are assigned is important because the 2D wavelength polynomial depends on them.
+
+### What is the Order Number?
+
+In echelle spectrographs, light is dispersed by a grating where different wavelengths
+satisfy the grating equation at different diffraction orders. The order number `m` is
+this physical diffraction order. Higher orders correspond to shorter wavelengths.
+
+### How Order Numbers are Assigned
+
+Order numbers are assigned to traces in one of three ways:
+
+1. **From `order_centers.yaml`** (preferred for new instruments):
+
+   Instruments can provide a file listing known order centers and their order numbers.
+   During trace detection, detected traces are matched to these centers by y-position
+   and assigned the corresponding order number immediately.
+
+   ```yaml
+   # Example: pyreduce/instruments/ANDES_RIZ/order_centers_r2.yaml
+   orders:
+     85: 2048.5   # Order 85 centered at y=2048.5
+     86: 1892.3
+     87: 1741.2
+     ...
+   ```
+
+2. **From the initial linelist** (wavecal_init step):
+
+   If no order_centers file exists, traces start with `m = None`. The initial linelist
+   file (e.g., `wavecal_middle.npz`) contains an `obase` value - the order number of
+   the first trace. During `wavecal` step, each trace is assigned `m = obase + index`.
+
+3. **Sequential fallback**:
+
+   For legacy files or modes like MOSAIC where orders cannot be identified, `m` may
+   remain None or be assigned sequentially from 0.
+
+### Why Order Numbers Matter
+
+The 2D wavelength polynomial fits wavelength as a function of both pixel position (x)
+and order number (m):
+
+```
+wavelength = P(x, m) = sum_{i,j} c_{i,j} * x^i * m^j
+```
+
+Using physical order numbers (not sequential indices) is critical because the grating
+equation creates predictable relationships between adjacent orders. A fit using physical
+order numbers can interpolate and extrapolate more accurately.
+
+When you call `Trace.wlen(x)`, it evaluates the 2D polynomial at the trace's order number:
+
+```python
+# Inside Trace.wlen():
+wavelength = np.polynomial.polynomial.polyval2d(x, self.m, self.wave)
+```
+
 ## Gas Lamp Calibration
 
 For absolute wavelength reference, most spectrometers use gas lamps (e.g., ThAr).

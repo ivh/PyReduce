@@ -71,6 +71,19 @@ This means:
 - **Traces** are polynomial functions of x, giving y-position
 - **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
 
+## Spectral Order Numbers (Trace.m)
+
+Each `Trace` has an `m` attribute representing the physical spectral (diffraction) order number - not a sequential index. Higher order numbers = shorter wavelengths.
+
+**Assignment priority:**
+1. `order_centers_{channel}.yaml` in instrument directory - traces matched by y-position during detection
+2. `obase` from linelist file (`wavecal_*.npz`) - assigned as `m = obase + trace_index` during wavecal
+3. Sequential fallback (legacy/MOSAIC mode)
+
+**Why it matters:** The 2D wavelength polynomial fits `wavelength = P(x, m)`. Using physical order numbers enables accurate interpolation between orders. `Trace.wlen(x)` evaluates this polynomial at the trace's order number.
+
+See `docs/wavecal_linelist.md` for details on wavelength calibration and order numbering.
+
 ## Pipeline Steps
 
 The reduction pipeline consists of these steps (in typical order):

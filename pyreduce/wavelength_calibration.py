@@ -209,11 +209,12 @@ class LineList:
         )
     )
 
-    def __init__(self, lines=None):
+    def __init__(self, lines=None, obase=None):
         if lines is None:
             lines = np.array([], dtype=self.dtype)
         self.data = lines
         self.dtype = self.data.dtype
+        self.obase = obase  # Base spectral order number
 
     def __getitem__(self, key):
         return self.data[key]
@@ -228,10 +229,16 @@ class LineList:
     def load(cls, filename):
         data = np.load(filename, allow_pickle=True)
         linelist = cls(data["cs_lines"])
+        # Load obase if present
+        if "obase" in data:
+            linelist.obase = int(data["obase"])
         return linelist
 
     def save(self, filename):
-        np.savez(filename, cs_lines=self.data)
+        if self.obase is not None:
+            np.savez(filename, cs_lines=self.data, obase=self.obase)
+        else:
+            np.savez(filename, cs_lines=self.data)
 
     def append(self, linelist):
         if isinstance(linelist, LineList):
@@ -357,10 +364,12 @@ class WavelengthCalibration:
             normalized reference linelist
         """
         # normalize order by order
-        obs = np.ma.copy(obs)
+        obs = np.ma.masked_invalid(obs)
         for i in range(len(obs)):
             if self.closing > 0:
+                mask = obs.mask[i].copy()
                 obs[i] = grey_closing(obs[i], self.closing)
+                obs.mask[i] = mask | np.isnan(obs[i])
             try:
                 obs[i] -= np.ma.median(obs[i][obs[i] > 0])
             except ValueError:
@@ -558,17 +567,24 @@ class WavelengthCalibration:
         coef = util.gaussfit2(x, section)
 
         if self.plot >= 2 and plot:
-            x2 = np.linspace(x.min(), x.max(), len(x) * 100)
-            plt.plot(x, section, label="Observation")
-            plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
-            title = "Gaussian Fit to spectral line"
-            if self.plot_title is not None:
-                title = f"{self.plot_title}\n{title}"
-            plt.title(title)
-            plt.xlabel("x [pixel]")
-            plt.ylabel("Intensity [a.u.]")
-            plt.legend()
-            util.show_or_save("wavecal_line_fit")
+            # Limit number of line fit plots (track via class attribute)
+            if not hasattr(self, "_line_fit_plot_count"):
+                self._line_fit_plot_count = 0
+            self._line_fit_plot_count += 1
+            if self._line_fit_plot_count <= 5:
+                x2 = np.linspace(x.min(), x.max(), len(x) * 100)
+                plt.plot(x, section, label="Observation")
+                plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
+                title = f"Gaussian Fit to spectral line ({self._line_fit_plot_count}/5)"
+                if self.plot_title is not None:
+                    title = f"{self.plot_title}\n{title}"
+                plt.title(title)
+                plt.xlabel("x [pixel]")
+                plt.ylabel("Intensity [a.u.]")
+                plt.legend()
+                util.show_or_save("wavecal_line_fit")
+            elif self._line_fit_plot_count == 6:
+                logger.info("Skipping remaining line fit plots (shown 5 of many)")
         return coef
 
     def fit_lines(self, obs, lines):

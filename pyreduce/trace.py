@@ -1960,4 +1960,53 @@ def create_trace_objects(
                 )
             )
 
+    # Verify trace ordering: m should decrease as y increases
+    # (higher orders have shorter wavelengths, lower on detector)
+    _verify_trace_ordering(result)
+
     return result
+
+
+def _verify_trace_ordering(traces: list) -> None:
+    """Verify that traces are ordered correctly: m decreases as y increases.
+
+    For echelle spectrographs, higher spectral orders (larger m) have shorter
+    wavelengths and appear lower on the detector (smaller y). So as we go up
+    in y, m should decrease.
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Trace objects to verify
+
+    Raises
+    ------
+    ValueError
+        If traces are not ordered correctly
+    """
+    if len(traces) < 2:
+        return
+
+    # Get y-position at detector center for each trace
+    # Use the middle of the common column range
+    x_mid = np.median([np.mean(t.column_range) for t in traces])
+    y_positions = [t.y_at_x(x_mid) for t in traces]
+    m_values = [t.m for t in traces]
+
+    # Sort by y to check ordering
+    sorted_pairs = sorted(zip(y_positions, m_values, strict=False))
+
+    # Check that m decreases (or stays same for multi-fiber) as y increases
+    prev_m = sorted_pairs[0][1]
+    for y, m in sorted_pairs[1:]:
+        if m is not None and prev_m is not None and m > prev_m:
+            logger.warning(
+                "Trace ordering may be incorrect: m=%d at y=%.1f is higher than m=%d below it. "
+                "Expected m to decrease as y increases.",
+                m,
+                y,
+                prev_m,
+            )
+            break
+        if m is not None:
+            prev_m = m

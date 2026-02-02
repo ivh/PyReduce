@@ -28,12 +28,32 @@ The binary table extension (named `SPECTRA`) contains:
 |--------|--------|-------------|
 | `SPEC` | `{ncol}E` | Extracted spectrum (float32). NaN for masked pixels. |
 | `SIG` | `{ncol}E` | Uncertainty (float32). NaN for masked pixels. |
-| `M` | `I` | Spectral order number (-1 if unknown) |
+| `M` | `I` | Spectral order number (see below). -1 if unknown. |
 | `FIBER` | `16A` | Fiber identifier (string) |
 | `EXTR_H` | `E` | Extraction height used for this trace |
 | `WAVE` | `{ncol}D` | Wavelength in Angstroms (float64, optional) |
 | `CONT` | `{ncol}E` | Continuum level (float32, optional) |
 | `SLITFU` | `{len}E` | Slit function (float32, optional, NaN-padded) |
+
+### Spectral Order Number (`M`)
+
+The `M` column contains the physical spectral (diffraction) order number, not a
+sequential index. In echelle spectrographs, higher order numbers correspond to
+shorter wavelengths.
+
+The order number is assigned during reduction via:
+
+1. **order_centers.yaml**: If the instrument provides this file, traces are
+   matched to known order centers during detection.
+
+2. **Wavelength calibration**: The linelist file contains `obase` (base order
+   number). Each trace gets `m = obase + trace_index`.
+
+3. **Fallback**: For legacy files or MOSAIC mode, `M` may be -1 (unknown) or
+   sequential from 0.
+
+The order number is used in 2D wavelength calibration polynomials. See
+[Wavelength Calibration](wavecal_linelist.md) for details.
 
 Each row corresponds to one extracted trace/order.
 
