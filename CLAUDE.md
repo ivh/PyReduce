@@ -275,6 +275,8 @@ The charslit backend supports higher-degree curvature polynomials (up to degree 
 
 ```bash
 uv sync                              # Install dependencies
+uv sync --extra charslit             # Include charslit backend (from GitHub)
+uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions
 uv run pre-commit install            # Setup hooks (once)

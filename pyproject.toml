@@ -49,7 +49,7 @@ dependencies = [
 charslit = ["charslit>=0.1.0"]
 
 [tool.uv.sources]
-charslit = { path = "../CharSlit.git" }
+charslit = { git = "https://github.com/ivh/CharSlit" }
 
 [dependency-groups]
 dev = [
