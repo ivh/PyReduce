@@ -203,6 +203,47 @@ This performs single-pass extraction without iterating to find the slit function
 | `threshold` | Line detection threshold | 100 |
 | `iterations` | Refinement iterations | 3 |
 | `medium` | Refractive medium ("air" or "vacuum") | "air" |
+| `dimensionality` | "1D" (per-trace) or "2D" (shared polynomial) | "2D" |
+
+#### Per-Group Wavelength Calibration
+
+For multi-fiber instruments, wavelength calibration can process fiber groups
+separately. This is configured via `fibers.use.wavecal` in `config.yaml`:
+
+```yaml
+fibers:
+  groups:
+    A: {range: [1, 36], merge: average}
+    cal: {range: [37, 40], merge: average}
+    B: {range: [40, 76], merge: average}
+
+  use:
+    wavecal: [A, B]      # Separate calibration for each group
+    # OR
+    wavecal: [cal]       # Use only calibration fiber
+    # OR
+    wavecal: per_fiber   # Separate calibration per fiber_idx
+    # OR
+    wavecal: all         # All traces together (default)
+```
+
+- **`[A, B]`** - Calibrate each named group separately. Useful when groups have
+  different optical paths (e.g., science fibers A and B).
+
+- **`per_fiber`** - Calibrate each fiber index separately. Each unique
+  `fiber_idx` value gets its own wavelength polynomial. Use this when individual
+  fibers within a group have slightly different wavelength solutions and you
+  want maximum precision.
+
+- **`all`** - Combine all traces into a single calibration (default for
+  single-fiber instruments).
+
+The wavelength polynomial is stored in each `Trace.wave` attribute and saved to
+`traces.fits`. Subsequent steps (science extraction, continuum normalization)
+read wavelengths directly from the traces.
+
+See [Fiber Bundle Configuration](fiber_bundle_tracing.md) for full details on
+multi-fiber setup.
 
 ### Continuum Normalization
 

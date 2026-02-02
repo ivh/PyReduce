@@ -152,11 +152,11 @@ wavecal_master = wavecal_master_step.run(
 wavecal_init_step = WavelengthCalibrationInitialize(
     *step_args, **step_config("wavecal_init")
 )
-wavecal_init = wavecal_init_step.load(config, wavecal_master)
+wavecal_init = wavecal_init_step.run(wavecal_master)
 
 wavecal_step = WavelengthCalibrationFinalize(*step_args, **step_config("wavecal"))
 wavecal = wavecal_step.run(wavecal_master, wavecal_init)
-wave, coef, linelist = wavecal
+# wavecal returns {group: linelist}; wavelengths are stored in traces
 
 # Step 8: Science extraction
 print("\n=== SCIENCE ===")
@@ -170,14 +170,14 @@ science = science_step.run(
     mask=mask,
 )
 
-# Step 9: Continuum normalization
+# Step 9: Continuum normalization (gets wavelengths from traces)
 print("\n=== CONTINUUM ===")
 continuum_step = ContinuumNormalization(*step_args, **step_config("continuum"))
-continuum = continuum_step.run(science, wave, norm_flat)
+continuum = continuum_step.run(science, norm_flat, traces)
 
-# Step 10: Finalize
+# Step 10: Finalize (gets wavelengths from traces)
 print("\n=== FINALIZE ===")
 finalize_step = Finalize(*step_args, **step_config("finalize"))
-finalize_step.run(continuum, wave, config)
+finalize_step.run(continuum, traces, config)
 
 print("\nDone!")

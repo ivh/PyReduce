@@ -137,11 +137,11 @@ wavecal_master = wavecal_master_step.run(
 )
 
 wavecal_init_step = WavelengthCalibrationInitialize(*step_args, **step_config("wavecal_init"))
-wavecal_init = wavecal_init_step.load(config, wavecal_master)
+wavecal_init = wavecal_init_step.run(wavecal_master)
 
 wavecal_step = WavelengthCalibrationFinalize(*step_args, **step_config("wavecal"))
 wavecal = wavecal_step.run(wavecal_master, wavecal_init)
-wave, coef, linelist = wavecal
+# wavecal returns {group: linelist}; wavelengths are stored in traces
 
 # Step 8: Extract science spectra
 science_step = ScienceExtraction(*step_args, **step_config("science"))
@@ -149,13 +149,13 @@ science = science_step.run(
     science_files, bias, traces, norm_flat, scatter, mask
 )
 
-# Step 9: Continuum normalization
+# Step 9: Continuum normalization (gets wavelengths from traces)
 continuum_step = ContinuumNormalization(*step_args, **step_config("continuum"))
-continuum = continuum_step.run(science, wave, norm_flat)
+continuum = continuum_step.run(science, norm_flat, traces)
 
-# Step 10: Write final output
+# Step 10: Write final output (gets wavelengths from traces)
 finalize_step = Finalize(*step_args, **step_config("finalize"))
-finalize_step.run(continuum, wave, config)
+finalize_step.run(continuum, traces, config)
 ```
 
 ## Step Dependencies
@@ -171,11 +171,11 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 | `SlitCurvatureDetermination` | files, trace, mask, bias (updates trace in-place) |
 | `NormalizeFlatField` | flat, trace, scatter |
 | `WavelengthCalibrationMaster` | files, trace, mask, bias, norm_flat |
-| `WavelengthCalibrationInitialize` | config, wavecal_master |
-| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init |
+| `WavelengthCalibrationInitialize` | wavecal_master |
+| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init (stores wavelengths in traces) |
 | `ScienceExtraction` | files, bias, trace, norm_flat, scatter, mask |
-| `ContinuumNormalization` | science, wave, norm_flat |
-| `Finalize` | continuum, wave, config |
+| `ContinuumNormalization` | science, norm_flat, trace |
+| `Finalize` | continuum, trace, config |
 
 **Note:** Curvature data is stored in `Trace.slit` and `Trace.slitdelta` attributes.
 The curvature step updates traces in-place rather than returning a separate object.
