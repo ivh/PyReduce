@@ -38,9 +38,9 @@ def test_scatter(flat, traces, settings):
 def test_simple():
     img = np.full((100, 100), 10.0)
     traces = [
-        Trace(m=0, fiber=0, pos=np.array([25.0, 0.0]), column_range=(0, 100)),
-        Trace(m=1, fiber=0, pos=np.array([50.0, 0.0]), column_range=(0, 100)),
-        Trace(m=2, fiber=0, pos=np.array([75.0, 0.0]), column_range=(0, 100)),
+        Trace(m=0, group=0, pos=np.array([25.0, 0.0]), column_range=(0, 100)),
+        Trace(m=1, group=0, pos=np.array([50.0, 0.0]), column_range=(0, 100)),
+        Trace(m=2, group=0, pos=np.array([75.0, 0.0]), column_range=(0, 100)),
     ]
 
     scatter = estimate_background_scatter(img, traces, scatter_degree=0, plot=False)
@@ -56,8 +56,8 @@ def test_simple():
 def test_scatter_degree():
     img = np.full((100, 100), 10.0)
     traces = [
-        Trace(m=0, fiber=0, pos=np.array([25.0, 0.0]), column_range=(0, 100)),
-        Trace(m=1, fiber=0, pos=np.array([75.0, 0.0]), column_range=(0, 100)),
+        Trace(m=0, group=0, pos=np.array([25.0, 0.0]), column_range=(0, 100)),
+        Trace(m=1, group=0, pos=np.array([75.0, 0.0]), column_range=(0, 100)),
     ]
 
     estimate_background_scatter(img, traces, scatter_degree=0)

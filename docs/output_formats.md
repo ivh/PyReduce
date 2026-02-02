@@ -29,7 +29,8 @@ The binary table extension (named `SPECTRA`) contains:
 | `SPEC` | `{ncol}E` | Extracted spectrum (float32). NaN for masked pixels. |
 | `SIG` | `{ncol}E` | Uncertainty (float32). NaN for masked pixels. |
 | `M` | `I` | Spectral order number (see below). -1 if unknown. |
-| `FIBER` | `16A` | Fiber identifier (string) |
+| `GROUP` | `16A` | Group identifier ('A', 'B', 'cal', or bundle index). |
+| `FIBER_IDX` | `I` | Fiber index within group (1-indexed). -1 if unknown. |
 | `EXTR_H` | `E` | Extraction height used for this trace |
 | `WAVE` | `{ncol}D` | Wavelength in Angstroms (float64, optional) |
 | `CONT` | `{ncol}E` | Continuum level (float32, optional) |
@@ -98,14 +99,15 @@ The binary table has a single row containing flattened 2D arrays:
 
 The `TDIM` keyword stores the original shape as `(ncol, ntrace)`.
 
-### Key Differences from v2
+### Key Differences from v2/v3
 
-| Aspect | Legacy (v1) | Current (v2) |
-|--------|-------------|--------------|
+| Aspect | Legacy (v1) | Current (v2/v3) |
+|--------|-------------|-----------------|
 | Table rows | 1 (flattened) | ntrace (one per spectrum) |
 | Masking | Separate `COLUMNS` array | NaN in data |
 | Order info | Not stored | `M` column |
-| Fiber info | Not stored | `FIBER` column |
+| Group info | Not stored | `GROUP` column (was `FIBER` in v2) |
+| Fiber index | Not stored | `FIBER_IDX` column (v3 only) |
 | Extraction height | Not stored | `EXTR_H` column |
 | Slit function | Separate files | `SLITFU` column |
 

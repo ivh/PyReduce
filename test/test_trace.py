@@ -480,7 +480,6 @@ class TestOrganizeFibers:
         column_range = np.array([[10, 990]] * 6)
 
         config = FibersConfig(
-            per_order=True,
             fibers_per_order=3,
             order_centers={1: 100.0, 2: 200.0},
             groups={
@@ -746,7 +745,7 @@ class TestSelectTracesForStep:
             traces.append(
                 Trace(
                     m=i,
-                    fiber=fiber,
+                    group=fiber,
                     pos=np.array([0.0, 0.0, 100.0 + i * 10]),
                     column_range=(10, 990),
                 )
@@ -761,7 +760,7 @@ class TestSelectTracesForStep:
         return [
             Trace(
                 m=i,
-                fiber=0,
+                group=0,
                 pos=np.array([0.0, 0.0, 100.0 + i * 10]),
                 column_range=(10, 990),
             )
@@ -823,7 +822,7 @@ class TestSelectTracesForStep:
         # Explicit list returns dict with named keys
         assert "A" in result
         assert len(result) == 1
-        assert len(result["A"]) == 5  # First 5 traces have fiber="A"
+        assert len(result["A"]) == 5  # First 5 traces have group="A"
 
     @pytest.mark.unit
     def test_select_traces_explicit_default(self, trace_objects):
@@ -916,16 +915,16 @@ class TestSelectTracesForStep:
         # Create traces with order numbers and fiber assignments
         traces = [
             Trace(
-                m=1, fiber="A", pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990)
+                m=1, group="A", pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990)
             ),
             Trace(
-                m=1, fiber="B", pos=np.array([0.0, 0.0, 110.0]), column_range=(10, 990)
+                m=1, group="B", pos=np.array([0.0, 0.0, 110.0]), column_range=(10, 990)
             ),
             Trace(
-                m=2, fiber="A", pos=np.array([0.0, 0.0, 200.0]), column_range=(10, 990)
+                m=2, group="A", pos=np.array([0.0, 0.0, 200.0]), column_range=(10, 990)
             ),
             Trace(
-                m=2, fiber="B", pos=np.array([0.0, 0.0, 210.0]), column_range=(10, 990)
+                m=2, group="B", pos=np.array([0.0, 0.0, 210.0]), column_range=(10, 990)
             ),
         ]
 
@@ -953,7 +952,7 @@ class TestSelectTracesForStep:
         traces = [
             Trace(
                 m=0,
-                fiber="A",
+                group="A",
                 pos=np.array([0.0, 0.0, 100.0]),
                 column_range=(10, 990),
                 height=42.0,
@@ -1105,7 +1104,6 @@ class TestChannelTemplateSubstitution:
         column_range = np.array([[10, 990], [10, 990]])
 
         config = FibersConfig(
-            per_order=True,
             fibers_per_order=1,
             order_centers_file="order_centers_{channel}.yaml",
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
@@ -1137,7 +1135,6 @@ class TestChannelTemplateSubstitution:
         column_range = np.array([[10, 990]])
 
         config = FibersConfig(
-            per_order=True,
             fibers_per_order=1,
             order_centers_file="order_centers_{channel}.yaml",
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
@@ -1168,7 +1165,7 @@ class TestChannelTemplateSubstitution:
         column_range = np.array([[10, 990]])
 
         config = FibersConfig(
-            per_order=True,
+            fibers_per_order=1,
             order_centers_file="order_centers_{channel}.yaml",
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
         )
@@ -1318,7 +1315,6 @@ class TestPerOrderMissingFile:
         column_range = np.array([[10, 990], [10, 990]])
 
         config = FibersConfig(
-            per_order=True,
             fibers_per_order=1,
             order_centers_file="nonexistent_file.yaml",
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
@@ -1355,7 +1351,7 @@ class TestPerOrderMissingFile:
         column_range = np.array([[10, 990]])
 
         config = FibersConfig(
-            per_order=True,
+            fibers_per_order=1,
             order_centers_file="order_centers_{channel}.yaml",
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},
         )
@@ -1386,7 +1382,6 @@ class TestPerOrderMissingFile:
         column_range = np.array([[10, 990], [10, 990]])
 
         config = FibersConfig(
-            per_order=True,
             fibers_per_order=1,
             order_centers={1: 100.0, 2: 200.0},  # Inline, no file needed
             groups={"A": FiberGroupConfig(range=(1, 2), merge="center")},

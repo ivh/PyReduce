@@ -77,7 +77,8 @@ All trace data is stored in a single FITS binary table (`*.traces.fits`):
 | Column | Type | Description |
 |--------|------|-------------|
 | M | int16 | Spectral order number (-1 if unknown) |
-| FIBER | 16A | Fiber identifier |
+| GROUP | 16A | Group identifier ('A', 'B', 'cal', etc.) |
+| FIBER_IDX | int16 | Fiber index within group (1-indexed, -1 if N/A) |
 | POS | float64[deg+1] | Position polynomial coefficients |
 | COL_RANGE | int32[2] | Valid x range |
 | HEIGHT | float32 | Extraction height |
@@ -85,7 +86,7 @@ All trace data is stored in a single FITS binary table (`*.traces.fits`):
 | SLITDELTA | float32[...] | Per-row curvature residuals |
 | WAVE | float64[deg+1] | Wavelength polynomial coefficients |
 
-Legacy `.npz` files are still readable but not written.
+Legacy `.npz` files and old FITS files with `FIBER` column are still readable.
 
 ---
 
@@ -132,7 +133,7 @@ class Spectra:
     def save(self, fname): ...
 ```
 
-### File Format (v2)
+### File Format (v2/v3)
 
 Spectra files use a FITS binary table with one row per trace:
 
@@ -141,13 +142,14 @@ Spectra files use a FITS binary table with one row per trace:
 | SPEC | float32[ncol] | Flux (NaN for masked) |
 | SIG | float32[ncol] | Uncertainty |
 | M | int16 | Spectral order number |
-| FIBER | 16A | Fiber identifier |
+| GROUP | 16A | Group identifier |
+| FIBER_IDX | int16 | Fiber index within group (v3) |
 | EXTR_H | float32 | Extraction height used |
 | WAVE | float64[ncol] | Wavelength (optional) |
 | CONT | float32[ncol] | Continuum (optional) |
 | SLITFU | float32[len] | Slit function (optional) |
 
-Header keyword `E_FMTVER = 2` identifies the new format.
+Header keyword `E_FMTVER` identifies the format version (2 or 3).
 
 ### Masking
 

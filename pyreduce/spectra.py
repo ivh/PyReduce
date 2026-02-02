@@ -98,8 +98,10 @@ class Spectrum:
     ----------
     m : int | None
         Spectral order number. None if unknown.
-    fiber : str | int
-        Fiber identifier.
+    group : str | int
+        Group identifier (e.g., 'A', 'B', 'cal' or bundle index).
+    fiber_idx : int | None
+        Fiber index within group (1-indexed). None if unknown.
     spec : np.ndarray
         Flux values, un-normalized. NaN for masked pixels.
     sig : np.ndarray
@@ -116,18 +118,17 @@ class Spectrum:
 
     # Identity (copied from Trace)
     m: int | None
-    fiber: str | int
+    group: str | int
 
     # Extracted data (NaN for masked pixels)
     spec: np.ndarray
     sig: np.ndarray
 
-    # Optional data
+    # Optional fields (must come after required fields)
+    fiber_idx: int | None = None
     wave: np.ndarray | None = None
     cont: np.ndarray | None = None
     slitfu: np.ndarray | None = None
-
-    # Per-trace extraction param
     extraction_height: float | None = None
 
     @classmethod
@@ -139,7 +140,7 @@ class Spectrum:
         Parameters
         ----------
         trace : Trace
-            Source trace for identity (m, fiber).
+            Source trace for identity (m, group, fiber_idx).
         spec : np.ndarray
             Extracted spectrum.
         sig : np.ndarray
@@ -152,7 +153,14 @@ class Spectrum:
         Spectrum
             New spectrum with identity copied from trace.
         """
-        return cls(m=trace.m, fiber=trace.fiber, spec=spec, sig=sig, **kwargs)
+        return cls(
+            m=trace.m,
+            group=trace.group,
+            fiber_idx=trace.fiber_idx,
+            spec=spec,
+            sig=sig,
+            **kwargs,
+        )
 
     def normalized(self) -> tuple[np.ndarray, np.ndarray]:
         """Return continuum-normalized spectrum and uncertainty.
@@ -212,16 +220,21 @@ class Spectra:
         return len(self.data[0].spec)
 
     def select(
-        self, m: int | None = None, fiber: str | int | None = None
+        self,
+        m: int | None = None,
+        group: str | int | None = None,
+        fiber_idx: int | None = None,
     ) -> list[Spectrum]:
-        """Filter spectra by order and/or fiber.
+        """Filter spectra by order, group, and/or fiber index.
 
         Parameters
         ----------
         m : int, optional
             Select spectra with this spectral order number.
-        fiber : str or int, optional
-            Select spectra with this fiber identifier.
+        group : str or int, optional
+            Select spectra with this group identifier.
+        fiber_idx : int, optional
+            Select spectra with this fiber index.
 
         Returns
         -------
@@ -231,8 +244,10 @@ class Spectra:
         result = self.data
         if m is not None:
             result = [s for s in result if s.m == m]
-        if fiber is not None:
-            result = [s for s in result if s.fiber == fiber]
+        if group is not None:
+            result = [s for s in result if s.group == group]
+        if fiber_idx is not None:
+            result = [s for s in result if s.fiber_idx == fiber_idx]
         return result
 
     def get_arrays(self) -> dict[str, np.ndarray]:
@@ -241,7 +256,7 @@ class Spectra:
         Returns
         -------
         dict
-            Dictionary with keys 'spec', 'sig', 'wave', 'cont', 'm', 'fiber'.
+            Dictionary with keys 'spec', 'sig', 'wave', 'cont', 'm', 'group', 'fiber_idx'.
             Arrays are stacked along axis 0 (one row per trace).
         """
         return {
@@ -254,7 +269,10 @@ class Spectra:
             if self.data[0].cont is not None
             else None,
             "m": np.array([s.m if s.m is not None else -1 for s in self.data]),
-            "fiber": np.array([str(s.fiber) for s in self.data]),
+            "group": np.array([str(s.group) for s in self.data]),
+            "fiber_idx": np.array(
+                [s.fiber_idx if s.fiber_idx is not None else -1 for s in self.data]
+            ),
         }
 
     @staticmethod
@@ -344,7 +362,11 @@ class Spectra:
         m_arr = np.array(
             [s.m if s.m is not None else -1 for s in self.data], dtype=np.int16
         )
-        fiber_arr = np.array([str(s.fiber) for s in self.data], dtype="U16")
+        group_arr = np.array([str(s.group) for s in self.data], dtype="U16")
+        fiber_idx_arr = np.array(
+            [s.fiber_idx if s.fiber_idx is not None else -1 for s in self.data],
+            dtype=np.int16,
+        )
         height_arr = np.array(
             [
                 s.extraction_height if s.extraction_height is not None else np.nan
@@ -358,7 +380,8 @@ class Spectra:
             fits.Column(name="SPEC", format=f"{ncol}E", array=spec_arr),
             fits.Column(name="SIG", format=f"{ncol}E", array=sig_arr),
             fits.Column(name="M", format="I", array=m_arr),
-            fits.Column(name="FIBER", format="16A", array=fiber_arr),
+            fits.Column(name="GROUP", format="16A", array=group_arr),
+            fits.Column(name="FIBER_IDX", format="I", array=fiber_idx_arr),
             fits.Column(name="EXTR_H", format="E", array=height_arr),
         ]
 
@@ -424,7 +447,12 @@ def _read_new_format(
     spec_arr = table["SPEC"]
     sig_arr = table["SIG"]
     m_arr = table["M"]
-    fiber_arr = table["FIBER"]
+    # Handle both new (GROUP) and old (FIBER) column names
+    if "GROUP" in table.dtype.names:
+        group_arr = table["GROUP"]
+    else:
+        group_arr = table["FIBER"]  # Backward compat
+    fiber_idx_arr = table["FIBER_IDX"] if "FIBER_IDX" in table.dtype.names else None
 
     height_arr = table["EXTR_H"] if "EXTR_H" in table.dtype.names else None
     wave_arr = table["WAVE"] if "WAVE" in table.dtype.names else None
@@ -452,11 +480,16 @@ def _read_new_format(
     spectra = []
     for i in range(len(spec_arr)):
         m = int(m_arr[i]) if m_arr[i] >= 0 else None
-        fiber = fiber_arr[i].strip()
+        group = group_arr[i].strip()
         try:
-            fiber = int(fiber)
+            group = int(group)
         except ValueError:
             pass
+        fiber_idx = (
+            int(fiber_idx_arr[i])
+            if fiber_idx_arr is not None and fiber_idx_arr[i] >= 0
+            else None
+        )
 
         spec = spec_arr[i]
         sig = sig_arr[i]
@@ -478,7 +511,8 @@ def _read_new_format(
         spectra.append(
             Spectrum(
                 m=m,
-                fiber=fiber,
+                group=group,
+                fiber_idx=fiber_idx,
                 spec=spec,
                 sig=sig,
                 wave=wave,
@@ -546,13 +580,14 @@ def _read_legacy_format(
         spec_arr = spec_arr / cont_arr
         sig_arr = sig_arr / cont_arr
 
-    # Build spectra (no m/fiber info in legacy format)
+    # Build spectra (no m/group info in legacy format)
     spectra = []
     for i in range(ntrace):
         spectra.append(
             Spectrum(
                 m=i,  # Sequential, no real order number
-                fiber=0,  # Default fiber
+                group=0,  # Default group
+                fiber_idx=None,  # Unknown fiber index
                 spec=spec_arr[i],
                 sig=sig_arr[i],
                 wave=wave_arr[i] if wave_arr is not None else None,

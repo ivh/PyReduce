@@ -122,7 +122,11 @@ class FiberBundleConfig(BaseModel):
 
 
 # Type for trace selection in the 'use' section
-TraceSelection = Literal["all", "groups"] | list[str]
+# - "all": use all traces together
+# - "groups": use traces with non-default group assignment
+# - "per_fiber": separate processing per fiber_idx (for per-fiber wavecal)
+# - list[str]: use specific groups by name
+TraceSelection = Literal["all", "groups", "per_fiber"] | list[str]
 
 
 class FibersConfig(BaseModel):
@@ -131,7 +135,7 @@ class FibersConfig(BaseModel):
     Defines how physical fiber traces are organized into groups and which
     traces to use for each reduction step.
 
-    For multi-order instruments (echelle), set per_order=True and provide
+    For multi-order instruments (echelle), set fibers_per_order and provide
     order_centers to apply grouping within each spectral order.
 
     For multi-channel instruments, per-order fields can be lists indexed
@@ -149,8 +153,8 @@ class FibersConfig(BaseModel):
     trace_by: str | None = None
 
     # Per-order grouping for echelle instruments
+    # Setting fibers_per_order implies per-order organization
     # These can be lists for multi-channel instruments (indexed by channel)
-    per_order: bool = False
     fibers_per_order: int | list[int] | None = None
     order_centers: dict[int, float] | None = None  # inline (single channel only)
     order_centers_file: str | list[str] | None = None  # per-channel list supported
@@ -165,13 +169,18 @@ class FibersConfig(BaseModel):
             return v
         return {int(k): float(val) for k, val in v.items()}
 
+    @property
+    def per_order(self) -> bool:
+        """Whether per-order grouping is enabled (derived from fibers_per_order)."""
+        return self.fibers_per_order is not None
+
     @model_validator(mode="after")
     def validate_per_order_config(self):
-        """Ensure order_centers or order_centers_file when per_order is True."""
-        if self.per_order:
+        """Ensure order_centers or order_centers_file when fibers_per_order is set."""
+        if self.fibers_per_order is not None:
             if self.order_centers is None and self.order_centers_file is None:
                 raise ValueError(
-                    "order_centers or order_centers_file required when per_order=True"
+                    "order_centers or order_centers_file required when fibers_per_order is set"
                 )
         return self
 

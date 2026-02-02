@@ -70,7 +70,7 @@ def orders(width, ycen):
 def trace_objects(orders, width):
     """Create Trace objects from polynomial orders."""
     return [
-        Trace(m=i, fiber=0, pos=orders[i], column_range=(0, width))
+        Trace(m=i, group=0, pos=orders[i], column_range=(0, width))
         for i in range(len(orders))
     ]
 
@@ -272,7 +272,7 @@ def test_curved_equal_vertical_extraction(sample_data, orders, width):
     traces_curved = [
         Trace(
             m=i,
-            fiber=0,
+            group=0,
             pos=orders[i],
             column_range=(0, width),
             slit=np.zeros((3, 6)),  # degree 2, 6 x-coeffs
@@ -280,7 +280,7 @@ def test_curved_equal_vertical_extraction(sample_data, orders, width):
         for i in range(len(orders))
     ]
     traces_vert = [
-        Trace(m=i, fiber=0, pos=orders[i], column_range=(0, width))
+        Trace(m=i, group=0, pos=orders[i], column_range=(0, width))
         for i in range(len(orders))
     ]
 
@@ -436,7 +436,7 @@ class TestPresetSlitfunc:
         _, _, _ = simple_img
         width = 100
         return [
-            Trace(m=i, fiber=0, pos=simple_orders[i], column_range=(0, width))
+            Trace(m=i, group=0, pos=simple_orders[i], column_range=(0, width))
             for i in range(len(simple_orders))
         ]
 
@@ -696,7 +696,7 @@ class TestSlitdeltasExtraction:
         traces = [
             Trace(
                 m=0,
-                fiber=0,
+                group=0,
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 slitdelta=slitdelta,
@@ -722,8 +722,8 @@ class TestSlitdeltasExtraction:
 
         # Two traces: y = 25 and y = 55
         traces = [
-            Trace(m=0, fiber=0, pos=np.array([0.0, 25.0]), column_range=(0, ncol)),
-            Trace(m=1, fiber=0, pos=np.array([0.0, 55.0]), column_range=(0, ncol)),
+            Trace(m=0, group=0, pos=np.array([0.0, 25.0]), column_range=(0, ncol)),
+            Trace(m=1, group=0, pos=np.array([0.0, 55.0]), column_range=(0, ncol)),
         ]
 
         spectra = extract.extract(
@@ -755,7 +755,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=5,
-                fiber="A",
+                group="A",
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 slit=slit,
@@ -773,7 +773,7 @@ class TestTraceCurvatureExtraction:
         assert spectra[0].spec.shape == (ncol,)
         # Verify identity preserved
         assert spectra[0].m == 5
-        assert spectra[0].fiber == "A"
+        assert spectra[0].group == "A"
 
     def test_extract_with_both_slit_and_slitdelta(self):
         """Test extraction with both Trace.slit and Trace.slitdelta."""
@@ -789,7 +789,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=10,
-                fiber="cal",
+                group="cal",
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 slit=slit,
@@ -806,7 +806,7 @@ class TestTraceCurvatureExtraction:
 
         assert len(spectra) == 1
         assert spectra[0].m == 10
-        assert spectra[0].fiber == "cal"
+        assert spectra[0].group == "cal"
 
     def test_extract_mixed_traces_some_with_curvature(self):
         """Test extraction when some traces have curvature and others don't."""
@@ -820,14 +820,14 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=1,
-                fiber="A",
+                group="A",
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 slit=slit,  # Has curvature
             ),
             Trace(
                 m=2,
-                fiber="B",
+                group="B",
                 pos=np.array([0.0, 55.0]),
                 column_range=(0, ncol),
                 # No curvature
@@ -864,7 +864,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=1,
-                fiber=0,
+                group=0,
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 slit=slit,
@@ -894,7 +894,7 @@ class TestTraceCurvatureExtraction:
         )
 
         trace = Trace(
-            m=1, fiber=0, pos=np.array([0.0, 100.0]), column_range=(0, 1000), slit=slit
+            m=1, group=0, pos=np.array([0.0, 100.0]), column_range=(0, 1000), slit=slit
         )
 
         # At x=0: coeffs should be [0.1, 0.02]
@@ -914,7 +914,7 @@ class TestTraceCurvatureExtraction:
         )
         trace2 = Trace(
             m=1,
-            fiber=0,
+            group=0,
             pos=np.array([0.0, 100.0]),
             column_range=(0, 1000),
             slit=slit_varying,
@@ -931,7 +931,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=42,
-                fiber="science_A",
+                group="science_A",
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 height=12.0,
@@ -946,7 +946,7 @@ class TestTraceCurvatureExtraction:
         )
 
         assert spectra[0].m == 42
-        assert spectra[0].fiber == "science_A"
+        assert spectra[0].group == "science_A"
 
     def test_trace_height_overrides_default(self):
         """Verify Trace.height overrides default extraction_height."""
@@ -957,7 +957,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=1,
-                fiber=0,
+                group=0,
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 height=20.0,  # Override to 20 pixels
@@ -992,7 +992,7 @@ class TestTraceCurvatureExtraction:
         traces = [
             Trace(
                 m=1,
-                fiber=0,
+                group=0,
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
                 wave=wave_coef,

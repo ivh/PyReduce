@@ -16,7 +16,7 @@ class TestSpectrumDataclass:
         """mask property correctly identifies NaN pixels."""
         spec = np.array([1.0, 2.0, np.nan, 4.0, np.nan])
         sig = np.array([0.1, 0.2, np.nan, 0.4, np.nan])
-        spectrum = Spectrum(m=1, fiber="A", spec=spec, sig=sig)
+        spectrum = Spectrum(m=1, group="A", spec=spec, sig=sig)
 
         expected_mask = np.array([False, False, True, False, True])
         np.testing.assert_array_equal(spectrum.mask, expected_mask)
@@ -25,7 +25,7 @@ class TestSpectrumDataclass:
         """mask property returns all False when no NaN."""
         spec = np.array([1.0, 2.0, 3.0, 4.0])
         sig = np.array([0.1, 0.2, 0.3, 0.4])
-        spectrum = Spectrum(m=1, fiber="A", spec=spec, sig=sig)
+        spectrum = Spectrum(m=1, group="A", spec=spec, sig=sig)
 
         assert not spectrum.mask.any()
 
@@ -34,7 +34,7 @@ class TestSpectrumDataclass:
         spec = np.array([100.0, 200.0, 150.0])
         sig = np.array([10.0, 20.0, 15.0])
         cont = np.array([100.0, 100.0, 100.0])
-        spectrum = Spectrum(m=1, fiber="A", spec=spec, sig=sig, cont=cont)
+        spectrum = Spectrum(m=1, group="A", spec=spec, sig=sig, cont=cont)
 
         spec_norm, sig_norm = spectrum.normalized()
 
@@ -44,7 +44,7 @@ class TestSpectrumDataclass:
     def test_normalized_without_continuum_raises(self):
         """normalized() raises ValueError when no continuum."""
         spectrum = Spectrum(
-            m=1, fiber="A", spec=np.array([1.0, 2.0]), sig=np.array([0.1, 0.2])
+            m=1, group="A", spec=np.array([1.0, 2.0]), sig=np.array([0.1, 0.2])
         )
 
         with pytest.raises(ValueError, match="No continuum"):
@@ -55,7 +55,7 @@ class TestSpectrumDataclass:
         from pyreduce.trace_model import Trace
 
         trace = Trace(
-            m=42, fiber="cal", pos=np.array([1.0, 100.0]), column_range=(0, 1000)
+            m=42, group="cal", pos=np.array([1.0, 100.0]), column_range=(0, 1000)
         )
         spec = np.array([1.0, 2.0, 3.0])
         sig = np.array([0.1, 0.2, 0.3])
@@ -63,7 +63,7 @@ class TestSpectrumDataclass:
         spectrum = Spectrum.from_trace(trace, spec, sig, extraction_height=25.0)
 
         assert spectrum.m == 42
-        assert spectrum.fiber == "cal"
+        assert spectrum.group == "cal"
         np.testing.assert_array_equal(spectrum.spec, spec)
         np.testing.assert_array_equal(spectrum.sig, sig)
         assert spectrum.extraction_height == 25.0
@@ -143,8 +143,8 @@ class TestSpectraSaveLoadRoundtrip:
         header = fits.Header()
         header["OBJECT"] = "HD123456"
         data = [
-            Spectrum(m=1, fiber="A", spec=np.arange(100.0), sig=np.ones(100) * 0.1),
-            Spectrum(m=2, fiber="A", spec=np.arange(100.0) * 2, sig=np.ones(100) * 0.2),
+            Spectrum(m=1, group="A", spec=np.arange(100.0), sig=np.ones(100) * 0.1),
+            Spectrum(m=2, group="A", spec=np.arange(100.0) * 2, sig=np.ones(100) * 0.2),
         ]
         return Spectra(header=header, data=data)
 
@@ -159,7 +159,7 @@ class TestSpectraSaveLoadRoundtrip:
         data = [
             Spectrum(
                 m=10,
-                fiber="A",
+                group="A",
                 spec=np.arange(ncol, dtype=float),
                 sig=np.ones(ncol) * 0.1,
                 wave=np.linspace(5000, 5100, ncol),
@@ -169,7 +169,7 @@ class TestSpectraSaveLoadRoundtrip:
             ),
             Spectrum(
                 m=11,
-                fiber="B",
+                group="B",
                 spec=np.arange(ncol, dtype=float) * 2,
                 sig=np.ones(ncol) * 0.2,
                 wave=np.linspace(5100, 5200, ncol),
@@ -192,7 +192,7 @@ class TestSpectraSaveLoadRoundtrip:
 
         for orig, load in zip(basic_spectra.data, loaded.data, strict=False):
             assert load.m == orig.m
-            assert load.fiber == orig.fiber
+            assert load.group == orig.group
             np.testing.assert_array_almost_equal(load.spec, orig.spec)
             np.testing.assert_array_almost_equal(load.sig, orig.sig)
 
@@ -208,7 +208,7 @@ class TestSpectraSaveLoadRoundtrip:
 
         for orig, load in zip(full_spectra.data, loaded.data, strict=False):
             assert load.m == orig.m
-            assert load.fiber == orig.fiber
+            assert load.group == orig.group
             np.testing.assert_array_almost_equal(load.spec, orig.spec)
             np.testing.assert_array_almost_equal(load.sig, orig.sig)
             np.testing.assert_array_almost_equal(load.wave, orig.wave)
@@ -220,7 +220,7 @@ class TestSpectraSaveLoadRoundtrip:
         """NaN masking is preserved through roundtrip."""
         spec = np.array([1.0, 2.0, np.nan, 4.0, np.nan, 6.0])
         sig = np.array([0.1, 0.2, np.nan, 0.4, np.nan, 0.6])
-        data = [Spectrum(m=1, fiber="A", spec=spec, sig=sig)]
+        data = [Spectrum(m=1, group="A", spec=spec, sig=sig)]
         spectra = Spectra(header=fits.Header(), data=data)
 
         path = tmp_path / "spectra.fits"
@@ -233,7 +233,7 @@ class TestSpectraSaveLoadRoundtrip:
     def test_roundtrip_integer_fiber(self, tmp_path):
         """Integer fiber identifier survives roundtrip."""
         data = [
-            Spectrum(m=1, fiber=42, spec=np.ones(10), sig=np.ones(10) * 0.1),
+            Spectrum(m=1, group=42, spec=np.ones(10), sig=np.ones(10) * 0.1),
         ]
         spectra = Spectra(header=fits.Header(), data=data)
 
@@ -241,13 +241,13 @@ class TestSpectraSaveLoadRoundtrip:
         spectra.save(path)
         loaded = Spectra.read(path)
 
-        assert loaded.data[0].fiber == 42
-        assert isinstance(loaded.data[0].fiber, int)
+        assert loaded.data[0].group == 42
+        assert isinstance(loaded.data[0].group, int)
 
     def test_roundtrip_none_m(self, tmp_path):
         """None spectral order survives roundtrip."""
         data = [
-            Spectrum(m=None, fiber="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
+            Spectrum(m=None, group="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
         ]
         spectra = Spectra(header=fits.Header(), data=data)
 
@@ -281,10 +281,10 @@ class TestSpectraSelect:
     def multi_order_spectra(self):
         """Create Spectra with multiple orders and fibers."""
         data = [
-            Spectrum(m=1, fiber="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
-            Spectrum(m=1, fiber="B", spec=np.ones(10) * 2, sig=np.ones(10) * 0.2),
-            Spectrum(m=2, fiber="A", spec=np.ones(10) * 3, sig=np.ones(10) * 0.3),
-            Spectrum(m=2, fiber="B", spec=np.ones(10) * 4, sig=np.ones(10) * 0.4),
+            Spectrum(m=1, group="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
+            Spectrum(m=1, group="B", spec=np.ones(10) * 2, sig=np.ones(10) * 0.2),
+            Spectrum(m=2, group="A", spec=np.ones(10) * 3, sig=np.ones(10) * 0.3),
+            Spectrum(m=2, group="B", spec=np.ones(10) * 4, sig=np.ones(10) * 0.4),
         ]
         return Spectra(header=fits.Header(), data=data)
 
@@ -297,18 +297,18 @@ class TestSpectraSelect:
 
     def test_select_by_fiber(self, multi_order_spectra):
         """select filters by fiber."""
-        selected = multi_order_spectra.select(fiber="A")
+        selected = multi_order_spectra.select(group="A")
 
         assert len(selected) == 2
-        assert all(s.fiber == "A" for s in selected)
+        assert all(s.group == "A" for s in selected)
 
     def test_select_by_both(self, multi_order_spectra):
         """select filters by both order and fiber."""
-        selected = multi_order_spectra.select(m=2, fiber="B")
+        selected = multi_order_spectra.select(m=2, group="B")
 
         assert len(selected) == 1
         assert selected[0].m == 2
-        assert selected[0].fiber == "B"
+        assert selected[0].group == "B"
 
     def test_select_no_match(self, multi_order_spectra):
         """select returns empty list when no match."""
@@ -326,14 +326,14 @@ class TestSpectraGetArrays:
         data = [
             Spectrum(
                 m=1,
-                fiber="A",
+                group="A",
                 spec=np.ones(ncol),
                 sig=np.ones(ncol) * 0.1,
                 wave=np.linspace(5000, 5100, ncol),
             ),
             Spectrum(
                 m=2,
-                fiber="B",
+                group="B",
                 spec=np.ones(ncol) * 2,
                 sig=np.ones(ncol) * 0.2,
                 wave=np.linspace(5100, 5200, ncol),
@@ -347,16 +347,16 @@ class TestSpectraGetArrays:
         assert arrays["sig"].shape == (2, ncol)
         assert arrays["wave"].shape == (2, ncol)
         assert arrays["m"].shape == (2,)
-        assert arrays["fiber"].shape == (2,)
+        assert arrays["group"].shape == (2,)
 
     def test_get_arrays_values(self):
         """get_arrays returns correct values."""
         data = [
             Spectrum(
-                m=1, fiber="A", spec=np.array([1.0, 2.0]), sig=np.array([0.1, 0.2])
+                m=1, group="A", spec=np.array([1.0, 2.0]), sig=np.array([0.1, 0.2])
             ),
             Spectrum(
-                m=2, fiber="B", spec=np.array([3.0, 4.0]), sig=np.array([0.3, 0.4])
+                m=2, group="B", spec=np.array([3.0, 4.0]), sig=np.array([0.3, 0.4])
             ),
         ]
         spectra = Spectra(header=fits.Header(), data=data)
@@ -365,12 +365,12 @@ class TestSpectraGetArrays:
 
         np.testing.assert_array_equal(arrays["spec"], [[1.0, 2.0], [3.0, 4.0]])
         np.testing.assert_array_equal(arrays["m"], [1, 2])
-        np.testing.assert_array_equal(arrays["fiber"], ["A", "B"])
+        np.testing.assert_array_equal(arrays["group"], ["A", "B"])
 
     def test_get_arrays_none_for_missing_optional(self):
         """get_arrays returns None for missing optional fields."""
         data = [
-            Spectrum(m=1, fiber="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
+            Spectrum(m=1, group="A", spec=np.ones(10), sig=np.ones(10) * 0.1),
         ]
         spectra = Spectra(header=fits.Header(), data=data)
 
@@ -441,14 +441,14 @@ class TestSpectraMixedOptionalFields:
         data = [
             Spectrum(
                 m=1,
-                fiber="A",
+                group="A",
                 spec=np.ones(10),
                 sig=np.ones(10) * 0.1,
                 slitfu=np.array([0.1, 0.5, 1.0, 0.5, 0.1]),
             ),
             Spectrum(
                 m=2,
-                fiber="B",
+                group="B",
                 spec=np.ones(10) * 2,
                 sig=np.ones(10) * 0.2,
                 slitfu=np.array([0.1, 0.3, 0.5, 0.7, 1.0, 0.7, 0.5, 0.3, 0.1]),
@@ -470,14 +470,14 @@ class TestSpectraMixedOptionalFields:
         data = [
             Spectrum(
                 m=1,
-                fiber="A",
+                group="A",
                 spec=np.ones(10),
                 sig=np.ones(10) * 0.1,
                 wave=np.linspace(5000, 5100, 10),
             ),
             Spectrum(
                 m=2,
-                fiber="B",
+                group="B",
                 spec=np.ones(10) * 2,
                 sig=np.ones(10) * 0.2,
                 # No wave

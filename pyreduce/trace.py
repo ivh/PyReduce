@@ -1831,31 +1831,42 @@ def select_traces_for_step(
         return {"all": traces}
 
     elif selection == "groups":
-        # Return all traces that have non-default fiber assignment
-        fibers = {t.fiber for t in traces}
-        # If only default fiber (0 or single value), return all
-        if len(fibers) == 1 and (0 in fibers or fibers == {0}):
+        # Return all traces that have non-default group assignment
+        groups = {t.group for t in traces}
+        # If only default group (0 or single value), return all
+        if len(groups) == 1 and (0 in groups or groups == {0}):
             return {"all": traces}
-        # Filter to only grouped traces (exclude default fiber 0)
-        grouped = [t for t in traces if t.fiber != 0]
+        # Filter to only grouped traces (exclude default group 0)
+        grouped = [t for t in traces if t.group != 0]
         if grouped:
             return {"all": grouped}
         return {"all": traces}
+
+    elif selection == "per_fiber":
+        # Return traces grouped by fiber_idx for per-fiber processing
+        result = {}
+        fiber_indices = {t.fiber_idx for t in traces if t.fiber_idx is not None}
+        if not fiber_indices:
+            logger.warning("No fiber_idx set on traces, using all traces")
+            return {"all": traces}
+        for idx in sorted(fiber_indices):
+            idx_traces = [t for t in traces if t.fiber_idx == idx]
+            idx_traces.sort(key=lambda t: (t.m if t.m is not None else 0))
+            result[f"fiber_{idx}"] = idx_traces
+        return result
 
     elif isinstance(selection, list):
         # Select specific groups by name - keep them separate
         result = {}
         for name in selection:
-            # Match by fiber (convert to string for comparison)
-            group_traces = [t for t in traces if str(t.fiber) == name]
-            if not group_traces:
+            # Match by group (convert to string for comparison)
+            selected = [t for t in traces if str(t.group) == name]
+            if not selected:
                 logger.warning("Group '%s' not found in trace data", name)
                 continue
             # Sort by m (order number) for consistent ordering
-            group_traces.sort(
-                key=lambda t: (t.m if t.m is not None else 0, str(t.fiber))
-            )
-            result[name] = group_traces
+            selected.sort(key=lambda t: (t.m if t.m is not None else 0, str(t.group)))
+            result[name] = selected
 
         if not result:
             logger.warning("No valid groups selected, using all traces")
@@ -1878,8 +1889,8 @@ def create_trace_objects(
 ):
     """Convert array-based trace data to Trace dataclass objects.
 
-    Creates Trace objects with identity (m, fiber) preserved from fiber
-    grouping configuration.
+    Creates Trace objects with identity (m, group, fiber_idx) preserved from
+    fiber grouping configuration.
 
     Parameters
     ----------
@@ -1903,44 +1914,46 @@ def create_trace_objects(
     Returns
     -------
     list[TraceData]
-        Trace objects sorted by (m, fiber, y-position)
+        Trace objects sorted by (m, group, y-position)
     """
     result = []
 
     if group_traces is not None and len(group_traces) > 0:
         # Create traces from organized fiber groups
-        for fiber_name in sorted(group_traces.keys(), key=_natural_sort_key):
-            fiber_data = group_traces[fiber_name]
-            fiber_cr_data = group_cr[fiber_name]
-            group_height = group_heights.get(fiber_name) if group_heights else None
+        for group_name in sorted(group_traces.keys(), key=_natural_sort_key):
+            grp_data = group_traces[group_name]
+            grp_cr_data = group_cr[group_name]
+            grp_height = group_heights.get(group_name) if group_heights else None
 
             if per_order:
                 # Per-order: {order_m: ndarray}
-                for m in sorted(fiber_data.keys()):
-                    order_traces = fiber_data[m]
-                    order_cr = fiber_cr_data[m]
+                for m in sorted(grp_data.keys()):
+                    order_traces = grp_data[m]
+                    order_cr = grp_cr_data[m]
                     for i in range(len(order_traces)):
                         cr = (int(order_cr[i, 0]), int(order_cr[i, 1]))
                         result.append(
                             TraceData(
                                 m=m,
-                                fiber=fiber_name,
+                                group=group_name,
+                                fiber_idx=i + 1,  # 1-indexed fiber within order
                                 pos=order_traces[i],
                                 column_range=cr,
-                                height=group_height,
+                                height=grp_height,
                             )
                         )
             else:
                 # Non-per-order: ndarray directly
-                for i in range(len(fiber_data)):
-                    cr = (int(fiber_cr_data[i, 0]), int(fiber_cr_data[i, 1]))
+                for i in range(len(grp_data)):
+                    cr = (int(grp_cr_data[i, 0]), int(grp_cr_data[i, 1]))
                     result.append(
                         TraceData(
                             m=i,  # Sequential index as order number
-                            fiber=fiber_name,
-                            pos=fiber_data[i],
+                            group=group_name,
+                            fiber_idx=None,  # No fiber index for merged groups
+                            pos=grp_data[i],
                             column_range=cr,
-                            height=group_height,
+                            height=grp_height,
                         )
                     )
     else:
@@ -1953,7 +1966,8 @@ def create_trace_objects(
             result.append(
                 TraceData(
                     m=i,
-                    fiber=0,
+                    group=0,
+                    fiber_idx=None,
                     pos=traces[i],
                     column_range=cr,
                     height=h,

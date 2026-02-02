@@ -157,7 +157,8 @@ if __name__ == "__main__":
 
     print("\n=== Running pipeline ===")
     # pipe.trace(trace_files)
-    pipe.curvature(wavecal_files)
+    # pipe.curvature(wavecal_files)
+    pipe.wavecal(wavecal_files)
     pipe.extract([lfc_combined_path])
 
     results = pipe.run()

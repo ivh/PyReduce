@@ -70,9 +70,9 @@ class TestCurvatureInit:
         """Create simple Trace objects for testing."""
         # 3 traces with constant y positions
         return [
-            Trace(m=0, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
-            Trace(m=1, fiber=0, pos=np.array([200.0, 0.0, 0.0]), column_range=(0, 500)),
-            Trace(m=2, fiber=0, pos=np.array([300.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=0, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([200.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=2, group=0, pos=np.array([300.0, 0.0, 0.0]), column_range=(0, 500)),
         ]
 
     @pytest.mark.unit
@@ -128,8 +128,8 @@ class TestCurvatureFitting:
     def simple_orders(self):
         """Create simple Trace objects for testing."""
         return [
-            Trace(m=0, fiber=0, pos=np.array([50.0, 0.0, 0.0]), column_range=(0, 500)),
-            Trace(m=1, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=0, group=0, pos=np.array([50.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
         ]
 
     @pytest.mark.unit
@@ -181,7 +181,7 @@ class TestCurvatureFitFromPositions:
     @pytest.fixture
     def simple_orders(self):
         return [
-            Trace(m=0, fiber=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=0, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
         ]
 
     @pytest.mark.unit
@@ -269,8 +269,8 @@ class TestSlitdeltasComputation:
     def simple_orders(self):
         """Simple set of 2 Trace objects."""
         return [
-            Trace(m=0, fiber=0, pos=np.array([50.0, 0.0]), column_range=(0, 500)),
-            Trace(m=1, fiber=0, pos=np.array([70.0, 0.0]), column_range=(0, 500)),
+            Trace(m=0, group=0, pos=np.array([50.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([70.0, 0.0]), column_range=(0, 500)),
         ]
 
     @pytest.fixture

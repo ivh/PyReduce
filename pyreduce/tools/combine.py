@@ -124,7 +124,7 @@ def _load_spectrum(file):
     -------
     dict
         Dictionary with keys: spec, sig, wave, cont, ntrace, ncol, header,
-        m_values, fiber_values
+        m_values, group_values
     """
     spectra = Spectra.read(file, continuum_normalization=False)
     ntrace = spectra.ntrace
@@ -139,7 +139,7 @@ def _load_spectrum(file):
         [s.cont if s.cont is not None else np.ones(ncol) for s in spectra.data]
     )
     m_values = [s.m for s in spectra.data]
-    fiber_values = [s.fiber for s in spectra.data]
+    group_values = [s.group for s in spectra.data]
 
     return {
         "spec": spec,
@@ -150,7 +150,7 @@ def _load_spectrum(file):
         "ncol": ncol,
         "header": spectra.header,
         "m_values": m_values,
-        "fiber_values": fiber_values,
+        "group_values": group_values,
     }
 
 
@@ -172,7 +172,7 @@ def _save_combined(output, first_spec, spec, sig, wave, cont):
         spectra_list.append(
             Spectrum(
                 m=first_spec["m_values"][i],
-                fiber=first_spec["fiber_values"][i],
+                group=first_spec["group_values"][i],
                 spec=spec_i,
                 sig=sig_i,
                 wave=wave[i],

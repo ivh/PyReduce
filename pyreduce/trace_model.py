@@ -20,7 +20,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Format version for backwards compatibility detection
-FORMAT_VERSION = 2
+# v2: Initial FITS format with FIBER column
+# v3: Renamed FIBER→GROUP, added FIBER_IDX column
+FORMAT_VERSION = 3
 
 
 @dataclass
@@ -58,9 +60,15 @@ class Trace:
         evaluating wavelengths via ``Trace.wlen()``, the trace's ``m`` value
         is used as the second coordinate in the 2D polynomial.
 
-    fiber : str | int
-        Fiber identifier. String for named groups ('A', 'B', 'cal'),
-        int for bundle indices.
+    group : str | int
+        Group identifier. String for named groups ('A', 'B', 'cal'),
+        int for bundle indices. Used to select traces for reduction steps
+        via the ``fibers.use`` config.
+    fiber_idx : int | None
+        Fiber index within the group/order (1-indexed). For multi-fiber
+        instruments, this identifies which fiber within a group this trace
+        represents. Used for per-fiber wavelength calibration. None for
+        single-fiber instruments or when fiber identity is unknown.
     pos : np.ndarray
         y(x) trace position polynomial coefficients, shape (deg+1,).
         Coefficients in numpy.polyval order (highest power first).
@@ -84,16 +92,17 @@ class Trace:
 
     # Identity
     m: int | None
-    fiber: str | int
+    group: str | int
 
-    # Geometry
+    # Geometry (required)
     pos: np.ndarray
     column_range: tuple[int, int]
+
+    # Optional fields (must come after required fields)
+    fiber_idx: int | None = None
     height: float | None = None
     slit: np.ndarray | None = None
     slitdelta: np.ndarray | None = None
-
-    # Calibration
     wave: np.ndarray | None = None
 
     def slit_at_x(self, x: float | np.ndarray) -> np.ndarray | None:
@@ -217,7 +226,10 @@ def save_traces(
 
     # Build arrays
     m_arr = np.array([t.m if t.m is not None else -1 for t in traces], dtype=np.int16)
-    fiber_arr = np.array([str(t.fiber) for t in traces], dtype="U16")
+    group_arr = np.array([str(t.group) for t in traces], dtype="U16")
+    fiber_idx_arr = np.array(
+        [t.fiber_idx if t.fiber_idx is not None else -1 for t in traces], dtype=np.int16
+    )
     col_range_arr = np.array([t.column_range for t in traces], dtype=np.int32)
     height_arr = np.array(
         [t.height if t.height is not None else np.nan for t in traces], dtype=np.float32
@@ -260,7 +272,8 @@ def save_traces(
     # Build FITS columns
     columns = [
         fits.Column(name="M", format="I", array=m_arr),
-        fits.Column(name="FIBER", format="16A", array=fiber_arr),
+        fits.Column(name="GROUP", format="16A", array=group_arr),
+        fits.Column(name="FIBER_IDX", format="I", array=fiber_idx_arr),
         fits.Column(name="POS", format=f"{max_pos_deg}D", array=pos_arr),
         fits.Column(name="COL_RANGE", format="2J", array=col_range_arr),
         fits.Column(name="HEIGHT", format="E", array=height_arr),
@@ -345,7 +358,12 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
         data = hdu["TRACES"].data
 
         m_arr = data["M"]
-        fiber_arr = data["FIBER"]
+        # Handle both new (GROUP) and old (FIBER) column names
+        if "GROUP" in data.dtype.names:
+            group_arr = data["GROUP"]
+        else:
+            group_arr = data["FIBER"]  # Backward compat with v2
+        fiber_idx_arr = data["FIBER_IDX"] if "FIBER_IDX" in data.dtype.names else None
         pos_arr = data["POS"]
         col_range_arr = data["COL_RANGE"]
         height_arr = data["HEIGHT"]
@@ -373,12 +391,17 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
         traces = []
         for i in range(len(m_arr)):
             m = int(m_arr[i]) if m_arr[i] >= 0 else None
-            fiber = fiber_arr[i].strip()
-            # Try to convert fiber to int if it looks like one
+            group = group_arr[i].strip()
+            # Try to convert group to int if it looks like one
             try:
-                fiber = int(fiber)
+                group = int(group)
             except ValueError:
                 pass
+            fiber_idx = (
+                int(fiber_idx_arr[i])
+                if fiber_idx_arr is not None and fiber_idx_arr[i] >= 0
+                else None
+            )
 
             # Remove trailing NaN/zeros from pos
             pos = pos_arr[i]
@@ -423,7 +446,8 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
             traces.append(
                 Trace(
                     m=m,
-                    fiber=fiber,
+                    group=group,
+                    fiber_idx=fiber_idx,
                     pos=pos,
                     column_range=column_range,
                     height=height,
@@ -480,7 +504,8 @@ def _load_traces_npz(path: Path) -> tuple[list[Trace], fits.Header]:
         traces.append(
             Trace(
                 m=i,  # Sequential order number (no identity preserved)
-                fiber=0,  # Default fiber
+                group=0,  # Default group
+                fiber_idx=None,  # Unknown fiber index
                 pos=trace_coeffs[i],
                 column_range=(int(column_range[i, 0]), int(column_range[i, 1])),
                 height=height,

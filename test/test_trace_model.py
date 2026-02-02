@@ -15,7 +15,7 @@ class TestTraceDataclass:
     def test_y_at_x_linear(self):
         """y_at_x evaluates linear polynomial correctly."""
         # y = 2*x + 100
-        trace = Trace(m=1, fiber="A", pos=np.array([2.0, 100.0]), column_range=(0, 100))
+        trace = Trace(m=1, group="A", pos=np.array([2.0, 100.0]), column_range=(0, 100))
         x = np.array([0, 10, 50])
         y = trace.y_at_x(x)
         np.testing.assert_array_almost_equal(y, [100, 120, 200])
@@ -24,7 +24,7 @@ class TestTraceDataclass:
         """y_at_x evaluates quadratic polynomial correctly."""
         # y = x^2 + 2*x + 100
         trace = Trace(
-            m=1, fiber="A", pos=np.array([1.0, 2.0, 100.0]), column_range=(0, 100)
+            m=1, group="A", pos=np.array([1.0, 2.0, 100.0]), column_range=(0, 100)
         )
         x = np.array([0, 1, 10])
         y = trace.y_at_x(x)
@@ -32,7 +32,7 @@ class TestTraceDataclass:
 
     def test_wlen_returns_none_when_no_wave(self):
         """wlen returns None when wave is not set."""
-        trace = Trace(m=1, fiber="A", pos=np.array([1.0, 100.0]), column_range=(0, 100))
+        trace = Trace(m=1, group="A", pos=np.array([1.0, 100.0]), column_range=(0, 100))
         assert trace.wlen(np.array([0, 50, 100])) is None
 
     def test_wlen_evaluates_1d_polynomial(self):
@@ -40,7 +40,7 @@ class TestTraceDataclass:
         # wave = 0.1*x + 5000
         trace = Trace(
             m=1,
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 100),
             wave=np.array([0.1, 5000.0]),
@@ -62,7 +62,7 @@ class TestTraceDataclass:
         )
         trace = Trace(
             m=85,  # physical order number
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
@@ -86,14 +86,14 @@ class TestTraceDataclass:
         )
         trace_m85 = Trace(
             m=85,
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
         )
         trace_m90 = Trace(
             m=90,
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 200.0]),
             column_range=(0, 2000),
             wave=wave_2d,
@@ -110,7 +110,7 @@ class TestTraceDataclass:
 
     def test_slit_at_x_returns_none_when_no_slit(self):
         """slit_at_x returns None when slit is not set."""
-        trace = Trace(m=1, fiber="A", pos=np.array([1.0, 100.0]), column_range=(0, 100))
+        trace = Trace(m=1, group="A", pos=np.array([1.0, 100.0]), column_range=(0, 100))
         assert trace.slit_at_x(500) is None
 
     def test_slit_at_x_evaluates_2d_polynomial(self):
@@ -122,7 +122,7 @@ class TestTraceDataclass:
         slit = np.array([[0.001, 0.0], [0.0, 0.01]])  # (deg_y+1, deg_x+1)
         trace = Trace(
             m=1,
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             slit=slit,
@@ -143,7 +143,7 @@ class TestSaveLoadRoundtrip:
         """Create a minimal trace with required fields only."""
         return Trace(
             m=5,
-            fiber="A",
+            group="A",
             pos=np.array([0.001, -0.5, 512.0]),  # quadratic
             column_range=(100, 1900),
         )
@@ -153,7 +153,7 @@ class TestSaveLoadRoundtrip:
         """Create a trace with all fields populated."""
         return Trace(
             m=10,
-            fiber="B",
+            group="B",
             pos=np.array([0.0001, 0.002, -0.5, 600.0]),  # cubic
             column_range=(50, 1950),
             height=25.5,
@@ -171,7 +171,7 @@ class TestSaveLoadRoundtrip:
         assert len(loaded) == 1
         t = loaded[0]
         assert t.m == minimal_trace.m
-        assert t.fiber == minimal_trace.fiber
+        assert t.group == minimal_trace.group
         np.testing.assert_array_almost_equal(t.pos, minimal_trace.pos)
         assert t.column_range == minimal_trace.column_range
         assert t.height is None
@@ -188,7 +188,7 @@ class TestSaveLoadRoundtrip:
         assert len(loaded) == 1
         t = loaded[0]
         assert t.m == full_trace.m
-        assert t.fiber == full_trace.fiber
+        assert t.group == full_trace.group
         np.testing.assert_array_almost_equal(t.pos, full_trace.pos)
         assert t.column_range == full_trace.column_range
         assert t.height == pytest.approx(full_trace.height)
@@ -199,17 +199,17 @@ class TestSaveLoadRoundtrip:
     def test_roundtrip_multiple_traces_different_degrees(self, tmp_path):
         """Multiple traces with different polynomial degrees roundtrip correctly."""
         traces = [
-            Trace(m=1, fiber="A", pos=np.array([1.0, 100.0]), column_range=(0, 1000)),
+            Trace(m=1, group="A", pos=np.array([1.0, 100.0]), column_range=(0, 1000)),
             Trace(
                 m=2,
-                fiber="B",
+                group="B",
                 pos=np.array([0.001, 2.0, 200.0]),
                 column_range=(50, 950),
                 wave=np.array([0.1, 5000.0]),
             ),
             Trace(
                 m=3,
-                fiber="cal",
+                group="cal",
                 pos=np.array([0.0001, 0.01, 3.0, 300.0]),
                 column_range=(100, 900),
                 height=30.0,
@@ -223,26 +223,26 @@ class TestSaveLoadRoundtrip:
         assert len(loaded) == 3
         for orig, load in zip(traces, loaded, strict=False):
             assert load.m == orig.m
-            assert load.fiber == orig.fiber
+            assert load.group == orig.group
             # Pos arrays may be zero-padded to max degree, check values match
             np.testing.assert_array_almost_equal(load.pos[: len(orig.pos)], orig.pos)
             assert load.column_range == orig.column_range
 
     def test_roundtrip_integer_fiber(self, tmp_path):
         """Integer fiber identifier survives roundtrip."""
-        trace = Trace(m=1, fiber=42, pos=np.array([1.0, 100.0]), column_range=(0, 1000))
+        trace = Trace(m=1, group=42, pos=np.array([1.0, 100.0]), column_range=(0, 1000))
 
         path = tmp_path / "traces.fits"
         save_traces(path, [trace])
         loaded, _ = load_traces(path)
 
-        assert loaded[0].fiber == 42
-        assert isinstance(loaded[0].fiber, int)
+        assert loaded[0].group == 42
+        assert isinstance(loaded[0].group, int)
 
     def test_roundtrip_none_m(self, tmp_path):
         """None spectral order number survives roundtrip."""
         trace = Trace(
-            m=None, fiber="A", pos=np.array([1.0, 100.0]), column_range=(0, 1000)
+            m=None, group="A", pos=np.array([1.0, 100.0]), column_range=(0, 1000)
         )
 
         path = tmp_path / "traces.fits"
@@ -278,7 +278,7 @@ class TestSaveLoadRoundtrip:
         save_traces(path, [minimal_trace])
         _, header = load_traces(path)
 
-        assert header["E_FMTVER"] == 2
+        assert header["E_FMTVER"] == 3
 
 
 class TestLegacyNpzLoading:
@@ -344,7 +344,7 @@ class TestLegacyNpzLoading:
         loaded, _ = load_traces(path)
 
         assert [t.m for t in loaded] == [0, 1, 2]
-        assert all(t.fiber == 0 for t in loaded)
+        assert all(t.group == 0 for t in loaded)
 
     def test_load_npz_returns_empty_header(self, tmp_path):
         """NPZ loading returns empty FITS header."""
@@ -372,14 +372,14 @@ class TestEdgeCases:
         traces = [
             Trace(
                 m=1,
-                fiber="A",
+                group="A",
                 pos=np.array([1.0, 100.0]),
                 column_range=(0, 1000),
                 slit=np.array([[0.1, 0.0], [0.01, 0.0]]),  # 2x2
             ),
             Trace(
                 m=2,
-                fiber="B",
+                group="B",
                 pos=np.array([2.0, 200.0]),
                 column_range=(0, 1000),
                 slit=np.array(
@@ -402,14 +402,14 @@ class TestEdgeCases:
         traces = [
             Trace(
                 m=1,
-                fiber="A",
+                group="A",
                 pos=np.array([1.0, 100.0]),
                 column_range=(0, 1000),
                 wave=np.array([0.1, 5000.0]),
             ),
             Trace(
                 m=2,
-                fiber="B",
+                group="B",
                 pos=np.array([2.0, 200.0]),
                 column_range=(0, 1000),
                 # No wave
@@ -435,14 +435,14 @@ class TestEdgeCases:
         traces = [
             Trace(
                 m=85,
-                fiber="A",
+                group="A",
                 pos=np.array([1.0, 100.0]),
                 column_range=(0, 2000),
                 wave=wave_2d,
             ),
             Trace(
                 m=86,
-                fiber="A",
+                group="A",
                 pos=np.array([1.0, 150.0]),
                 column_range=(0, 2000),
                 wave=wave_2d,
@@ -473,7 +473,7 @@ class TestEdgeCases:
         )
         trace_orig = Trace(
             m=85,
-            fiber="A",
+            group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
