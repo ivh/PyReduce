@@ -1582,7 +1582,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
         if self.plot:
             self.plot_results(new_wave, comb)
 
-        return new_wave
+        return coef
 
 
 class WavelengthCalibrationInitialize(WavelengthCalibration):
