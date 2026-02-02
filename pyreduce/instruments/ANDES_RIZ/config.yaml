@@ -84,5 +84,6 @@ fibers:
   use:
     curvature: [A, B]
     norm_flat: [A, B]
-    wavecal: [A, B]
+    wavecal: [A]
+    wavecal_master: [A]
     science: [A, B]
