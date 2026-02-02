@@ -1154,9 +1154,9 @@ class WavelengthCalibration:
             axis.set_title("Residuals versus order")
             axis.legend()
 
-            fig, ax = plt.subplots(
-                nrows=self.ntrace // 2, ncols=2, sharex=True, squeeze=False
-            )
+            nrows = max(1, (self.ntrace + 1) // 2)
+            ncols = min(2, self.ntrace)
+            fig, ax = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, squeeze=False)
             plt.subplots_adjust(hspace=0)
             fig.suptitle("Residuals of each order versus image columns")
 
@@ -1332,7 +1332,11 @@ class WavelengthCalibration:
         logl = np.log(rss)
         aic = 2 * k + n * logl
         self.logl = logl
-        self.aicc = aic + (2 * k**2 + 2 * k) / (n - k - 1)
+        # Guard against division by zero when too few points
+        if n - k - 1 > 0:
+            self.aicc = aic + (2 * k**2 + 2 * k) / (n - k - 1)
+        else:
+            self.aicc = np.nan
         self.aic = aic
         return aic
 
@@ -1628,8 +1632,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
     def normalize(self, spectrum):
         smoothing = self.smoothing
-        spectrum = np.copy(spectrum)
-        spectrum -= np.nanmedian(spectrum)
+        # Handle both masked arrays and regular arrays with NaN
+        if np.ma.isMaskedArray(spectrum):
+            spectrum = np.ma.filled(spectrum, 0)
+        else:
+            spectrum = np.nan_to_num(spectrum, nan=0, copy=True)
+        spectrum = spectrum - np.nanmedian(spectrum)
         if smoothing != 0:
             spectrum = gaussian_filter1d(spectrum, smoothing)
         spectrum[spectrum < 0] = 0
