@@ -5,9 +5,8 @@ Note on terminology:
 - "trace": A single polynomial fit to a cluster of pixels (e.g., one fiber)
 - "spectral order": A group of traces at similar wavelengths (e.g., all fibers in one echelle order)
 
-The main function `trace` detects and fits individual traces.
-Use `merge_traces` to combine traces from multiple files (e.g., even/odd illumination).
-Use `organize_fibers` to group traces into logical fiber groups based on config.
+The main function `trace()` detects and fits individual traces, returning Trace objects.
+Use `group_fibers()` to merge traces into fiber groups according to instrument config.
 """
 
 import logging
@@ -38,74 +37,114 @@ from .trace_model import Trace as TraceData
 logger = logging.getLogger(__name__)
 
 
-def compute_trace_heights(traces, column_range, ncol):
-    """Compute extraction heights for each trace based on neighbor distances.
+def _assign_order_and_fiber_inplace(
+    traces: list, order_centers: dict[int, float] | None, ncol: int
+) -> None:
+    """Assign m (order number) and fiber_idx to Trace objects.
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Trace objects (modified in place)
+    order_centers : dict[int, float] | None
+        Order number -> y-position mapping. If None, m stays None.
+    ncol : int
+        Number of columns in detector
+    """
+    if not traces:
+        return
+
+    x_center = ncol // 2
+    y_positions = [t.y_at_x(x_center) for t in traces]
+
+    # Assign m values from order_centers if provided
+    if order_centers is not None:
+        order_nums = np.array(list(order_centers.keys()))
+        y_centers = np.array([order_centers[m] for m in order_nums])
+
+        for i, y in enumerate(y_positions):
+            distances = np.abs(y - y_centers)
+            closest_idx = np.argmin(distances)
+            traces[i].m = int(order_nums[closest_idx])
+
+    # Group by m to assign fiber_idx within each order
+    from collections import defaultdict
+
+    traces_by_m = defaultdict(list)
+    for i, t in enumerate(traces):
+        traces_by_m[t.m].append((i, y_positions[i]))
+
+    # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
+    for _m, trace_list in traces_by_m.items():
+        trace_list.sort(key=lambda x: x[1])
+        for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
+            traces[trace_idx].fiber_idx = fiber_idx
+
+    # Sort traces by (m descending, fiber_idx)
+    def sort_key(t):
+        m_val = t.m if t.m is not None else float("inf")
+        return (-m_val, t.fiber_idx or 0)
+
+    traces.sort(key=sort_key)
+
+    logger.info("Assigned order/fiber to %d traces", len(traces))
+    if order_centers is not None:
+        unique_m = {t.m for t in traces if t.m is not None}
+        logger.info("  Order numbers (m): %s", sorted(unique_m, reverse=True))
+
+
+def _compute_heights_inplace(traces: list, ncol: int) -> None:
+    """Compute and set extraction heights on Trace objects based on neighbor distances.
 
     For each trace, measures the distance to neighbors at multiple reference
     columns (0.1, 0.2, ..., 0.9 of detector width) and uses the maximum.
 
     Parameters
     ----------
-    traces : array (ntrace, degree+1)
-        Polynomial coefficients for each trace
-    column_range : array (ntrace, 2)
-        Column range [start, end) for each trace
+    traces : list[Trace]
+        Trace objects (modified in place to set height attribute)
     ncol : int
         Number of columns in detector
-
-    Returns
-    -------
-    heights : array (ntrace,)
-        Extraction height in pixels for each trace. None values represented as NaN
-        for traces with no neighbors (single trace case).
     """
     ntrace = len(traces)
     if ntrace == 0:
-        return np.array([])
+        return
 
     if ntrace == 1:
-        # Single trace: no neighbors, return NaN (will need explicit setting)
-        return np.array([np.nan])
+        # Single trace: no neighbors, leave height as None
+        return
 
     # Reference columns at 0.1, 0.2, ..., 0.9 of detector width
     ref_fractions = np.linspace(0.1, 0.9, 9)
     ref_cols = (ref_fractions * ncol).astype(int)
 
-    heights = np.zeros(ntrace)
-
-    for i in range(ntrace):
+    for i, t in enumerate(traces):
         # Determine which reference columns are within this trace's range
         valid_cols = ref_cols[
-            (ref_cols >= column_range[i, 0]) & (ref_cols < column_range[i, 1])
+            (ref_cols >= t.column_range[0]) & (ref_cols < t.column_range[1])
         ]
         if len(valid_cols) == 0:
-            # Fall back to midpoint of column range
-            valid_cols = [(column_range[i, 0] + column_range[i, 1]) // 2]
+            valid_cols = [(t.column_range[0] + t.column_range[1]) // 2]
 
         max_height = 0.0
 
         for x in valid_cols:
-            y_i = np.polyval(traces[i], x)
+            y_i = t.y_at_x(x)
 
             if i == 0:
-                # First trace: use distance to next neighbor only
-                y_next = np.polyval(traces[i + 1], x)
+                y_next = traces[i + 1].y_at_x(x)
                 height = abs(y_next - y_i)
             elif i == ntrace - 1:
-                # Last trace: use distance to previous neighbor only
-                y_prev = np.polyval(traces[i - 1], x)
+                y_prev = traces[i - 1].y_at_x(x)
                 height = abs(y_i - y_prev)
             else:
-                # Middle trace: half distance between neighbors
-                y_prev = np.polyval(traces[i - 1], x)
-                y_next = np.polyval(traces[i + 1], x)
+                y_prev = traces[i - 1].y_at_x(x)
+                y_next = traces[i + 1].y_at_x(x)
                 height = (y_next - y_prev) / 2
 
             max_height = max(max_height, height)
 
-        heights[i] = max_height
-
-    return heights
+        t.height = max_height
 
 
 def whittaker_smooth(y, lam, axis=0):
@@ -443,13 +482,19 @@ def fit_polynomials_to_clusters(x, y, clusters, degree, regularization=0):
     return traces
 
 
-def plot_traces(im, x, y, clusters, traces, column_range, title=None):
-    """Plot traces and image"""
+def plot_traces(im, traces, title=None):
+    """Plot traces and image.
+
+    Parameters
+    ----------
+    im : ndarray
+        Input image
+    traces : list[Trace]
+        Trace objects to plot
+    title : str, optional
+        Plot title
+    """
     plt.figure()
-    cluster_img = np.zeros(im.shape, dtype=im.dtype)
-    for c in clusters:
-        cluster_img[x[c], y[c]] = c + 1
-    cluster_img = np.ma.masked_array(cluster_img, mask=cluster_img == 0)
 
     plt.subplot(121)
     # Handle non-finite values for plotting
@@ -467,23 +512,21 @@ def plot_traces(im, x, y, clusters, traces, column_range, title=None):
     plt.ylabel("y [pixel]")
     plt.ylim([0, im.shape[0]])
 
-    if traces is not None:
-        for i, tr in enumerate(traces):
-            x = np.arange(*column_range[i], 1)
-            y = np.polyval(tr, x)
-            plt.plot(x, y)
+    for t in traces:
+        x = np.arange(*t.column_range, 1)
+        y = t.y_at_x(x)
+        plt.plot(x, y)
 
     plt.subplot(122)
-    plt.imshow(cluster_img, cmap=plt.get_cmap("tab20"), origin="upper")
-    plt.title("Detected Clusters + Trace Polynomials")
+    plt.imshow(plot_im, origin="lower", vmin=bot, vmax=top)
+    plt.title("Trace Polynomials")
     plt.xlabel("x [pixel]")
     plt.ylabel("y [pixel]")
 
-    if traces is not None:
-        for i, tr in enumerate(traces):
-            x = np.arange(*column_range[i], 1)
-            y = np.polyval(tr, x)
-            plt.plot(x, y)
+    for t in traces:
+        x = np.arange(*t.column_range, 1)
+        y = t.y_at_x(x)
+        plt.plot(x, y)
 
     plt.ylim([0, im.shape[0]])
     if title is not None:
@@ -548,8 +591,9 @@ def trace(
     merge_min_threshold=0.1,
     sigma=0,
     debug_dir=None,
+    order_centers: dict[int, float] | None = None,
 ):
-    """Identify and trace orders
+    """Identify and trace orders, returning Trace objects.
 
     Parameters
     ----------
@@ -571,7 +615,7 @@ def trace(
     noise_relative : float, optional
         Relative noise threshold as fraction of background (default: 0).
         If both noise and noise_relative are 0, defaults to 0.001 (0.1%).
-    opower : int, optional
+    degree : int, optional
         polynomial degree of the order fit (default: 4)
     border_width : int or list of 4 int, optional
         Pixels to ignore at image edges for order tracing.
@@ -583,16 +627,21 @@ def trace(
         wether to manually select clusters to merge (strongly recommended) (default: True)
     debug_dir : str, optional
         if set, write intermediate images (filtered, background, mask) to this directory
+    order_centers : dict[int, float], optional
+        Mapping of order number (m) -> y-position at detector center. If provided,
+        traces are assigned m values by matching to these centers. Otherwise,
+        m remains None (to be assigned later from wavecal obase).
 
     Returns
     -------
-    traces : array[ntrace, opower+1]
-        trace polynomial coefficients (in numpy order, i.e. largest exponent first)
-    column_range : array[ntrace, 2]
-        first and last(+1) column that carries signal in each trace
-    heights : array[ntrace]
-        extraction height in pixels for each trace, computed from neighbor distances.
-        NaN for single-trace case (requires explicit extraction_height setting).
+    list[Trace]
+        Trace objects with:
+        - m: assigned from order_centers if provided, else None
+        - fiber_idx: 1 for single-fiber, or sequential within each order for multi-fiber
+        - group: None (not yet grouped)
+        - pos: polynomial coefficients
+        - column_range: valid column range
+        - height: computed from neighbor distances (None for single trace)
     """
 
     # Convert to signed integer, to avoid underflow problems
@@ -932,10 +981,9 @@ def trace(
             )
 
     logger.info("Fitting polynomials to %d clusters", len(x))
-    traces = fit_polynomials_to_clusters(x, y, n, degree)
+    traces_dict = fit_polynomials_to_clusters(x, y, n, degree)
 
-    # sort traces from bottom to top, using relative position
-
+    # Sort traces from bottom to top, using relative position
     def compare(i, j):
         _, xi, i_left, i_right = i
         _, xj, j_left, j_right = j
@@ -949,838 +997,28 @@ def trace(
         return xi[left:right].mean() - xj[left:right].mean()
 
     xp = np.arange(im.shape[1])
-    keys = [(c, np.polyval(traces[c], xp), y[c].min(), y[c].max()) for c in x.keys()]
+    keys = [
+        (c, np.polyval(traces_dict[c], xp), y[c].min(), y[c].max()) for c in x.keys()
+    ]
     keys = sorted(keys, key=cmp_to_key(compare))
-    key = [k[0] for k in keys]
 
-    n = np.arange(len(n), dtype=int)
-    x = {c: x[key[c]] for c in n}
-    y = {c: y[key[c]] for c in n}
-    traces = np.array([traces[key[c]] for c in n])
-
-    column_range = np.array([[np.min(y[i]), np.max(y[i]) + 1] for i in n])
+    # Create Trace objects in sorted order
+    trace_objects = []
+    for cluster_id, _, _, _ in keys:
+        pos = traces_dict[cluster_id]
+        cr = (int(y[cluster_id].min()), int(y[cluster_id].max()) + 1)
+        trace_objects.append(TraceData(m=None, pos=pos, column_range=cr))
 
     # Compute extraction heights based on trace spacing
-    heights = compute_trace_heights(traces, column_range, im.shape[1])
+    _compute_heights_inplace(trace_objects, im.shape[1])
+
+    # Assign order numbers and fiber indices
+    _assign_order_and_fiber_inplace(trace_objects, order_centers, im.shape[1])
 
     if plot:  # pragma: no cover
-        plot_traces(im, x, y, n, traces, column_range, title=plot_title)
+        plot_traces(im, trace_objects, title=plot_title)
 
-    return traces, column_range, heights
-
-
-def merge_traces(
-    traces_a,
-    column_range_a,
-    traces_b,
-    column_range_b,
-    order_centers=None,
-    order_numbers=None,
-    ncols=None,
-):
-    """
-    Merge two sets of traces from different illumination patterns.
-
-    Traces are assigned to spectral orders based on their y-position at x=ncols/2
-    compared to order_centers. Within each order, traces are sorted by y-position
-    and assigned fiber IDs.
-
-    Parameters
-    ----------
-    traces_a : array (n_traces_a, degree+1)
-        Polynomial coefficients from first illumination set (even fibers)
-    column_range_a : array (n_traces_a, 2)
-        Column ranges for first set
-    traces_b : array (n_traces_b, degree+1)
-        Polynomial coefficients from second illumination set (odd fibers)
-    column_range_b : array (n_traces_b, 2)
-        Column ranges for second set
-    order_centers : array-like, optional
-        Expected y-positions of order centers at x=ncols/2
-    order_numbers : array-like, optional
-        Actual order numbers corresponding to each center. If None, uses 0-based indices.
-    ncols : int, optional
-        Number of columns in the image (for center calculation)
-
-    Returns
-    -------
-    traces_by_order : dict
-        {order_num: array (n_fibers, degree+1)} traces per order
-    column_range_by_order : dict
-        {order_num: array (n_fibers, 2)} column ranges per order
-    fiber_ids_by_order : dict
-        {order_num: array (n_fibers,)} fiber indices per order (0-74)
-    """
-    if len(traces_a) == 0 and len(traces_b) == 0:
-        return {}, {}, {}
-
-    # Combine all traces
-    if len(traces_a) > 0 and len(traces_b) > 0:
-        traces = np.vstack([traces_a, traces_b])
-        column_range = np.vstack([column_range_a, column_range_b])
-        is_even = np.concatenate(
-            [np.ones(len(traces_a), dtype=bool), np.zeros(len(traces_b), dtype=bool)]
-        )
-    elif len(traces_a) > 0:
-        traces = traces_a
-        column_range = column_range_a
-        is_even = np.ones(len(traces_a), dtype=bool)
-    else:
-        traces = traces_b
-        column_range = column_range_b
-        is_even = np.zeros(len(traces_b), dtype=bool)
-
-    # Evaluate y-position at center column
-    if ncols is None:
-        ncols = int(np.max(column_range[:, 1]))
-    x_center = ncols // 2
-    y_positions = np.array([np.polyval(t, x_center) for t in traces])
-
-    # Assign each trace to nearest order center
-    if order_centers is None:
-        # No order centers - put all in order 0
-        order_ids = np.zeros(len(traces), dtype=int)
-    else:
-        order_centers = np.array(order_centers)
-        center_indices = np.array(
-            [np.argmin(np.abs(order_centers - y)) for y in y_positions]
-        )
-        if order_numbers is not None:
-            order_numbers = np.array(order_numbers)
-            order_ids = order_numbers[center_indices]
-        else:
-            order_ids = center_indices
-
-    # Group by order, sort by y within each order, assign fiber IDs
-    traces_by_order = {}
-    column_range_by_order = {}
-    fiber_ids_by_order = {}
-
-    for order_idx in np.unique(order_ids):
-        mask = order_ids == order_idx
-        order_traces = traces[mask]
-        order_cr = column_range[mask]
-        order_y = y_positions[mask]
-        order_is_even = is_even[mask]
-
-        # Sort by y-position within this order
-        sort_idx = np.argsort(order_y)
-        order_traces = order_traces[sort_idx]
-        order_cr = order_cr[sort_idx]
-        order_is_even = order_is_even[sort_idx]
-
-        # Assign fiber IDs: even fibers get 1,3,5,...  odd get 2,4,6,...
-        fiber_ids = np.zeros(len(order_traces), dtype=int)
-        even_count = 0
-        odd_count = 0
-        for i, is_e in enumerate(order_is_even):
-            if is_e:
-                fiber_ids[i] = even_count * 2 + 1
-                even_count += 1
-            else:
-                fiber_ids[i] = odd_count * 2 + 2
-                odd_count += 1
-
-        traces_by_order[order_idx] = order_traces
-        column_range_by_order[order_idx] = order_cr
-        fiber_ids_by_order[order_idx] = fiber_ids
-
-    return traces_by_order, column_range_by_order, fiber_ids_by_order
-
-
-def _merge_fiber_traces(traces, column_range, merge_method, degree=4):
-    """Apply merge method to a set of fiber traces.
-
-    Parameters
-    ----------
-    traces : ndarray (n_fibers, degree+1)
-        Polynomial coefficients for each fiber
-    column_range : ndarray (n_fibers, 2)
-        Column range for each fiber
-    merge_method : str or list[int]
-        "average", "center", or list of 1-based indices
-    degree : int
-        Polynomial degree for refitted traces (used with "average")
-
-    Returns
-    -------
-    merged_traces : ndarray (n_output, degree+1)
-    merged_cr : ndarray (n_output, 2)
-    """
-    n_fibers = len(traces)
-    if n_fibers == 0:
-        return np.empty((0, traces.shape[1])), np.empty((0, 2))
-
-    # Find shared column range
-    col_min = int(np.max(column_range[:, 0]))
-    col_max = int(np.min(column_range[:, 1]))
-    shared_cr = np.array([[col_min, col_max]])
-
-    if merge_method == "center":
-        # Select middle trace
-        idx = n_fibers // 2
-        return traces[idx : idx + 1], column_range[idx : idx + 1]
-
-    elif merge_method == "average":
-        # Average y-positions and refit
-        if col_min >= col_max:
-            # No shared column range, fall back to center trace
-            idx = n_fibers // 2
-            return traces[idx : idx + 1], column_range[idx : idx + 1]
-        x_eval = np.arange(col_min, col_max)
-        y_values = np.array([np.polyval(t, x_eval) for t in traces])
-        y_mean = np.mean(y_values, axis=0)
-
-        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
-        coeffs = fit.coef[::-1]  # Convert to np.polyval order
-        return coeffs.reshape(1, -1), shared_cr
-
-    elif isinstance(merge_method, list):
-        # Select specific indices (1-based within group)
-        indices = [i - 1 for i in merge_method]  # Convert to 0-based
-        valid = [i for i in indices if 0 <= i < n_fibers]
-        if not valid:
-            logger.warning("No valid indices in merge method %s", merge_method)
-            return np.empty((0, traces.shape[1])), np.empty((0, 2))
-        return traces[valid], column_range[valid]
-
-    else:
-        raise ValueError(f"Unknown merge method: {merge_method}")
-
-
-def _load_order_centers(filepath, instrument_dir=None):
-    """Load order_centers from a YAML file.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to YAML file (absolute or relative to instrument_dir)
-    instrument_dir : str, optional
-        Directory to resolve relative paths against
-
-    Returns
-    -------
-    order_centers : dict[int, float]
-        Order number -> y-position at detector center
-    """
-    from pathlib import Path
-
-    import yaml
-
-    path = Path(filepath)
-    if not path.is_absolute() and instrument_dir:
-        path = Path(instrument_dir) / path
-
-    with open(path) as f:
-        data = yaml.safe_load(f)
-
-    # Handle both flat dict and nested structure
-    if "order_centers" in data:
-        data = data["order_centers"]
-
-    return {int(k): float(v) for k, v in data.items()}
-
-
-def _load_bundle_centers(filepath, instrument_dir=None):
-    """Load bundle_centers from a YAML file.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to YAML file (absolute or relative to instrument_dir)
-    instrument_dir : str, optional
-        Directory to resolve relative paths against
-
-    Returns
-    -------
-    bundle_centers : dict[int, float]
-        Bundle ID -> y-position at detector center
-    """
-    from pathlib import Path
-
-    import yaml
-
-    path = Path(filepath)
-    if not path.is_absolute() and instrument_dir:
-        path = Path(instrument_dir) / path
-
-    with open(path) as f:
-        data = yaml.safe_load(f)
-
-    if "bundle_centers" in data:
-        data = data["bundle_centers"]
-
-    return {int(k): float(v) for k, v in data.items()}
-
-
-def _assign_traces_to_bundles(traces, column_range, bundle_centers):
-    """Assign each trace to a bundle based on y-position.
-
-    Parameters
-    ----------
-    traces : ndarray (n_traces, degree+1)
-        Polynomial coefficients for each trace
-    column_range : ndarray (n_traces, 2)
-        Column range for each trace
-    bundle_centers : dict[int, float]
-        Bundle ID -> y-position at detector center
-
-    Returns
-    -------
-    bundle_traces : dict[int, tuple[ndarray, ndarray]]
-        {bundle_id: (traces, column_range)} for traces assigned to each bundle,
-        sorted by y-position within each bundle
-    """
-    n_traces = len(traces)
-    if n_traces == 0:
-        return {}
-
-    x_center = int(np.mean(column_range[:, 0] + column_range[:, 1]) / 2)
-    y_positions = np.array([np.polyval(t, x_center) for t in traces])
-
-    bundle_ids = np.array(list(bundle_centers.keys()))
-    y_centers = np.array([bundle_centers[b] for b in bundle_ids])
-
-    bundle_traces = {b: [] for b in bundle_ids}
-    for i, y in enumerate(y_positions):
-        distances = np.abs(y - y_centers)
-        closest_idx = np.argmin(distances)
-        b = bundle_ids[closest_idx]
-        bundle_traces[b].append((y, traces[i], column_range[i]))
-
-    result = {}
-    for b, items in bundle_traces.items():
-        if items:
-            items.sort(key=lambda x: x[0])
-            tr_list = [item[1] for item in items]
-            cr_list = [item[2] for item in items]
-            result[b] = (np.array(tr_list), np.array(cr_list))
-
-    return result
-
-
-def _merge_bundle_traces(
-    traces, column_range, merge_method, degree, expected_size, bundle_center
-):
-    """Apply merge method to bundle traces, handling missing fibers.
-
-    Parameters
-    ----------
-    traces : ndarray (n_fibers, degree+1)
-        Polynomial coefficients for fibers in this bundle
-    column_range : ndarray (n_fibers, 2)
-        Column range for each fiber
-    merge_method : str or list[int]
-        "average", "center", or list of 1-based indices
-    degree : int
-        Polynomial degree for refitted traces
-    expected_size : int
-        Expected number of fibers in bundle
-    bundle_center : float
-        Y-position of bundle center (for fallback when fibers missing)
-
-    Returns
-    -------
-    merged_traces : ndarray (n_output, degree+1)
-    merged_cr : ndarray (n_output, 2)
-    """
-    n_fibers = len(traces)
-    if n_fibers == 0:
-        return np.empty((0, degree + 1)), np.empty((0, 2))
-
-    col_min = int(np.max(column_range[:, 0]))
-    col_max = int(np.min(column_range[:, 1]))
-    x_center = (col_min + col_max) // 2
-
-    if merge_method == "center":
-        if n_fibers == expected_size:
-            # All present: pick middle index
-            idx = n_fibers // 2
-            return traces[idx : idx + 1], column_range[idx : idx + 1]
-        else:
-            # Missing fibers: check if center fiber itself is missing
-            y_positions = np.array([np.polyval(t, x_center) for t in traces])
-            distances = np.abs(y_positions - bundle_center)
-            idx = np.argmin(distances)
-            min_dist = distances[idx]
-
-            # Estimate fiber spacing from present traces
-            if n_fibers >= 2:
-                sorted_y = np.sort(y_positions)
-                spacing = np.median(np.diff(sorted_y))
-            else:
-                spacing = min_dist * 2  # can't estimate, assume center is present
-
-            # If closest trace is more than half a spacing away, center is missing
-            if min_dist > spacing * 0.6:
-                # Center fiber missing: average the two closest neighbors
-                sorted_idx = np.argsort(distances)
-                if len(sorted_idx) >= 2:
-                    idx1, idx2 = sorted_idx[0], sorted_idx[1]
-                    # Use intersection of column ranges
-                    cr_min = max(column_range[idx1, 0], column_range[idx2, 0])
-                    cr_max = min(column_range[idx1, 1], column_range[idx2, 1])
-                    if cr_min >= cr_max:
-                        # No overlap between traces, use the closest one
-                        return traces[idx : idx + 1], column_range[idx : idx + 1]
-                    x_eval = np.arange(cr_min, cr_max)
-                    y1 = np.polyval(traces[idx1], x_eval)
-                    y2 = np.polyval(traces[idx2], x_eval)
-                    y_mean = (y1 + y2) / 2
-                    fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
-                    coeffs = fit.coef[::-1]
-                    return coeffs.reshape(1, -1), np.array([[cr_min, cr_max]])
-                else:
-                    # Only one fiber, use it
-                    return traces[idx : idx + 1], column_range[idx : idx + 1]
-            else:
-                # Center fiber present, use it
-                return traces[idx : idx + 1], column_range[idx : idx + 1]
-
-    elif merge_method == "average":
-        # Average all present fibers
-        if col_min >= col_max:
-            # No shared column range, fall back to center trace
-            idx = n_fibers // 2
-            return traces[idx : idx + 1], column_range[idx : idx + 1]
-        x_eval = np.arange(col_min, col_max)
-        y_values = np.array([np.polyval(t, x_eval) for t in traces])
-        y_mean = np.mean(y_values, axis=0)
-
-        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
-        coeffs = fit.coef[::-1]
-        shared_cr = np.array([[col_min, col_max]])
-        return coeffs.reshape(1, -1), shared_cr
-
-    elif isinstance(merge_method, list):
-        # Select specific indices - this may fail with missing fibers
-        indices = [i - 1 for i in merge_method]
-        valid = [i for i in indices if 0 <= i < n_fibers]
-        if not valid:
-            logger.warning(
-                "No valid indices in merge method %s for %d fibers",
-                merge_method,
-                n_fibers,
-            )
-            return np.empty((0, degree + 1)), np.empty((0, 2))
-        return traces[valid], column_range[valid]
-
-    else:
-        raise ValueError(f"Unknown merge method: {merge_method}")
-
-
-def _assign_traces_to_orders(traces, column_range, order_centers):
-    """Assign each trace to a spectral order based on y-position.
-
-    Parameters
-    ----------
-    traces : ndarray (n_traces, degree+1)
-        Polynomial coefficients for each trace
-    column_range : ndarray (n_traces, 2)
-        Column range for each trace
-    order_centers : dict[int, float]
-        Order number -> y-position at detector center
-
-    Returns
-    -------
-    order_traces : dict[int, tuple[ndarray, ndarray]]
-        {order_m: (traces, column_range)} for traces assigned to each order
-    """
-    n_traces = len(traces)
-    if n_traces == 0:
-        return {}
-
-    # Get detector center x-coordinate
-    x_center = int(np.mean(column_range[:, 0] + column_range[:, 1]) / 2)
-
-    # Evaluate each trace at center to get y-position
-    y_positions = np.array([np.polyval(t, x_center) for t in traces])
-
-    # Get order numbers and centers as arrays
-    order_nums = np.array(list(order_centers.keys()))
-    y_centers = np.array([order_centers[m] for m in order_nums])
-
-    # Assign each trace to closest order, keeping track of y-position for sorting
-    order_traces = {m: [] for m in order_nums}  # list of (y, trace, cr)
-    for i, y in enumerate(y_positions):
-        distances = np.abs(y - y_centers)
-        closest_idx = np.argmin(distances)
-        m = order_nums[closest_idx]
-        order_traces[m].append((y, traces[i], column_range[i]))
-
-    # Sort by y-position within each order and convert to arrays
-    result = {}
-    for m, items in order_traces.items():
-        if items:
-            # Sort by y-position (fiber number increases with y typically)
-            items.sort(key=lambda x: x[0])
-            tr_list = [item[1] for item in items]
-            cr_list = [item[2] for item in items]
-            result[m] = (np.array(tr_list), np.array(cr_list))
-
-    return result
-
-
-def _compute_group_height(fiber_traces, fiber_cr, config):
-    """Compute extraction height for a fiber group or bundle.
-
-    Parameters
-    ----------
-    fiber_traces : ndarray (n_fibers, degree+1)
-        Polynomial coefficients for fibers in this group/bundle
-    fiber_cr : ndarray (n_fibers, 2)
-        Column range for each fiber
-    config : FiberGroupConfig or FiberBundleConfig
-        Configuration with height specification
-
-    Returns
-    -------
-    height : float or None
-        Extraction height in pixels, or None to use settings.json default
-    """
-    if config.height is None:
-        return None
-
-    if config.height == "derived":
-        n_fibers = len(fiber_traces)
-        if n_fibers < 2:
-            logger.warning(
-                "Cannot derive height from %d fiber(s), using default", n_fibers
-            )
-            return None
-
-        # Evaluate traces at column center
-        col_min = int(np.max(fiber_cr[:, 0]))
-        col_max = int(np.min(fiber_cr[:, 1]))
-        x_center = (col_min + col_max) // 2
-
-        y_positions = np.array([np.polyval(t, x_center) for t in fiber_traces])
-        y_positions.sort()
-
-        # Fiber diameter = median spacing between adjacent traces
-        spacings = np.diff(y_positions)
-        fiber_diameter = np.median(spacings)
-
-        # Total height = span + one fiber diameter (to include full edge fibers)
-        span = y_positions[-1] - y_positions[0]
-        height = span + fiber_diameter
-
-        logger.debug(
-            "Derived group height: span=%.1f + diameter=%.1f = %.1f px",
-            span,
-            fiber_diameter,
-            height,
-        )
-        return height
-
-    # Explicit numeric value
-    return float(config.height)
-
-
-def organize_fibers(
-    traces, column_range, fibers_config, degree=4, instrument_dir=None, channel=None
-):
-    """Organize traced fibers into groups according to config.
-
-    Takes raw fiber traces and groups them according to either explicit
-    named groups or repeating bundle patterns.
-
-    For per_order=True instruments, grouping is applied within each spectral
-    order, returning {group: {order_m: trace}}.
-
-    Parameters
-    ----------
-    traces : ndarray (n_fibers, degree+1)
-        Polynomial coefficients for each fiber trace
-    column_range : ndarray (n_fibers, 2)
-        Column range for each fiber
-    fibers_config : FibersConfig
-        Configuration specifying groups or bundles
-    degree : int
-        Polynomial degree for refitted traces (used with "average" merge)
-    instrument_dir : str, optional
-        Directory for resolving relative order_centers_file paths
-    channel : str, optional
-        Channel name for {channel} template substitution in order_centers_file
-
-    Returns
-    -------
-    group_traces : dict
-        For per_order=False: {group_name: ndarray} - merged trace(s) per group
-        For per_order=True: {group_name: {order_m: ndarray}} - per order per group
-    group_column_range : dict
-        Same structure as group_traces but with column ranges
-    group_fiber_counts : dict[str, int]
-        Number of physical fibers in each group (per order if per_order=True)
-    group_heights : dict[str, float | None]
-        Extraction height for each group (None means use settings.json default)
-    """
-    n_fibers = len(traces)
-    group_traces = {}
-    group_column_range = {}
-    group_fiber_counts = {}
-    group_heights = {}
-
-    # Handle per-order grouping
-    if fibers_config.per_order:
-        # Load order_centers from file if not inline
-        order_centers = fibers_config.order_centers
-        if order_centers is None and fibers_config.order_centers_file:
-            centers_file = fibers_config.order_centers_file
-            # Substitute {channel} template with channel name (lowercase)
-            if channel and "{channel}" in centers_file:
-                centers_file = centers_file.format(channel=channel.lower())
-            try:
-                order_centers = _load_order_centers(centers_file, instrument_dir)
-            except FileNotFoundError:
-                # Resolve path for error message
-                from pathlib import Path
-
-                path = Path(centers_file)
-                if not path.is_absolute() and instrument_dir:
-                    path = Path(instrument_dir) / centers_file
-                logger.warning(
-                    "Order centers file not found: %s. "
-                    "Skipping fiber grouping. Create this file to enable per-order organization.",
-                    path,
-                )
-                return (
-                    group_traces,
-                    group_column_range,
-                    group_fiber_counts,
-                    group_heights,
-                )
-
-        order_traces = _assign_traces_to_orders(traces, column_range, order_centers)
-
-        # Validate fibers per order if specified
-        fibers_per_order = fibers_config.fibers_per_order
-        if fibers_per_order is not None:
-            for m, (tr, _cr) in order_traces.items():
-                if len(tr) != fibers_per_order:
-                    logger.warning(
-                        "Order %d has %d fibers, expected %d",
-                        m,
-                        len(tr),
-                        fibers_per_order,
-                    )
-
-        # Apply grouping within each order
-        if fibers_config.groups is not None:
-            for name, group_cfg in fibers_config.groups.items():
-                group_traces[name] = {}
-                group_column_range[name] = {}
-                group_fiber_counts[name] = 0
-                group_heights[name] = None  # Will be set from first order
-
-                for m, (order_tr, order_cr) in sorted(order_traces.items()):
-                    start, end = group_cfg.range
-                    start_idx = start - 1
-                    end_idx = end - 1
-
-                    n_in_order = len(order_tr)
-                    if end_idx > n_in_order:
-                        logger.warning(
-                            "Group %s range [%d, %d) exceeds fiber count %d in order %d",
-                            name,
-                            start,
-                            end,
-                            n_in_order,
-                            m,
-                        )
-                        end_idx = min(end_idx, n_in_order)
-                    start_idx = max(start_idx, 0)
-
-                    if start_idx >= end_idx:
-                        continue
-
-                    fiber_tr = order_tr[start_idx:end_idx]
-                    fiber_cr = order_cr[start_idx:end_idx]
-
-                    # Compute group height from raw fiber traces (only once)
-                    if group_heights[name] is None:
-                        group_heights[name] = _compute_group_height(
-                            fiber_tr, fiber_cr, group_cfg
-                        )
-
-                    merged_tr, merged_cr = _merge_fiber_traces(
-                        fiber_tr, fiber_cr, group_cfg.merge, degree
-                    )
-
-                    group_traces[name][m] = merged_tr
-                    group_column_range[name][m] = merged_cr
-                    group_fiber_counts[name] = end_idx - start_idx
-
-        elif fibers_config.bundles is not None:
-            bundle_cfg = fibers_config.bundles
-            bundle_size = bundle_cfg.size
-
-            # Process each order's bundles
-            for m, (order_tr, order_cr) in sorted(order_traces.items()):
-                n_in_order = len(order_tr)
-                if n_in_order % bundle_size != 0:
-                    raise ValueError(
-                        f"Order {m} has {n_in_order} fibers, "
-                        f"not divisible by bundle size {bundle_size}"
-                    )
-
-                n_bundles = n_in_order // bundle_size
-                for i in range(n_bundles):
-                    name = f"bundle_{i + 1}"
-                    if name not in group_traces:
-                        group_traces[name] = {}
-                        group_column_range[name] = {}
-                        group_fiber_counts[name] = bundle_size
-                        group_heights[name] = None  # Will compute from first order
-
-                    start_idx = i * bundle_size
-                    end_idx = (i + 1) * bundle_size
-
-                    bundle_tr = order_tr[start_idx:end_idx]
-                    bundle_cr = order_cr[start_idx:end_idx]
-
-                    # Compute bundle height from fibers (only once, from first order)
-                    if group_heights[name] is None:
-                        group_heights[name] = _compute_group_height(
-                            bundle_tr, bundle_cr, bundle_cfg
-                        )
-
-                    merged_tr, merged_cr = _merge_fiber_traces(
-                        bundle_tr, bundle_cr, bundle_cfg.merge, degree
-                    )
-
-                    group_traces[name][m] = merged_tr
-                    group_column_range[name][m] = merged_cr
-
-        return group_traces, group_column_range, group_fiber_counts, group_heights
-
-    # Non-per-order grouping (original behavior)
-    if fibers_config.groups is not None:
-        # Explicit named groups
-        for name, group_cfg in fibers_config.groups.items():
-            start, end = group_cfg.range
-            # Convert 1-based to 0-based indices
-            start_idx = start - 1
-            end_idx = end - 1  # half-open, so end is exclusive
-
-            if start_idx < 0 or end_idx > n_fibers:
-                logger.warning(
-                    "Group %s range [%d, %d) exceeds fiber count %d",
-                    name,
-                    start,
-                    end,
-                    n_fibers,
-                )
-                end_idx = min(end_idx, n_fibers)
-                start_idx = max(start_idx, 0)
-
-            group_tr = traces[start_idx:end_idx]
-            group_cr = column_range[start_idx:end_idx]
-            n_in_group = len(group_tr)
-
-            # Compute group height from raw fiber traces before merging
-            group_heights[name] = _compute_group_height(group_tr, group_cr, group_cfg)
-
-            merged_tr, merged_cr = _merge_fiber_traces(
-                group_tr, group_cr, group_cfg.merge, degree
-            )
-
-            group_traces[name] = merged_tr
-            group_column_range[name] = merged_cr
-            group_fiber_counts[name] = n_in_group
-
-    elif fibers_config.bundles is not None:
-        # Repeating bundle pattern
-        bundle_cfg = fibers_config.bundles
-        bundle_size = bundle_cfg.size
-
-        # Load bundle_centers if provided (handles missing fibers)
-        bundle_centers = bundle_cfg.bundle_centers
-        if bundle_centers is None and bundle_cfg.bundle_centers_file:
-            centers_file = bundle_cfg.bundle_centers_file
-            if channel and "{channel}" in centers_file:
-                centers_file = centers_file.format(channel=channel.lower())
-            bundle_centers = _load_bundle_centers(centers_file, instrument_dir)
-
-        if bundle_centers is not None:
-            # Assign traces to bundles by proximity to bundle centers
-            bundle_traces_dict = _assign_traces_to_bundles(
-                traces, column_range, bundle_centers
-            )
-
-            for bundle_id, (bundle_tr, bundle_cr) in sorted(bundle_traces_dict.items()):
-                name = f"bundle_{bundle_id}"
-                n_in_bundle = len(bundle_tr)
-
-                if n_in_bundle != bundle_size:
-                    logger.info(
-                        "Bundle %d has %d fibers (expected %d)",
-                        bundle_id,
-                        n_in_bundle,
-                        bundle_size,
-                    )
-
-                merged_tr, merged_cr = _merge_bundle_traces(
-                    bundle_tr,
-                    bundle_cr,
-                    bundle_cfg.merge,
-                    degree,
-                    bundle_size,
-                    bundle_centers[bundle_id],
-                )
-
-                group_traces[name] = merged_tr
-                group_column_range[name] = merged_cr
-                group_fiber_counts[name] = n_in_bundle
-                group_heights[name] = _compute_group_height(
-                    bundle_tr, bundle_cr, bundle_cfg
-                )
-
-            # Also handle bundles with zero traces (all fibers missing)
-            for bundle_id in bundle_centers:
-                name = f"bundle_{bundle_id}"
-                if name not in group_traces:
-                    logger.warning("Bundle %d has no traces assigned", bundle_id)
-                    group_traces[name] = np.empty((0, degree + 1))
-                    group_column_range[name] = np.empty((0, 2))
-                    group_fiber_counts[name] = 0
-                    group_heights[name] = None
-
-        else:
-            # Fixed-size division (original behavior, requires exact divisibility)
-            if n_fibers % bundle_size != 0:
-                raise ValueError(
-                    f"Number of fibers ({n_fibers}) not divisible by bundle size ({bundle_size}). "
-                    f"Use bundle_centers_file for instruments with missing fibers."
-                )
-
-            n_bundles = n_fibers // bundle_size
-            if bundle_cfg.count is not None and bundle_cfg.count != n_bundles:
-                raise ValueError(
-                    f"Expected {bundle_cfg.count} bundles but found {n_bundles}"
-                )
-
-            # Create a group for each bundle
-            for i in range(n_bundles):
-                name = f"bundle_{i + 1}"  # 1-based naming
-                start_idx = i * bundle_size
-                end_idx = (i + 1) * bundle_size
-
-                bundle_tr = traces[start_idx:end_idx]
-                bundle_cr = column_range[start_idx:end_idx]
-
-                merged_tr, merged_cr = _merge_fiber_traces(
-                    bundle_tr, bundle_cr, bundle_cfg.merge, degree
-                )
-
-                group_traces[name] = merged_tr
-                group_column_range[name] = merged_cr
-                group_fiber_counts[name] = bundle_size
-                group_heights[name] = _compute_group_height(
-                    bundle_tr, bundle_cr, bundle_cfg
-                )
-
-    return group_traces, group_column_range, group_fiber_counts, group_heights
+    return trace_objects
 
 
 def select_traces_for_step(
@@ -1871,109 +1109,288 @@ def select_traces_for_step(
         return {"all": traces}
 
 
-def create_trace_objects(
-    traces,
-    column_range,
-    heights=None,
-    group_traces=None,
-    group_cr=None,
-    group_heights=None,
-    per_order=False,
-):
-    """Convert array-based trace data to Trace dataclass objects.
+def group_fibers(
+    traces: list[TraceData],
+    fibers_config,
+    degree: int = 4,
+) -> list[TraceData]:
+    """Merge individual fiber traces into groups according to config.
 
-    Creates Trace objects with identity set based on fiber grouping mode.
-    Note: group and fiber_idx are mutually exclusive:
-    - per_order=True: sets fiber_idx (individual fibers, not merged)
-    - per_order=False: sets group (merged/grouped result)
+    Takes traces with fiber_idx set (individual fibers) and returns NEW traces
+    with group set (merged/grouped result). The input traces are not modified.
 
     Parameters
     ----------
-    traces : ndarray (ntrace, degree+1)
-        Raw polynomial coefficients for all traces
-    column_range : ndarray (ntrace, 2)
-        Column ranges for all traces
-    heights : ndarray (ntrace,), optional
-        Per-trace extraction heights
-    group_traces : dict, optional
-        Grouped traces from organize_fibers():
-        - Non-per-order: {group_name: ndarray} - merged traces
-        - Per-order: {group_name: {order_m: ndarray}} - individual fibers
-    group_cr : dict, optional
-        Column ranges with same structure as group_traces
-    group_heights : dict[str, float | None], optional
-        Extraction heights per group
-    per_order : bool
-        Whether group_traces uses per-order structure. If True, traces
-        are individual fibers (fiber_idx set). If False, traces are
-        merged groups (group set).
+    traces : list[Trace]
+        Individual fiber traces with fiber_idx set and group=None.
+        Can have m set (from order_centers) or None (to be assigned later).
+    fibers_config : FibersConfig
+        Configuration specifying groups or bundles.
+    degree : int, optional
+        Polynomial degree for refitted traces (used with "average" merge).
 
     Returns
     -------
-    list[TraceData]
-        Trace objects sorted by (m, y-position)
+    list[Trace]
+        New Trace objects with:
+        - group: set to group name (e.g., "A", "B", "bundle_1")
+        - fiber_idx: None (merged, no individual identity)
+        - m: preserved from input traces
+        - pos: new polynomial from merging
+        - column_range: intersection of member traces
+        - height: from config or computed from member traces
+
+        Returns empty list if no grouping config is provided.
     """
+    if not traces:
+        return []
+
+    if fibers_config is None:
+        return []
+
+    if fibers_config.groups is None and fibers_config.bundles is None:
+        return []
+
+    # Group input traces by order number (m)
+    from collections import defaultdict
+
+    traces_by_m = defaultdict(list)
+    for t in traces:
+        traces_by_m[t.m].append(t)
+
+    # Sort within each order by fiber_idx
+    for m in traces_by_m:
+        traces_by_m[m].sort(key=lambda t: t.fiber_idx if t.fiber_idx else 0)
+
     result = []
 
-    if group_traces is not None and len(group_traces) > 0:
-        # Create traces from organized fiber groups
-        for group_name in sorted(group_traces.keys(), key=_natural_sort_key):
-            grp_data = group_traces[group_name]
-            grp_cr_data = group_cr[group_name]
-            grp_height = group_heights.get(group_name) if group_heights else None
+    if fibers_config.groups is not None:
+        # Named groups with explicit ranges
+        for group_name, group_cfg in fibers_config.groups.items():
+            start, end = group_cfg.range
+            start_idx = start - 1  # Convert to 0-based
+            end_idx = end - 1  # Half-open, end is exclusive
 
-            if per_order:
-                # Per-order: {order_m: ndarray} - individual fibers, not merged
-                # Use fiber_idx (not group) since fibers are tracked individually
-                for m in sorted(grp_data.keys()):
-                    order_traces = grp_data[m]
-                    order_cr = grp_cr_data[m]
-                    for i in range(len(order_traces)):
-                        cr = (int(order_cr[i, 0]), int(order_cr[i, 1]))
-                        result.append(
-                            TraceData(
-                                m=m,
-                                fiber_idx=i + 1,  # 1-indexed fiber within order
-                                pos=order_traces[i],
-                                column_range=cr,
-                                height=grp_height,
-                            )
-                        )
-            else:
-                # Non-per-order: ndarray directly
-                for i in range(len(grp_data)):
-                    cr = (int(grp_cr_data[i, 0]), int(grp_cr_data[i, 1]))
+            for m, order_traces in sorted(traces_by_m.items()):
+                # Select fibers in range for this order
+                if end_idx > len(order_traces):
+                    logger.warning(
+                        "Group %s range [%d, %d) exceeds fiber count %d in order %s",
+                        group_name,
+                        start,
+                        end,
+                        len(order_traces),
+                        m,
+                    )
+                    end_idx = min(end_idx, len(order_traces))
+                start_idx = max(start_idx, 0)
+
+                if start_idx >= end_idx:
+                    continue
+
+                selected = order_traces[start_idx:end_idx]
+                merged = _merge_trace_objects(selected, group_cfg.merge, degree)
+
+                if merged is not None:
+                    # Compute height from group config
+                    height = _compute_group_height_from_traces(selected, group_cfg)
+
                     result.append(
                         TraceData(
-                            m=None,  # Unknown until obase from wavecal
+                            m=m,
                             group=group_name,
-                            fiber_idx=None,  # No fiber index for merged groups
-                            pos=grp_data[i],
-                            column_range=cr,
-                            height=grp_height,
+                            fiber_idx=None,
+                            pos=merged.pos,
+                            column_range=merged.column_range,
+                            height=height,
                         )
                     )
-    else:
-        # No fiber grouping - create from raw traces
-        for i in range(len(traces)):
-            h = None
-            if heights is not None and not np.isnan(heights[i]):
-                h = float(heights[i])
-            cr = (int(column_range[i, 0]), int(column_range[i, 1]))
-            result.append(
-                TraceData(
-                    m=None,  # Unknown until obase from wavecal
-                    pos=traces[i],
-                    column_range=cr,
-                    height=h,
+
+    elif fibers_config.bundles is not None:
+        bundle_cfg = fibers_config.bundles
+        bundle_size = bundle_cfg.size
+
+        for m, order_traces in sorted(traces_by_m.items()):
+            n_in_order = len(order_traces)
+            if n_in_order == 0:
+                continue
+
+            # Check divisibility
+            if n_in_order % bundle_size != 0:
+                logger.warning(
+                    "Order %s has %d fibers, not divisible by bundle size %d",
+                    m,
+                    n_in_order,
+                    bundle_size,
                 )
+
+            n_bundles = (n_in_order + bundle_size - 1) // bundle_size
+            for i in range(n_bundles):
+                bundle_name = f"bundle_{i + 1}"
+                start_idx = i * bundle_size
+                end_idx = min((i + 1) * bundle_size, n_in_order)
+
+                selected = order_traces[start_idx:end_idx]
+                merged = _merge_trace_objects(selected, bundle_cfg.merge, degree)
+
+                if merged is not None:
+                    height = _compute_group_height_from_traces(selected, bundle_cfg)
+
+                    result.append(
+                        TraceData(
+                            m=m,
+                            group=bundle_name,
+                            fiber_idx=None,
+                            pos=merged.pos,
+                            column_range=merged.column_range,
+                            height=height,
+                        )
+                    )
+
+    # Sort by (m descending, group)
+    def sort_key(t):
+        m = t.m if t.m is not None else float("inf")
+        return (-m, str(t.group) if t.group else "")
+
+    result.sort(key=sort_key)
+
+    logger.info("Grouped %d fibers into %d traces", len(traces), len(result))
+    return result
+
+
+def _merge_trace_objects(
+    traces: list[TraceData],
+    merge_method: str | list[int],
+    degree: int,
+) -> TraceData | None:
+    """Merge multiple traces into one according to merge method.
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Traces to merge (must have same m)
+    merge_method : str or list[int]
+        "average", "center", or list of 1-based indices
+    degree : int
+        Polynomial degree for refitting
+
+    Returns
+    -------
+    Trace or None
+        Merged trace (m and group not set), or None if no valid traces
+    """
+    if not traces:
+        return None
+
+    n = len(traces)
+
+    # Find shared column range
+    col_min = max(t.column_range[0] for t in traces)
+    col_max = min(t.column_range[1] for t in traces)
+    if col_min >= col_max:
+        col_min = min(t.column_range[0] for t in traces)
+        col_max = max(t.column_range[1] for t in traces)
+
+    if merge_method == "center":
+        idx = n // 2
+        return TraceData(
+            m=traces[idx].m,
+            pos=traces[idx].pos,
+            column_range=(col_min, col_max),
+        )
+
+    elif merge_method == "average":
+        if col_min >= col_max:
+            idx = n // 2
+            return TraceData(
+                m=traces[idx].m,
+                pos=traces[idx].pos,
+                column_range=traces[idx].column_range,
             )
 
-    # Verify trace ordering: m should decrease as y increases
-    # (higher orders have shorter wavelengths, lower on detector)
-    _verify_trace_ordering(result)
+        x_eval = np.arange(col_min, col_max)
+        y_values = np.array([t.y_at_x(x_eval) for t in traces])
+        y_mean = np.mean(y_values, axis=0)
 
-    return result
+        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+        coeffs = fit.coef[::-1]
+
+        return TraceData(
+            m=traces[0].m,
+            pos=coeffs,
+            column_range=(col_min, col_max),
+        )
+
+    elif isinstance(merge_method, list):
+        indices = [i - 1 for i in merge_method]
+        valid = [i for i in indices if 0 <= i < n]
+        if not valid:
+            logger.warning("No valid indices in merge method %s", merge_method)
+            return None
+        if len(valid) == 1:
+            idx = valid[0]
+            return TraceData(
+                m=traces[idx].m,
+                pos=traces[idx].pos,
+                column_range=(col_min, col_max),
+            )
+        # Multiple indices: average them
+        x_eval = np.arange(col_min, col_max)
+        y_values = np.array([traces[i].y_at_x(x_eval) for i in valid])
+        y_mean = np.mean(y_values, axis=0)
+
+        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+        coeffs = fit.coef[::-1]
+
+        return TraceData(
+            m=traces[0].m,
+            pos=coeffs,
+            column_range=(col_min, col_max),
+        )
+
+    else:
+        raise ValueError(f"Unknown merge method: {merge_method}")
+
+
+def _compute_group_height_from_traces(
+    traces: list[TraceData],
+    config,
+) -> float | None:
+    """Compute extraction height for a group of traces.
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Traces in this group
+    config : FiberGroupConfig or FiberBundleConfig
+        Config with height specification
+
+    Returns
+    -------
+    float or None
+        Height in pixels, or None to use default
+    """
+    if config.height is None:
+        return None
+
+    if config.height == "derived":
+        n = len(traces)
+        if n < 2:
+            return None
+
+        # Get y-positions at column center
+        col_min = max(t.column_range[0] for t in traces)
+        col_max = min(t.column_range[1] for t in traces)
+        x_center = (col_min + col_max) // 2
+
+        y_positions = sorted([t.y_at_x(x_center) for t in traces])
+        spacings = np.diff(y_positions)
+        fiber_diameter = np.median(spacings) if len(spacings) > 0 else 0
+
+        span = y_positions[-1] - y_positions[0]
+        return span + fiber_diameter
+
+    return float(config.height)
 
 
 def _verify_trace_ordering(traces: list) -> None:

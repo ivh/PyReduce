@@ -339,11 +339,17 @@ class TestTraceSaveLoad:
         }
         step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
 
-        # Create fake trace data
+        # Create fake trace data as Trace objects
+        from pyreduce.trace_model import Trace as TraceData
+
         orders = np.array([[100.0, 0.01, 0.0], [200.0, 0.02, 0.0]])
         column_range = np.array([[10, 990], [20, 980]])
 
-        step.save(orders, column_range)
+        step.trace_objects = [
+            TraceData(m=None, pos=orders[0], column_range=tuple(column_range[0])),
+            TraceData(m=None, pos=orders[1], column_range=tuple(column_range[1])),
+        ]
+        step.save()
         trace_objects = step.load()
 
         # Verify trace objects match saved data
@@ -377,12 +383,21 @@ class TestTraceSaveLoad:
         }
         step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
 
-        # Create fake trace data with heights
+        # Create fake trace data with heights as Trace objects
+        from pyreduce.trace_model import Trace as TraceData
+
         orders = np.array([[100.0, 0.01, 0.0], [200.0, 0.02, 0.0]])
         column_range = np.array([[10, 990], [20, 980]])
-        step.heights = np.array([20.0, 25.0])
 
-        step.save(orders, column_range)
+        step.trace_objects = [
+            TraceData(
+                m=None, pos=orders[0], column_range=tuple(column_range[0]), height=20.0
+            ),
+            TraceData(
+                m=None, pos=orders[1], column_range=tuple(column_range[1]), height=25.0
+            ),
+        ]
+        step.save()
         trace_objects = step.load()
 
         # Verify trace objects match saved data
@@ -393,46 +408,6 @@ class TestTraceSaveLoad:
         assert trace_objects[1].column_range == tuple(column_range[1])
         assert trace_objects[0].height == pytest.approx(20.0)
         assert trace_objects[1].height == pytest.approx(25.0)
-
-    @pytest.mark.unit
-    def test_trace_load_without_heights_backwards_compat(
-        self, mock_instrument, tmp_path
-    ):
-        """Test loading old trace file without heights returns None."""
-        config = {
-            "plot": False,
-            "degree": 4,
-            "min_cluster": 500,
-            "min_width": 10,
-            "filter_y": 10,
-            "noise": 100,
-            "bias_scaling": "none",
-            "norm_scaling": "none",
-            "degree_before_merge": 2,
-            "regularization": 0,
-            "closing_shape": (5, 5),
-            "opening_shape": (5, 5),
-            "auto_merge_threshold": 0.5,
-            "merge_min_threshold": 0.1,
-            "split_sigma": 3,
-            "border_width": 10,
-            "manual": False,
-        }
-        step = reduce.Trace(mock_instrument, "", "", "", str(tmp_path), None, **config)
-
-        # Manually save without heights (simulating old NPZ file format)
-        orders = np.array([[100.0, 0.01, 0.0]])
-        column_range = np.array([[10, 990]])
-        # Save to old NPZ path to test backwards compatibility
-        np.savez(step._old_savefile_npz, traces=orders, column_range=column_range)
-
-        trace_objects = step.load()
-
-        # Verify trace objects match saved data
-        assert len(trace_objects) == 1
-        assert np.allclose(trace_objects[0].pos, orders[0])
-        # Backwards compat: missing heights -> None in Trace
-        assert trace_objects[0].height is None
 
 
 class TestSlitCurvatureDetermination:

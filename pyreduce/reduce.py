@@ -51,7 +51,10 @@ from .extract import extract, extract_normalize
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
 from .spectra import ExtractionParams, Spectra, Spectrum
-from .trace import create_trace_objects, organize_fibers, select_traces_for_step
+from .trace import (
+    group_fibers,
+    select_traces_for_step,
+)
 from .trace import trace as mark_orders
 from .trace_model import (
     Trace as TraceData,
@@ -868,16 +871,6 @@ class Trace(CalibrationStep):
         """str: Name of the tracing file (FITS format)"""
         return join(self.output_dir, self.prefix + ".traces.fits")
 
-    @property
-    def _old_savefile_npz(self):
-        """str: Old NPZ format savefile (for backwards compatibility)"""
-        return join(self.output_dir, self.prefix + ".traces.npz")
-
-    @property
-    def _old_savefile(self):
-        """str: Very old name of tracing file (for backwards compatibility)"""
-        return join(self.output_dir, self.prefix + ".ord_default.npz")
-
     def run(self, files, mask=None, bias=None):
         """Determine polynomial coefficients describing order locations
 
@@ -898,60 +891,88 @@ class Trace(CalibrationStep):
 
         logger.info("Tracing files: %s", files)
 
+        # Load order_centers for m assignment if available
+        order_centers = self._load_order_centers()
+
         # Check if we should trace file groups separately
         fibers_config = getattr(self.instrument.config, "fibers", None)
         trace_by = getattr(fibers_config, "trace_by", None) if fibers_config else None
 
         if trace_by and len(files) > 1:
-            traces, column_range, heights = self._trace_by_groups(
-                files, mask, bias, trace_by
+            raw_traces = self._trace_by_groups(
+                files, mask, bias, trace_by, order_centers
             )
         else:
-            traces, column_range, heights = self._trace_single(files, mask, bias)
+            raw_traces = self._trace_single(files, mask, bias, order_centers)
 
-        self.heights = heights
+        # Store heights for backward compatibility
+        self.heights = np.array(
+            [t.height if t.height is not None else np.nan for t in raw_traces]
+        )
 
-        # Organize fibers into groups if configured, then create Trace objects
-        group_traces = None
-        group_cr = None
-        group_heights = None
-        per_order = False
-
+        # Group fibers if configured (creates new traces with group set)
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            logger.info("Organizing %d traces into fiber groups", len(traces))
-            inst_dir = getattr(self.instrument, "_inst_dir", None)
-            group_traces, group_cr, group_fiber_counts, group_heights = organize_fibers(
-                traces,
-                column_range,
-                fibers_config,
-                self.fit_degree,
-                inst_dir,
-                channel=self.channel,
+            self.trace_objects = group_fibers(
+                raw_traces, fibers_config, degree=self.fit_degree
             )
-            per_order = getattr(fibers_config, "per_order", False)
-            for name, count in group_fiber_counts.items():
-                height = group_heights.get(name)
-                height_str = f", height={height:.1f}px" if height else ""
-                logger.info("  Group %s: %d fibers%s", name, count, height_str)
+        else:
+            self.trace_objects = raw_traces
 
-        # Create Trace dataclass objects with identity preserved
-        self.trace_objects = create_trace_objects(
-            traces,
-            column_range,
-            heights=self.heights,
-            group_traces=group_traces,
-            group_cr=group_cr,
-            group_heights=group_heights,
-            per_order=per_order,
-        )
-
-        self.save(traces, column_range)
+        self.save()
 
         return self.trace_objects
 
-    def _trace_by_groups(self, files, mask, bias, trace_by):
+    def _load_order_centers(self) -> dict[int, float] | None:
+        """Load order_centers from instrument config if available.
+
+        Returns
+        -------
+        dict[int, float] or None
+            Order number -> y-position mapping, or None if not configured.
+        """
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        if fibers_config is None:
+            return None
+
+        # Check for inline order_centers
+        if fibers_config.order_centers is not None:
+            return fibers_config.order_centers
+
+        # Check for order_centers_file
+        if fibers_config.order_centers_file is None:
+            return None
+
+        from pathlib import Path
+
+        import yaml
+
+        centers_file = fibers_config.order_centers_file
+        # Substitute {channel} template
+        if self.channel and "{channel}" in centers_file:
+            centers_file = centers_file.format(channel=self.channel.lower())
+
+        inst_dir = getattr(self.instrument, "_inst_dir", None)
+        path = Path(centers_file)
+        if not path.is_absolute() and inst_dir:
+            path = Path(inst_dir) / centers_file
+
+        if not path.exists():
+            logger.info("Order centers file not found: %s", path)
+            return None
+
+        with open(path) as f:
+            data = yaml.safe_load(f)
+
+        if "order_centers" in data:
+            data = data["order_centers"]
+
+        order_centers = {int(k): float(v) for k, v in data.items()}
+        logger.info("Loaded order centers from %s: %d orders", path, len(order_centers))
+        return order_centers
+
+    def _trace_by_groups(self, files, mask, bias, trace_by, order_centers):
         """Trace files grouped by header value, then merge traces.
 
         Parameters
@@ -964,10 +985,13 @@ class Trace(CalibrationStep):
             Bias correction
         trace_by : str
             Header keyword to group files by
+        order_centers : dict[int, float] | None
+            Order centers for m assignment
 
         Returns
         -------
-        traces, column_range, heights : merged results from all groups
+        list[TraceData]
+            Merged traces from all groups
         """
         # Group files by header value
         file_groups = {}
@@ -987,41 +1011,37 @@ class Trace(CalibrationStep):
 
         # Trace each group
         all_traces = []
-        all_column_range = []
-        all_heights = []
         for group_key, group_files in file_groups.items():
             logger.info("Tracing group '%s': %d files", group_key, len(group_files))
-            traces, column_range, heights = self._trace_single(group_files, mask, bias)
+            traces = self._trace_single(group_files, mask, bias, order_centers)
             logger.info("  Found %d traces", len(traces))
-            all_traces.append(traces)
-            all_column_range.append(column_range)
-            all_heights.extend(heights if heights is not None else [])
+            all_traces.extend(traces)
 
-        # Merge traces from all groups
-        traces = np.vstack(all_traces)
-        column_range = np.vstack(all_column_range)
-        heights = np.array(all_heights) if all_heights else None
+        # Sort by y-position
+        def sort_key(t):
+            # Use middle of column range for y evaluation
+            x_mid = sum(t.column_range) / 2
+            return t.y_at_x(x_mid)
 
-        # Sort by y-position (trace constant term = y-intercept at x=0)
-        mid_x = traces.shape[1] // 2 if traces.shape[1] > 1 else 0
-        y_positions = np.polyval(traces[:, ::-1].T, mid_x)
-        sort_idx = np.argsort(y_positions)
-        traces = traces[sort_idx]
-        column_range = column_range[sort_idx]
-        if heights is not None:
-            heights = heights[sort_idx]
+        all_traces.sort(key=sort_key)
 
         logger.info(
-            "Merged %d total traces from %d groups", len(traces), len(file_groups)
+            "Merged %d total traces from %d groups", len(all_traces), len(file_groups)
         )
 
-        return traces, column_range, heights
+        return all_traces
 
-    def _trace_single(self, files, mask, bias):
-        """Trace a single set of files."""
+    def _trace_single(self, files, mask, bias, order_centers):
+        """Trace a single set of files.
+
+        Returns
+        -------
+        list[TraceData]
+            Trace objects with fiber_idx set
+        """
         trace_img, ohead = self.calibrate(files, mask, bias, None)
 
-        traces, column_range, heights = mark_orders(
+        traces = mark_orders(
             trace_img,
             min_cluster=self.min_cluster,
             min_width=self.min_width,
@@ -1042,142 +1062,33 @@ class Trace(CalibrationStep):
             sigma=self.sigma,
             plot=self.plot,
             plot_title=self.plot_title,
+            order_centers=order_centers,
         )
 
-        return traces, column_range, heights
+        return traces
 
-    def save(self, traces, column_range):
-        """Save tracing results to disk in FITS format.
-
-        Parameters
-        ----------
-        traces : array of shape (ntrace, ndegree+1)
-            polynomial coefficients
-        column_range : array of shape (ntrace, 2)
-            first and last(+1) column that carry signal in each trace
-        """
+    def save(self):
+        """Save tracing results to disk in FITS format."""
         os.makedirs(os.path.dirname(self.savefile), exist_ok=True)
 
-        # Use new Trace dataclass objects if available
-        if self.trace_objects is not None:
-            save_traces(self.savefile, self.trace_objects, steps=["trace"])
-        else:
-            # Fallback: create trace objects from arrays
-            trace_list = create_trace_objects(
-                traces, column_range, heights=self.heights
-            )
-            save_traces(self.savefile, trace_list, steps=["trace"])
+        if self.trace_objects is None or len(self.trace_objects) == 0:
+            logger.warning("No traces to save")
+            return
 
+        save_traces(self.savefile, self.trace_objects, steps=["trace"])
         logger.info("Created trace file: %s", self.savefile)
 
     def load(self):
-        """Load tracing results from FITS or legacy NPZ format.
+        """Load tracing results from FITS format.
 
         Returns
         -------
         list[TraceData]
             Trace objects with position, column_range, height, and identity.
         """
-        # Find the savefile, checking for old formats
-        savefile = self.savefile
-        if not os.path.exists(savefile):
-            # Check for old NPZ format
-            if os.path.exists(self._old_savefile_npz):
-                savefile = self._old_savefile_npz
-                warnings.warn(
-                    f"Trace file uses old NPZ format: {savefile}. "
-                    "Re-run the trace step to update to FITS format.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-            elif os.path.exists(self._old_savefile):
-                savefile = self._old_savefile
-                warnings.warn(
-                    f"Trace file uses very old filename: {savefile}. "
-                    "Re-run the trace step to update.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-
-        logger.info("Trace file: %s", savefile)
-
-        # Determine format and load appropriately
-        if savefile.endswith(".fits"):
-            return self._load_fits(savefile)
-        else:
-            return self._load_npz(savefile)
-
-    def _load_fits(self, savefile):
-        """Load traces from new FITS format."""
-        self.trace_objects, header = load_traces(savefile)
-        logger.info("Loaded %d traces from FITS", len(self.trace_objects))
-        return self.trace_objects
-
-    def _load_npz(self, savefile):
-        """Load traces from legacy NPZ format."""
-        data = np.load(savefile, allow_pickle=True)
-        if "traces" in data:
-            traces = data["traces"]
-        elif "orders" in data:
-            warnings.warn(
-                f"Trace file {savefile} uses old key 'orders'. "
-                "Re-run the trace step to update the file format.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            traces = data["orders"]
-        else:
-            raise KeyError("Trace file missing 'traces' key")
-        column_range = data["column_range"]
-
-        # Load per-trace heights (backwards compat: None if missing)
-        if "heights" in data:
-            self.heights = data["heights"]
-        else:
-            self.heights = None
-
-        # Load grouped traces if available for creating Trace objects with identity
-        group_traces = None
-        group_cr = None
-        group_heights = None
-        per_order = False
-
-        if "group_names" in data:
-            group_names = list(data["group_names"])
-            group_traces = {}
-            group_cr = {}
-            group_heights = {}
-            fibers_config = getattr(self.instrument.config, "fibers", None)
-            per_order = (
-                getattr(fibers_config, "per_order", False) if fibers_config else False
-            )
-
-            for name in group_names:
-                group_data = data[f"group_{name}_traces"]
-                group_traces[name] = (
-                    group_data.item() if group_data.shape == () else group_data
-                )
-                cr = data[f"group_{name}_cr"]
-                group_cr[name] = cr.item() if cr.shape == () else cr
-                height_key = f"group_{name}_height"
-                if height_key in data:
-                    h = float(data[height_key])
-                    group_heights[name] = None if np.isnan(h) else h
-                else:
-                    group_heights[name] = None
-            logger.info("Loaded %d fiber groups from NPZ", len(group_names))
-
-        # Create trace objects
-        self.trace_objects = create_trace_objects(
-            traces,
-            column_range,
-            heights=self.heights,
-            group_traces=group_traces,
-            group_cr=group_cr,
-            group_heights=group_heights,
-            per_order=per_order,
-        )
-
+        logger.info("Trace file: %s", self.savefile)
+        self.trace_objects, header = load_traces(self.savefile)
+        logger.info("Loaded %d traces", len(self.trace_objects))
         return self.trace_objects
 
     def get_traces_for_step(self, step_name: str) -> dict[str, list[TraceData]]:
