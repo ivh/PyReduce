@@ -1,6 +1,30 @@
 # Changelog
 
 
+## [0.8a2] - 2026-02-03
+
+### Added
+- `Trace` dataclass (trace_model.py) for unified trace data model
+- `Spectrum`/`Spectra` classes (spectra.py) replacing legacy Echelle format
+- `Trace.wlen(x)` method to evaluate wavelength polynomial
+- Per-group wavelength calibration support
+- LFC wavecal support for ANDES_RIZ
+- docs/output_formats.md documenting new file formats
+
+### Changed
+- All pipeline steps use `list[Trace]` interface instead of array-based
+- `extract()` takes `list[Trace]`, returns `list[Spectrum]`
+- Renamed `nord`/`iord` to `ntrace`/`idx` for clarity
+- Renamed `Trace.fiber` to `Trace.group`, added `fiber_idx` for per-fiber wavecal
+- File format: traces.npz -> traces.fits (unified FITS format)
+- Wavelength calibration stored in traces.fits instead of separate wavecal.npz
+- Spectra use NaN masking instead of COLUMNS+MASK redundancy
+
+### Removed
+- `curvature_model.py` (curvature now stored in Trace)
+- `echelle.py` functionality (deprecated, use spectra.py)
+- Dead code from util.py
+
 ## [0.8a1] - 2026-02-03
 
 ### Added
