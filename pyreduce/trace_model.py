@@ -60,15 +60,24 @@ class Trace:
         evaluating wavelengths via ``Trace.wlen()``, the trace's ``m`` value
         is used as the second coordinate in the 2D polynomial.
 
-    group : str | int
-        Group identifier. String for named groups ('A', 'B', 'cal'),
-        int for bundle indices. Used to select traces for reduction steps
-        via the ``fibers.use`` config.
+    group : str | int | None
+        Group identifier, or None if trace is ungrouped. When set, indicates
+        this trace is the result of grouping/merging fibers for this order.
+        There should be exactly one trace per (m, group). String for named
+        groups ('A', 'B', 'cal'), int for bundle indices.
+
+        **Mutually exclusive with fiber_idx.** A trace has either:
+        - group set (merged/grouped result) and fiber_idx=None, or
+        - fiber_idx set (individual fiber) and group=None, or
+        - both None (ungrouped single-fiber instrument)
+
     fiber_idx : int | None
-        Fiber index within the group/order (1-indexed). For multi-fiber
-        instruments, this identifies which fiber within a group this trace
-        represents. Used for per-fiber wavelength calibration. None for
-        single-fiber instruments or when fiber identity is unknown.
+        Physical fiber index (1-indexed). For multi-fiber instruments where
+        fibers are tracked individually (not merged). Used for per-fiber
+        wavelength calibration. There should be exactly one trace per
+        (m, fiber_idx).
+
+        **Mutually exclusive with group.** See group docstring for details.
     pos : np.ndarray
         y(x) trace position polynomial coefficients, shape (deg+1,).
         Coefficients in numpy.polyval order (highest power first).
@@ -92,13 +101,13 @@ class Trace:
 
     # Identity
     m: int | None
-    group: str | int
 
     # Geometry (required)
     pos: np.ndarray
     column_range: tuple[int, int]
 
     # Optional fields (must come after required fields)
+    group: str | int | None = None
     fiber_idx: int | None = None
     height: float | None = None
     slit: np.ndarray | None = None
@@ -167,6 +176,76 @@ class Trace:
         return np.polyval(self.pos, x)
 
 
+def _validate_traces(traces: list[Trace], context: str = "") -> None:
+    """Validate trace list invariants.
+
+    Checks:
+    1. (group, m) is unique for grouped traces (group is not None)
+    2. Traces are ordered by y-position (ascending)
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Traces to validate.
+    context : str
+        Context for error messages (e.g., file path).
+
+    Raises
+    ------
+    ValueError
+        If validation fails.
+    """
+    if not traces:
+        return
+
+    # Check that group and fiber_idx are mutually exclusive
+    for i, t in enumerate(traces):
+        if t.group is not None and t.fiber_idx is not None:
+            raise ValueError(
+                f"Trace {i} has both group={t.group} and fiber_idx={t.fiber_idx}. "
+                f"These are mutually exclusive: group indicates merged fiber result, "
+                f"fiber_idx indicates individual fiber{context}"
+            )
+
+    # Check (group, m) uniqueness for grouped traces
+    seen_group = set()
+    for t in traces:
+        if t.group is not None:
+            key = (t.group, t.m)
+            if key in seen_group:
+                raise ValueError(
+                    f"Duplicate (group={t.group}, m={t.m}) in traces{context}"
+                )
+            seen_group.add(key)
+
+    # Check (fiber_idx, m) uniqueness for fiber traces
+    seen_fiber = set()
+    for t in traces:
+        if t.fiber_idx is not None:
+            key = (t.fiber_idx, t.m)
+            if key in seen_fiber:
+                raise ValueError(
+                    f"Duplicate (fiber_idx={t.fiber_idx}, m={t.m}) in traces{context}"
+                )
+            seen_fiber.add(key)
+
+    # Check y-position ordering (evaluate at midpoint of column range)
+    # Use the first trace's column range midpoint as reference
+    ref_x = (traces[0].column_range[0] + traces[0].column_range[1]) // 2
+    y_positions = [t.y_at_x(ref_x) for t in traces]
+    for i in range(1, len(y_positions)):
+        if y_positions[i] < y_positions[i - 1]:
+            logger.warning(
+                "Traces not ordered by y-position at x=%d: trace %d (y=%.1f) < trace %d (y=%.1f)%s",
+                ref_x,
+                i,
+                y_positions[i],
+                i - 1,
+                y_positions[i - 1],
+                context,
+            )
+
+
 def save_traces(
     path: str | Path,
     traces: list[Trace],
@@ -185,9 +264,16 @@ def save_traces(
         FITS header to include. If None, a minimal header is created.
     steps : list[str], optional
         Pipeline steps that have been run (stored in E_STEPS header).
+
+    Raises
+    ------
+    ValueError
+        If traces have duplicate (group, m) keys.
     """
     if not traces:
         raise ValueError("Cannot save empty trace list")
+
+    _validate_traces(traces, f" when saving to {path}")
 
     if header is None:
         header = fits.Header()
@@ -226,7 +312,9 @@ def save_traces(
 
     # Build arrays
     m_arr = np.array([t.m if t.m is not None else -1 for t in traces], dtype=np.int16)
-    group_arr = np.array([str(t.group) for t in traces], dtype="U16")
+    group_arr = np.array(
+        [str(t.group) if t.group is not None else "" for t in traces], dtype="U16"
+    )
     fiber_idx_arr = np.array(
         [t.fiber_idx if t.fiber_idx is not None else -1 for t in traces], dtype=np.int16
     )
@@ -392,11 +480,15 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
         for i in range(len(m_arr)):
             m = int(m_arr[i]) if m_arr[i] >= 0 else None
             group = group_arr[i].strip()
-            # Try to convert group to int if it looks like one
-            try:
-                group = int(group)
-            except ValueError:
-                pass
+            # Empty string or "0" means no group (backward compat)
+            if group == "" or group == "0":
+                group = None
+            else:
+                # Try to convert group to int if it looks like one
+                try:
+                    group = int(group)
+                except ValueError:
+                    pass
             fiber_idx = (
                 int(fiber_idx_arr[i])
                 if fiber_idx_arr is not None and fiber_idx_arr[i] >= 0
@@ -458,6 +550,7 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
             )
 
         logger.info("Loaded %d traces from: %s", len(traces), path)
+        _validate_traces(traces, f" loaded from {path}")
         return traces, header
 
 
@@ -504,8 +597,6 @@ def _load_traces_npz(path: Path) -> tuple[list[Trace], fits.Header]:
         traces.append(
             Trace(
                 m=i,  # Sequential order number (no identity preserved)
-                group=0,  # Default group
-                fiber_idx=None,  # Unknown fiber index
                 pos=trace_coeffs[i],
                 column_range=(int(column_range[i, 0]), int(column_range[i, 1])),
                 height=height,
@@ -513,4 +604,5 @@ def _load_traces_npz(path: Path) -> tuple[list[Trace], fits.Header]:
         )
 
     logger.info("Loaded %d traces from legacy NPZ: %s", len(traces), path)
+    _validate_traces(traces, f" loaded from {path}")
     return traces, fits.Header()

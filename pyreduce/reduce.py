@@ -2774,8 +2774,6 @@ class Finalize(Step):
             spectra_list.append(
                 Spectrum(
                     m=j,
-                    group=0,
-                    fiber_idx=None,
                     spec=spec_row,
                     sig=sig_row,
                     wave=wave_row,

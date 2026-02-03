@@ -490,34 +490,34 @@ class TestWavecalFinalizeTraceUpdate:
 
     @pytest.fixture
     def traces_with_fibers(self):
-        """Create traces with fiber_idx for per-fiber mode."""
+        """Create traces with fiber_idx for per-fiber mode.
+
+        Note: fiber_idx and group are mutually exclusive. These traces
+        use fiber_idx (individual fibers, not merged).
+        """
         from pyreduce.trace_model import Trace
 
         return [
             Trace(
                 m=0,
-                group="A",
                 pos=np.array([1, 0, 100]),
                 column_range=(0, 100),
                 fiber_idx=0,
             ),
             Trace(
                 m=1,
-                group="A",
                 pos=np.array([1, 0, 150]),
                 column_range=(0, 100),
                 fiber_idx=0,
             ),
             Trace(
                 m=0,
-                group="A",
                 pos=np.array([1, 0, 200]),
                 column_range=(0, 100),
                 fiber_idx=1,
             ),
             Trace(
                 m=1,
-                group="A",
                 pos=np.array([1, 0, 250]),
                 column_range=(0, 100),
                 fiber_idx=1,

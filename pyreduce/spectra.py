@@ -98,8 +98,9 @@ class Spectrum:
     ----------
     m : int | None
         Spectral order number. None if unknown.
-    group : str | int
+    group : str | int | None
         Group identifier (e.g., 'A', 'B', 'cal' or bundle index).
+        None if trace has not been through fiber grouping.
     fiber_idx : int | None
         Fiber index within group (1-indexed). None if unknown.
     spec : np.ndarray
@@ -118,13 +119,13 @@ class Spectrum:
 
     # Identity (copied from Trace)
     m: int | None
-    group: str | int
 
     # Extracted data (NaN for masked pixels)
     spec: np.ndarray
     sig: np.ndarray
 
     # Optional fields (must come after required fields)
+    group: str | int | None = None
     fiber_idx: int | None = None
     wave: np.ndarray | None = None
     cont: np.ndarray | None = None
@@ -269,7 +270,9 @@ class Spectra:
             if self.data[0].cont is not None
             else None,
             "m": np.array([s.m if s.m is not None else -1 for s in self.data]),
-            "group": np.array([str(s.group) for s in self.data]),
+            "group": np.array(
+                [str(s.group) if s.group is not None else "" for s in self.data]
+            ),
             "fiber_idx": np.array(
                 [s.fiber_idx if s.fiber_idx is not None else -1 for s in self.data]
             ),
@@ -481,10 +484,14 @@ def _read_new_format(
     for i in range(len(spec_arr)):
         m = int(m_arr[i]) if m_arr[i] >= 0 else None
         group = group_arr[i].strip()
-        try:
-            group = int(group)
-        except ValueError:
-            pass
+        # Empty string or "0" means no group (backward compat)
+        if group == "" or group == "0":
+            group = None
+        else:
+            try:
+                group = int(group)
+            except ValueError:
+                pass
         fiber_idx = (
             int(fiber_idx_arr[i])
             if fiber_idx_arr is not None and fiber_idx_arr[i] >= 0
@@ -586,8 +593,6 @@ def _read_legacy_format(
         spectra.append(
             Spectrum(
                 m=i,  # Sequential, no real order number
-                group=0,  # Default group
-                fiber_idx=None,  # Unknown fiber index
                 spec=spec_arr[i],
                 sig=sig_arr[i],
                 wave=wave_arr[i] if wave_arr is not None else None,

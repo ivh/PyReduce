@@ -1831,15 +1831,11 @@ def select_traces_for_step(
         return {"all": traces}
 
     elif selection == "groups":
-        # Return all traces that have non-default group assignment
-        groups = {t.group for t in traces}
-        # If only default group (0 or single value), return all
-        if len(groups) == 1 and (0 in groups or groups == {0}):
-            return {"all": traces}
-        # Filter to only grouped traces (exclude default group 0)
-        grouped = [t for t in traces if t.group != 0]
+        # Return all traces that have explicit group assignment
+        grouped = [t for t in traces if t.group is not None]
         if grouped:
             return {"all": grouped}
+        # No grouped traces, return all
         return {"all": traces}
 
     elif selection == "per_fiber":
@@ -1859,13 +1855,15 @@ def select_traces_for_step(
         # Select specific groups by name - keep them separate
         result = {}
         for name in selection:
-            # Match by group (convert to string for comparison)
-            selected = [t for t in traces if str(t.group) == name]
+            # Match by group (compare as string, skip ungrouped traces)
+            selected = [
+                t for t in traces if t.group is not None and str(t.group) == name
+            ]
             if not selected:
                 logger.warning("Group '%s' not found in trace data", name)
                 continue
             # Sort by m (order number) for consistent ordering
-            selected.sort(key=lambda t: (t.m if t.m is not None else 0, str(t.group)))
+            selected.sort(key=lambda t: (t.m if t.m is not None else 0))
             result[name] = selected
 
         if not result:
@@ -1889,8 +1887,10 @@ def create_trace_objects(
 ):
     """Convert array-based trace data to Trace dataclass objects.
 
-    Creates Trace objects with identity (m, group, fiber_idx) preserved from
-    fiber grouping configuration.
+    Creates Trace objects with identity set based on fiber grouping mode.
+    Note: group and fiber_idx are mutually exclusive:
+    - per_order=True: sets fiber_idx (individual fibers, not merged)
+    - per_order=False: sets group (merged/grouped result)
 
     Parameters
     ----------
@@ -1902,19 +1902,21 @@ def create_trace_objects(
         Per-trace extraction heights
     group_traces : dict, optional
         Grouped traces from organize_fibers():
-        - Non-per-order: {group_name: ndarray}
-        - Per-order: {group_name: {order_m: ndarray}}
+        - Non-per-order: {group_name: ndarray} - merged traces
+        - Per-order: {group_name: {order_m: ndarray}} - individual fibers
     group_cr : dict, optional
         Column ranges with same structure as group_traces
     group_heights : dict[str, float | None], optional
         Extraction heights per group
     per_order : bool
-        Whether group_traces uses per-order structure
+        Whether group_traces uses per-order structure. If True, traces
+        are individual fibers (fiber_idx set). If False, traces are
+        merged groups (group set).
 
     Returns
     -------
     list[TraceData]
-        Trace objects sorted by (m, group, y-position)
+        Trace objects sorted by (m, y-position)
     """
     result = []
 
@@ -1926,7 +1928,8 @@ def create_trace_objects(
             grp_height = group_heights.get(group_name) if group_heights else None
 
             if per_order:
-                # Per-order: {order_m: ndarray}
+                # Per-order: {order_m: ndarray} - individual fibers, not merged
+                # Use fiber_idx (not group) since fibers are tracked individually
                 for m in sorted(grp_data.keys()):
                     order_traces = grp_data[m]
                     order_cr = grp_cr_data[m]
@@ -1935,7 +1938,6 @@ def create_trace_objects(
                         result.append(
                             TraceData(
                                 m=m,
-                                group=group_name,
                                 fiber_idx=i + 1,  # 1-indexed fiber within order
                                 pos=order_traces[i],
                                 column_range=cr,
@@ -1966,8 +1968,6 @@ def create_trace_objects(
             result.append(
                 TraceData(
                     m=i,
-                    group=0,
-                    fiber_idx=None,
                     pos=traces[i],
                     column_range=cr,
                     height=h,

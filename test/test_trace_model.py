@@ -335,7 +335,7 @@ class TestLegacyNpzLoading:
         assert loaded[0].height is None
 
     def test_load_npz_assigns_sequential_identity(self, tmp_path):
-        """NPZ loading assigns sequential m and default fiber."""
+        """NPZ loading assigns sequential m and no group."""
         path = tmp_path / "traces.npz"
         traces = np.array([[1.0, 100.0], [2.0, 200.0], [3.0, 300.0]])
         column_range = np.array([[0, 1000], [0, 1000], [0, 1000]])
@@ -344,7 +344,7 @@ class TestLegacyNpzLoading:
         loaded, _ = load_traces(path)
 
         assert [t.m for t in loaded] == [0, 1, 2]
-        assert all(t.group == 0 for t in loaded)
+        assert all(t.group is None for t in loaded)
 
     def test_load_npz_returns_empty_header(self, tmp_path):
         """NPZ loading returns empty FITS header."""
