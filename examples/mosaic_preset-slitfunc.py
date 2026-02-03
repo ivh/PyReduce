@@ -13,6 +13,7 @@ import numpy as np
 from pyreduce import util
 from pyreduce.configuration import load_config
 from pyreduce.extract import extract
+from pyreduce.trace_model import load_traces
 
 # Parameters
 instrument_name = "MOSAIC"
@@ -64,18 +65,36 @@ prefix = "mosaic_nir"
 # Load saved results from previous pipeline run
 print("\n=== Loading saved results ===")
 
-trace_file = join(output_dir, f"{prefix}.traces.npz")
+trace_file = join(output_dir, f"{prefix}.traces.fits")
 norm_file = join(output_dir, f"{prefix}.flat_norm.npz")
-curve_file = join(output_dir, f"{prefix}.curve.npz")
 
-# Load trace (use grouped traces that norm_flat used)
-trace_data = np.load(trace_file)
-group_names = trace_data["group_names"]
-all_traces = [trace_data[f"group_{name}_traces"] for name in group_names]
-all_cr = [trace_data[f"group_{name}_cr"] for name in group_names]
-traces = np.vstack(all_traces)
-column_range = np.vstack(all_cr)
-print(f"Loaded {len(traces)} grouped traces from {trace_file}")
+# Load traces from FITS file (includes curvature if available)
+trace_list, _ = load_traces(trace_file)
+print(f"Loaded {len(trace_list)} traces from {trace_file}")
+
+# Convert to arrays for extract()
+traces = np.array([t.pos for t in trace_list])
+column_range = np.array([t.column_range for t in trace_list])
+
+# Get curvature from traces (if available)
+# The slit curvature is now stored in each Trace object
+has_curvature = trace_list[0].slit is not None
+if has_curvature:
+    # For the extract() function, we need p1, p2 as arrays (ntrace, 2)
+    # Extract the linear and quadratic curvature terms
+    p1 = np.zeros(len(trace_list))
+    p2 = np.zeros(len(trace_list))
+    for i, t in enumerate(trace_list):
+        if t.slit is not None and t.slit.shape[0] >= 2:
+            # slit[1, :] contains coefficients for the y^1 term (linear tilt)
+            # Take the constant term (value at x=0) as p1
+            p1[i] = t.slit[1, -1] if len(t.slit[1]) > 0 else 0
+            if t.slit.shape[0] >= 3:
+                p2[i] = t.slit[2, -1] if len(t.slit[2]) > 0 else 0
+    print(f"Loaded curvature from traces (p1 range: [{p1.min():.4f}, {p1.max():.4f}])")
+else:
+    p1, p2 = None, None
+    print("No curvature data in traces")
 
 # Load norm_flat (with slitfunc)
 norm_data = np.load(norm_file, allow_pickle=True)
@@ -84,37 +103,24 @@ slitfunc_meta = norm_data["slitfunc_meta"].item()
 print(f"Loaded {len(slitfunc_list)} slit functions from {norm_file}")
 print(f"Slitfunc meta: {slitfunc_meta}")
 
-# Load curvature if available
-if os.path.exists(curve_file):
-    curve_data = np.load(curve_file)
-    p1, p2 = curve_data["p1"], curve_data["p2"]
-    print(f"Loaded curvature from {curve_file}")
-else:
-    p1, p2 = None, None
-    print("No curvature file found, using p1=p2=None")
-
 # Now extract ThAr using preset slit function
 print("\n=== Extracting ThAr with preset slit function ===")
 
 # Load ThAr image
 thar_img, thar_head = instrument.load_fits(thar_file, channel)
 
-# Use the grouped traces (same as norm_flat)
-selected_traces = traces
-selected_cr = column_range
-
 # Extraction parameters from slitfunc_meta
 osample = slitfunc_meta["osample"]
 extraction_height = slitfunc_meta["extraction_height"]
 
-print(f"Extracting {len(selected_traces)} traces with preset slitfunc")
+print(f"Extracting {len(traces)} traces with preset slitfunc")
 print(f"  osample={osample}, extraction_height={extraction_height}")
 
 # Extract using the extract() function with preset_slitfunc
 spectrum, uncertainties, slitfunc_out, column_range_out = extract(
     thar_img,
-    selected_traces,
-    column_range=selected_cr,
+    traces,
+    column_range=column_range,
     extraction_type="optimal",
     extraction_height=extraction_height,
     p1=p1,

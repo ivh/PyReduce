@@ -17,9 +17,18 @@
     },
     "curvature": {
         "curve_height": 160,
-        "extraction_height": 1,
-        "curve_degree": 1,
+        "extraction_height": 16,
+        "curve_degree": 2,
         "degree": 5
+    },
+    "wavecal_init": {
+        "element": "lfc",
+        "wave_delta": 30
+    },
+    "wavecal": {
+        "dimensionality": "1D",
+        "degree": 6,
+        "element": "lfc"
     },
     "science": {
         "swath_width"   : 500,

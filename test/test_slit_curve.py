@@ -4,6 +4,7 @@ import pytest
 from pyreduce.combine_frames import combine_frames
 from pyreduce.slit_curve import Curvature as CurvatureModule
 from pyreduce.slit_curve import gaussian, lorentzian
+from pyreduce.trace_model import Trace
 
 
 class TestGaussianLorentzian:
@@ -66,16 +67,13 @@ class TestCurvatureInit:
 
     @pytest.fixture
     def simple_orders(self):
-        """Create simple polynomial orders for testing."""
-        # 3 orders, each a polynomial of degree 2
-        orders = np.array(
-            [
-                [100.0, 0.0, 0.0],  # y = 100
-                [200.0, 0.0, 0.0],  # y = 200
-                [300.0, 0.0, 0.0],  # y = 300
-            ]
-        )
-        return orders
+        """Create simple Trace objects for testing."""
+        # 3 traces with constant y positions
+        return [
+            Trace(m=0, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([200.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=2, group=0, pos=np.array([300.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_invalid_curve_degree(self, simple_orders):
@@ -128,14 +126,11 @@ class TestCurvatureFitting:
 
     @pytest.fixture
     def simple_orders(self):
-        """Create simple polynomial orders for testing."""
-        orders = np.array(
-            [
-                [50.0, 0.0, 0.0],
-                [100.0, 0.0, 0.0],
-            ]
-        )
-        return orders
+        """Create simple Trace objects for testing."""
+        return [
+            Trace(m=0, group=0, pos=np.array([50.0, 0.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_fit_1d_mode(self, simple_orders):
@@ -185,8 +180,9 @@ class TestCurvatureFitFromPositions:
 
     @pytest.fixture
     def simple_orders(self):
-        orders = np.array([[100.0, 0.0, 0.0]])
-        return orders
+        return [
+            Trace(m=0, group=0, pos=np.array([100.0, 0.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.mark.unit
     def test_fit_curvature_linear(self, simple_orders):
@@ -271,8 +267,11 @@ class TestSlitdeltasComputation:
 
     @pytest.fixture
     def simple_orders(self):
-        """Simple set of 2 polynomial trace coefficients."""
-        return np.array([[50.0, 0.0], [70.0, 0.0]])
+        """Simple set of 2 Trace objects."""
+        return [
+            Trace(m=0, group=0, pos=np.array([50.0, 0.0]), column_range=(0, 500)),
+            Trace(m=1, group=0, pos=np.array([70.0, 0.0]), column_range=(0, 500)),
+        ]
 
     @pytest.fixture
     def configured_module(self, simple_orders):
@@ -287,6 +286,7 @@ class TestSlitdeltasComputation:
         # Manually set up heights as arrays (normally done in _fix_inputs)
         module.extraction_height = np.array([10, 10])
         module.curve_height = np.array([20, 20])
+        module.column_range = np.array([[0, 500], [0, 500]])
         module.trace_range = (0, 2)  # Sets n = 2 via property
         return module
 
@@ -383,10 +383,10 @@ class TestSlitdeltasComputation:
         assert not np.any(np.isnan(slitdeltas))
 
     @pytest.mark.unit
+    @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_execute_returns_slitdeltas(self, simple_orders):
-        """Test that execute() returns SlitCurvature with slitdeltas."""
-        from pyreduce.curvature_model import SlitCurvature
-
+        """Test that execute() returns dict with slitdeltas."""
         module = CurvatureModule(
             simple_orders,
             mode="1D",
@@ -402,11 +402,13 @@ class TestSlitdeltasComputation:
 
         result = module.execute(img, compute_slitdeltas=True)
 
-        assert isinstance(result, SlitCurvature)
-        assert result.slitdeltas is not None
-        assert result.slitdeltas.shape[0] == 2  # 2 traces
+        assert isinstance(result, dict)
+        assert result["slitdeltas"] is not None
+        assert result["slitdeltas"].shape[0] == 2  # 2 traces
 
     @pytest.mark.unit
+    @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_execute_without_slitdeltas(self, simple_orders):
         """Test that execute() can skip slitdeltas computation."""
         module = CurvatureModule(
@@ -422,7 +424,7 @@ class TestSlitdeltasComputation:
 
         result = module.execute(img, compute_slitdeltas=False)
 
-        assert result.slitdeltas is None
+        assert result["slitdeltas"] is None
 
 
 # Tests that require instrument data follow below
@@ -440,19 +442,15 @@ def original(files, instrument, channel, mask):
 
 
 @pytest.mark.slow
-def test_curvature(original, orders, trace_range, settings):
-    from pyreduce.curvature_model import SlitCurvature
-
+def test_curvature(original, traces, trace_range, settings):
     original, chead = original
-    orders, column_range = orders
     settings = settings["curvature"]
 
     if original is None:
         pytest.skip("No curvature files")
 
     module = CurvatureModule(
-        orders,
-        column_range=column_range,
+        traces,
         trace_range=trace_range,
         extraction_height=settings["extraction_height"],
         curve_height=settings.get("curve_height", 0.5),
@@ -469,12 +467,12 @@ def test_curvature(original, orders, trace_range, settings):
     )
     curvature = module.execute(original)
 
-    assert isinstance(curvature, SlitCurvature)
-    assert curvature.degree == 2
-    assert curvature.coeffs.ndim == 3
-    assert curvature.coeffs.shape[0] == trace_range[1] - trace_range[0]
-    assert curvature.coeffs.shape[1] == original.shape[1]
-    assert curvature.coeffs.shape[2] == 3  # degree + 1
+    assert isinstance(curvature, dict)
+    assert curvature["degree"] == 2
+    assert curvature["coeffs"].ndim == 3
+    assert curvature["coeffs"].shape[0] == trace_range[1] - trace_range[0]
+    assert curvature["coeffs"].shape[1] == original.shape[1]
+    assert curvature["coeffs"].shape[2] == 3  # degree + 1
 
     # Test backward compatibility
     p1, p2 = curvature.to_p1_p2()
@@ -484,12 +482,10 @@ def test_curvature(original, orders, trace_range, settings):
     assert p2.shape[1] == original.shape[1]
 
     # Reduce the number of orders this way
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     module = CurvatureModule(
-        orders,
-        column_range=column_range,
+        traces_subset,
         extraction_height=settings["extraction_height"],
         curve_height=settings.get("curve_height", 0.5),
         window_width=settings["window_width"],
@@ -513,47 +509,37 @@ def test_curvature(original, orders, trace_range, settings):
 
 
 @pytest.mark.slow
-def test_curvature_exception(original, orders, trace_range):
+def test_curvature_exception(original, traces, trace_range):
     original, chead = original
-    orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
 
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     original = np.copy(original)
 
     # Wrong curve_degree input (must be 1-5)
     with pytest.raises(ValueError):
-        module = CurvatureModule(
-            orders, column_range=column_range, plot=False, curve_degree=6
-        )
+        module = CurvatureModule(traces_subset, plot=False, curve_degree=6)
         module.execute(original)
 
     # Wrong mode
     with pytest.raises(ValueError):
-        module = CurvatureModule(
-            orders, column_range=column_range, plot=False, mode="3D"
-        )
+        module = CurvatureModule(traces_subset, plot=False, mode="3D")
         module.execute(original)
 
 
 @pytest.mark.slow
-def test_curvature_zero(original, orders, trace_range):
+def test_curvature_zero(original, traces, trace_range):
     original, chead = original
-    orders, column_range = orders
 
     if original is None:
         pytest.skip("No curvature files")
-    orders = orders[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     original = np.zeros_like(original)
 
     # With zero image, should produce zero curvature
-    module = CurvatureModule(
-        orders, column_range=column_range, plot=False, sigma_cutoff=0
-    )
+    module = CurvatureModule(traces_subset, plot=False, sigma_cutoff=0)
     _ = module.execute(original)

@@ -65,8 +65,7 @@ id_channel: ["^ANDES_123_R3.hdf$", "^ANDES_full_F18A33_win_jmr_MC_T0019_Rband_p0
 # A/B/cal: spatial division of the slit
 fibers:
   trace_by: FIBMODE
-  per_order: true
-  fibers_per_order: 66
+  fibers_per_order: 66  # implies per-order organization
   order_centers_file: order_centers_{channel}.yaml
   groups:
     # Spatial groups
@@ -85,5 +84,6 @@ fibers:
   use:
     curvature: [A, B]
     norm_flat: [A, B]
-    wavecal: [A, B]
+    wavecal: [A]
+    wavecal_master: [A]
     science: [A, B]

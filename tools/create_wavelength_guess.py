@@ -11,13 +11,18 @@ import pandas as pd
 from astropy.io import fits
 from scipy import signal
 
-from pyreduce.echelle import Echelle
+from pyreduce.spectra import Spectra, Spectrum
 from pyreduce.wavelength_calibration import WavelengthCalibration
 
 
-def obs_to_ech(obs, fname):
-    ech = Echelle(data={"spec": obs})
-    ech.save(fname)
+def obs_to_spectra(obs, fname):
+    """Save observation array as Spectra FITS file."""
+    spectra_list = [
+        Spectrum(m=i, fiber=0, spec=obs[i], sig=np.ones_like(obs[i]))
+        for i in range(len(obs))
+    ]
+    spectra = Spectra(header=fits.Header(), data=spectra_list)
+    spectra.save(fname)
 
 
 def make_lab_spec(wpoints):
@@ -421,7 +426,7 @@ obs[obs < 0] = 0
 # obs[obs > np.nanpercentile(obs, 95)] = np.nanpercentile(obs, 95)
 # obs /= np.max(obs)
 
-obs_to_ech(obs, "xshooter.thar.ech")
+obs_to_spectra(obs, "xshooter.thar.fits")
 
 
 # Whether to flip the order of orders

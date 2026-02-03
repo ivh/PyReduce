@@ -542,7 +542,6 @@ def combine_calibrate(
     plot=False,
     plot_title=None,
     traces=None,
-    column_range=None,
     extraction_height=None,
     **kwargs,
 ):
@@ -643,7 +642,7 @@ def combine_calibrate(
         bot, top = np.percentile(orig[orig != 0], (10, 90))
         plt.imshow(orig, vmin=bot, vmax=top, origin="lower")
 
-        # Overlay traces if provided
+        # Overlay traces if provided (list[Trace] objects)
         if traces is not None:
             ncol = orig.shape[1]
             x_mid = ncol // 2
@@ -652,7 +651,7 @@ def combine_calibrate(
             extr_h = extraction_height
             if extr_h is not None and np.isscalar(extr_h) and extr_h < 3:
                 # Fraction of order spacing - estimate from trace separation
-                y_mids = np.array([np.polyval(t, x_mid) for t in traces])
+                y_mids = np.array([np.polyval(t.pos, x_mid) for t in traces])
                 if len(y_mids) > 1:
                     spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
                     extr_h = extr_h * spacing
@@ -660,22 +659,21 @@ def combine_calibrate(
                     extr_h = 10  # fallback
 
             for i, trace in enumerate(traces):
-                if column_range is not None:
-                    x = np.arange(column_range[i, 0], column_range[i, 1])
-                else:
-                    x = np.arange(ncol)
-                ycen = np.polyval(trace, x)
+                x = np.arange(trace.column_range[0], trace.column_range[1])
+                ycen = np.polyval(trace.pos, x)
                 plt.plot(x, ycen, "w-", lw=0.5, alpha=0.8)
-                if extr_h is not None:
-                    if np.ndim(extr_h) == 2:
-                        yb = ycen - extr_h[i, 0]
-                        yt = ycen + extr_h[i, 1]
-                    elif np.ndim(extr_h) == 1:
-                        yb = ycen - extr_h[i] / 2
-                        yt = ycen + extr_h[i] / 2
+                # Explicit extraction_height overrides trace.height
+                h = extr_h if extr_h is not None else trace.height
+                if h is not None:
+                    if np.ndim(h) == 2:
+                        yb = ycen - h[i, 0]
+                        yt = ycen + h[i, 1]
+                    elif np.ndim(h) == 1:
+                        yb = ycen - h[i] / 2
+                        yt = ycen + h[i] / 2
                     else:
-                        yb = ycen - extr_h / 2
-                        yt = ycen + extr_h / 2
+                        yb = ycen - h / 2
+                        yt = ycen + h / 2
                     plt.plot(x, yb, "w--", lw=0.5, alpha=0.8)
                     plt.plot(x, yt, "w--", lw=0.5, alpha=0.8)
 

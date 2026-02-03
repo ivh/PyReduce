@@ -164,7 +164,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 
 The extraction aperture can be specified as:
 
-- **`null`** (default) - Use per-trace heights computed during tracing, stored in `traces.npz`. This provides optimal apertures based on actual trace spacing.
+- **`null`** (default) - Use per-trace heights computed during tracing, stored in `traces.fits`. This provides optimal apertures based on actual trace spacing.
 - **Pixels** (≥2) - Explicit pixel height, e.g., `20` for 20 pixels total (10 above, 10 below trace)
 - **Fraction** (<2) - Fraction of order separation, e.g., `0.5` for half the distance to neighbors
 
@@ -172,16 +172,25 @@ The automatic heights (null) are recommended for most cases. They adapt to varyi
 
 #### Using a Pre-computed Slit Function
 
-For faster extraction, the slit function computed during `norm_flat` can be reused in subsequent steps. The normalized flat step saves the slit function to `.slitfunc.npz` with metadata (extraction_height, osample). To use it:
+For faster extraction, the slit function computed during `norm_flat` can be reused in subsequent steps. The normalized flat step saves the slit function to `.flat_norm.npz` with metadata (extraction_height, osample). To use it:
 
 ```python
-from pyreduce.echelle import read
+import numpy as np
+from pyreduce.extract import extract
 
 # Load slit function from norm_flat output
-slitfunc_data = read("output/UVES.2010-04-01.slitfunc.npz")
+norm_data = np.load("output/uves.flat_norm.npz", allow_pickle=True)
+slitfunc_list = list(norm_data["slitfunc"])
+slitfunc_meta = norm_data["slitfunc_meta"].item()
 
-# Pass to science extraction
-pipe.science(science_files, preset_slitfunc=slitfunc_data["slitfunc"])
+# Extract with preset slit function
+spectra = extract(
+    image,
+    traces,
+    extraction_height=slitfunc_meta["extraction_height"],
+    osample=slitfunc_meta["osample"],
+    preset_slitfunc=slitfunc_list,
+)
 ```
 
 This performs single-pass extraction without iterating to find the slit function shape, which is useful for instruments with stable slit profiles.
@@ -194,6 +203,47 @@ This performs single-pass extraction without iterating to find the slit function
 | `threshold` | Line detection threshold | 100 |
 | `iterations` | Refinement iterations | 3 |
 | `medium` | Refractive medium ("air" or "vacuum") | "air" |
+| `dimensionality` | "1D" (per-trace) or "2D" (shared polynomial) | "2D" |
+
+#### Per-Group Wavelength Calibration
+
+For multi-fiber instruments, wavelength calibration can process fiber groups
+separately. This is configured via `fibers.use.wavecal` in `config.yaml`:
+
+```yaml
+fibers:
+  groups:
+    A: {range: [1, 36], merge: average}
+    cal: {range: [37, 40], merge: average}
+    B: {range: [40, 76], merge: average}
+
+  use:
+    wavecal: [A, B]      # Separate calibration for each group
+    # OR
+    wavecal: [cal]       # Use only calibration fiber
+    # OR
+    wavecal: per_fiber   # Separate calibration per fiber_idx
+    # OR
+    wavecal: all         # All traces together (default)
+```
+
+- **`[A, B]`** - Calibrate each named group separately. Useful when groups have
+  different optical paths (e.g., science fibers A and B).
+
+- **`per_fiber`** - Calibrate each fiber index separately. Each unique
+  `fiber_idx` value gets its own wavelength polynomial. Use this when individual
+  fibers within a group have slightly different wavelength solutions and you
+  want maximum precision.
+
+- **`all`** - Combine all traces into a single calibration (default for
+  single-fiber instruments).
+
+The wavelength polynomial is stored in each `Trace.wave` attribute and saved to
+`traces.fits`. Subsequent steps (science extraction, continuum normalization)
+read wavelengths directly from the traces.
+
+See [Fiber Bundle Configuration](fiber_bundle_tracing.md) for full details on
+multi-fiber setup.
 
 ### Continuum Normalization
 

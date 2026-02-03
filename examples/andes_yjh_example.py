@@ -2,7 +2,8 @@
 ANDES_YJH instrument example: Multi-fiber tracing with Pipeline API.
 
 Demonstrates tracing fibers illuminated in separate flat field images
-(even/odd pattern) using the Pipeline's trace_raw() and organize() methods.
+(even/odd pattern). The Pipeline trace() step handles merging traces
+from multiple files.
 
 The fiber config in ANDES_YJH/config.yaml handles:
 - order_centers_file: assigns traces to spectral orders by y-position (channel-specific)
@@ -58,33 +59,25 @@ LOAD_TRACE = True  # Set True to load traces from previous run
 
 if LOAD_TRACE:
     print("\nLoading traces from previous run...")
-    traces, column_range, heights = pipe._run_step("trace", None, load_only=True)
-    print(f"  Loaded {len(traces)} traces")
-
-    # Re-run organize with current config (picks up any config changes)
-    print("\nRe-organizing traces with current config...")
-    pipe.organize(traces, column_range)
+    trace_objects = pipe._run_step("trace", None, load_only=True)  # list[Trace]
+    print(f"  Loaded {len(trace_objects)} traces")
 else:
-    # Trace each flat independently
-    print(f"\nTracing even fibers from {os.path.basename(file_even)}...")
-    traces_even, cr_even, _ = pipe.trace_raw([file_even])
-    print(f"  Found {len(traces_even)} traces")
+    # Trace both files together - the pipeline will organize by fiber config
+    print(
+        f"\nTracing fibers from {os.path.basename(file_even)} and {os.path.basename(file_odd)}..."
+    )
+    pipe.trace([file_even, file_odd])
+    results = pipe.run()
+    trace_objects = results["trace"]  # list[Trace]
+    print(f"  Found {len(trace_objects)} traces")
 
-    print(f"\nTracing odd fibers from {os.path.basename(file_odd)}...")
-    traces_odd, cr_odd, _ = pipe.trace_raw([file_odd])
-    print(f"  Found {len(traces_odd)} traces")
-
-    # Organize into fiber groups
-    print("\nOrganizing traces into fiber groups...")
-    pipe.organize(traces_even, cr_even, traces_odd, cr_odd)
-
-# Access organized groups
-if "trace_groups" in pipe._data and pipe._data["trace_groups"][0]:
-    group_traces, group_cr, group_heights = pipe._data["trace_groups"]
-    print("Fiber groups:")
-    for name, traces_dict in group_traces.items():
-        n_traces = len(traces_dict)
-        print(f"  {name}: {n_traces} traces")
+# Show trace info
+print("\nTraces:")
+fibers = {t.fiber for t in trace_objects}
+print(f"  Fibers: {sorted(fibers)}")
+for fiber in sorted(fibers)[:3]:
+    count = sum(1 for t in trace_objects if t.fiber == fiber)
+    print(f"  {fiber}: {count} traces")
 
 # --- Create combined flat for extraction ---
 print("\nCombining even/odd flats...")

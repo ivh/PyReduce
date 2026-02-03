@@ -14,8 +14,5 @@
     },
     "norm_flat": {
                 "extraction_height": 37
-    },
-        "science": {
-        "extraction_reject": 6
-        }
+    }
 }

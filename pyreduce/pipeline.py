@@ -40,6 +40,8 @@ import os
 from os.path import join
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from . import util
 from .configuration import load_config
 from .instruments.instrument_info import load_instrument
@@ -205,21 +207,23 @@ class Pipeline:
         """
         return self._add_step("trace", files)
 
-    def trace_raw(self, files: list[str]) -> tuple:
-        """Trace fibers/orders and return raw results without storing.
+    def trace_raw(self, files: list[str], order_centers: dict = None) -> list:
+        """Trace fibers/orders and return Trace objects without storing.
 
         Use this for multi-file tracing workflows where you need to combine
-        traces from multiple files before organizing.
+        traces from multiple files before grouping.
 
         Parameters
         ----------
         files : list[str]
             Files to use for tracing.
+        order_centers : dict[int, float], optional
+            Order number -> y-position mapping for m assignment.
 
         Returns
         -------
-        tuple
-            (traces, column_range) arrays
+        list[Trace]
+            Trace objects with fiber_idx set (individual fibers, not grouped).
         """
         from .trace import trace as trace_func
 
@@ -234,7 +238,11 @@ class Pipeline:
 
         order_img, _ = step.calibrate(files, mask, bias, None)
 
-        traces, column_range, heights = trace_func(
+        # Load order_centers from config if not provided
+        if order_centers is None:
+            order_centers = step._load_order_centers()
+
+        traces = trace_func(
             order_img,
             min_cluster=step.min_cluster,
             min_width=step.min_width,
@@ -255,24 +263,23 @@ class Pipeline:
             sigma=step.sigma,
             plot=self.plot,
             plot_title=step.plot_title,
+            order_centers=order_centers,
         )
 
-        return traces, column_range, heights
+        return traces
 
-    def organize(self, traces, column_range, *more) -> Pipeline:
+    def organize(self, traces: list, *more) -> Pipeline:
         """Organize traces into fiber groups based on instrument config.
 
         Use this after trace_raw() to apply fiber grouping configuration.
-        Can accept multiple trace sets which will be concatenated.
+        Can accept multiple trace lists which will be concatenated.
 
         Parameters
         ----------
-        traces : ndarray (n_traces, degree+1)
-            Polynomial coefficients for traces
-        column_range : ndarray (n_traces, 2)
-            Column ranges for traces
-        *more : additional (traces, column_range) pairs
-            Optional additional trace sets to concatenate
+        traces : list[Trace]
+            Trace objects from trace_raw()
+        *more : additional list[Trace]
+            Optional additional trace lists to concatenate
 
         Returns
         -------
@@ -281,92 +288,51 @@ class Pipeline:
 
         Example
         -------
-        >>> t1, cr1 = pipe.trace_raw([even_flat])
-        >>> t2, cr2 = pipe.trace_raw([odd_flat])
-        >>> pipe.organize(t1, cr1, t2, cr2)
+        >>> t1 = pipe.trace_raw([even_flat])
+        >>> t2 = pipe.trace_raw([odd_flat])
+        >>> pipe.organize(t1, t2)
         >>> pipe.extract([science_file]).run()
         """
-        import numpy as np
+        from .trace import group_fibers
 
-        # Concatenate multiple trace sets if provided
-        if more:
-            all_traces = [traces]
-            all_cr = [column_range]
-            it = iter(more)
-            for t, cr in zip(it, it, strict=False):
-                all_traces.append(t)
-                all_cr.append(cr)
-            traces = np.vstack(all_traces)
-            column_range = np.vstack(all_cr)
+        # Concatenate multiple trace lists if provided
+        all_traces = list(traces)
+        for t in more:
+            all_traces.extend(t)
 
-        # Compute per-trace heights
-        from .trace import compute_trace_heights
+        # Sort by y-position
+        def sort_key(t):
+            x_mid = sum(t.column_range) / 2
+            return t.y_at_x(x_mid)
 
-        ncol = traces.shape[1] if hasattr(traces, "shape") else 4096  # fallback
-        # Get ncol from instrument if available
-        if hasattr(self.instrument, "config") and hasattr(
-            self.instrument.config, "naxis"
-        ):
-            ncol = self.instrument.config.naxis[0]
-        heights = compute_trace_heights(traces, column_range, ncol)
+        all_traces.sort(key=sort_key)
 
-        # Store as trace result (with heights)
-        self._data["trace"] = (traces, column_range, heights)
-
-        # Get config and context
+        # Get config
         fibers_config = getattr(self.instrument.config, "fibers", None)
-        inst_dir = getattr(self.instrument, "_inst_dir", None)
-
         step_config = self.config.get("trace", {}).copy()
         degree = step_config.get("degree", 4)
 
-        # Organize into fiber groups if configured
-        group_counts = {}
-        group_heights = {}
+        # Group fibers if configured
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            from .trace import organize_fibers
+            logger.info("Grouping %d traces into fiber groups", len(all_traces))
+            trace_objects = group_fibers(all_traces, fibers_config, degree=degree)
+        else:
+            trace_objects = all_traces
 
-            logger.info("Organizing %d traces into fiber groups", len(traces))
-            group_traces, group_cr, group_counts, group_heights = organize_fibers(
-                traces,
-                column_range,
-                fibers_config,
-                degree,
-                inst_dir,
-                channel=self.channel,
-            )
-            self._data["trace_groups"] = (group_traces, group_cr, group_heights)
-
-            for name, count in group_counts.items():
-                height = group_heights.get(name)
-                height_str = f", height={height:.1f}px" if height else ""
-                logger.info("  Group %s: %d fibers%s", name, count, height_str)
+        self._data["trace"] = trace_objects
 
         # Save to disk
         step_config["plot"] = self.plot
         step = Trace(*self._get_step_inputs(), **step_config)
-        trace_groups = self._data.get("trace_groups", (None, None, None))
-        step.group_traces = trace_groups[0]
-        step.group_column_range = trace_groups[1]
-        step.group_heights = trace_groups[2] if len(trace_groups) > 2 else {}
-        step.heights = heights
-        step.group_fiber_counts = group_counts
-        step.save(traces, column_range)
+        step.trace_objects = trace_objects
+        step.heights = np.array(
+            [t.height if t.height is not None else np.nan for t in trace_objects]
+        )
+        step.save()
 
         return self
-
-    def merge_traces(self, traces_a, column_range_a, traces_b, column_range_b):
-        """Deprecated: use organize() instead."""
-        import warnings
-
-        warnings.warn(
-            "merge_traces() is deprecated, use organize() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.organize(traces_a, column_range_a, traces_b, column_range_b)
 
     def curvature(self, files: list[str] | None = None) -> Pipeline:
         """Determine slit curvature (p1/p2)."""
@@ -458,6 +424,7 @@ class Pipeline:
         step_config = self.config.get(name, {}).copy()
         step_config["plot"] = self.plot  # Runtime plot setting
         step = step_class(*self._get_step_inputs(), **step_config)
+        step.files = self._files  # Make input files available to step
 
         # Get dependencies
         deps = step.loadDependsOn if load_only else step.dependsOn
@@ -470,20 +437,6 @@ class Pipeline:
             try:
                 logger.info("Loading data from step '%s'", name)
                 result = step.load(**dep_args)
-                # Store fiber group traces if loaded (from Trace)
-                # Heights are stored in the trace tuple itself
-                if name == "trace":
-                    # Augment trace result with heights
-                    if hasattr(step, "heights") and step.heights is not None:
-                        traces, column_range = result
-                        result = (traces, column_range, step.heights)
-                        self._data["trace"] = result
-                    if hasattr(step, "group_traces") and step.group_traces:
-                        self._data["trace_groups"] = (
-                            step.group_traces,
-                            step.group_column_range,
-                            step.group_heights or {},
-                        )
                 return result
             except FileNotFoundError:
                 if files is None:
@@ -501,16 +454,6 @@ class Pipeline:
             dep_args["files"] = files
         result = step.run(**dep_args)
 
-        # Store fiber group traces if available (from Trace)
-        # Heights are included in the trace result tuple
-        if name == "trace":
-            if hasattr(step, "group_traces") and step.group_traces:
-                self._data["trace_groups"] = (
-                    step.group_traces,
-                    step.group_column_range,
-                    step.group_heights or {},
-                )
-
         return result
 
     def _ensure_dependency(self, name: str):
@@ -521,11 +464,6 @@ class Pipeline:
         # 'config' is a special dependency - it's the full config dict, not a step
         if name == "config":
             self._data["config"] = self.config
-            return
-
-        # 'trace_groups' is derived from 'trace', not a separate step
-        if name == "trace_groups":
-            self._data["trace_groups"] = None  # Will be populated if available
             return
 
         files = self._files.get(name)

@@ -116,45 +116,46 @@ bias = bias_step.run(bias_files, mask)
 flat_step = Flat(*step_args, **step_config("flat"))
 flat = flat_step.run(flat_files, bias, mask)
 
-# Step 4: Trace
+# Step 4: Trace (returns list[Trace])
 trace_step = Trace(*step_args, **step_config("trace"))
 traces = trace_step.run(trace_files, mask, bias)
 
-# Step 5: Determine slit curvature
+# Step 5: Determine slit curvature (updates traces in-place)
 curvature_step = SlitCurvatureDetermination(*step_args, **step_config("curvature"))
-curvature = curvature_step.run(curvature_files, traces, mask, bias)
+curvature_step.run(curvature_files, traces, mask, bias)
+# Curvature data is now in each trace's .slit and .slitdelta attributes
 
 # Step 6: Normalize flat field
 norm_flat_step = NormalizeFlatField(*step_args, **step_config("norm_flat"))
 scatter = None  # Optional background scatter
-norm_flat = norm_flat_step.run(flat, traces, scatter, curvature)
+norm_flat = norm_flat_step.run(flat, traces, scatter)
 
 # Step 7: Wavelength calibration (three sub-steps)
 wavecal_master_step = WavelengthCalibrationMaster(*step_args, **step_config("wavecal_master"))
 wavecal_master = wavecal_master_step.run(
-    wavecal_files, traces, mask, curvature, bias, norm_flat
+    wavecal_files, traces, mask, bias, norm_flat
 )
 
 wavecal_init_step = WavelengthCalibrationInitialize(*step_args, **step_config("wavecal_init"))
-wavecal_init = wavecal_init_step.load(config, wavecal_master)
+wavecal_init = wavecal_init_step.run(wavecal_master)
 
 wavecal_step = WavelengthCalibrationFinalize(*step_args, **step_config("wavecal"))
 wavecal = wavecal_step.run(wavecal_master, wavecal_init)
-wave, coef, linelist = wavecal
+# wavecal returns {group: linelist}; wavelengths are stored in traces
 
 # Step 8: Extract science spectra
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 science = science_step.run(
-    science_files, bias, traces, norm_flat, curvature, scatter, mask
+    science_files, bias, traces, norm_flat, scatter, mask
 )
 
-# Step 9: Continuum normalization
+# Step 9: Continuum normalization (gets wavelengths from traces)
 continuum_step = ContinuumNormalization(*step_args, **step_config("continuum"))
-continuum = continuum_step.run(science, wave, norm_flat)
+continuum = continuum_step.run(science, norm_flat, traces)
 
-# Step 10: Write final output
+# Step 10: Write final output (gets wavelengths from traces)
 finalize_step = Finalize(*step_args, **step_config("finalize"))
-finalize_step.run(continuum, wave, config)
+finalize_step.run(continuum, traces, config)
 ```
 
 ## Step Dependencies
@@ -167,33 +168,40 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 | `Bias` | files, mask |
 | `Flat` | files, bias, mask |
 | `Trace` | files, mask, bias |
-| `SlitCurvatureDetermination` | files, trace, mask, bias |
-| `NormalizeFlatField` | flat, trace, scatter, curvature |
-| `WavelengthCalibrationMaster` | files, trace, mask, curvature, bias, norm_flat |
-| `WavelengthCalibrationInitialize` | config, wavecal_master |
-| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init |
-| `ScienceExtraction` | files, bias, trace, norm_flat, curvature, scatter, mask |
-| `ContinuumNormalization` | science, wave, norm_flat |
-| `Finalize` | continuum, wave, config |
+| `SlitCurvatureDetermination` | files, trace, mask, bias (updates trace in-place) |
+| `NormalizeFlatField` | flat, trace, scatter |
+| `WavelengthCalibrationMaster` | files, trace, mask, bias, norm_flat |
+| `WavelengthCalibrationInitialize` | wavecal_master |
+| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init (stores wavelengths in traces) |
+| `ScienceExtraction` | files, bias, trace, norm_flat, scatter, mask |
+| `ContinuumNormalization` | science, norm_flat, trace |
+| `Finalize` | continuum, trace, config |
+
+**Note:** Curvature data is stored in `Trace.slit` and `Trace.slitdelta` attributes.
+The curvature step updates traces in-place rather than returning a separate object.
 
 ## Inspecting Intermediate Results
 
 The main advantage of manual execution is access to intermediate data:
 
 ```python
-# After tracing
-traces, column_range = trace_step.run(trace_files, mask, bias)
+# After tracing - returns list[Trace]
+traces = trace_step.run(trace_files, mask, bias)
 
-# Inspect traces array
+# Inspect traces
 print(f"Found {len(traces)} traces")
-print(f"Trace polynomial coefficients shape: {traces.shape}")
-print(f"Column range: {column_range}")
+for i, t in enumerate(traces):
+    print(f"  Trace {i}: order m={t.m}, columns {t.column_range}")
+    print(f"    Position polynomial degree: {len(t.pos) - 1}")
+    if t.wave is not None:
+        print(f"    Has wavelength solution")
 
 # Modify traces if needed (e.g., exclude problematic traces)
 traces = traces[2:-2]  # Skip first and last 2 traces
 
 # Continue with modified traces
-curvature = curvature_step.run(curvature_files, traces, mask, bias)
+curvature_step.run(curvature_files, traces, mask, bias)
+# Curvature data now in traces[i].slit and traces[i].slitdelta
 ```
 
 ## Loading Previous Results

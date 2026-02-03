@@ -72,21 +72,17 @@ pipe = Pipeline(
 # - Groups 630 traces into 90 bundles of 7
 # - Selects center fiber from each bundle
 # - Uses grouped traces for curvature and science steps
-pipe.trace([flat_file])
+# pipe.trace([flat_file])
 # pipe.curvature([thar_file])
 # pipe.flat([flat_file])
 # pipe.normalize_flat()
-# pipe.extract([flat_file])
+pipe.extract([thar_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()
 
 print("\n=== Results ===")
-traces, column_range = results["trace"]
-print(f"Raw traces: {len(traces)}")
-
-if "trace_groups" in results and results["trace_groups"]:
-    group_traces, group_cr = results["trace_groups"]
-    print(
-        f"Fiber groups: {list(group_traces.keys())[:5]}... ({len(group_traces)} total)"
-    )
+traces = results["trace"]  # list[Trace]
+print(f"Traces: {len(traces)}")
+for t in traces[:3]:
+    print(f"  m={t.m}, fiber={t.fiber}, columns={t.column_range}")

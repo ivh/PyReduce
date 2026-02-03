@@ -38,7 +38,7 @@ warnings.simplefilter("ignore", category=AstropyUserWarning, append=True)
 from tqdm import tqdm
 
 # PyReduce subpackages
-from . import __version__, echelle, instruments, util
+from . import __version__, instruments, util
 from .combine_frames import (
     combine_bias,
     combine_calibrate,
@@ -46,34 +46,23 @@ from .combine_frames import (
 )
 from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
-from .curvature_model import SlitCurvature, load_curvature, save_curvature
 from .estimate_background_scatter import estimate_background_scatter
-from .extract import extract, fix_parameters
+from .extract import extract, extract_normalize
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
-
-
-def _get_curvature_coeffs(curvature):
-    """Extract curvature coefficients array from SlitCurvature or return None."""
-    if curvature is None:
-        return None
-    if isinstance(curvature, SlitCurvature):
-        return curvature.coeffs
-    # Legacy: assume it's already the coeffs array
-    return curvature
-
-
-def _get_slitdeltas(curvature):
-    """Extract slitdeltas array from SlitCurvature or return None."""
-    if curvature is None:
-        return None
-    if isinstance(curvature, SlitCurvature):
-        return curvature.slitdeltas
-    return None
-
-
-from .trace import organize_fibers, select_traces_for_step
+from .spectra import ExtractionParams, Spectra, Spectrum
+from .trace import (
+    group_fibers,
+    select_traces_for_step,
+)
 from .trace import trace as mark_orders
+from .trace_model import (
+    Trace as TraceData,
+)
+from .trace_model import (
+    load_traces,
+    save_traces,
+)
 from .wavelength_calibration import LineList, WavelengthCalibrationComb
 from .wavelength_calibration import WavelengthCalibration as WavelengthCalibrationModule
 from .wavelength_calibration import (
@@ -261,6 +250,40 @@ def main(
     return output
 
 
+def wavelengths_from_traces(traces: list, ncol: int = None) -> np.ndarray:
+    """Compute wavelength array from trace objects.
+
+    Parameters
+    ----------
+    traces : list[TraceData]
+        Trace objects with .wave polynomial coefficients set
+    ncol : int, optional
+        Number of columns. If not provided, uses max column_range.
+
+    Returns
+    -------
+    wlen : ndarray of shape (ntrace, ncol)
+        Wavelength for each pixel, or None if no wavelength data
+    """
+    if not traces:
+        return None
+
+    # Check if any trace has wavelength data
+    if not any(t.wave is not None for t in traces):
+        return None
+
+    # Determine ncol from traces if not provided
+    if ncol is None:
+        max_col = max(t.column_range[1] for t in traces)
+        ncol = int(2 ** np.ceil(np.log2(max_col)))  # Round up to power of 2
+
+    x = np.arange(ncol)
+    wlen = np.array(
+        [t.wlen(x) if t.wave is not None else np.full(ncol, np.nan) for t in traces]
+    )
+    return wlen
+
+
 class Step:
     """Parent class for all steps"""
 
@@ -269,6 +292,8 @@ class Step:
     ):
         self._dependsOn = []
         self._loadDependsOn = []
+        #:dict: Input files dict, set by pipeline before load()
+        self.files = None
         #:str: Name of the instrument
         self.instrument = instrument
         #:str: Name of the instrument channel
@@ -362,50 +387,25 @@ class Step:
         else:
             return i
 
-    def _select_traces(self, trace, step_name, trace_groups=None):
+    def _select_traces(
+        self, trace_objects: list[TraceData], step_name: str
+    ) -> dict[str, list[TraceData]]:
         """Apply fiber selection to traces based on instrument config.
 
         Parameters
         ----------
-        trace : tuple (traces, column_range[, heights])
-            Raw traces from Tracing step
+        trace_objects : list[TraceData]
+            Trace objects from Tracing step
         step_name : str
             Name of this step for fibers.use lookup
-        trace_groups : tuple (group_traces, group_cr, group_heights), optional
-            Grouped traces from Pipeline (if available)
 
         Returns
         -------
-        selected : dict[str, tuple[ndarray, ndarray, heights]]
-            {group_name: (traces, column_range, height)} for each selected group
-            height can be scalar, array, or None (use settings default)
+        selected : dict[str, list[TraceData]]
+            {group_name: [traces]} for each selected group
         """
-        # Unpack trace tuple (heights is optional for backwards compat)
-        if len(trace) >= 3:
-            traces, column_range, raw_heights = trace[0], trace[1], trace[2]
-        else:
-            traces, column_range = trace
-            raw_heights = None
-
-        group_traces = {}
-        group_cr = {}
-        group_heights = {}
-        if trace_groups is not None:
-            if len(trace_groups) >= 3:
-                group_traces, group_cr, group_heights = trace_groups[:3]
-            elif len(trace_groups) == 2:
-                group_traces, group_cr = trace_groups
         fibers_config = getattr(self.instrument.config, "fibers", None)
-        return select_traces_for_step(
-            traces,
-            column_range,
-            group_traces,
-            group_cr,
-            fibers_config,
-            step_name,
-            group_heights,
-            raw_heights,
-        )
+        return select_traces_for_step(trace_objects, fibers_config, step_name)
 
 
 class CalibrationStep(Step):
@@ -425,7 +425,6 @@ class CalibrationStep(Step):
         bias=None,
         norm_flat=None,
         traces=None,
-        column_range=None,
         extraction_height=None,
     ):
         bias, bhead = bias if bias is not None else (None, None)
@@ -443,7 +442,6 @@ class CalibrationStep(Step):
             plot=self.plot,
             plot_title=self.plot_title,
             traces=traces,
-            column_range=column_range,
             extraction_height=extraction_height,
         )
 
@@ -483,27 +481,38 @@ class ExtractionStep(Step):
                 f"Extraction method {self.extraction_method} not supported for step 'wavecal'"
             )
 
-    def extract(self, img, head, trace, curvature, scatter=None):
-        traces, column_range = trace[:2] if trace is not None else (None, None)
-        curv_coeffs = _get_curvature_coeffs(curvature)
-        slitdeltas = _get_slitdeltas(curvature)
+    def extract_to_arrays(self, img, head, trace_list: list[TraceData], scatter=None):
+        """Extract spectra and return as arrays (for wavecal compatibility)."""
+        extraction_kwargs = dict(self.extraction_kwargs)
+        default_height = extraction_kwargs.pop("extraction_height", 0.5)
 
-        data, unc, slitfu, cr = extract(
+        # Apply trace_range if specified
+        if self.trace_range is not None:
+            trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
+
+        spectra = extract(
             img,
-            traces,
+            trace_list,
+            extraction_height=default_height,
+            extraction_type=self.extraction_method,
             gain=head["e_gain"],
             readnoise=head["e_readn"],
             dark=head["e_drk"],
-            column_range=column_range,
-            extraction_type=self.extraction_method,
-            trace_range=self.trace_range,
+            scatter=scatter,
             plot=self.plot,
             plot_title=self.plot_title,
-            curvature=curv_coeffs,
-            slitdeltas=slitdeltas,
-            scatter=scatter,
-            **self.extraction_kwargs,
+            **extraction_kwargs,
         )
+
+        # Convert Spectrum objects back to arrays
+        data = np.array([s.spec for s in spectra])
+        unc = np.array([s.sig for s in spectra])
+        slitfu = [s.slitfu for s in spectra]
+        cr = np.array(
+            [list(trace_list[i].column_range) for i in range(len(spectra))],
+            dtype=np.int32,
+        )
+
         return data, unc, slitfu, cr
 
 
@@ -851,24 +860,16 @@ class Trace(CalibrationStep):
         #:bool: Whether to use manual alignment
         self.manual = config["manual"]
 
-        # Per-trace heights (populated by run() or load())
+        # Per-trace heights (derived from trace_objects)
         self.heights = None
 
-        # Fiber organization data (populated by run() or load())
-        self.group_traces = None
-        self.group_column_range = None
-        self.group_fiber_counts = None
-        self.group_heights = None
+        # Trace objects - the canonical representation
+        self.trace_objects: list[TraceData] = None
 
     @property
     def savefile(self):
-        """str: Name of the tracing file"""
-        return join(self.output_dir, self.prefix + ".traces.npz")
-
-    @property
-    def _old_savefile(self):
-        """str: Old name of tracing file (for backwards compatibility)"""
-        return join(self.output_dir, self.prefix + ".ord_default.npz")
+        """str: Name of the tracing file (FITS format)"""
+        return join(self.output_dir, self.prefix + ".traces.fits")
 
     def run(self, files, mask=None, bias=None):
         """Determine polynomial coefficients describing order locations
@@ -884,56 +885,94 @@ class Trace(CalibrationStep):
 
         Returns
         -------
-        traces : array of shape (ntrace, ndegree+1)
-            polynomial coefficients for each trace
-        column_range : array of shape (ntrace, 2)
-            first and last(+1) column that carries signal in each trace
+        list[TraceData]
+            Trace objects with position, column_range, height, and identity.
         """
 
         logger.info("Tracing files: %s", files)
+
+        # Load order_centers for m assignment if available
+        order_centers = self._load_order_centers()
 
         # Check if we should trace file groups separately
         fibers_config = getattr(self.instrument.config, "fibers", None)
         trace_by = getattr(fibers_config, "trace_by", None) if fibers_config else None
 
         if trace_by and len(files) > 1:
-            traces, column_range, heights = self._trace_by_groups(
-                files, mask, bias, trace_by
+            raw_traces = self._trace_by_groups(
+                files, mask, bias, trace_by, order_centers
             )
         else:
-            traces, column_range, heights = self._trace_single(files, mask, bias)
+            raw_traces = self._trace_single(files, mask, bias, order_centers)
 
-        self.heights = heights
+        # Store heights for backward compatibility
+        self.heights = np.array(
+            [t.height if t.height is not None else np.nan for t in raw_traces]
+        )
 
-        # Organize fibers into groups if configured
+        # Group fibers if configured (creates new traces with group set)
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            logger.info("Organizing %d traces into fiber groups", len(traces))
-            inst_dir = getattr(self.instrument, "_inst_dir", None)
-            (
-                self.group_traces,
-                self.group_column_range,
-                self.group_fiber_counts,
-                self.group_heights,
-            ) = organize_fibers(
-                traces,
-                column_range,
-                fibers_config,
-                self.fit_degree,
-                inst_dir,
-                channel=self.channel,
+            self.trace_objects = group_fibers(
+                raw_traces, fibers_config, degree=self.fit_degree
             )
-            for name, count in self.group_fiber_counts.items():
-                height = self.group_heights.get(name)
-                height_str = f", height={height:.1f}px" if height else ""
-                logger.info("  Group %s: %d fibers%s", name, count, height_str)
+        else:
+            self.trace_objects = raw_traces
 
-        self.save(traces, column_range)
+        self.save()
 
-        return traces, column_range
+        return self.trace_objects
 
-    def _trace_by_groups(self, files, mask, bias, trace_by):
+    def _load_order_centers(self) -> dict[int, float] | None:
+        """Load order_centers from instrument config if available.
+
+        Returns
+        -------
+        dict[int, float] or None
+            Order number -> y-position mapping, or None if not configured.
+        """
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        if fibers_config is None:
+            return None
+
+        # Check for inline order_centers
+        if fibers_config.order_centers is not None:
+            return fibers_config.order_centers
+
+        # Check for order_centers_file
+        if fibers_config.order_centers_file is None:
+            return None
+
+        from pathlib import Path
+
+        import yaml
+
+        centers_file = fibers_config.order_centers_file
+        # Substitute {channel} template
+        if self.channel and "{channel}" in centers_file:
+            centers_file = centers_file.format(channel=self.channel.lower())
+
+        inst_dir = getattr(self.instrument, "_inst_dir", None)
+        path = Path(centers_file)
+        if not path.is_absolute() and inst_dir:
+            path = Path(inst_dir) / centers_file
+
+        if not path.exists():
+            logger.info("Order centers file not found: %s", path)
+            return None
+
+        with open(path) as f:
+            data = yaml.safe_load(f)
+
+        if "order_centers" in data:
+            data = data["order_centers"]
+
+        order_centers = {int(k): float(v) for k, v in data.items()}
+        logger.info("Loaded order centers from %s: %d orders", path, len(order_centers))
+        return order_centers
+
+    def _trace_by_groups(self, files, mask, bias, trace_by, order_centers):
         """Trace files grouped by header value, then merge traces.
 
         Parameters
@@ -946,10 +985,13 @@ class Trace(CalibrationStep):
             Bias correction
         trace_by : str
             Header keyword to group files by
+        order_centers : dict[int, float] | None
+            Order centers for m assignment
 
         Returns
         -------
-        traces, column_range, heights : merged results from all groups
+        list[TraceData]
+            Merged traces from all groups
         """
         # Group files by header value
         file_groups = {}
@@ -969,41 +1011,37 @@ class Trace(CalibrationStep):
 
         # Trace each group
         all_traces = []
-        all_column_range = []
-        all_heights = []
         for group_key, group_files in file_groups.items():
             logger.info("Tracing group '%s': %d files", group_key, len(group_files))
-            traces, column_range, heights = self._trace_single(group_files, mask, bias)
+            traces = self._trace_single(group_files, mask, bias, order_centers)
             logger.info("  Found %d traces", len(traces))
-            all_traces.append(traces)
-            all_column_range.append(column_range)
-            all_heights.extend(heights if heights is not None else [])
+            all_traces.extend(traces)
 
-        # Merge traces from all groups
-        traces = np.vstack(all_traces)
-        column_range = np.vstack(all_column_range)
-        heights = np.array(all_heights) if all_heights else None
+        # Sort by y-position
+        def sort_key(t):
+            # Use middle of column range for y evaluation
+            x_mid = sum(t.column_range) / 2
+            return t.y_at_x(x_mid)
 
-        # Sort by y-position (trace constant term = y-intercept at x=0)
-        mid_x = traces.shape[1] // 2 if traces.shape[1] > 1 else 0
-        y_positions = np.polyval(traces[:, ::-1].T, mid_x)
-        sort_idx = np.argsort(y_positions)
-        traces = traces[sort_idx]
-        column_range = column_range[sort_idx]
-        if heights is not None:
-            heights = heights[sort_idx]
+        all_traces.sort(key=sort_key)
 
         logger.info(
-            "Merged %d total traces from %d groups", len(traces), len(file_groups)
+            "Merged %d total traces from %d groups", len(all_traces), len(file_groups)
         )
 
-        return traces, column_range, heights
+        return all_traces
 
-    def _trace_single(self, files, mask, bias):
-        """Trace a single set of files."""
+    def _trace_single(self, files, mask, bias, order_centers):
+        """Trace a single set of files.
+
+        Returns
+        -------
+        list[TraceData]
+            Trace objects with fiber_idx set
+        """
         trace_img, ohead = self.calibrate(files, mask, bias, None)
 
-        traces, column_range, heights = mark_orders(
+        traces = mark_orders(
             trace_img,
             min_cluster=self.min_cluster,
             min_width=self.min_width,
@@ -1024,145 +1062,52 @@ class Trace(CalibrationStep):
             sigma=self.sigma,
             plot=self.plot,
             plot_title=self.plot_title,
+            order_centers=order_centers,
         )
 
-        return traces, column_range, heights
+        return traces
 
-    def save(self, traces, column_range):
-        """Save tracing results to disk
-
-        Parameters
-        ----------
-        traces : array of shape (ntrace, ndegree+1)
-            polynomial coefficients
-        column_range : array of shape (ntrace, 2)
-            first and last(+1) column that carry signal in each trace
-        """
-        save_data = {"traces": traces, "column_range": column_range}
-
-        # Save per-trace heights
-        if self.heights is not None:
-            save_data["heights"] = self.heights
-
-        # Save grouped traces if available
-        if self.group_traces is not None:
-            save_data["group_names"] = list(self.group_traces.keys())
-            for name, group_traces in self.group_traces.items():
-                save_data[f"group_{name}_traces"] = group_traces
-                save_data[f"group_{name}_cr"] = self.group_column_range[name]
-                save_data[f"group_{name}_count"] = self.group_fiber_counts[name]
-                # Save height (may be None)
-                if self.group_heights is not None:
-                    height = self.group_heights.get(name)
-                    save_data[f"group_{name}_height"] = (
-                        height if height is not None else np.nan
-                    )
-
+    def save(self):
+        """Save tracing results to disk in FITS format."""
         os.makedirs(os.path.dirname(self.savefile), exist_ok=True)
-        np.savez(self.savefile, **save_data)
+
+        if self.trace_objects is None or len(self.trace_objects) == 0:
+            logger.warning("No traces to save")
+            return
+
+        save_traces(self.savefile, self.trace_objects, steps=["trace"])
         logger.info("Created trace file: %s", self.savefile)
 
     def load(self):
-        """Load tracing results
+        """Load tracing results from FITS format.
 
         Returns
         -------
-        traces : array of shape (ntrace, ndegree+1)
-            polynomial coefficients for each trace
-        column_range : array of shape (ntrace, 2)
-            first and last(+1) column that carries signal in each trace
+        list[TraceData]
+            Trace objects with position, column_range, height, and identity.
         """
-        savefile = self.savefile
-        if not os.path.exists(savefile) and os.path.exists(self._old_savefile):
-            warnings.warn(
-                f"Trace file {self._old_savefile} uses old filename. "
-                "Re-run the trace step to update, or rename to "
-                f"{os.path.basename(savefile)}.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            savefile = self._old_savefile
-        logger.info("Trace file: %s", savefile)
-        data = np.load(savefile, allow_pickle=True)
-        if "traces" in data:
-            traces = data["traces"]
-        elif "orders" in data:
-            warnings.warn(
-                f"Trace file {savefile} uses old key 'orders'. "
-                "Re-run the trace step to update the file format.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            traces = data["orders"]
-        else:
-            raise KeyError("Trace file missing 'traces' key")
-        column_range = data["column_range"]
+        logger.info("Trace file: %s", self.savefile)
+        self.trace_objects, header = load_traces(self.savefile)
+        logger.info("Loaded %d traces", len(self.trace_objects))
+        return self.trace_objects
 
-        # Load per-trace heights (backwards compat: None if missing)
-        if "heights" in data:
-            self.heights = data["heights"]
-        else:
-            self.heights = None
-
-        # Load grouped traces if available
-        if "group_names" in data:
-            group_names = list(data["group_names"])
-            self.group_traces = {}
-            self.group_column_range = {}
-            self.group_fiber_counts = {}
-            self.group_heights = {}
-            for name in group_names:
-                # .item() extracts dict from 0-dim numpy array
-                group_data = data[f"group_{name}_traces"]
-                self.group_traces[name] = (
-                    group_data.item() if group_data.shape == () else group_data
-                )
-                cr = data[f"group_{name}_cr"]
-                self.group_column_range[name] = cr.item() if cr.shape == () else cr
-                self.group_fiber_counts[name] = int(data[f"group_{name}_count"])
-                # Load height (may be nan for None)
-                height_key = f"group_{name}_height"
-                if height_key in data:
-                    h = float(data[height_key])
-                    self.group_heights[name] = None if np.isnan(h) else h
-                else:
-                    self.group_heights[name] = None
-            logger.info("Loaded %d fiber groups", len(group_names))
-
-        return traces, column_range
-
-    def get_traces_for_step(self, traces, column_range, step_name):
+    def get_traces_for_step(self, step_name: str) -> dict[str, list[TraceData]]:
         """Get traces appropriate for a specific reduction step.
 
-        Uses the instrument's fibers.use config to select raw or grouped traces.
+        Uses the instrument's fibers.use config to select traces.
 
         Parameters
         ----------
-        traces : ndarray
-            Raw traces from run() or load()
-        column_range : ndarray
-            Column ranges for raw traces
         step_name : str
             Name of the reduction step (e.g., "science", "curvature")
 
         Returns
         -------
-        traces : ndarray
-            Selected traces for this step
-        column_range : ndarray
-            Column ranges for selected traces
+        dict[str, list[TraceData]]
+            {group_name: [traces]} for each selected group
         """
         fibers_config = getattr(self.instrument.config, "fibers", None)
-        return select_traces_for_step(
-            traces,
-            column_range,
-            self.group_traces or {},
-            self.group_column_range or {},
-            fibers_config,
-            step_name,
-            self.group_heights or {},
-            self.heights,
-        )
+        return select_traces_for_step(self.trace_objects, fibers_config, step_name)
 
 
 class BackgroundScatter(CalibrationStep):
@@ -1170,7 +1115,7 @@ class BackgroundScatter(CalibrationStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["trace", "trace_groups"]
+        self._dependsOn += ["trace"]
 
         #:tuple(int, int): Polynomial degrees for the background scatter fit, in row, column direction
         self.scatter_degree = config["scatter_degree"]
@@ -1183,22 +1128,19 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
-    def run(self, files, trace, mask=None, bias=None, trace_groups=None):
+    def run(self, files, trace: list[TraceData], mask=None, bias=None):
         logger.info("Background scatter files: %s", files)
 
         scatter_img, shead = self.calibrate(files, mask, bias)
 
         # Apply fiber selection based on instrument config
-        selected = self._select_traces(trace, "scatter", trace_groups)
-        # Stack all selected groups (typically just one)
-        all_traces = [tr for tr, _, _ in selected.values()]
-        all_cr = [cr for _, cr, _ in selected.values()]
-        traces = np.vstack(all_traces)
-        column_range = np.vstack(all_cr)
+        selected = self._select_traces(trace, "scatter")
+        # Flatten all selected groups
+        trace_list = [t for traces in selected.values() for t in traces]
+
         scatter = estimate_background_scatter(
             scatter_img,
-            traces,
-            column_range=column_range,
+            trace_list,
             extraction_height=self.extraction_height,
             scatter_degree=self.scatter_degree,
             sigma_cutoff=self.sigma_cutoff,
@@ -1246,7 +1188,7 @@ class NormalizeFlatField(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["flat", "trace", "scatter", "curvature", "trace_groups"]
+        self._dependsOn += ["flat", "trace", "scatter"]
 
         #:{'normalize'}: Extraction method to use
         self.extraction_method = config["extraction_method"]
@@ -1274,21 +1216,17 @@ class NormalizeFlatField(Step):
         """str: Name of the blaze file"""
         return join(self.output_dir, self.prefix + ".flat_norm.npz")
 
-    def run(self, flat, trace, scatter=None, curvature=None, trace_groups=None):
+    def run(self, flat, trace: list[TraceData], scatter=None):
         """Calculate the 'normalized' flat field
 
         Parameters
         ----------
         flat : tuple(array, header)
             Master flat, and its FITS header
-        trace : tuple(array, array)
-            Polynomial coefficients for each order, and the first and last(+1) column containing signal
+        trace : list[TraceData]
+            Trace objects from trace step
         scatter : array, optional
             Background scatter model
-        curvature : tuple, optional
-            Slit curvature polynomials (p1, p2)
-        trace_groups : tuple, optional
-            Grouped traces for fiber selection
 
         Returns
         -------
@@ -1302,54 +1240,17 @@ class NormalizeFlatField(Step):
             Metadata for slitfunc (extraction_height, osample, trace_range)
         """
         flat, fhead = flat
+
         # Apply fiber selection based on instrument config
-        selected = self._select_traces(trace, "norm_flat", trace_groups)
-        all_traces = [tr for tr, _, _ in selected.values()]
-        all_cr = [cr for _, cr, _ in selected.values()]
-        traces = np.vstack(all_traces)
-        column_range = np.vstack(all_cr)
-        curv_coeffs = _get_curvature_coeffs(curvature)
+        selected = self._select_traces(trace, "norm_flat")
+        trace_list = [t for traces in selected.values() for t in traces]
 
-        # Build per-trace extraction heights
-        # Priority: group height > raw height from trace > setting default
+        # Apply trace_range if specified
+        if self.trace_range is not None:
+            trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
+
         extraction_kwargs = dict(self.extraction_kwargs)
-        default_height = extraction_kwargs.get("extraction_height")
-        per_trace_heights = []
-        for name in selected:
-            tr, _, height = selected[name]
-            n_traces_in_group = len(tr)
-            if (
-                height is not None
-                and hasattr(height, "__len__")
-                and not isinstance(height, str)
-            ):
-                # height is an array (per-trace heights from trace file)
-                per_trace_heights.extend(height[:n_traces_in_group])
-            elif height is not None:
-                # height is a scalar (group height)
-                per_trace_heights.extend([height] * n_traces_in_group)
-            elif default_height is not None:
-                # Fall back to setting
-                per_trace_heights.extend([default_height] * n_traces_in_group)
-            else:
-                # No height available - use None (extract will error or use its default)
-                per_trace_heights.extend([None] * n_traces_in_group)
-
-        # Use per-trace heights if we have any non-None values from trace data
-        has_trace_heights = any(h is not None for _, _, h in selected.values())
-        if has_trace_heights and default_height is None:
-            extraction_kwargs["extraction_height"] = per_trace_heights
-            logger.info("Using extraction heights from trace file")
-        elif has_trace_heights:
-            extraction_kwargs["extraction_height"] = per_trace_heights
-            logger.info(
-                "Using per-group extraction heights: %s",
-                {
-                    name: h
-                    for name, (_, _, h) in selected.items()
-                    if h is not None and not hasattr(h, "__len__")
-                },
-            )
+        default_height = extraction_kwargs.pop("extraction_height", 0.5)
 
         # if threshold is smaller than 1, assume percentage value is given
         if self.threshold <= 1:
@@ -1357,19 +1258,16 @@ class NormalizeFlatField(Step):
         else:
             threshold = self.threshold
 
-        norm, _, blaze, slitfunc, _ = extract(
+        norm, _, blaze, slitfunc, column_range = extract_normalize(
             flat,
-            traces,
+            trace_list,
+            extraction_height=default_height,
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
-            trace_range=self.trace_range,
-            column_range=column_range,
             scatter=scatter,
             threshold=threshold,
             threshold_lower=self.threshold_lower,
-            extraction_type=self.extraction_method,
-            curvature=curv_coeffs,
             plot=self.plot,
             plot_title=self.plot_title,
             **extraction_kwargs,
@@ -1379,17 +1277,12 @@ class NormalizeFlatField(Step):
         norm = np.ma.filled(norm, 1)
         norm = np.nan_to_num(norm, nan=1)
 
-        # Metadata for slitfunc: needed to validate/resample when used in other steps
-        # trace_range is relative to the selected traces (traces array)
-        n_traces = len(traces)
-        if self.trace_range is None:
-            trace_range = (0, n_traces)
-        else:
-            trace_range = self.trace_range
+        # Metadata for slitfunc
+        n_traces = len(trace_list)
         slitfunc_meta = {
-            "extraction_height": extraction_kwargs["extraction_height"],
+            "extraction_height": default_height,
             "osample": extraction_kwargs["osample"],
-            "trace_range": trace_range,
+            "trace_range": (0, n_traces),
             "n_traces_selected": n_traces,
         }
         self.save(norm, blaze, slitfunc, slitfunc_meta)
@@ -1461,107 +1354,126 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "bias", "trace_groups"]
+        self._dependsOn += ["norm_flat", "bias"]
+
+    def savefile_for_group(self, group: str) -> str:
+        """Get savefile path for a specific group."""
+        if group == "all":
+            return join(self.output_dir, self.prefix + ".wavecal_master.fits")
+        return join(self.output_dir, self.prefix + f".wavecal_master.{group}.fits")
 
     @property
     def savefile(self):
-        """str: Name of the wavelength echelle file"""
-        return join(self.output_dir, self.prefix + ".thar_master.fits")
+        """str: Name of the wavelength echelle file (single-group compat)"""
+        return self.savefile_for_group("all")
 
     def run(
         self,
         files,
-        trace,
+        trace: list[TraceData],
         mask=None,
-        curvature=None,
         bias=None,
         norm_flat=None,
-        trace_groups=None,
     ):
-        """Perform wavelength calibration
-
-        This consists of extracting the wavelength image
-        and fitting a polynomial the the known spectral lines
+        """Extract wavelength calibration spectra, per fiber group.
 
         Parameters
         ----------
         files : list(str)
             wavelength calibration files
-        trace : tuple(array, array)
-            Polynomial coefficients of each order, and columns with signal of each order
+        trace : list[TraceData]
+            Trace objects from trace step
         mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        curvature : tuple, optional
-            Slit curvature polynomials
         bias : tuple, optional
             Master bias
         norm_flat : tuple, optional
             Normalized flat field
-        trace_groups : tuple, optional
-            Grouped traces for fiber selection
 
         Returns
         -------
-        wave : array of shape (ntrace, ncol)
-            wavelength for each point in the spectrum
-        thar : array of shape (nrow, ncol)
-            extracted wavelength calibration image
-        coef : array of shape (*ndegrees,)
-            polynomial coefficients of the wavelength fit
-        linelist : record array of shape (nlines,)
-            Updated line information for all lines
+        results : dict[str, tuple]
+            {group: (wavecal_spec, thead)} for each fiber group
         """
         if len(files) == 0:
             raise FileNotFoundError("No files found for wavelength calibration")
         logger.info("Wavelength calibration files: %s", files)
-        # Apply fiber selection based on instrument config
-        selected = self._select_traces(trace, "wavecal_master", trace_groups)
-        all_traces = [tr for tr, _, _ in selected.values()]
-        all_cr = [cr for _, cr, _ in selected.values()]
-        selected_traces = np.vstack(all_traces)
-        selected_cr = np.vstack(all_cr)
-        selected_trace = (selected_traces, selected_cr)
-        # Load wavecal image
-        orig, thead = self.calibrate(files, mask, bias, norm_flat)
-        # Extract wavecal spectrum
-        thar, _, _, _ = self.extract(orig, thead, selected_trace, curvature)
-        self.save(thar, thead)
-        return thar, thead
 
-    def save(self, thar, thead):
-        """Save the master wavelength calibration to a FITS file
+        # Apply fiber selection based on instrument config
+        selected = self._select_traces(trace, "wavecal_master")
+
+        # Load wavecal image (same for all groups)
+        orig, thead = self.calibrate(files, mask, bias, norm_flat)
+
+        # Extract per group
+        results = {}
+        for group, trace_list in selected.items():
+            if not trace_list:
+                logger.warning("No traces for group '%s', skipping", group)
+                continue
+            logger.info(
+                "Extracting wavecal for group '%s' (%d traces)", group, len(trace_list)
+            )
+            wavecal_spec, _, _, _ = self.extract_to_arrays(orig, thead, trace_list)
+            results[group] = (wavecal_spec, thead)
+
+        self.save(results)
+        return results
+
+    def save(self, results: dict):
+        """Save the master wavelength calibration to FITS files.
 
         Parameters
         ----------
-        thar : array of shape (nrow, ncol)
-            master flat data
-        thead : FITS header
-            master flat header
+        results : dict[str, tuple]
+            {group: (wavecal_spec, thead)} for each fiber group
         """
-        thar = np.asarray(thar, dtype=np.float64)
-        fits.writeto(
-            self.savefile,
-            data=thar,
-            header=thead,
-            overwrite=True,
-            output_verify="silentfix+ignore",
-        )
-        logger.info("Created wavelength calibration spectrum file: %s", self.savefile)
+        for group, (wavecal_spec, thead) in results.items():
+            wavecal_spec = np.asarray(wavecal_spec, dtype=np.float64)
+            savefile = self.savefile_for_group(group)
+            fits.writeto(
+                savefile,
+                data=wavecal_spec,
+                header=thead,
+                overwrite=True,
+                output_verify="silentfix+ignore",
+            )
+            logger.info("Created wavelength calibration spectrum file: %s", savefile)
 
     def load(self):
-        """Load master wavelength calibration from disk
+        """Load master wavelength calibration from disk.
 
         Returns
         -------
-        thar : masked array of shape (nrow, ncol)
-            Master wavecal with bad pixel map applied
-        thead : FITS header
-            Master wavecal FITS header
+        results : dict[str, tuple]
+            {group: (wavecal_spec, thead)} for each fiber group
         """
-        with fits.open(self.savefile, memmap=False) as hdu:
-            thar, thead = hdu[0].data, hdu[0].header
-        logger.info("Wavelength calibration spectrum file: %s", self.savefile)
-        return thar, thead
+        import glob
+
+        # Find all wavecal_master files for this prefix
+        pattern = join(self.output_dir, self.prefix + ".wavecal_master*.fits")
+        files = glob.glob(pattern)
+
+        if not files:
+            raise FileNotFoundError(f"No wavecal_master files found matching {pattern}")
+
+        results = {}
+        for fpath in files:
+            # Extract group from filename
+            basename = os.path.basename(fpath)
+            if ".wavecal_master." in basename and basename.endswith(".fits"):
+                # Format: prefix.wavecal_master.{group}.fits
+                group = basename.split(".wavecal_master.")[-1].replace(".fits", "")
+            else:
+                # Format: prefix.wavecal_master.fits (single group)
+                group = "all"
+
+            with fits.open(fpath, memmap=False) as hdu:
+                wavecal_spec, thead = hdu[0].data, hdu[0].header
+            logger.info("Loaded wavelength calibration spectrum: %s", fpath)
+            results[group] = (wavecal_spec, thead)
+
+        return results
 
 
 class WavelengthCalibrationInitialize(Step):
@@ -1591,59 +1503,104 @@ class WavelengthCalibrationInitialize(Step):
         #:float: Minimum height of spectral lines in the normalized spectrum, values of 1 and above are interpreted as percentiles of the spectrum, set to 0 to disable the cutoff
         self.cutoff = config["cutoff"]
 
+    def savefile_for_group(self, group: str) -> str:
+        """Get savefile path for a specific group."""
+        if group == "all":
+            return join(self.output_dir, self.prefix + ".linelist.npz")
+        return join(self.output_dir, self.prefix + f".linelist.{group}.npz")
+
     @property
     def savefile(self):
-        """str: Name of the wavelength echelle file"""
-        return join(self.output_dir, self.prefix + ".linelist.npz")
+        """str: Name of the linelist file (single-group compat)"""
+        return self.savefile_for_group("all")
 
-    def run(self, wavecal_master):
-        thar, thead = wavecal_master
+    def run(self, wavecal_master: dict):
+        """Run MCMC line matching for each fiber group.
 
-        # Get the initial wavelength guess from the instrument
-        wave_range = self.instrument.get_wavelength_range(thead, self.channel)
-        if wave_range is None:
-            raise ValueError(
-                "This instrument is missing an initial wavelength guess for wavecal_init"
+        Parameters
+        ----------
+        wavecal_master : dict[str, tuple]
+            {group: (wavecal_spec, thead)} from wavecal_master step
+
+        Returns
+        -------
+        results : dict[str, LineList]
+            {group: linelist} for each fiber group
+        """
+        results = {}
+        for group, (wavecal_spec, thead) in wavecal_master.items():
+            logger.info("Running wavecal_init for group '%s'", group)
+
+            # Get the initial wavelength guess from the instrument
+            wave_range = self.instrument.get_wavelength_range(thead, self.channel)
+            if wave_range is None:
+                raise ValueError(
+                    "This instrument is missing an initial wavelength guess for wavecal_init"
+                )
+
+            module = WavelengthCalibrationInitializeModule(
+                plot=self.plot,
+                plot_title=f"{self.plot_title} [{group}]" if self.plot_title else group,
+                degree=self.degree,
+                wave_delta=self.wave_delta,
+                nwalkers=self.nwalkers,
+                steps=self.steps,
+                resid_delta=self.resid_delta,
+                element=self.element,
+                medium=self.medium,
+                smoothing=self.smoothing,
+                cutoff=self.cutoff,
             )
+            linelist = module.execute(wavecal_spec, wave_range)
+            results[group] = linelist
 
-        module = WavelengthCalibrationInitializeModule(
-            plot=self.plot,
-            plot_title=self.plot_title,
-            degree=self.degree,
-            wave_delta=self.wave_delta,
-            nwalkers=self.nwalkers,
-            steps=self.steps,
-            resid_delta=self.resid_delta,
-            element=self.element,
-            medium=self.medium,
-            smoothing=self.smoothing,
-            cutoff=self.cutoff,
+        self.save(results)
+        return results
+
+    def save(self, results: dict):
+        """Save linelists for each fiber group."""
+        for group, linelist in results.items():
+            savefile = self.savefile_for_group(group)
+            linelist.save(savefile)
+            logger.info("Created wavelength calibration linelist file: %s", savefile)
+
+    def load(self, config, wavecal_master: dict):
+        """Load linelists for each fiber group.
+
+        Falls back to instrument-provided wavecal file if custom not found.
+        """
+
+        results = {}
+
+        # First try to load custom linelists matching wavecal_master groups
+        for group in wavecal_master.keys():
+            savefile = self.savefile_for_group(group)
+            try:
+                linelist = LineList.load(savefile)
+                logger.info("Loaded linelist for group '%s': %s", group, savefile)
+                results[group] = linelist
+            except FileNotFoundError:
+                pass
+
+        # If we found custom linelists, use them
+        if results:
+            return results
+
+        # Otherwise, fall back to instrument-provided wavecal file
+        # (applies same linelist to all groups)
+        first_group = next(iter(wavecal_master.keys()))
+        _, thead = wavecal_master[first_group]
+        reference = self.instrument.get_wavecal_filename(
+            thead, self.channel, **config["instrument"]
         )
-        linelist = module.execute(thar, wave_range)
-        self.save(linelist)
-        return linelist
-
-    def save(self, linelist):
-        linelist.save(self.savefile)
-        logger.info("Created wavelength calibration linelist file: %s", self.savefile)
-
-    def load(self, config, wavecal_master):
-        thar, thead = wavecal_master
-        try:
-            # Try loading the custom reference file
-            reference = self.savefile
-            linelist = LineList.load(reference)
-        except FileNotFoundError:
-            # If that fails, load the file provided by PyReduce
-            # It usually fails because we want to use this one
-            reference = self.instrument.get_wavecal_filename(
-                thead, self.channel, **config["instrument"]
-            )
-
-            # This should fail if there is no provided file by PyReduce
-            linelist = LineList.load(reference)
+        linelist = LineList.load(reference)
         logger.info("Wavelength calibration linelist file: %s", reference)
-        return linelist
+
+        # Apply same linelist to all groups
+        for group in wavecal_master.keys():
+            results[group] = linelist
+
+        return results
 
 
 class WavelengthCalibrationFinalize(Step):
@@ -1674,88 +1631,202 @@ class WavelengthCalibrationFinalize(Step):
         #:str: medium of the detector, vac or air
         self.medium = config["medium"]
 
+    def savefile_for_group(self, group: str) -> str:
+        """Get savefile path for a specific group."""
+        if group == "all":
+            return join(self.output_dir, self.prefix + ".linelist.npz")
+        return join(self.output_dir, self.prefix + f".linelist.{group}.npz")
+
     @property
     def savefile(self):
-        """str: Name of the wavelength echelle file"""
-        return join(self.output_dir, self.prefix + ".thar.npz")
+        """str: Name of the linelist file (single-group compat)"""
+        return self.savefile_for_group("all")
 
-    def run(self, wavecal_master, wavecal_init):
-        """Perform wavelength calibration
+    def run(self, wavecal_master: dict, wavecal_init: dict):
+        """Perform wavelength calibration for each fiber group.
 
-        This consists of extracting the wavelength image
-        and fitting a polynomial the the known spectral lines
+        Fits wavelength polynomials and stores them in traces.fits.
+        Returns linelists for diagnostics.
 
         Parameters
         ----------
-        wavecal_master : tuple
-            results of the wavecal_master step, containing the master wavecal image
-            and its header
-        wavecal_init : LineList
-            the initial LineList guess with the positions and wavelengths of lines
+        wavecal_master : dict[str, tuple]
+            {group: (wavecal_spec, thead)} from wavecal_master step
+        wavecal_init : dict[str, LineList]
+            {group: linelist} from wavecal_init step
 
         Returns
         -------
-        wave : array of shape (ntrace, ncol)
-            wavelength for each point in the spectrum
-        coef : array of shape (*ndegrees,)
-            polynomial coefficients of the wavelength fit
-        linelist : record array of shape (nlines,)
-            Updated line information for all lines
+        results : dict[str, LineList]
+            {group: linelist} for each fiber group (wavelengths are in traces)
         """
-        thar, thead = wavecal_master
-        linelist = wavecal_init
+        # Collect results: {group: (wave, linelist)} for saving
+        results_for_save = {}
+        results = {}
 
-        module = WavelengthCalibrationModule(
-            plot=self.plot,
-            plot_title=self.plot_title,
-            manual=self.manual,
-            degree=self.degree,
-            threshold=self.threshold,
-            iterations=self.iterations,
-            dimensionality=self.dimensionality,
-            nstep=self.nstep,
-            correlate_cols=self.correlate_cols,
-            shift_window=self.shift_window,
-            element=self.element,
-            medium=self.medium,
-        )
-        wave, coef, linelist = module.execute(thar, linelist)
-        self.save(wave, coef, linelist)
-        return wave, coef, linelist
+        for group in wavecal_master.keys():
+            if group not in wavecal_init:
+                logger.warning("No linelist for group '%s', skipping", group)
+                continue
 
-    def save(self, wave, coef, linelist):
-        """Save the results of the wavelength calibration
+            wavecal_spec, thead = wavecal_master[group]
+            linelist = wavecal_init[group]
+            logger.info("Running wavecal finalize for group '%s'", group)
+
+            module = WavelengthCalibrationModule(
+                plot=self.plot,
+                plot_title=f"{self.plot_title} [{group}]" if self.plot_title else group,
+                manual=self.manual,
+                degree=self.degree,
+                threshold=self.threshold,
+                iterations=self.iterations,
+                dimensionality=self.dimensionality,
+                nstep=self.nstep,
+                correlate_cols=self.correlate_cols,
+                shift_window=self.shift_window,
+                element=self.element,
+                medium=self.medium,
+            )
+            wlen, wave, linelist = module.execute(wavecal_spec, linelist)
+            results_for_save[group] = (wave, linelist)
+            results[group] = linelist
+
+        self.save(results_for_save)
+        return results
+
+    def save(self, results: dict):
+        """Save wavelength calibration results for each fiber group.
 
         Parameters
         ----------
-        wave : array of shape (ntrace, ncol)
-            wavelength for each point in the spectrum
-        coef : array of shape (ndegrees,)
-            polynomial coefficients of the wavelength fit
-        linelist : record array of shape (nlines,)
-            Updated line information for all lines
+        results : dict[str, tuple]
+            {group: (wave, linelist)} - wave polynomials and linelists
         """
-        np.savez(self.savefile, wave=wave, coef=coef, linelist=linelist)
-        logger.info("Created wavelength calibration file: %s", self.savefile)
+        # Save linelists per group
+        for group, (_wave, linelist) in results.items():
+            savefile = self.savefile_for_group(group)
+            linelist.save(savefile)
+            logger.info("Updated linelist with refined positions: %s", savefile)
+
+        # Update traces.fits with wavelength polynomials
+        trace_file = join(self.output_dir, self.prefix + ".traces.fits")
+        if not os.path.exists(trace_file):
+            return
+
+        try:
+            trace_objects, header = load_traces(trace_file)
+
+            # Group traces by their group attribute AND by fiber_idx
+            # to support both group-based and per_fiber wavecal
+            traces_by_group = {}
+            traces_by_fiber = {}
+            for i, t in enumerate(trace_objects):
+                # By group
+                g = str(t.group) if t.group is not None else "all"
+                if g not in traces_by_group:
+                    traces_by_group[g] = []
+                traces_by_group[g].append((i, t))
+                # By fiber_idx
+                if t.fiber_idx is not None:
+                    fkey = f"fiber_{t.fiber_idx}"
+                    if fkey not in traces_by_fiber:
+                        traces_by_fiber[fkey] = []
+                    traces_by_fiber[fkey].append((i, t))
+
+            # Apply wavelength polynomials per group/fiber
+            for group, (wave, linelist) in results.items():
+                # Try group first, then fiber, then "all"
+                if group in traces_by_group:
+                    group_traces = traces_by_group[group]
+                elif group in traces_by_fiber:
+                    group_traces = traces_by_fiber[group]
+                elif "all" in traces_by_group:
+                    group_traces = traces_by_group["all"]
+                else:
+                    logger.warning("No traces found for group '%s'", group)
+                    continue
+
+                # Update trace.m with actual order numbers if obase is available
+                # BUT only if m is not already set (e.g., from order_centers.yaml)
+                obase = linelist.obase
+                if obase is not None:
+                    already_have_m = any(t.m is not None for _i, t in group_traces)
+                    if already_have_m:
+                        logger.debug(
+                            "Traces for group '%s' already have m values, skipping obase",
+                            group,
+                        )
+                    else:
+                        for idx_in_group, (_i, t) in enumerate(group_traces):
+                            t.m = obase + idx_in_group
+                        logger.info(
+                            "Updated trace order numbers for group '%s' with obase=%d",
+                            group,
+                            obase,
+                        )
+
+                # Store wavelength polynomial in each trace
+                if self.dimensionality == "1D":
+                    # Per-order polynomials: wave[i] is poly for trace i within group
+                    for idx_in_group, (_i, t) in enumerate(group_traces):
+                        if idx_in_group < len(wave):
+                            t.wave = wave[idx_in_group]
+                else:
+                    # 2D polynomial - store same poly in each trace of this group
+                    for _i, t in group_traces:
+                        t.wave = wave
+
+            steps = header.get("E_STEPS", "trace").split(",")
+            if "wavecal" not in steps:
+                steps.append("wavecal")
+            save_traces(trace_file, trace_objects, header, steps=steps)
+            logger.info("Updated traces with wavelength data: %s", trace_file)
+        except Exception as e:
+            logger.warning("Could not update traces.fits with wavelength: %s", e)
 
     def load(self):
-        """Load the results of the wavelength calibration
+        """Load wavelength calibration linelists.
+
+        Wavelength data is stored in traces.fits, not returned here.
 
         Returns
         -------
-        wave : array of shape (ntrace, ncol)
-            wavelength for each point in the spectrum
-        coef : array of shape (*ndegrees,)
-            polynomial coefficients of the wavelength fit
-        linelist : record array of shape (nlines,)
-            Updated line information for all lines
+        results : dict[str, LineList]
+            {group: linelist} for each fiber group
         """
-        data = np.load(self.savefile, allow_pickle=True)
-        logger.info("Wavelength calibration file: %s", self.savefile)
-        wave = data["wave"]
-        coef = data["coef"]
-        linelist = data["linelist"]
-        return wave, coef, linelist
+        import glob
+
+        old_wavecal_file = join(self.output_dir, self.prefix + ".wavecal.npz")
+
+        # Find all linelist files
+        pattern = join(self.output_dir, self.prefix + ".linelist*.npz")
+        linelist_files = glob.glob(pattern)
+
+        if linelist_files:
+            results = {}
+            for fpath in linelist_files:
+                # Extract group from filename
+                basename = os.path.basename(fpath)
+                if ".linelist." in basename and basename.endswith(".npz"):
+                    group = basename.split(".linelist.")[-1].replace(".npz", "")
+                else:
+                    group = "all"
+
+                linelist = LineList.load(fpath)
+                results[group] = linelist
+                logger.info("Loaded linelist for group '%s': %s", group, fpath)
+
+            if results:
+                return results
+
+        # Fall back to old .wavecal.npz format
+        if os.path.exists(old_wavecal_file):
+            data = np.load(old_wavecal_file, allow_pickle=True)
+            logger.info("Wavelength calibration file (legacy): %s", old_wavecal_file)
+            linelist = data["linelist"]
+            return {"all": linelist}
+
+        raise FileNotFoundError(f"No wavelength calibration found: {self.savefile}")
 
 
 class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
@@ -1763,26 +1834,31 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature"]
+        self._dependsOn += ["norm_flat"]
 
     @property
     def savefile(self):
         """str: Name of the wavelength echelle file"""
         return join(self.output_dir, self.prefix + ".comb_master.fits")
 
-    def run(self, files, trace, mask=None, curvature=None, bias=None, norm_flat=None):
+    def run(
+        self,
+        files,
+        trace: list[TraceData],
+        mask=None,
+        bias=None,
+        norm_flat=None,
+    ):
         """Improve the wavelength calibration with a laser frequency comb (or similar)
 
         Parameters
         ----------
         files : list(str)
             observation files
-        trace : tuple
-            results from the order tracing step
+        trace : list[TraceData]
+            Trace objects from trace step
         mask : array of shape (nrow, ncol), optional
             Bad pixel mask
-        curvature : tuple, optional
-            results from the curvature step
         bias : tuple, optional
             results from the bias step
         norm_flat : tuple, optional
@@ -1803,7 +1879,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
         # Combine the input files and calibrate
         orig, chead = self.calibrate(files, mask, bias, norm_flat)
         # Extract the spectrum
-        comb, _, _, _ = self.extract(orig, chead, trace, curvature)
+        comb, _, _, _ = self.extract_to_arrays(orig, chead, trace)
         self.save(comb, chead)
         return comb, chead
 
@@ -1848,8 +1924,7 @@ class LaserFrequencyCombFinalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["freq_comb_master", "wavecal"]
-        self._loadDependsOn += ["wavecal"]
+        self._dependsOn += ["freq_comb_master", "trace", "wavecal"]
 
         #:tuple(int, int): polynomial degree of the wavelength fit
         self.degree = config["degree"]
@@ -1861,34 +1936,29 @@ class LaserFrequencyCombFinalize(Step):
         #:int: Width of the peaks for finding them in the spectrum
         self.lfc_peak_width = config["lfc_peak_width"]
 
-    @property
-    def savefile(self):
-        """str: Name of the wavelength echelle file"""
-        return join(self.output_dir, self.prefix + ".comb.npz")
+    def run(self, freq_comb_master, trace: list, wavecal: dict):
+        """Improve the wavelength calibration with a laser frequency comb.
 
-    def run(self, freq_comb_master, wavecal):
-        """Improve the wavelength calibration with a laser frequency comb (or similar)
+        Updates traces.fits with improved wavelength polynomial.
 
         Parameters
         ----------
-        files : list(str)
-            observation files
-        wavecal : tuple()
-            results from the wavelength calibration step
-        trace : tuple
-            results from the tracing step
-        mask : array of shape (nrow, ncol)
-            Bad pixel mask
-
-        Returns
-        -------
-        wave : array of shape (ntrace, ncol)
-            improved wavelength solution
-        comb : array of shape (ntrace, ncol)
-            extracted frequency comb image
+        freq_comb_master : tuple
+            extracted frequency comb spectrum and header
+        trace : list[TraceData]
+            Trace objects with wavelength polynomials from wavecal
+        wavecal : dict[str, LineList]
+            {group: linelist} from wavecal step (for diagnostics)
         """
         comb, chead = freq_comb_master
-        wave, coef, linelist = wavecal
+
+        # Get base wavelengths from traces
+        wlen = wavelengths_from_traces(trace)
+        if wlen is None:
+            raise ValueError("No wavelength data in traces - run wavecal first")
+
+        # Get linelist (use first group's linelist for now)
+        linelist = next(iter(wavecal.values()))
 
         module = WavelengthCalibrationComb(
             plot=self.plot,
@@ -1899,49 +1969,46 @@ class LaserFrequencyCombFinalize(Step):
             nstep=self.nstep,
             lfc_peak_width=self.lfc_peak_width,
         )
-        wave = module.execute(comb, wave, linelist)
+        # Returns 2D polynomial coefficients
+        coef = module.execute(comb, wlen, linelist)
 
-        self.save(wave)
-        return wave
+        self.save(coef, trace)
 
-    def save(self, wave):
-        """Save the results of the frequency comb improvement
-
-        Parameters
-        ----------
-        wave : array of shape (ntrace, ncol)
-            improved wavelength solution
-        """
-        np.savez(self.savefile, wave=wave)
-        logger.info("Created frequency comb wavecal file: %s", self.savefile)
-
-    def load(self, wavecal):
-        """Load the results of the frequency comb improvement if possible,
-        otherwise just use the normal wavelength solution
+    def save(self, coef, trace: list):
+        """Save improved wavelength polynomial to traces.fits.
 
         Parameters
         ----------
-        wavecal : tuple
-            results from the wavelength calibration step
-
-        Returns
-        -------
-        wave : array of shape (ntrace, ncol)
-            improved wavelength solution
-        comb : array of shape (ntrace, ncol)
-            extracted frequency comb image
+        coef : ndarray
+            2D polynomial coefficients from freq_comb
+        trace : list[TraceData]
+            Trace objects to update
         """
+        # Update traces.fits with improved wavelength polynomial
+        trace_file = join(self.output_dir, self.prefix + ".traces.fits")
+        if not os.path.exists(trace_file):
+            logger.warning("No traces.fits found, cannot save freq_comb result")
+            return
+
         try:
-            data = np.load(self.savefile, allow_pickle=True)
-            logger.info("Frequency comb wavecal file: %s", self.savefile)
-        except FileNotFoundError:
-            logger.warning(
-                "No data for Laser Frequency Comb found, using regular wavelength calibration instead"
-            )
-            wave, coef, linelist = wavecal
-            data = {"wave": wave}
-        wave = data["wave"]
-        return wave
+            trace_objects, header = load_traces(trace_file)
+
+            # Store the 2D polynomial in each trace (same poly for all)
+            for t in trace_objects:
+                t.wave = coef
+
+            steps = header.get("E_STEPS", "trace").split(",")
+            if "freq_comb" not in steps:
+                steps.append("freq_comb")
+            save_traces(trace_file, trace_objects, header, steps=steps)
+            logger.info("Updated traces with freq_comb wavelength: %s", trace_file)
+        except Exception as e:
+            logger.warning("Could not update traces.fits with freq_comb: %s", e)
+
+    def load(self):
+        """Load is a no-op - wavelengths are in traces.fits."""
+        # Nothing to load - downstream steps get wavelengths from traces
+        pass
 
 
 class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
@@ -1949,7 +2016,7 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["trace_groups"]
+        # No additional dependencies beyond CalibrationStep and ExtractionStep
 
         #:float: how many sigma of bad lines to cut away
         self.sigma_cutoff = config["curvature_cutoff"]
@@ -1972,26 +2039,19 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         #:str: Function shape that is fit to individual peaks
         self.peak_function = config["peak_function"]
 
-    @property
-    def savefile(self):
-        """str: Name of the curvature save file"""
-        return join(self.output_dir, self.prefix + ".curve.npz")
-
-    def run(self, files, trace, mask=None, bias=None, trace_groups=None):
+    def run(self, files, trace: list[TraceData], mask=None, bias=None):
         """Determine the curvature of the slit
 
         Parameters
         ----------
         files : list(str)
             files to use for this
-        trace : tuple
-            results of the order tracing
+        trace : list[TraceData]
+            Trace objects from trace step
         mask : array of shape (nrow, ncol), optional
             Bad pixel mask
         bias : tuple, optional
             Master bias
-        trace_groups : tuple, optional
-            Grouped traces for fiber selection
 
         Returns
         -------
@@ -2004,20 +2064,11 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         orig, thead = self.calibrate(files, mask, bias, None)
 
         # Apply fiber selection based on instrument config
-        selected = self._select_traces(trace, "curvature", trace_groups)
-        all_traces = [tr for tr, _, _ in selected.values()]
-        all_cr = [cr for _, cr, _ in selected.values()]
-        traces = np.vstack(all_traces)
-        column_range = np.vstack(all_cr)
-        nrow, ncol = orig.shape
-        ntrace = len(traces)
-        _, column_range, traces = fix_parameters(
-            self.curve_height, column_range, traces, nrow, ncol, ntrace
-        )
+        selected = self._select_traces(trace, "curvature")
+        trace_list = [t for traces in selected.values() for t in traces]
 
         module = CurvatureModule(
-            traces,
-            column_range=column_range,
+            trace_list,
             curve_height=self.curve_height,
             extraction_height=self.extraction_height,
             trace_range=self.trace_range,
@@ -2033,36 +2084,50 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             plot_title=self.plot_title,
         )
         curvature = module.execute(orig)
-        self.save(curvature)
-        return curvature
 
-    def save(self, curvature):
-        """Save curvature results.
+        # Update traces in-place with curvature data
+        fitted_coeffs = curvature["fitted_coeffs"]
+        slitdeltas = curvature["slitdeltas"]
+        for i, t in enumerate(trace_list):
+            if fitted_coeffs is not None and i < fitted_coeffs.shape[0]:
+                t.slit = fitted_coeffs[i]
+            if slitdeltas is not None and i < slitdeltas.shape[0]:
+                t.slitdelta = slitdeltas[i]
+
+        self.save(trace_list)
+        return trace_list
+
+    def save(self, traces):
+        """Save curvature results by updating traces.fits.
 
         Parameters
         ----------
-        curvature : SlitCurvature
-            Slit curvature data to save
+        traces : list[Trace]
+            Traces with updated slit/slitdelta data
         """
-        save_curvature(self.savefile, curvature)
+        trace_file = join(self.output_dir, self.prefix + ".traces.fits")
+        if os.path.exists(trace_file):
+            try:
+                trace_objects, header = load_traces(trace_file)
+
+                # Update each trace with slit data from fitted traces
+                for i, t in enumerate(traces):
+                    if i < len(trace_objects):
+                        trace_objects[i].slit = t.slit
+                        trace_objects[i].slitdelta = t.slitdelta
+
+                # Save updated traces
+                steps = header.get("E_STEPS", "trace").split(",")
+                if "curvature" not in steps:
+                    steps.append("curvature")
+                save_traces(trace_file, trace_objects, header, steps=steps)
+                logger.info("Updated traces with curvature data: %s", trace_file)
+            except Exception as e:
+                logger.warning("Could not update traces.fits with curvature: %s", e)
 
     def load(self):
-        """Load the curvature if possible, otherwise return None.
-
-        Returns
-        -------
-        curvature : SlitCurvature or None
-            Slit curvature data, or None if not found
-        """
-        try:
-            curvature = load_curvature(self.savefile)
-            logger.info("Slit curvature file: %s", self.savefile)
-            return curvature
-        except FileNotFoundError:
-            logger.warning(
-                "No data for slit curvature found, using vertical extraction."
-            )
-            return None
+        """Curvature is now stored in traces, not separate files."""
+        return None
 
 
 class RectifyImage(Step):
@@ -2070,7 +2135,7 @@ class RectifyImage(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["files", "trace", "curvature", "mask", "freq_comb"]
+        self._dependsOn += ["files", "trace", "mask"]
         # self._loadDependsOn += []
 
         self.extraction_height = config["extraction_height"]
@@ -2079,16 +2144,9 @@ class RectifyImage(Step):
     def filename(self, name):
         return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
 
-    def run(self, files, trace, curvature=None, mask=None, freq_comb=None):
-        traces, column_range = trace[:2]
-        # rectify_image still uses p1, p2 - extract from curvature coeffs
-        if curvature is not None:
-            curv_coeffs = _get_curvature_coeffs(curvature)
-            p1 = curv_coeffs[:, :, 1] if curv_coeffs.shape[2] > 1 else None
-            p2 = curv_coeffs[:, :, 2] if curv_coeffs.shape[2] > 2 else None
-        else:
-            p1, p2 = None, None
-        wave = freq_comb
+    def run(self, files, trace: list[TraceData], mask=None):
+        # Get wavelengths from traces (includes freq_comb improvements if run)
+        wave = wavelengths_from_traces(trace)
 
         files = files[self.input_files]
 
@@ -2100,12 +2158,9 @@ class RectifyImage(Step):
 
             images, cr, xwd = rectify_image(
                 img,
-                traces,
-                column_range,
+                trace,
                 self.extraction_height,
                 self.trace_range,
-                p1,
-                p2,
             )
             wavelength, image = merge_images(images, wave, cr, xwd)
 
@@ -2145,8 +2200,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["norm_flat", "curvature", "scatter", "trace_groups"]
-        self._loadDependsOn += ["files"]
+        self._dependsOn += ["norm_flat", "scatter"]
 
     def science_file(self, name):
         """Name of the science file in disk, based on the input file
@@ -2163,40 +2217,14 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         """
         return util.swap_extension(name, ".science.fits", path=self.output_dir)
 
-    def _extract_with_kwargs(
-        self, img, head, trace, curvature, scatter, extraction_kwargs
-    ):
-        """Extract with custom extraction kwargs (for per-group heights)."""
-        traces, column_range = trace[:2] if trace is not None else (None, None)
-        curv_coeffs = _get_curvature_coeffs(curvature)
-
-        data, unc, slitfu, cr = extract(
-            img,
-            traces,
-            gain=head["e_gain"],
-            readnoise=head["e_readn"],
-            dark=head["e_drk"],
-            column_range=column_range,
-            extraction_type=self.extraction_method,
-            trace_range=self.trace_range,
-            plot=self.plot,
-            plot_title=self.plot_title,
-            curvature=curv_coeffs,
-            scatter=scatter,
-            **extraction_kwargs,
-        )
-        return data, unc, slitfu, cr
-
     def run(
         self,
         files,
-        trace,
+        trace: list[TraceData],
         bias=None,
         norm_flat=None,
-        curvature=None,
         scatter=None,
         mask=None,
-        trace_groups=None,
     ):
         """Extract Science spectra from observation
 
@@ -2204,140 +2232,102 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         ----------
         files : list(str)
             list of observations
-        trace : tuple
-            results from order tracing step
+        trace : list[TraceData]
+            Trace objects from trace step
         bias : tuple, optional
             results from master bias step
         norm_flat : tuple, optional
             results from flat normalization
-        curvature : tuple, optional
-            results from slit curvature step
         scatter : array, optional
             background scatter model
         mask : array of shape (nrow, ncol), optional
             bad pixel map
-        trace_groups : tuple, optional
-            Grouped traces for fiber selection
 
         Returns
         -------
         heads : list(FITS header)
             FITS headers of each observation
-        specs : list(array of shape (ntrace, ncol))
-            extracted spectra
-        sigmas : list(array of shape (ntrace, ncol))
-            uncertainties of the extracted spectra
-        slitfu: list(array of shape (ntrace, (extr_height*oversample+1)+1)
-            slit illumination function
-        columns : list(array of shape (ntrace, 2))
-            column ranges for each spectra
+        spectra_list : list(list[Spectrum])
+            extracted spectra (one list per file)
         """
         # Apply fiber selection based on instrument config
-        selected = self._select_traces(trace, "science", trace_groups)
-        all_traces = [tr for tr, _, _ in selected.values()]
-        all_cr = [cr for _, cr, _ in selected.values()]
-        selected_traces = np.vstack(all_traces)
-        selected_cr = np.vstack(all_cr)
-        selected_trace = (selected_traces, selected_cr)
+        selected = self._select_traces(trace, "science")
+        trace_list = [t for traces in selected.values() for t in traces]
 
-        # Build per-trace extraction heights
-        # Priority: group height > raw height from trace > setting default
-        default_height = self.extraction_kwargs.get("extraction_height")
-        per_trace_heights = []
-        for name in selected:
-            tr, _, height = selected[name]
-            n_traces_in_group = len(tr)
-            if (
-                height is not None
-                and hasattr(height, "__len__")
-                and not isinstance(height, str)
-            ):
-                # height is an array (per-trace heights from trace file)
-                per_trace_heights.extend(height[:n_traces_in_group])
-            elif height is not None:
-                # height is a scalar (group height)
-                per_trace_heights.extend([height] * n_traces_in_group)
-            elif default_height is not None:
-                # Fall back to setting
-                per_trace_heights.extend([default_height] * n_traces_in_group)
-            else:
-                # No height available - use None (extract will error or use its default)
-                per_trace_heights.extend([None] * n_traces_in_group)
+        # Apply trace_range if specified
+        if self.trace_range is not None:
+            trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
 
-        # Use per-trace heights if we have any non-None values from trace data
-        has_trace_heights = any(h is not None for _, _, h in selected.values())
+        # Extraction parameters
         extraction_kwargs = dict(self.extraction_kwargs)
-        if has_trace_heights and default_height is None:
-            extraction_kwargs["extraction_height"] = per_trace_heights
-            logger.info("Using extraction heights from trace file")
-        elif has_trace_heights:
-            extraction_kwargs["extraction_height"] = per_trace_heights
-            logger.info(
-                "Using per-group extraction heights: %s",
-                {
-                    name: h
-                    for name, (_, _, h) in selected.items()
-                    if h is not None and not hasattr(h, "__len__")
-                },
-            )
+        default_height = extraction_kwargs.pop("extraction_height", 0.5)
 
-        heads, specs, sigmas, slitfus, columns = [], [], [], [], []
+        heads, all_spectra = [], []
         for fname in tqdm(files, desc="Files"):
             logger.info("Science file: %s", fname)
-            # Calibrate the input image, pass traces for visualization
+
+            # Calibrate the input image
             im, head = self.calibrate(
                 [fname],
                 mask,
                 bias,
                 norm_flat,
-                traces=selected_traces,
-                column_range=selected_cr,
-                extraction_height=extraction_kwargs.get("extraction_height"),
-            )
-            # Optimally extract science spectrum
-            spec, sigma, slitfu, cr = self._extract_with_kwargs(
-                im, head, selected_trace, curvature, scatter, extraction_kwargs
+                traces=trace_list,
+                extraction_height=default_height,
             )
 
-            # make slitfus from swaths into one
-            # print(len(slitfu),[len(sf) for sf in slitfu])
-            # slitfu = np.median(np.array(slitfu),axis=0)
-            # save spectrum to disk
-            self.save(fname, head, spec, sigma, slitfu, cr)
+            # Extract science spectrum - returns list[Spectrum]
+            spectra = extract(
+                im,
+                trace_list,
+                extraction_height=default_height,
+                extraction_type=self.extraction_method,
+                gain=head["e_gain"],
+                readnoise=head["e_readn"],
+                dark=head["e_drk"],
+                scatter=scatter,
+                plot=self.plot,
+                plot_title=self.plot_title,
+                **extraction_kwargs,
+            )
+
+            # Save spectrum to disk
+            self.save(fname, head, spectra)
             heads.append(head)
-            specs.append(spec)
-            sigmas.append(sigma)
-            slitfus.append(slitfu)
-            columns.append(cr)
+            all_spectra.append(spectra)
 
-        return heads, specs, sigmas, slitfus, columns
+        return heads, all_spectra
 
-    def save(self, fname, head, spec, sigma, slitfu, column_range):
-        """Save the results of one extraction
+    def save(self, fname, head, spectra: list[Spectrum]):
+        """Save extracted spectra using Spectra format.
 
         Parameters
         ----------
         fname : str
-            filename to save to
+            Original filename (used to derive output name)
         head : FITS header
             FITS header
-        spec : array of shape (ntrace, ncol)
-            extracted spectrum
-        sigma : array of shape (ntrace, ncol)
-            uncertainties of the extracted spectrum
-        slitfu: list(array of shape (ntrace, (extr_height*oversample+1)+1)
-            slit illumination function
-        column_range : array of shape (ntrace, 2)
-            range of columns that have spectrum
+        spectra : list[Spectrum]
+            Extracted spectra from extract()
         """
         nameout = self.science_file(fname)
-        echelle.save(
-            nameout, head, spec=spec, sig=sigma, slitfu=slitfu, columns=column_range
+
+        # Create extraction params from settings
+        params = ExtractionParams(
+            osample=self.extraction_kwargs.get("oversampling", 10),
+            lambda_sf=self.extraction_kwargs.get("smooth_slitfunction", 1.0),
+            lambda_sp=self.extraction_kwargs.get("smooth_spectrum", 0.0),
+            swath_width=self.extraction_kwargs.get("swath_width"),
         )
+
+        spectra_container = Spectra(header=head, data=spectra, params=params)
+        spectra_container.save(nameout, steps=["science"])
         logger.info("Created science file: %s", nameout)
 
-    def load(self, files):
-        """Load all science spectra from disk
+    def load(self):
+        """Load all science spectra from disk.
+
+        Supports both new Spectra format (E_FMTVER >= 2) and legacy format.
 
         Returns
         -------
@@ -2347,10 +2337,12 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             extracted spectra
         sigmas : list(array of shape (ntrace, ncol))
             uncertainties of the extracted spectra
+        slitfus : list or None
+            slit functions (if available)
         columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
-        files = files["science"]
+        files = self.files["science"]
         files = [self.science_file(fname) for fname in files]
 
         if len(files) == 0:
@@ -2358,21 +2350,42 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
         logger.info("Science files: %s", files)
 
-        heads, specs, sigmas, columns = [], [], [], []
+        heads, specs, sigmas, slitfus, columns = [], [], [], [], []
         for fname in files:
-            # fname = join(self.output_dir, fname)
-            science = echelle.read(
+            # Spectra.read handles both new and legacy formats via E_FMTVER
+            spectra = Spectra.read(
                 fname,
+                raw=True,
                 continuum_normalization=False,
                 barycentric_correction=False,
-                radial_velociy_correction=False,
+                radial_velocity_correction=False,
             )
-            heads.append(science.header)
-            specs.append(science["spec"])
-            sigmas.append(science["sig"])
-            columns.append(science["columns"])
+            heads.append(spectra.header)
 
-        return heads, specs, sigmas, None, columns
+            # Stack arrays from Spectrum objects
+            spec_arr = np.array([s.spec for s in spectra.data])
+            sig_arr = np.array([s.sig for s in spectra.data])
+            specs.append(spec_arr)
+            sigmas.append(sig_arr)
+
+            # Extract column range from NaN masking
+            ntrace, ncol = spec_arr.shape
+            cr = np.zeros((ntrace, 2), dtype=np.int32)
+            for i in range(ntrace):
+                valid = ~np.isnan(spec_arr[i])
+                if np.any(valid):
+                    cr[i, 0] = np.argmax(valid)
+                    cr[i, 1] = ncol - np.argmax(valid[::-1])
+            columns.append(cr)
+
+            # Extract slit functions
+            has_slitfu = any(s.slitfu is not None for s in spectra.data)
+            if has_slitfu:
+                slitfus.append([s.slitfu for s in spectra.data])
+            else:
+                slitfus.append(None)
+
+        return heads, specs, sigmas, slitfus, columns
 
 
 class ContinuumNormalization(Step):
@@ -2380,7 +2393,7 @@ class ContinuumNormalization(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["science", "freq_comb", "norm_flat"]
+        self._dependsOn += ["science", "norm_flat", "trace"]
         self._loadDependsOn += ["norm_flat", "science"]
 
     @property
@@ -2388,18 +2401,18 @@ class ContinuumNormalization(Step):
         """str: savefile name"""
         return join(self.output_dir, self.prefix + ".cont.npz")
 
-    def run(self, science, freq_comb, norm_flat):
+    def run(self, science, norm_flat, trace: list):
         """Determine the continuum to each observation
         Also splices the orders together
 
         Parameters
         ----------
         science : tuple
-            results from science step
-        freq_comb : tuple
-            results from freq_comb step (or wavecal if those don't exist)
+            results from science step: (heads, list[list[Spectrum]])
         norm_flat : tuple
             results from the normalized flatfield step
+        trace : list[TraceData]
+            Trace objects with wavelength polynomials
 
         Returns
         -------
@@ -2414,9 +2427,30 @@ class ContinuumNormalization(Step):
         columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
-        wave = freq_comb
-        heads, specs, sigmas, _, columns = science
+        # Get wavelengths from traces (includes freq_comb improvements if run)
+        wave = wavelengths_from_traces(trace)
         norm, blaze, *_ = norm_flat
+
+        # Apply trace_range to wavelength if it has more traces than blaze
+        # (blaze was saved with trace_range already applied)
+        if self.trace_range is not None and len(wave) > len(blaze):
+            wave = wave[self.trace_range[0] : self.trace_range[1]]
+
+        # Handle both old format (5 elements from load) and new format (2 elements from run)
+        if len(science) == 2:
+            # New Spectrum-based format from science.run()
+            heads, spectra_lists = science
+            specs = []
+            sigmas = []
+            columns = []
+            for spectra in spectra_lists:
+                specs.append(np.array([s.spec for s in spectra]))
+                sigmas.append(np.array([s.sig for s in spectra]))
+                # Get column ranges from spectrum lengths
+                columns.append(np.array([[0, len(s.spec)] for s in spectra]))
+        else:
+            # Old array format from science.load()
+            heads, specs, sigmas, _, columns = science
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]
@@ -2517,7 +2551,7 @@ class Finalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["continuum", "freq_comb", "config"]
+        self._dependsOn += ["continuum", "trace", "config"]
         self.filename = config["filename"]
 
     def output_file(self, number, name):
@@ -2548,7 +2582,7 @@ class Finalize(Step):
                 head[f"HIERARCH {prefix} {key.upper()}"] = value
         return head
 
-    def run(self, continuum, freq_comb, config):
+    def run(self, continuum, trace: list, config):
         """Create the final output files
 
         this is includes:
@@ -2559,11 +2593,14 @@ class Finalize(Step):
         ----------
         continuum : tuple
             results from the continuum normalization
-        freq_comb : tuple
-            results from the frequency comb step (or wavelength calibration)
+        trace : list[TraceData]
+            Trace objects with wavelength polynomials
+        config : dict
+            Pipeline configuration
         """
         heads, specs, sigmas, conts, columns = continuum
-        wave = freq_comb
+        # Get wavelengths from traces (includes freq_comb improvements if run)
+        wave = wavelengths_from_traces(trace)
 
         fnames = []
         # Combine science with wavecal and continuum
@@ -2635,8 +2672,35 @@ class Finalize(Step):
         """
         original_name = os.path.splitext(head["e_input"])[0]
         out_file = self.output_file(i, original_name)
-        echelle.save(
-            out_file, head, spec=spec, sig=sigma, cont=cont, wave=wave, columns=columns
-        )
+
+        ntrace = spec.shape[0]
+
+        # Convert arrays to list[Spectrum], masking outside column range with NaN
+        spectra_list = []
+        for j in range(ntrace):
+            spec_row = np.array(spec[j], dtype=np.float32)
+            sig_row = np.array(sigma[j], dtype=np.float32)
+            wave_row = np.array(wave[j], dtype=np.float64) if wave is not None else None
+            cont_row = np.array(cont[j], dtype=np.float32) if cont is not None else None
+
+            # Apply column mask as NaN
+            if columns is not None:
+                spec_row[: columns[j, 0]] = np.nan
+                spec_row[columns[j, 1] :] = np.nan
+                sig_row[: columns[j, 0]] = np.nan
+                sig_row[columns[j, 1] :] = np.nan
+
+            spectra_list.append(
+                Spectrum(
+                    m=j,
+                    spec=spec_row,
+                    sig=sig_row,
+                    wave=wave_row,
+                    cont=cont_row,
+                )
+            )
+
+        spectra = Spectra(header=head, data=spectra_list)
+        spectra.save(out_file, steps=["finalize"])
         logger.info("Final science file: %s", out_file)
         return out_file

@@ -41,6 +41,7 @@ cli
 examples
 manual_calls
 configuration_file
+output_formats
 instruments
 wavecal_linelist
 modules

@@ -1,8 +1,15 @@
+"""
+Debug script for extracting a single swath from a specific trace.
+
+Demonstrates manual swath extraction using the trace_model interface.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
 from pyreduce import cwrappers, extract
+from pyreduce.trace_model import load_traces
 
 input_dir = "../DATA/datasets/UVES/reduced/2010-04-01/middle/"
 raw_dir = "../DATA/datasets/UVES/raw/"
@@ -11,30 +18,17 @@ hdu = fits.open(input_dir + "uves_middle.flat.fits")
 img = hdu[0].data
 nrow, ncol = img.shape
 
-import warnings
-
-data = np.load(input_dir + "uves_middle.traces.npz", allow_pickle=True)
-if "traces" in data:
-    traces = data["traces"]
-elif "orders" in data:
-    warnings.warn(
-        "Trace file uses old key 'orders'. Re-run the trace step to update.",
-        DeprecationWarning,
-        stacklevel=1,
-    )
-    traces = data["orders"]
-else:
-    raise KeyError("Trace file missing 'traces' key")
-column_range = data["column_range"]
+# Load traces from FITS file
+traces, _ = load_traces(input_dir + "uves_middle.traces.fits")
+print(f"Loaded {len(traces)} traces")
 
 i = 5
 ix = np.arange(ncol)
 
 ylow, yhigh = 50, 50
 ibeg, iend = 1500, 2000
-ycen = np.polyval(traces[i], ix)
+ycen = np.polyval(traces[i].pos, ix)
 ycen_int = ycen.astype(int)
-# yrange = extract.get_y_scale(ycen, [400, 600], [5, 5], nrow)
 
 index = extract.make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
 swath_img = img[index]
@@ -44,8 +38,6 @@ osample = 10
 np.savetxt("image.txt", swath_img)
 np.savetxt("ycen.txt", swath_ycen)
 
-# return sp, sl, model, unc, mask
-# data1 = cwrappers.slitfunc(swath_img, swath_ycen, osample=osample)
 data2 = cwrappers.slitfunc_curved(
     swath_img, swath_ycen, 0, 0, 0.0, 0.5, osample=osample, yrange=(ylow, yhigh)
 )
@@ -83,17 +75,6 @@ for i in range(ncol):
         np.linspace(-1, nrow - 1 + 1, nsf) + (swath_ycen[i] - 0.5) * 1,
         slitf,
     )
-
-    # plt.subplot(111)
-    # plt.plot(swath_img[:, i] / np.mean(swath_img[:, i]), label="Image")
-    # plt.plot(sf[:, i] / np.mean(sf[:, i]), label="Interpolated")
-    # plt.plot(np.linspace(-1, nrow, nsf), slitf / np.mean(slitf), label="Slitfunction")
-    # plt.legend()
-    # plt.show()
-
-# plt.subplot(122)
-# plt.imshow(swath_img / sf, aspect="auto", origin="lower")
-# plt.show()
 
 y = swath_img / sf
 y = y.ravel() * np.mean(spec) / np.mean(y)

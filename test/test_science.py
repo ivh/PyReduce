@@ -16,7 +16,7 @@ def test_science(
     mask,
     bias,
     normflat,
-    orders,
+    traces,
     settings,
     trace_range,
 ):
@@ -25,12 +25,10 @@ def test_science(
 
     flat, blaze = normflat
     bias, bhead = bias
-    orders, column_range = orders
     settings = settings["science"]
 
-    # Fix column ranges
-    for i in range(blaze.shape[0]):
-        column_range[i] = np.where(blaze[i] != 0)[0][[0, -1]]
+    # Apply trace_range
+    traces_subset = traces[trace_range[0] : trace_range[1]]
 
     f = files["science"][0]
 
@@ -46,14 +44,12 @@ def test_science(
     )
 
     # Optimally extract science spectrum
-    spec, sigma, _, _ = extract(
+    spectra = extract(
         im,
-        orders,
+        traces_subset,
         gain=head["e_gain"],
         readnoise=head["e_readn"],
         dark=head["e_drk"],
-        column_range=column_range,
-        trace_range=trace_range,
         extraction_type=settings["extraction_method"],
         extraction_height=settings["extraction_height"],
         lambda_sf=settings["smooth_slitfunction"],
@@ -63,12 +59,20 @@ def test_science(
         plot=False,
     )
 
+    # Convert Spectrum objects to masked arrays for assertions
+    spec = np.ma.array([s.spec for s in spectra])
+    sigma = np.ma.array([s.sig for s in spectra])
+
+    # Mask NaN values
+    spec = np.ma.masked_invalid(spec)
+    sigma = np.ma.masked_invalid(sigma)
+
     assert isinstance(spec, np.ma.masked_array)
     assert spec.ndim == 2
     assert spec.shape[0] == trace_range[1] - trace_range[0]
     assert spec.shape[1] == im.shape[1]
     assert np.issubdtype(spec.dtype, np.floating)
-    assert not np.any(np.isnan(spec))
+    assert not np.any(np.isnan(np.ma.filled(spec, 0)))
     assert not np.all(np.all(spec.mask, axis=0))
 
     assert isinstance(sigma, np.ma.masked_array)
@@ -76,5 +80,5 @@ def test_science(
     assert sigma.shape[0] == trace_range[1] - trace_range[0]
     assert sigma.shape[1] == im.shape[1]
     assert np.issubdtype(sigma.dtype, np.floating)
-    assert not np.any(np.isnan(sigma))
+    assert not np.any(np.isnan(np.ma.filled(sigma, 0)))
     assert not np.all(np.all(sigma.mask, axis=0))

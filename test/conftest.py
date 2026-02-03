@@ -5,6 +5,7 @@ from shutil import rmtree
 
 # Stop matplotlib from crashing if interactive plotting does not work
 import matplotlib as mpl
+import numpy as np
 import pytest
 
 mpl.use("agg")
@@ -507,8 +508,11 @@ def flat(step_args, settings, files, bias, mask):
 
 
 @pytest.fixture
-def orders(step_args, settings, files, mask, bias):
-    """Load or if necessary calculate the order traces"""
+def traces(step_args, settings, files, mask, bias):
+    """Load or calculate the order traces.
+
+    Returns list[TraceData] - the new standard format for traces.
+    """
     name = "trace"
     settings = settings[name]
     files = files[name]
@@ -518,14 +522,26 @@ def orders(step_args, settings, files, mask, bias):
     step = Trace(*step_args, **settings)
 
     try:
-        orders, column_range = step.load()
+        trace_list = step.load()
     except FileNotFoundError:
-        orders, column_range = step.run(files, mask=mask, bias=bias)
-    return orders, column_range
+        trace_list = step.run(files, mask=mask, bias=bias)
+    return trace_list
 
 
 @pytest.fixture
-def scatter(step_args, settings, files, mask, bias, orders):
+def orders(traces):
+    """Legacy fixture: returns (orders_arr, column_range) tuple from traces.
+
+    Use 'traces' fixture directly for new code.
+    """
+    # Build arrays from Trace objects for legacy test compatibility
+    orders_arr = np.array([t.pos for t in traces])
+    column_range = np.array([t.column_range for t in traces])
+    return orders_arr, column_range
+
+
+@pytest.fixture
+def scatter(step_args, settings, files, mask, bias, traces):
     name = "scatter"
     settings = settings[name]
     settings["plot"] = False
@@ -536,22 +552,22 @@ def scatter(step_args, settings, files, mask, bias, orders):
     scatter = step.load()
     if scatter is None:
         try:
-            scatter = step.run(files, orders, mask=mask, bias=bias)
+            scatter = step.run(files, traces, mask=mask, bias=bias)
         except FileNotFoundError:
             scatter = None
     return scatter
 
 
 @pytest.fixture
-def normflat(step_args, settings, flat, orders, scatter, curvature):
+def normflat(step_args, settings, flat, traces, scatter):
     """Load or create the normalized flat field
 
     Parameters
     ----------
     flat : array(float)
         flat field calibration data and header
-    orders : tuple(array, array)
-        order polynomials, and column ranges
+    traces : list[TraceData]
+        Trace objects from trace step (curvature is embedded in traces)
     settings : dict(str:obj)
         run settings
     output_dir : str
@@ -575,16 +591,14 @@ def normflat(step_args, settings, flat, orders, scatter, curvature):
 
     if norm is None:
         try:
-            norm, blaze, *_ = step.run(
-                flat, orders, scatter=scatter, curvature=curvature
-            )
+            norm, blaze, *_ = step.run(flat, traces, scatter=scatter)
         except FileNotFoundError:
             norm, blaze = None, None
     return norm, blaze
 
 
 @pytest.fixture
-def curvature(step_args, settings, files, orders, mask):
+def curvature(step_args, settings, files, traces, mask):
     name = "curvature"
     files = files[name]
     settings = settings[name]
@@ -595,37 +609,35 @@ def curvature(step_args, settings, files, orders, mask):
     try:
         curv = step.load()
     except FileNotFoundError:
-        curv = step.run(files, orders, mask=mask)
+        curv = step.run(files, traces, mask=mask)
     return curv
 
 
 @pytest.fixture
-def wave_master(step_args, settings, files, orders, mask, curvature, bias, normflat):
+def wave_master(step_args, settings, files, traces, mask, bias, normflat):
     """Load or create wavelength calibration files
 
     Parameters
     ----------
     files : dict(str:str)
         calibration file names
-    instrument : str
-        instrument name
-    channel : str
-        instrument channel
-    extension : int
-        fits data extension
+    traces : list[TraceData]
+        Trace objects from trace step (curvature is embedded in traces)
     mask : array(bool)
         Bad pixel mask
-    orders : tuple(array, array)
-        order tracing polynomials and column ranges
     settings : dict(str:obj)
         run settings
-    output_dir : str
-        output data directory
+    bias : tuple
+        Master bias
+    normflat : tuple
+        Normalized flat field
 
     Returns
     -------
-    wave : array(float) of size (norder, ncol)
-        Wavelength along the spectral orders
+    wavecal : array(float) of size (norder, ncol)
+        Extracted wavelength calibration spectrum
+    whead : FITS header
+        Header of wavelength calibration image
     """
     name = "wavecal_master"
     files = files[name]
@@ -634,20 +646,19 @@ def wave_master(step_args, settings, files, orders, mask, curvature, bias, normf
     step = WavelengthCalibrationMaster(*step_args, **settings[name])
 
     try:
-        thar, thead = step.load()
+        wavecal, whead = step.load()
     except FileNotFoundError:
         try:
-            thar, thead = step.run(
+            wavecal, whead = step.run(
                 files,
-                orders,
+                traces,
                 mask=mask,
-                curvature=curvature,
                 bias=bias,
                 norm_flat=normflat,
             )
         except FileNotFoundError:
-            thar, thead = None, None
-    return thar, thead
+            wavecal, whead = None, None
+    return wavecal, whead
 
 
 @pytest.fixture
@@ -665,31 +676,12 @@ def wave_init(step_args, settings, wave_master):
 
 
 @pytest.fixture
-def wave(step_args, settings, wave_master, wave_init):
+def wlen(step_args, settings, wave_master, wave_init):
     """Load or create wavelength calibration files
-
-    Parameters
-    ----------
-    files : dict(str:str)
-        calibration file names
-    instrument : str
-        instrument name
-    channel : str
-        instrument channel
-    extension : int
-        fits data extension
-    mask : array(bool)
-        Bad pixel mask
-    orders : tuple(array, array)
-        order tracing polynomials and column ranges
-    settings : dict(str:obj)
-        run settings
-    output_dir : str
-        output data directory
 
     Returns
     -------
-    wave : array(float) of size (norder, ncol)
+    wlen : array(float) of size (norder, ncol)
         Wavelength along the spectral orders
     """
     name = "wavecal"
@@ -698,17 +690,23 @@ def wave(step_args, settings, wave_master, wave_init):
     step = WavelengthCalibrationFinalize(*step_args, **settings[name])
 
     try:
-        wave, coef, linelist = step.load()
+        wlen, wave, linelist = step.load()
     except FileNotFoundError:
         try:
-            wave, coef, linelist = step.run(wave_master, wave_init)
+            wlen, wave, linelist = step.run(wave_master, wave_init)
         except Exception:
-            wave = None
-    return wave
+            wlen = None
+    return wlen
 
 
 @pytest.fixture
-def spec(step_args, settings, files, bias, orders, normflat, curvature, scatter, mask):
+def wave(wlen):
+    """Alias for wlen fixture for test_continuum.py compatibility."""
+    return wlen
+
+
+@pytest.fixture
+def spec(step_args, settings, files, bias, traces, normflat, scatter, mask):
     """Load or create science spectrum
 
     Returns
@@ -726,15 +724,21 @@ def spec(step_args, settings, files, bias, orders, normflat, curvature, scatter,
 
     try:
         heads, specs, sigmas, slitfus, column_ranges = step.load(files)
+        return specs[0], sigmas[0]
     except FileNotFoundError:
-        files = files[name][:1]
-        heads, specs, sigmas, slitfus, column_ranges = step.run(
-            files,
-            orders,
+        files_list = files[name][:1]
+        heads, all_spectra = step.run(
+            files_list,
+            traces,
             bias=bias,
             norm_flat=normflat,
-            curvature=curvature,
             scatter=scatter,
             mask=mask,
         )
-    return specs[0], sigmas[0]
+        # Convert list[Spectrum] to arrays
+        import numpy as np
+
+        spectra = all_spectra[0]
+        specs = np.array([s.spec for s in spectra])
+        sigmas = np.array([s.sig for s in spectra])
+        return specs, sigmas

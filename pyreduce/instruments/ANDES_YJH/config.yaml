@@ -73,8 +73,7 @@ id_channel: ["^Y$", "^J$", "^H$"]
 # A/B/cal: spatial division of the slit
 # ring0-4: IFU hexagonal structure (center to outer rings)
 fibers:
-  per_order: true
-  fibers_per_order: 75
+  fibers_per_order: 75  # implies per-order organization
   # Channel-specific order centers: order_centers_y.yaml, order_centers_j.yaml, order_centers_h.yaml
   order_centers_file: order_centers_{channel}.yaml
   groups:
@@ -119,4 +118,4 @@ fibers:
   use:
     science: [A, B]
     wavecal: [cal]
-    norm_flat: all
+    norm_flat: groups

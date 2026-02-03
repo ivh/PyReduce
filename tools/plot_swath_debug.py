@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-# /// script
-# dependencies = ["pyreduce-astro"]
-# ///
 """Visualize swath extraction debug output from ProgressPlot."""
 
 import sys

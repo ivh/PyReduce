@@ -18,7 +18,7 @@ def func_wavecal(deg, thar, instrument, channel, **kwargs):
     kwargs["degree"] = deg
 
     module = WavelengthCalibrationModule(**kwargs)
-    wave, coef = module.execute(thar, linelist)
+    _wave, _coef, _linelist = module.execute(thar, linelist)
 
     return module.aic
 

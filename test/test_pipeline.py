@@ -58,7 +58,7 @@ class TestPipelineConstruction:
     @pytest.mark.unit
     def test_wavelength_calibration_convenience(self, tmp_path):
         """Test wavelength_calibration() adds all three steps."""
-        pipe = Pipeline("UVES", str(tmp_path)).wavelength_calibration(["thar.fits"])
+        pipe = Pipeline("UVES", str(tmp_path)).wavelength_calibration(["wavecal.fits"])
 
         step_names = [s[0] for s in pipe._steps]
         assert "wavecal_master" in step_names
@@ -139,8 +139,9 @@ class TestPipelineExecution:
         result = pipe.run()
 
         assert "trace" in result
-        orders, column_range = result["trace"]
-        assert orders is not None
+        traces = result["trace"]
+        assert isinstance(traces, list)
+        assert len(traces) > 0
 
     @pytest.mark.instrument
     def test_pipeline_results_property(self, instr, channel, files, settings, tmp_path):
@@ -248,7 +249,7 @@ class TestPipelineFluentMethods:
     @pytest.mark.unit
     def test_wavecal_master_method(self, tmp_path):
         """Test wavecal_master() method."""
-        pipe = Pipeline("UVES", str(tmp_path)).wavecal_master(["thar.fits"])
+        pipe = Pipeline("UVES", str(tmp_path)).wavecal_master(["wavecal.fits"])
         step_names = [s[0] for s in pipe._steps]
         assert "wavecal_master" in step_names
 

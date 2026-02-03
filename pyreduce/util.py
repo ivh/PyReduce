@@ -163,17 +163,6 @@ def remove_bias(img, ihead, bias, bhead, nfiles=1):
     return img
 
 
-def in_ipynb():
-    try:
-        cfg = get_ipython().config
-        if cfg["IPKernelApp"]["parent_appname"] == "ipython-notebook":
-            return True
-        else:
-            return False
-    except NameError:
-        return False
-
-
 def log_version():
     """For Debug purposes"""
     logger.debug("----------------------")
@@ -356,26 +345,6 @@ def make_index(ymin, ymax, xmin, xmax, zero=0):
     return index
 
 
-def gridsearch(func, grid, args=(), kwargs=None):
-    if kwargs is None:
-        kwargs = {}
-    matrix = np.zeros(grid.shape[:-1])
-
-    for idx in np.ndindex(grid.shape[:-1]):
-        value = grid[idx]
-        print(f"Value: {value}")
-        try:
-            result = func(value, *args, **kwargs)
-            print(f"Success: {result}")
-        except Exception as e:
-            result = np.nan
-            print(f"Failed: {e}")
-        finally:
-            matrix[idx] = result
-
-    return matrix
-
-
 def gaussfit(x, y):
     """
     Fit a simple gaussian to data
@@ -482,75 +451,6 @@ def gaussfit3(x, y):
         popt, _ = curve_fit(gauss, x, y, p0=p0)
 
     return popt
-
-
-def gaussfit4(x, y):
-    """A very simple (and relatively fast) gaussian fit
-    gauss = A * exp(-(x-mu)**2/(2*sig**2)) + offset
-
-    Assumes x is sorted
-
-    Parameters
-    ----------
-    x : array of shape (n,)
-        x data
-    y : array of shape (n,)
-        y data
-
-    Returns
-    -------
-    popt : list of shape (4,)
-        Parameters A, mu, sigma**2, offset
-    """
-    gauss = gaussval2
-    x = np.ma.compressed(x)
-    y = np.ma.compressed(y)
-    i = np.argmax(y)
-    p0 = [y[i], x[i], 1, np.min(y)]
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        popt, _ = curve_fit(gauss, x, y, p0=p0)
-
-    return popt
-
-
-def gaussfit_linear(x, y):
-    """Transform the gaussian fit into a linear least squares problem, and solve that instead of the non-linear curve fit
-    For efficiency reasons. (roughly 10 times faster than the curve fit)
-
-    Parameters
-    ----------
-    x : array of shape (n,)
-        x data
-    y : array of shape (n,)
-        y data
-
-    Returns
-    -------
-    coef : tuple
-        a, mu, sig, 0
-    """
-    x = x[y > 0]
-    y = y[y > 0]
-
-    offset = np.min(y)
-    y = y - offset + 1e-12
-
-    weights = y
-
-    d = np.log(y)
-    G = np.ones((x.size, 3), dtype=np.float)
-    G[:, 0] = x**2
-    G[:, 1] = x
-
-    beta, _, _, _ = np.linalg.lstsq((G.T * weights**2).T, d * weights**2, rcond=None)
-
-    a = np.exp(beta[2] - beta[1] ** 2 / (4 * beta[0]))
-    sig = -1 / (2 * beta[0])
-    mu = -beta[1] / (2 * beta[0])
-
-    return a, mu, sig, offset
 
 
 def gaussval2(x, a, mu, sig, const):

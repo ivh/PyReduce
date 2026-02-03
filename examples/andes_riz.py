@@ -153,18 +153,15 @@ if __name__ == "__main__":
 
     print("\n=== Running pipeline ===")
     # pipe.trace(trace_files)
-    pipe.curvature(wavecal_files)
+    # pipe.curvature(wavecal_files)
+    # Full wavecal: master -> init (MCMC line matching) -> finalize
+    pipe.wavelength_calibration([lfc_combined_path])
     pipe.extract([lfc_combined_path])
 
     results = pipe.run()
 
     if "trace" in results:
-        traces, column_range, *_ = results["trace"]
+        traces = results["trace"]  # list[Trace]
         print(f"Traces found: {len(traces)}")
-
-    if "trace_groups" in results and results["trace_groups"]:
-        group_traces, group_cr, group_heights = results["trace_groups"]
-        print(f"Fiber groups: {list(group_traces.keys())}")
-        for name, traces_dict in group_traces.items():
-            if isinstance(traces_dict, dict):
-                print(f"  {name}: orders {list(traces_dict.keys())}")
+        for t in traces[:3]:
+            print(f"  m={t.m}, group={t.group}, columns={t.column_range}")

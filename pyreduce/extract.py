@@ -21,6 +21,8 @@ from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 from . import util
+from .spectra import Spectrum
+from .trace_model import Trace
 from .util import make_index
 
 logger = logging.getLogger(__name__)
@@ -338,6 +340,8 @@ class ProgressPlot:  # pragma: no cover
 
         self.paused = False
         self.advance_one = False
+        self.closed = False
+        self.fig.canvas.mpl_connect("close_event", self._on_close)
         ax_slower = self.fig.add_axes([0.30, 0.02, 0.08, 0.04])
         ax_faster = self.fig.add_axes([0.39, 0.02, 0.08, 0.04])
         ax_pause = self.fig.add_axes([0.48, 0.02, 0.08, 0.04])
@@ -370,8 +374,14 @@ class ProgressPlot:  # pragma: no cover
         if self.paused:
             self.advance_one = True
 
+    def _on_close(self, event=None):
+        self.closed = True
+        self.paused = False
+
     def wait_if_paused(self):
         while self.paused and not self.advance_one:
+            if self.closed:
+                break
             self.fig.canvas.flush_events()
             time.sleep(0.05)
         self.advance_one = False
@@ -395,6 +405,9 @@ class ProgressPlot:  # pragma: no cover
         slitcurve=None,
         slitdeltas=None,
     ):
+        if self.closed:
+            return
+
         # Save swath data to debug directory
         if save:
             outfile = self.save_dir / f"swath_trace{trace_idx}_swath{swath_idx}.npz"
@@ -538,6 +551,7 @@ class ProgressPlot:  # pragma: no cover
         self.wait_if_paused()
 
     def close(self):
+        self.closed = True
         plt.ioff()
         plt.close()
 
@@ -1523,21 +1537,6 @@ def correct_for_curvature(img_order, curvature, xwd, inverse=False):
     return img_order
 
 
-def model_image(img, xwd, curvature):
-    """Create model image from curvature-corrected data."""
-    img = correct_for_curvature(img, curvature, xwd)
-    # Find slitfunction using the median to avoid outliers
-    slitf = np.ma.median(img, axis=1)
-    slitf /= np.ma.sum(slitf)
-    # Use the slitfunction to find spectrum
-    spec = np.ma.median(img / slitf[:, None], axis=0)
-    # Create model from slitfunction and spectrum
-    model = spec[None, :] * slitf[:, None]
-    # Reapply curvature to the model (inverse)
-    model = correct_for_curvature(model, curvature, xwd, inverse=True)
-    return model, spec, slitf
-
-
 def simple_extraction(
     img,
     traces,
@@ -1720,125 +1719,227 @@ def plot_comparison(
 
 def extract(
     img,
-    traces,
-    column_range=None,
-    trace_range=None,
-    extraction_height=0.5,
-    extraction_type="optimal",
-    curvature=None,
-    slitdeltas=None,
+    traces: list[Trace],
+    extraction_height: float = 0.5,
+    extraction_type: str = "optimal",
     **kwargs,
-):
+) -> list[Spectrum]:
     """
-    Extract the spectrum from an image
+    Extract spectra from an image.
 
     Parameters
     ----------
     img : array[nrow, ncol](float)
-        observation to extract
-    traces : array[ntrace, degree](float)
-        polynomial coefficients of the trace positions
-    column_range : array[ntrace, 2](int), optional
-        range of pixels to use for each trace (default: use all)
-    trace_range : array[2](int), optional
-        range of traces to extract, traces have to be consecutive (default: use all)
+        Observation to extract.
+    traces : list[Trace]
+        Trace objects with position, column_range, and optional slit curvature.
     extraction_height : float, optional
-        Total extraction height. Values below 3 are fractions of trace spacing, values above are pixels. Split evenly above/below trace. (default: 1.0)
-    extraction_type : {"optimal", "simple", "normalize"}, optional
-        which extraction algorithm to use, "optimal" uses optimal extraction, "simple" uses simple sum/median extraction, and "normalize" also uses optimal extraction, but returns the normalized image (default: "optimal")
-    curvature : array[ntrace, ncol, n_coeffs], optional
-        Slit curvature polynomial coefficients (default: None for vertical extraction)
-    slitdeltas : array[ntrace, nrows], optional
-        Per-row residual offsets from curvature fit (default: None)
-    polarization : bool, optional
-        if true, pairs of traces are considered to belong to the same order, but different polarization. Only affects the scatter (default: False)
-    **kwargs, optional
-        parameters for extraction functions
+        Default extraction height. Values below 3 are fractions of trace spacing,
+        values above are pixels. Overridden by trace.height if set. (default: 0.5)
+    extraction_type : {"optimal", "simple"}, optional
+        Extraction algorithm. (default: "optimal")
+    **kwargs
+        Additional parameters for extraction functions (osample, lambda_sf, etc.)
 
     Returns
     -------
-    spec : array[ntrace, ncol](float)
-        extracted spectrum for each trace
-    uncertainties : array[ntrace, ncol](float)
-        uncertainties on the spectrum
-
-    if extraction_type == "normalize" instead return
-
-    im_norm : array[nrow, ncol](float)
-        normalized image
-    im_ordr : array[nrow, ncol](float)
-        image with just the traces
-    blaze : array[ntrace, ncol](float)
-        extracted spectrum (equals blaze if img was the flat field)
+    list[Spectrum]
+        Extracted spectrum objects, one per trace.
     """
+    if len(traces) == 0:
+        return []
 
     nrow, ncol = img.shape
-    ntrace, _ = traces.shape
-    if trace_range is None:
-        trace_range = (0, ntrace)
+    ntrace = len(traces)
+
+    # Convert Trace objects to arrays for internal processing
+    traces_arr = np.array([t.pos for t in traces])
+    column_range = np.array([list(t.column_range) for t in traces], dtype=np.int32)
+
+    # Build per-trace extraction heights (trace.height overrides default)
+    heights = np.array(
+        [t.height if t.height is not None else extraction_height for t in traces]
+    )
+
+    # Build curvature arrays from Trace.slit
+    curvature = None
+    if any(t.slit is not None for t in traces):
+        # Get max slit dimensions
+        max_y = max((t.slit.shape[0] if t.slit is not None else 0) for t in traces)
+        max_x = max((t.slit.shape[1] if t.slit is not None else 0) for t in traces)
+        if max_y > 0 and max_x > 0:
+            curvature = np.zeros((ntrace, ncol, max_y), dtype=np.float64)
+            for i, t in enumerate(traces):
+                if t.slit is not None:
+                    # Evaluate slit polynomial at each column
+                    for j in range(ncol):
+                        coeffs = t.slit_at_x(j)
+                        if coeffs is not None:
+                            curvature[i, j, : len(coeffs)] = coeffs
+
+    # Build slitdeltas array from Trace.slitdelta
+    slitdeltas = None
+    if any(t.slitdelta is not None for t in traces):
+        max_len = max(
+            (len(t.slitdelta) if t.slitdelta is not None else 0) for t in traces
+        )
+        if max_len > 0:
+            slitdeltas = np.zeros((ntrace, max_len), dtype=np.float32)
+            for i, t in enumerate(traces):
+                if t.slitdelta is not None:
+                    slitdeltas[i, : len(t.slitdelta)] = t.slitdelta
 
     # Fix the input parameters
-    extraction_height, column_range, traces = fix_parameters(
-        extraction_height, column_range, traces, nrow, ncol, ntrace
+    heights, column_range, traces_arr = fix_parameters(
+        heights, column_range, traces_arr, nrow, ncol, ntrace
     )
-    # Limit traces (and related properties) to traces in range
-    ntrace = trace_range[1] - trace_range[0]
-    traces = traces[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
-    extraction_height = extraction_height[trace_range[0] : trace_range[1]]
-    if curvature is not None:
-        curvature = curvature[trace_range[0] : trace_range[1]]
-    if slitdeltas is not None:
-        slitdeltas = slitdeltas[trace_range[0] : trace_range[1]]
 
+    # Perform extraction
     if extraction_type == "optimal":
-        # the "normal" case, except for wavelength calibration files
         spectrum, slitfunction, uncertainties = optimal_extraction(
             img,
-            traces,
-            extraction_height,
+            traces_arr,
+            heights,
             column_range,
             curvature=curvature,
             slitdeltas=slitdeltas,
             **kwargs,
         )
-    elif extraction_type == "normalize":
-        # TODO
-        # Prepare normalized flat field image if necessary
-        # These will be passed and "returned" by reference
-        # I dont like it, but it works for now
-        im_norm = np.zeros_like(img)
-        im_ordr = np.zeros_like(img)
-
-        blaze, slitfunction, _ = optimal_extraction(
-            img,
-            traces,
-            extraction_height,
-            column_range,
-            curvature=curvature,
-            slitdeltas=slitdeltas,
-            normalize=True,
-            im_norm=im_norm,
-            im_ordr=im_ordr,
-            **kwargs,
-        )
-        threshold_lower = kwargs.get("threshold_lower", 0)
-        im_norm[im_norm <= threshold_lower] = 1
-        im_ordr[im_ordr <= threshold_lower] = 1
-        return im_norm, im_ordr, blaze, slitfunction, column_range
-    elif extraction_type in ("simple", "arc"):  # "arc" for backwards compatibility
+    elif extraction_type in ("simple", "arc"):
         spectrum, uncertainties = simple_extraction(
             img,
-            traces,
-            extraction_height,
+            traces_arr,
+            heights,
             column_range,
             curvature=curvature,
             **kwargs,
         )
-        slitfunction = None
+        slitfunction = [None] * ntrace
     else:
         raise ValueError(
-            f"Parameter 'extraction_type' not understood. Expected 'optimal', 'normalize', or 'simple' but got {extraction_type}."
+            f"extraction_type must be 'optimal' or 'simple', got {extraction_type}"
         )
 
-    return spectrum, uncertainties, slitfunction, column_range
+    # Convert results to Spectrum objects
+    results = []
+    for i, trace in enumerate(traces):
+        # Convert masked array to NaN-masked regular array
+        spec_1d = np.ma.filled(spectrum[i], np.nan)
+        unc_1d = np.ma.filled(uncertainties[i], np.nan)
+        slitfu = slitfunction[i] if slitfunction else None
+
+        results.append(
+            Spectrum.from_trace(
+                trace,
+                spec_1d,
+                unc_1d,
+                slitfu=slitfu,
+                extraction_height=heights[i],
+            )
+        )
+
+    return results
+
+
+def extract_normalize(
+    img,
+    traces: list[Trace],
+    extraction_height: float = 0.5,
+    **kwargs,
+):
+    """
+    Extract and normalize flat field image.
+
+    This is a specialized extraction mode for flat field processing that
+    returns normalized images rather than Spectrum objects.
+
+    Parameters
+    ----------
+    img : array[nrow, ncol](float)
+        Flat field image to normalize.
+    traces : list[Trace]
+        Trace objects with position, column_range, height, slit curvature.
+    extraction_height : float, optional
+        Default extraction height. Overridden by trace.height if set.
+    **kwargs
+        Additional parameters for extraction.
+
+    Returns
+    -------
+    im_norm : array[nrow, ncol](float)
+        Normalized flat field image.
+    im_ordr : array[nrow, ncol](float)
+        Image with just the trace regions.
+    blaze : array[ntrace, ncol](float)
+        Extracted blaze function.
+    slitfunction : list
+        Recovered slit functions.
+    column_range : array[ntrace, 2](int)
+        Column ranges used.
+    """
+    if not traces:
+        raise ValueError("No traces provided")
+
+    nrow, ncol = img.shape
+    ntrace = len(traces)
+
+    # Convert Trace objects to arrays
+    traces_arr = np.array([t.pos for t in traces])
+    column_range = np.array([list(t.column_range) for t in traces], dtype=np.int32)
+    heights = np.array(
+        [t.height if t.height is not None else extraction_height for t in traces]
+    )
+
+    # Build curvature arrays
+    curvature = None
+    if any(t.slit is not None for t in traces):
+        max_y = max((t.slit.shape[0] if t.slit is not None else 0) for t in traces)
+        max_x = max((t.slit.shape[1] if t.slit is not None else 0) for t in traces)
+        if max_y > 0 and max_x > 0:
+            curvature = np.zeros((ntrace, ncol, max_y), dtype=np.float64)
+            for i, t in enumerate(traces):
+                if t.slit is not None:
+                    for j in range(ncol):
+                        coeffs = t.slit_at_x(j)
+                        if coeffs is not None:
+                            curvature[i, j, : len(coeffs)] = coeffs
+
+    # Build slitdeltas array
+    slitdeltas = None
+    if any(t.slitdelta is not None for t in traces):
+        max_len = max(
+            (len(t.slitdelta) if t.slitdelta is not None else 0) for t in traces
+        )
+        if max_len > 0:
+            slitdeltas = np.zeros((ntrace, max_len), dtype=np.float32)
+            for i, t in enumerate(traces):
+                if t.slitdelta is not None:
+                    slitdeltas[i, : len(t.slitdelta)] = t.slitdelta
+
+    # Fix parameters
+    heights, column_range, traces_arr = fix_parameters(
+        heights, column_range, traces_arr, nrow, ncol, ntrace
+    )
+
+    # Prepare output images
+    im_norm = np.zeros_like(img)
+    im_ordr = np.zeros_like(img)
+
+    blaze, slitfunction, _ = optimal_extraction(
+        img,
+        traces_arr,
+        heights,
+        column_range,
+        curvature=curvature,
+        slitdeltas=slitdeltas,
+        normalize=True,
+        im_norm=im_norm,
+        im_ordr=im_ordr,
+        **kwargs,
+    )
+
+    threshold_lower = kwargs.get("threshold_lower", 0)
+    im_norm[im_norm <= threshold_lower] = 1
+    im_ordr[im_ordr <= threshold_lower] = 1
+
+    return im_norm, im_ordr, blaze, slitfunction, column_range

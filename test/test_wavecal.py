@@ -249,7 +249,7 @@ class TestWavelengthCalibrationCreateImage:
     def test_create_image_basic(self):
         """Test creating reference image from lines."""
         wc = WavelengthCalibration(plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         lines = np.zeros(2, dtype=LineList.dtype)
@@ -298,7 +298,7 @@ class TestWavelengthCalibrationMakeWave:
     def test_make_wave_1d(self):
         """Test creating wavelength image in 1D mode."""
         wc = WavelengthCalibration(dimensionality="1D", degree=1, plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         solution = np.array(
@@ -319,7 +319,7 @@ class TestWavelengthCalibrationMakeWave:
     def test_make_wave_2d(self):
         """Test creating wavelength image in 2D mode."""
         wc = WavelengthCalibration(dimensionality="2D", degree=(1, 1), plot=False)
-        wc.nord = 2
+        wc.ntrace = 2
         wc.ncol = 100
 
         # Solution: wavelength = 5000 + 0.1*x + 1000*order
@@ -337,6 +337,382 @@ class TestWavelengthCalibrationMakeWave:
         assert wave_img[1, 0] == pytest.approx(6000.0)
 
 
+class TestWavelengthsFromTraces:
+    """Unit tests for wavelengths_from_traces helper."""
+
+    @pytest.mark.unit
+    def test_empty_traces(self):
+        """Empty trace list returns None."""
+        from pyreduce.reduce import wavelengths_from_traces
+
+        result = wavelengths_from_traces([])
+        assert result is None
+
+    @pytest.mark.unit
+    def test_traces_without_wave(self):
+        """Traces without wavelength data return None."""
+        from pyreduce.reduce import wavelengths_from_traces
+        from pyreduce.trace_model import Trace
+
+        traces = [
+            Trace(m=0, group="A", pos=np.array([1, 0, 100]), column_range=(0, 100)),
+            Trace(m=1, group="A", pos=np.array([1, 0, 200]), column_range=(0, 100)),
+        ]
+        result = wavelengths_from_traces(traces)
+        assert result is None
+
+    @pytest.mark.unit
+    def test_traces_with_1d_wave(self):
+        """Traces with 1D wavelength polynomials."""
+        from pyreduce.reduce import wavelengths_from_traces
+        from pyreduce.trace_model import Trace
+
+        # wave = 5000 + 0.1*x for order 0, 6000 + 0.1*x for order 1
+        traces = [
+            Trace(
+                m=0,
+                group="A",
+                pos=np.array([1, 0, 100]),
+                column_range=(0, 100),
+                wave=np.array([0.1, 5000]),
+            ),
+            Trace(
+                m=1,
+                group="A",
+                pos=np.array([1, 0, 200]),
+                column_range=(0, 100),
+                wave=np.array([0.1, 6000]),
+            ),
+        ]
+        result = wavelengths_from_traces(traces, ncol=100)
+
+        assert result.shape == (2, 100)
+        assert result[0, 0] == pytest.approx(5000.0)
+        assert result[0, 50] == pytest.approx(5005.0)
+        assert result[1, 0] == pytest.approx(6000.0)
+
+    @pytest.mark.unit
+    def test_traces_with_2d_wave(self):
+        """Traces with shared 2D wavelength polynomial."""
+        from pyreduce.reduce import wavelengths_from_traces
+        from pyreduce.trace_model import Trace
+
+        # 2D poly: wavelength = 5000 + 0.1*x + 1000*m
+        wave_2d = np.array([[5000.0, 1000.0], [0.1, 0.0]])
+        traces = [
+            Trace(
+                m=0,
+                group="A",
+                pos=np.array([1, 0, 100]),
+                column_range=(0, 100),
+                wave=wave_2d,
+            ),
+            Trace(
+                m=1,
+                group="A",
+                pos=np.array([1, 0, 200]),
+                column_range=(0, 100),
+                wave=wave_2d,
+            ),
+        ]
+        result = wavelengths_from_traces(traces, ncol=100)
+
+        assert result.shape == (2, 100)
+        assert result[0, 0] == pytest.approx(5000.0)
+        assert result[1, 0] == pytest.approx(6000.0)
+
+
+class TestWavecalPerGroupSaveLoad:
+    """Unit tests for per-group wavecal save/load."""
+
+    @pytest.fixture
+    def mock_instrument(self):
+        from pyreduce.instruments.instrument_info import load_instrument
+
+        return load_instrument("UVES")
+
+    @pytest.fixture
+    def wavecal_master_step(self, mock_instrument, tmp_path):
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationMaster
+
+        config = load_config(None, "UVES")
+        return WavelengthCalibrationMaster(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal_master"],
+        )
+
+    @pytest.mark.unit
+    def test_savefile_for_group_all(self, wavecal_master_step, tmp_path):
+        """Single group 'all' uses standard filename."""
+        path = wavecal_master_step.savefile_for_group("all")
+        assert path.endswith(".wavecal_master.fits")
+        assert ".wavecal_master.all." not in path
+
+    @pytest.mark.unit
+    def test_savefile_for_group_named(self, wavecal_master_step, tmp_path):
+        """Named groups get group in filename."""
+        path = wavecal_master_step.savefile_for_group("A")
+        assert path.endswith(".wavecal_master.A.fits")
+
+    @pytest.mark.unit
+    def test_savefile_for_group_fiber(self, wavecal_master_step, tmp_path):
+        """Fiber groups get fiber_N in filename."""
+        path = wavecal_master_step.savefile_for_group("fiber_0")
+        assert path.endswith(".wavecal_master.fiber_0.fits")
+
+
+class TestWavecalFinalizeTraceUpdate:
+    """Unit tests for WavelengthCalibrationFinalize trace updates."""
+
+    @pytest.fixture
+    def mock_instrument(self):
+        from pyreduce.instruments.instrument_info import load_instrument
+
+        return load_instrument("UVES")
+
+    @pytest.fixture
+    def traces_with_groups(self):
+        """Create traces with different groups."""
+        from pyreduce.trace_model import Trace
+
+        return [
+            Trace(m=0, group="A", pos=np.array([1, 0, 100]), column_range=(0, 100)),
+            Trace(m=1, group="A", pos=np.array([1, 0, 150]), column_range=(0, 100)),
+            Trace(m=0, group="B", pos=np.array([1, 0, 200]), column_range=(0, 100)),
+            Trace(m=1, group="B", pos=np.array([1, 0, 250]), column_range=(0, 100)),
+        ]
+
+    @pytest.fixture
+    def traces_with_fibers(self):
+        """Create traces with fiber_idx for per-fiber mode.
+
+        Note: fiber_idx and group are mutually exclusive. These traces
+        use fiber_idx (individual fibers, not merged).
+        """
+        from pyreduce.trace_model import Trace
+
+        return [
+            Trace(
+                m=0,
+                pos=np.array([1, 0, 100]),
+                column_range=(0, 100),
+                fiber_idx=0,
+            ),
+            Trace(
+                m=1,
+                pos=np.array([1, 0, 150]),
+                column_range=(0, 100),
+                fiber_idx=0,
+            ),
+            Trace(
+                m=0,
+                pos=np.array([1, 0, 200]),
+                column_range=(0, 100),
+                fiber_idx=1,
+            ),
+            Trace(
+                m=1,
+                pos=np.array([1, 0, 250]),
+                column_range=(0, 100),
+                fiber_idx=1,
+            ),
+        ]
+
+    @pytest.mark.unit
+    def test_group_lookup_by_group_name(self, traces_with_groups):
+        """Traces are correctly grouped by group attribute."""
+        traces_by_group = {}
+        for i, t in enumerate(traces_with_groups):
+            g = str(t.group) if t.group is not None else "all"
+            if g not in traces_by_group:
+                traces_by_group[g] = []
+            traces_by_group[g].append((i, t))
+
+        assert "A" in traces_by_group
+        assert "B" in traces_by_group
+        assert len(traces_by_group["A"]) == 2
+        assert len(traces_by_group["B"]) == 2
+
+    @pytest.mark.unit
+    def test_group_lookup_by_fiber_idx(self, traces_with_fibers):
+        """Traces are correctly grouped by fiber_idx."""
+        traces_by_fiber = {}
+        for i, t in enumerate(traces_with_fibers):
+            if t.fiber_idx is not None:
+                fkey = f"fiber_{t.fiber_idx}"
+                if fkey not in traces_by_fiber:
+                    traces_by_fiber[fkey] = []
+                traces_by_fiber[fkey].append((i, t))
+
+        assert "fiber_0" in traces_by_fiber
+        assert "fiber_1" in traces_by_fiber
+        assert len(traces_by_fiber["fiber_0"]) == 2
+        assert len(traces_by_fiber["fiber_1"]) == 2
+
+    @pytest.mark.unit
+    def test_wavecal_finalize_saves_to_traces_1d(
+        self, mock_instrument, tmp_path, traces_with_groups
+    ):
+        """WavelengthCalibrationFinalize saves 1D wave polynomials to traces.fits."""
+        from astropy.io.fits import Header
+
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import load_traces, save_traces
+        from pyreduce.wavelength_calibration import LineList
+
+        # Save initial traces
+        trace_file = tmp_path / "uves_red.traces.fits"
+        save_traces(str(trace_file), traces_with_groups, Header())
+
+        # Create step with 1D mode
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "1D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+
+        # Create mock results with 1D polynomials (one per trace)
+        wave_A = np.array([[0.1, 5000], [0.1, 5500]])  # 2 traces in group A
+        wave_B = np.array([[0.1, 6000], [0.1, 6500]])  # 2 traces in group B
+        ll_A = LineList.from_list([5000], [0], [50], [3], [1.0], [True])
+        ll_B = LineList.from_list([6000], [0], [50], [3], [1.0], [True])
+
+        results = {"A": (wave_A, ll_A), "B": (wave_B, ll_B)}
+
+        # Save results
+        step.save(results)
+
+        # Load traces and verify
+        loaded_traces, _ = load_traces(str(trace_file))
+
+        # Group A traces should have individual wave polynomials
+        assert loaded_traces[0].wave is not None
+        assert loaded_traces[0].wave[1] == pytest.approx(5000)
+        assert loaded_traces[1].wave[1] == pytest.approx(5500)
+
+        # Group B traces should have individual wave polynomials
+        assert loaded_traces[2].wave is not None
+        assert loaded_traces[2].wave[1] == pytest.approx(6000)
+        assert loaded_traces[3].wave[1] == pytest.approx(6500)
+
+    @pytest.mark.unit
+    def test_wavecal_finalize_saves_to_traces_2d(
+        self, mock_instrument, tmp_path, traces_with_groups
+    ):
+        """WavelengthCalibrationFinalize saves 2D wave polynomial to all traces in group."""
+        from astropy.io.fits import Header
+
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import load_traces, save_traces
+        from pyreduce.wavelength_calibration import LineList
+
+        # Save initial traces
+        trace_file = tmp_path / "uves_red.traces.fits"
+        save_traces(str(trace_file), traces_with_groups, Header())
+
+        # Create step with 2D mode (default)
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "2D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+
+        # Create mock results with 2D polynomials (shared per group)
+        wave_A = np.array([[5000, 1000], [0.1, 0]])  # 2D poly for group A
+        wave_B = np.array([[6000, 1000], [0.1, 0]])  # 2D poly for group B
+        ll_A = LineList.from_list([5000], [0], [50], [3], [1.0], [True])
+        ll_B = LineList.from_list([6000], [0], [50], [3], [1.0], [True])
+
+        results = {"A": (wave_A, ll_A), "B": (wave_B, ll_B)}
+
+        # Save results
+        step.save(results)
+
+        # Load traces and verify
+        loaded_traces, _ = load_traces(str(trace_file))
+
+        # Both group A traces should have same 2D polynomial
+        assert loaded_traces[0].wave is not None
+        assert np.array_equal(loaded_traces[0].wave, wave_A)
+        assert np.array_equal(loaded_traces[1].wave, wave_A)
+
+        # Both group B traces should have same 2D polynomial
+        assert np.array_equal(loaded_traces[2].wave, wave_B)
+        assert np.array_equal(loaded_traces[3].wave, wave_B)
+
+    @pytest.mark.unit
+    def test_wavecal_finalize_per_fiber_mode(
+        self, mock_instrument, tmp_path, traces_with_fibers
+    ):
+        """WavelengthCalibrationFinalize works with per_fiber mode (1D)."""
+        from astropy.io.fits import Header
+
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import load_traces, save_traces
+        from pyreduce.wavelength_calibration import LineList
+
+        # Save initial traces
+        trace_file = tmp_path / "uves_red.traces.fits"
+        save_traces(str(trace_file), traces_with_fibers, Header())
+
+        # Create step with 1D mode
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "1D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+
+        # Create mock results with fiber_N keys (1D polynomials per trace)
+        wave_f0 = np.array([[0.1, 5000], [0.1, 5500]])
+        wave_f1 = np.array([[0.1, 6000], [0.1, 6500]])
+        ll = LineList.from_list([5000], [0], [50], [3], [1.0], [True])
+
+        results = {"fiber_0": (wave_f0, ll), "fiber_1": (wave_f1, ll)}
+
+        # Save results
+        step.save(results)
+
+        # Load traces and verify
+        loaded_traces, _ = load_traces(str(trace_file))
+
+        # fiber_0 traces (indices 0, 1)
+        assert loaded_traces[0].wave is not None
+        assert loaded_traces[0].wave[1] == pytest.approx(5000)
+        assert loaded_traces[1].wave[1] == pytest.approx(5500)
+
+        # fiber_1 traces (indices 2, 3)
+        assert loaded_traces[2].wave is not None
+        assert loaded_traces[2].wave[1] == pytest.approx(6000)
+        assert loaded_traces[3].wave[1] == pytest.approx(6500)
+
+
 # Tests that require instrument data follow below
 
 
@@ -344,39 +720,42 @@ class TestWavelengthCalibrationMakeWave:
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_wavecal(
-    files, instr, instrument, channel, mask, orders, settings, trace_range
+    files, instr, instrument, channel, mask, traces, settings, trace_range
 ):
     name = "wavecal_master"
     if len(files[name]) == 0:
         pytest.skip(f"No wavecal files found for instrument {instrument}")
 
-    orders, column_range = orders
     files = files[name][0]
     orig, thead = instr.load_fits(files, channel, mask=mask)
     thead["obase"] = (0, "base order number")
 
+    # Apply trace_range to traces
+    traces_subset = traces[trace_range[0] : trace_range[1]]
+
     # Extract wavecal spectrum
-    thar, _, _, _ = extract(
+    spectra = extract(
         orig,
-        orders,
+        traces_subset,
         gain=thead["e_gain"],
         readnoise=thead["e_readn"],
         dark=thead["e_drk"],
         extraction_type="simple",
-        column_range=column_range,
-        trace_range=trace_range,
         extraction_height=settings[name]["extraction_height"],
         plot=False,
     )
 
-    assert isinstance(thar, np.ndarray)
-    assert thar.ndim == 2
-    assert thar.shape[0] == trace_range[1] - trace_range[0]
-    assert thar.shape[1] == orig.shape[1]
-    assert np.issubdtype(thar.dtype, np.floating)
+    # Convert Spectrum objects to array for assertions
+    wavecal_spec = np.array([s.spec for s in spectra])
 
-    # assert np.min(thar) == 0
-    # assert np.max(thar) == 1
+    assert isinstance(wavecal_spec, np.ndarray)
+    assert wavecal_spec.ndim == 2
+    assert wavecal_spec.shape[0] == trace_range[1] - trace_range[0]
+    assert wavecal_spec.shape[1] == orig.shape[1]
+    assert np.issubdtype(wavecal_spec.dtype, np.floating)
+
+    # assert np.min(wavecal_spec) == 0
+    # assert np.max(wavecal_spec) == 1
 
     reference = instr.get_wavecal_filename(thead, channel, **settings["instrument"])
     reference = np.load(reference, allow_pickle=True)
@@ -389,7 +768,7 @@ def test_wavecal(
         threshold=settings[name]["threshold"],
         degree=settings[name]["degree"],
     )
-    wave, solution, lines = module.execute(thar, linelist)
+    wave, solution, lines = module.execute(wavecal_spec, linelist)
 
     assert isinstance(wave, np.ndarray)
     assert wave.ndim == 2

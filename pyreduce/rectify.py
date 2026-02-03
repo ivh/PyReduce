@@ -3,52 +3,81 @@ from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 from . import util
-from .extract import correct_for_curvature, fix_parameters
+from .extract import correct_for_curvature
 
 
-def rectify_image(
-    img, traces, column_range, extraction_height, trace_range, p1=None, p2=None
-):
-    ntrace, _ = traces.shape
+def rectify_image(img, traces, extraction_height, trace_range):
+    """Rectify image by extracting and straightening each trace.
+
+    Parameters
+    ----------
+    img : array
+        Input image
+    traces : list[Trace]
+        Trace objects with pos, column_range, and optional slit curvature
+    extraction_height : float
+        Extraction height (fraction if < 3, else pixels)
+    trace_range : tuple
+        (start, end) indices of traces to process
+
+    Returns
+    -------
+    images : dict
+        Rectified images keyed by trace index
+    column_range : array
+        Column ranges for each trace
+    extraction_height : array
+        Extraction heights for each trace
+    """
     nrow, ncol = img.shape
     x = np.arange(ncol)
 
-    extraction_height, column_range, traces = fix_parameters(
-        extraction_height, column_range, traces, nrow, ncol, ntrace
-    )
-
-    ntrace = trace_range[1] - trace_range[0]
+    # Apply trace_range slicing
     traces = traces[trace_range[0] : trace_range[1]]
-    column_range = column_range[trace_range[0] : trace_range[1]]
-    extraction_height = extraction_height[trace_range[0] : trace_range[1]]
+    ntrace = len(traces)
+
+    # Build column_range array from traces
+    column_range = np.array([t.column_range for t in traces])
+
+    # Compute extraction height in pixels if fractional
+    xwd = extraction_height
+    if np.isscalar(xwd) and xwd < 3:
+        x_mid = ncol // 2
+        y_mids = np.array([np.polyval(t.pos, x_mid) for t in traces])
+        if len(y_mids) > 1:
+            spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
+            xwd = int(xwd * spacing)
+        else:
+            xwd = 10
+    if np.isscalar(xwd):
+        xwd_arr = np.full(ntrace, int(xwd))
+    else:
+        xwd_arr = np.asarray(xwd, dtype=int)
 
     images = {}
-    for i in tqdm(range(ntrace), desc="Trace"):
-        x_left_lim = column_range[i, 0]
-        x_right_lim = column_range[i, 1]
+    for i, trace in enumerate(tqdm(traces, desc="Trace")):
+        x_left_lim, x_right_lim = trace.column_range
 
         # Rectify the image, i.e. remove the shape of the trace
         # Then the center of the trace is within one pixel variations
-        ycen = np.polyval(traces[i], x).astype(int)
-        half = extraction_height[i] // 2
+        ycen = np.polyval(trace.pos, x).astype(int)
+        half = xwd_arr[i] // 2
         yb = ycen - half
-        yt = yb + extraction_height[i] - 1
+        yt = yb + xwd_arr[i] - 1
         index = util.make_index(yb, yt, x_left_lim, x_right_lim)
         img_order = img[index]
 
-        # Correct for curvature
-        # For each row of the rectified order, interpolate onto the shifted row
-        # Masked pixels are set to 0, similar to the summation
-        if p1 is not None and p2 is not None:
-            img_order = correct_for_curvature(
-                img_order,
-                p1[i, x_left_lim:x_right_lim],
-                p2[i, x_left_lim:x_right_lim],
-                extraction_height[i],
-            )
+        # Correct for curvature using trace.slit if available
+        # slit[1, :] = linear term coeffs, slit[2, :] = quadratic term coeffs
+        if trace.slit is not None and trace.slit.shape[0] > 2:
+            # Evaluate curvature polynomials at each column
+            x_range = np.arange(x_left_lim, x_right_lim)
+            p1 = np.polyval(trace.slit[1, :], x_range)
+            p2 = np.polyval(trace.slit[2, :], x_range)
+            img_order = correct_for_curvature(img_order, p1, p2, xwd_arr[i])
         images[i] = img_order
 
-    return images, column_range, extraction_height
+    return images, column_range, xwd_arr
 
 
 def merge_images(images, wave, column_range, extraction_height):

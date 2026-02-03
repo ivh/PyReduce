@@ -40,7 +40,7 @@ class AlignmentPlot:
     def __init__(self, ax, obs, lines, offset=(0, 0), plot_title=None):
         self.im = ax
         self.first = True
-        self.nord, self.ncol = obs.shape
+        self.ntrace, self.ncol = obs.shape
         self.RED, self.GREEN, self.BLUE = 0, 1, 2
 
         self.obs = obs
@@ -56,14 +56,14 @@ class AlignmentPlot:
 
     def make_ref_image(self):
         """create and show the reference plot, with the two spectra"""
-        ref_image = np.zeros((self.nord * 2, self.ncol, 3))
-        for iord in range(self.nord):
-            ref_image[iord * 2, :, self.RED] = 10 * np.ma.filled(self.obs[iord], 0)
-            if 0 <= iord + self.offset[0] < self.nord:
-                for line in self.lines[self.lines["order"] == iord]:
+        ref_image = np.zeros((self.ntrace * 2, self.ncol, 3))
+        for idx in range(self.ntrace):
+            ref_image[idx * 2, :, self.RED] = 10 * np.ma.filled(self.obs[idx], 0)
+            if 0 <= idx + self.offset[0] < self.ntrace:
+                for line in self.lines[self.lines["order"] == idx]:
                     first = int(np.clip(line["xfirst"] + self.offset[1], 0, self.ncol))
                     last = int(np.clip(line["xlast"] + self.offset[1], 0, self.ncol))
-                    order = (iord + self.offset[0]) * 2 + 1
+                    order = (idx + self.offset[0]) * 2 + 1
                     ref_image[order, first:last, self.GREEN] = (
                         10
                         * line["height"]
@@ -76,7 +76,7 @@ class AlignmentPlot:
             ref_image,
             aspect="auto",
             origin="lower",
-            extent=(-0.5, self.ncol - 0.5, -0.5, self.nord - 0.5),
+            extent=(-0.5, self.ncol - 0.5, -0.5, self.ntrace - 0.5),
         )
         title = "Alignment, Observed: RED, Reference: GREEN\nGreen should be above red!"
         if self.plot_title is not None:
@@ -209,11 +209,12 @@ class LineList:
         )
     )
 
-    def __init__(self, lines=None):
+    def __init__(self, lines=None, obase=None):
         if lines is None:
             lines = np.array([], dtype=self.dtype)
         self.data = lines
         self.dtype = self.data.dtype
+        self.obase = obase  # Base spectral order number
 
     def __getitem__(self, key):
         return self.data[key]
@@ -228,10 +229,16 @@ class LineList:
     def load(cls, filename):
         data = np.load(filename, allow_pickle=True)
         linelist = cls(data["cs_lines"])
+        # Load obase if present
+        if "obase" in data:
+            linelist.obase = int(data["obase"])
         return linelist
 
     def save(self, filename):
-        np.savez(filename, cs_lines=self.data)
+        if self.obase is not None:
+            np.savez(filename, cs_lines=self.data, obase=self.obase)
+        else:
+            np.savez(filename, cs_lines=self.data)
 
     def append(self, linelist):
         if isinstance(linelist, LineList):
@@ -314,7 +321,7 @@ class WavelengthCalibration:
         #:int: grey closing range for the input image
         self.closing = 5
         #:int: Number of orders in the observation
-        self.nord = None
+        self.ntrace = None
         #:int: Number of columns in the observation
         self.ncol = None
 
@@ -344,23 +351,25 @@ class WavelengthCalibration:
 
         Parameters
         ----------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             observed image
         lines : recarray of shape (nlines,)
             reference linelist
 
         Returns
         -------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             normalized image
         lines : recarray of shape (nlines,)
             normalized reference linelist
         """
         # normalize order by order
-        obs = np.ma.copy(obs)
+        obs = np.ma.masked_invalid(obs)
         for i in range(len(obs)):
             if self.closing > 0:
+                mask = obs.mask[i].copy()
                 obs[i] = grey_closing(obs[i], self.closing)
+                obs.mask[i] = mask | np.isnan(obs[i])
             try:
                 obs[i] -= np.ma.median(obs[i][obs[i] > 0])
             except ValueError:
@@ -397,7 +406,7 @@ class WavelengthCalibration:
 
         Returns
         -------
-        img : array of shape (nord, ncol)
+        img : array of shape (ntrace, ncol)
             New reference image
         """
         min_order = int(np.min(lines["order"]))
@@ -421,7 +430,7 @@ class WavelengthCalibration:
 
         Parameters
         ----------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             observed image
         lines : recarray of shape (nlines,)
             reference linelist
@@ -558,17 +567,24 @@ class WavelengthCalibration:
         coef = util.gaussfit2(x, section)
 
         if self.plot >= 2 and plot:
-            x2 = np.linspace(x.min(), x.max(), len(x) * 100)
-            plt.plot(x, section, label="Observation")
-            plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
-            title = "Gaussian Fit to spectral line"
-            if self.plot_title is not None:
-                title = f"{self.plot_title}\n{title}"
-            plt.title(title)
-            plt.xlabel("x [pixel]")
-            plt.ylabel("Intensity [a.u.]")
-            plt.legend()
-            util.show_or_save("wavecal_line_fit")
+            # Limit number of line fit plots (track via class attribute)
+            if not hasattr(self, "_line_fit_plot_count"):
+                self._line_fit_plot_count = 0
+            self._line_fit_plot_count += 1
+            if self._line_fit_plot_count <= 5:
+                x2 = np.linspace(x.min(), x.max(), len(x) * 100)
+                plt.plot(x, section, label="Observation")
+                plt.plot(x2, util.gaussval2(x2, *coef), label="Fit")
+                title = f"Gaussian Fit to spectral line ({self._line_fit_plot_count}/5)"
+                if self.plot_title is not None:
+                    title = f"{self.plot_title}\n{title}"
+                plt.title(title)
+                plt.xlabel("x [pixel]")
+                plt.ylabel("Intensity [a.u.]")
+                plt.legend()
+                util.show_or_save("wavecal_line_fit")
+            elif self._line_fit_plot_count == 6:
+                logger.info("Skipping remaining line fit plots (shown 5 of many)")
         return coef
 
     def fit_lines(self, obs, lines):
@@ -579,7 +595,7 @@ class WavelengthCalibration:
 
         Parameters
         ----------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             observed wavelength calibration image
         lines : recarray of shape (nlines,)
             reference line data
@@ -641,9 +657,9 @@ class WavelengthCalibration:
         m_ord = lines["order"][mask]
 
         if self.dimensionality == "1D":
-            nord = self.nord
-            coef = np.zeros((nord, self.degree + 1))
-            for i in range(nord):
+            ntrace = self.ntrace
+            coef = np.zeros((ntrace, self.degree + 1))
+            for i in range(ntrace):
                 select = m_ord == i
                 if np.count_nonzero(select) < 2:
                     # Not enough lines for wavelength solution
@@ -741,16 +757,16 @@ class WavelengthCalibration:
                 coef[order] = [poly_coef, step_coef]
         elif self.dimensionality == "2D":
             unique = np.unique(m_ord)
-            nord = len(unique)
+            ntrace = len(unique)
             shape = (self.degree[0] + 1, self.degree[1] + 1)
             np.prod(shape)
 
-            step_coef = np.zeros((nord, nstep, 2))
+            step_coef = np.zeros((ntrace, nstep, 2))
             step_coef[:, :, 0] = np.linspace(ncol / (nstep + 1), ncol, nstep + 1)[:-1]
 
             def func(x, *param):
                 x, y = x[: len(x) // 2], x[len(x) // 2 :]
-                theta = np.asarray(param).reshape((nord, nstep))
+                theta = np.asarray(param).reshape((ntrace, nstep))
                 xl = np.copy(x)
                 for j, i in enumerate(unique):
                     xl[y == i] = self.g(x[y == i], step_coef[j, :, 0], theta[j])
@@ -767,7 +783,7 @@ class WavelengthCalibration:
                 )
 
                 res, _ = curve_fit(func, x0, m_wave, p0=step_coef[:, :, 1])
-                step_coef[:, :, 1] = res.reshape((nord, nstep))
+                step_coef[:, :, 1] = res.reshape((ntrace, nstep))
                 for j, i in enumerate(unique):
                     x[m_ord == i] = self.g(
                         m_pix[m_ord == i], step_coef[j][:, 0], step_coef[j][:, 1]
@@ -831,7 +847,7 @@ class WavelengthCalibration:
             pixel position on the detector (i.e. x axis)
         order : array
             order of each point
-        solution : array of shape (nord, ndegree) or (degree_x, degree_y)
+        solution : array of shape (ntrace, ndegree) or (degree_x, degree_y)
             polynomial coefficients. For mode=1D, one set of coefficients per order.
             For mode=2D, the first dimension is for the positions and the second for the orders
         mode : str, optional
@@ -878,11 +894,11 @@ class WavelengthCalibration:
 
         Returns
         -------
-        wave_img : array of shape (nord, ncol)
+        wave_img : array of shape (ntrace, ncol)
             wavelength solution for each point in the spectrum
         """
 
-        y, x = np.indices((self.nord, self.ncol))
+        y, x = np.indices((self.ntrace, self.ncol))
         wave_img = self.evaluate_solution(x, y, wave_solution)
 
         return wave_img
@@ -892,9 +908,9 @@ class WavelengthCalibration:
 
         Parameters
         ----------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             observed spectrum
-        wave_img : array of shape (nord, ncol)
+        wave_img : array of shape (ntrace, ncol)
             wavelength solution image
         lines : struc_array
             line data
@@ -990,18 +1006,18 @@ class WavelengthCalibration:
             if line["flag"]:
                 # Line is already in use
                 continue
-            if line["order"] < 0 or line["order"] >= self.nord:
+            if line["order"] < 0 or line["order"] >= self.ntrace:
                 # Line outside order range
                 continue
-            iord = int(line["order"])
-            if line["wll"] < wave_img[iord][0] or line["wll"] >= wave_img[iord][-1]:
+            idx = int(line["order"])
+            if line["wll"] < wave_img[idx][0] or line["wll"] >= wave_img[idx][-1]:
                 # Line outside pixel range
                 continue
 
             wl = line["wll"]
             width = line["width"] * 5
-            wave = wave_img[iord]
-            order_obs = obs[iord]
+            wave = wave_img[idx]
+            order_obs = obs[idx]
             # Find where the line should be
             try:
                 idx = np.digitize(wl, wave)
@@ -1138,14 +1154,14 @@ class WavelengthCalibration:
             axis.set_title("Residuals versus order")
             axis.legend()
 
-            fig, ax = plt.subplots(
-                nrows=self.nord // 2, ncols=2, sharex=True, squeeze=False
-            )
+            nrows = max(1, (self.ntrace + 1) // 2)
+            ncols = min(2, self.ntrace)
+            fig, ax = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, squeeze=False)
             plt.subplots_adjust(hspace=0)
             fig.suptitle("Residuals of each order versus image columns")
 
-            for iord in range(self.nord):
-                order_lines = lines[lines["order"] == iord]
+            for idx in range(self.ntrace):
+                order_lines = lines[lines["order"] == idx]
                 solution = self.evaluate_solution(
                     order_lines["posm"], order_lines["order"], wave_solution
                 )
@@ -1156,20 +1172,20 @@ class WavelengthCalibration:
                     * speed_of_light
                 )
                 mask = order_lines["flag"]
-                ax[iord // 2, iord % 2].plot(
+                ax[idx // 2, idx % 2].plot(
                     order_lines["posm"][mask],
                     residual[mask],
                     "X",
                     label="Accepted Lines",
                 )
-                ax[iord // 2, iord % 2].plot(
+                ax[idx // 2, idx % 2].plot(
                     order_lines["posm"][~mask],
                     residual[~mask],
                     "D",
                     label="Rejected Lines",
                 )
-                # ax[iord // 2, iord % 2].tick_params(labelleft=False)
-                ax[iord // 2, iord % 2].set_ylim(
+                # ax[idx // 2, idx % 2].tick_params(labelleft=False)
+                ax[idx // 2, idx % 2].set_ylim(
                     -self.threshold * 1.5, +self.threshold * 1.5
                 )
 
@@ -1190,13 +1206,16 @@ class WavelengthCalibration:
         plt.title(title)
         plt.xlabel("Wavelength")
         plt.ylabel("Observed spectrum")
-        for i in range(self.nord):
+        for i in range(self.ntrace):
             plt.plot(wave_img[i], obs[i], label="Order %i" % i)
 
         plt.subplot(212)
         plt.title("2D Wavelength solution")
         plt.imshow(
-            wave_img, aspect="auto", origin="lower", extent=(0, self.ncol, 0, self.nord)
+            wave_img,
+            aspect="auto",
+            origin="lower",
+            extent=(0, self.ncol, 0, self.ntrace),
         )
         cbar = plt.colorbar()
         plt.xlabel("Column")
@@ -1207,11 +1226,11 @@ class WavelengthCalibration:
     def plot_residuals(self, lines, coef, title="Residuals"):
         plt.figure()
         orders = np.unique(lines["order"])
-        norders = len(orders)
+        ntraceers = len(orders)
         if self.plot_title is not None:
             title = f"{self.plot_title}\n{title}"
         plt.suptitle(title)
-        nplots = int(np.ceil(norders / 2))
+        nplots = int(np.ceil(ntraceers / 2))
         for i, order in enumerate(orders):
             plt.subplot(nplots, 2, i + 1)
             order_lines = lines[lines["order"] == order]
@@ -1223,7 +1242,7 @@ class WavelengthCalibration:
             plt.xlim(0, self.ncol)
             plt.ylim(-self.threshold, self.threshold)
 
-            if (i + 1) not in [norders, norders - 1]:
+            if (i + 1) not in [ntraceers, ntraceers - 1]:
                 plt.xticks([])
             else:
                 plt.xlabel("x [Pixel]")
@@ -1313,7 +1332,11 @@ class WavelengthCalibration:
         logl = np.log(rss)
         aic = 2 * k + n * logl
         self.logl = logl
-        self.aicc = aic + (2 * k**2 + 2 * k) / (n - k - 1)
+        # Guard against division by zero when too few points
+        if n - k - 1 > 0:
+            self.aicc = aic + (2 * k**2 + 2 * k) / (n - k - 1)
+        else:
+            self.aicc = np.nan
         self.aic = aic
         return aic
 
@@ -1323,14 +1346,14 @@ class WavelengthCalibration:
 
         Parameters
         ----------
-        obs : array of shape (nord, ncol)
+        obs : array of shape (ntrace, ncol)
             observed image
         lines : recarray of shape (nlines,)
             reference linelist
 
         Returns
         -------
-        wave_img : array of shape (nord, ncol)
+        wave_img : array of shape (ntrace, ncol)
             Wavelength solution for each pixel
 
         Raises
@@ -1342,7 +1365,7 @@ class WavelengthCalibration:
         if self.polarim:
             raise NotImplementedError("polarized orders not implemented yet")
 
-        self.nord, self.ncol = obs.shape
+        self.ntrace, self.ncol = obs.shape
         lines = LineList(lines)
         if self.element is not None:
             try:
@@ -1399,14 +1422,14 @@ class WavelengthCalibration:
 
 class WavelengthCalibrationComb(WavelengthCalibration):
     def execute(self, comb, wave, lines=None):
-        self.nord, self.ncol = comb.shape
+        self.ntrace, self.ncol = comb.shape
 
         # TODO give everything better names
         pixel, order, wavelengths = [], [], []
         n_all, f_all = [], []
         comb = np.ma.masked_array(comb, mask=comb <= 0)
 
-        for i in range(self.nord):
+        for i in range(self.ntrace):
             # Find Peak positions in current order
             n, peaks = self._find_peaks(comb[i])
 
@@ -1466,8 +1489,8 @@ class WavelengthCalibrationComb(WavelengthCalibration):
             y = np.concatenate(mw_all)
             gap = np.median(y)
 
-            corr = np.zeros(self.nord)
-            for i in range(self.nord):
+            corr = np.zeros(self.ntrace)
+            for i in range(self.ntrace):
                 corri = gap / w_all[i] - n_all[i]
                 corri = np.median(corri)
                 corr[i] = np.round(corri)
@@ -1475,7 +1498,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
 
             logger.debug("LFC order offset correction: %s", corr)
 
-            for i in range(self.nord):
+            for i in range(self.ntrace):
                 coef = polyfit(n_all[i], n_all[i] * w_all[i], deg=5)
                 mw = np.polyval(coef, n_all[i])
                 w_all[i] = mw / n_all[i]
@@ -1559,7 +1582,7 @@ class WavelengthCalibrationComb(WavelengthCalibration):
         if self.plot:
             self.plot_results(new_wave, comb)
 
-        return new_wave
+        return coef
 
 
 class WavelengthCalibrationInitialize(WavelengthCalibration):
@@ -1609,8 +1632,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
     def normalize(self, spectrum):
         smoothing = self.smoothing
-        spectrum = np.copy(spectrum)
-        spectrum -= np.nanmedian(spectrum)
+        # Handle both masked arrays and regular arrays with NaN
+        if np.ma.isMaskedArray(spectrum):
+            spectrum = np.ma.filled(spectrum, 0)
+        else:
+            spectrum = np.nan_to_num(spectrum, nan=0, copy=True)
+        spectrum = spectrum - np.nanmedian(spectrum)
         if smoothing != 0:
             spectrum = gaussian_filter1d(spectrum, smoothing)
         spectrum[spectrum < 0] = 0

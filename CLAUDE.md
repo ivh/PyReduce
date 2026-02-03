@@ -31,11 +31,11 @@ pyreduce/
 ├── reduce.py            # Step class implementations
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction algorithm
-├── curvature_model.py   # SlitCurvature dataclass for curvature data
+├── trace_model.py       # Trace dataclass (geometry, curvature, wavelength)
+├── spectra.py           # Spectrum/Spectra classes for I/O
 ├── trace.py             # Order detection and tracing
 ├── wavelength_calibration.py  # Wavelength solution fitting
 ├── combine_frames.py    # Frame combination/calibration
-├── echelle.py           # Echelle spectrum I/O
 ├── util.py              # Utilities, plotting helpers
 ├── cwrappers.py         # CFFI C extension wrappers
 │
@@ -70,6 +70,19 @@ This means:
 - **Rows (y)** = spatial/cross-dispersion direction
 - **Traces** are polynomial functions of x, giving y-position
 - **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
+
+## Spectral Order Numbers (Trace.m)
+
+Each `Trace` has an `m` attribute representing the physical spectral (diffraction) order number - not a sequential index. Higher order numbers = shorter wavelengths.
+
+**Assignment priority:**
+1. `order_centers_{channel}.yaml` in instrument directory - traces matched by y-position during detection
+2. `obase` from linelist file (`wavecal_*.npz`) - assigned as `m = obase + trace_index` during wavecal
+3. Sequential fallback (legacy/MOSAIC mode)
+
+**Why it matters:** The 2D wavelength polynomial fits `wavelength = P(x, m)`. Using physical order numbers enables accurate interpolation between orders. `Trace.wlen(x)` evaluates this polynomial at the trace's order number.
+
+See `docs/wavecal_linelist.md` for details on wavelength calibration and order numbering.
 
 ## Pipeline Steps
 
@@ -310,7 +323,8 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 | `pyreduce/pipeline.py` | Fluent Pipeline API, `from_instrument()` |
 | `pyreduce/reduce.py` | Step class implementations |
 | `pyreduce/extract.py` | Optimal extraction algorithm |
-| `pyreduce/curvature_model.py` | SlitCurvature dataclass, save/load |
+| `pyreduce/trace_model.py` | Trace dataclass (pos, slit, wave, column_range) |
+| `pyreduce/spectra.py` | Spectrum/Spectra classes for FITS I/O |
 | `pyreduce/slit_curve.py` | Slit curvature fitting (degree 1-5) |
 | `pyreduce/wavelength_calibration.py` | Wavelength solution fitting |
 | `pyreduce/trace.py` | Order detection and tracing |
