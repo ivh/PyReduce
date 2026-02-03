@@ -122,11 +122,10 @@ class FiberBundleConfig(BaseModel):
 
 
 # Type for trace selection in the 'use' section
-# - "all": use all traces together
-# - "groups": use traces with non-default group assignment
-# - "per_fiber": separate processing per fiber_idx (for per-fiber wavecal)
+# - "groups": use traces with group set (merged/grouped result)
+# - "per_fiber": use traces with fiber_idx set, grouped by fiber_idx
 # - list[str]: use specific groups by name
-TraceSelection = Literal["all", "groups", "per_fiber"] | list[str]
+TraceSelection = Literal["groups", "per_fiber"] | list[str]
 
 
 class FibersConfig(BaseModel):

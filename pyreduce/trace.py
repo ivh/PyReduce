@@ -1790,13 +1790,12 @@ def select_traces_for_step(
 ) -> dict[str, list[TraceData]]:
     """Select which traces to use for a given reduction step.
 
-    Looks up fibers_config.use[step_name] to determine selection.
-    Filters traces by their fiber attribute.
+    Looks up fibers_config.use[step_name] to determine selection mode.
 
     Parameters
     ----------
     traces : list[Trace]
-        All trace objects with identity (m, fiber) set
+        All trace objects
     fibers_config : FibersConfig or None
         Fiber configuration (may be None for single-fiber instruments)
     step_name : str
@@ -1806,12 +1805,11 @@ def select_traces_for_step(
     -------
     selected : dict[str, list[Trace]]
         {group_name: [traces]} for each selected group
-        For "all" or "groups" selection, returns {"all": [traces]}
     """
     if not traces:
-        return {"all": []}
+        return {}
 
-    # No fiber config means use all traces
+    # No fiber config means use all traces (single-fiber instrument)
     if fibers_config is None:
         return {"all": traces}
 
@@ -1822,15 +1820,12 @@ def select_traces_for_step(
     # Determine selection for this step from config
     if fibers_config.use is not None:
         selection = fibers_config.use.get(
-            step_name, fibers_config.use.get("default", "all")
+            step_name, fibers_config.use.get("default", "groups")
         )
     else:
-        selection = "all"
+        selection = "groups"
 
-    if selection == "all":
-        return {"all": traces}
-
-    elif selection == "groups":
+    if selection == "groups":
         # Return all traces that have explicit group assignment
         grouped = [t for t in traces if t.group is not None]
         if grouped:

@@ -776,21 +776,6 @@ class TestSelectTracesForStep:
         assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_all(self, trace_objects):
-        """Test selecting all traces with use='all'."""
-        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
-
-        config = FibersConfig(
-            groups={"A": FiberGroupConfig(range=(1, 6))},
-            use={"science": "all"},
-        )
-
-        result = trace.select_traces_for_step(trace_objects, config, "science")
-
-        assert "all" in result
-        assert len(result["all"]) == 10
-
-    @pytest.mark.unit
     def test_select_traces_groups(self, trace_objects):
         """Test selecting grouped traces with use='groups'."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
@@ -842,49 +827,34 @@ class TestSelectTracesForStep:
         assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_default_all(self, trace_objects):
-        """Test explicit default: all returns all traces."""
-        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
-
-        config = FibersConfig(
-            groups={"A": FiberGroupConfig(range=(1, 6))},
-            use={"default": "all"},
-        )
-
-        result = trace.select_traces_for_step(trace_objects, config, "science")
-
-        assert "all" in result
-        assert len(result["all"]) == 10
-
-    @pytest.mark.unit
     def test_select_traces_step_overrides_default(self, trace_objects):
         """Test step-specific config takes precedence over default."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
-            use={"default": ["A"], "science": "all"},  # science overrides
+            use={"default": ["A"], "science": "groups"},  # science overrides
         )
 
         result = trace.select_traces_for_step(trace_objects, config, "science")
 
-        # science: all should override default
+        # science: groups should override default (returns grouped traces)
         assert "all" in result
         assert len(result["all"]) == 10
 
     @pytest.mark.unit
-    def test_select_traces_no_default_falls_back_to_all(self, trace_objects):
-        """Test missing default key falls back to 'all'."""
+    def test_select_traces_no_default_falls_back_to_groups(self, trace_objects):
+        """Test missing default key falls back to 'groups'."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
 
         config = FibersConfig(
             groups={"A": FiberGroupConfig(range=(1, 6))},
-            use={"other_step": "groups"},  # no default, science not specified
+            use={"other_step": "per_fiber"},  # no default, science not specified
         )
 
         result = trace.select_traces_for_step(trace_objects, config, "science")
 
-        # Without default key, should fall back to "all"
+        # Without default key, should fall back to "groups"
         assert "all" in result
         assert len(result["all"]) == 10
 

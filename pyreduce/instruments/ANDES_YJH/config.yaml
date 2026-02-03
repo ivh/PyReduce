@@ -118,4 +118,4 @@ fibers:
   use:
     science: [A, B]
     wavecal: [cal]
-    norm_flat: all
+    norm_flat: groups

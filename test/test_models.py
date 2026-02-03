@@ -346,16 +346,6 @@ class TestFiberConfig:
         assert config.use["science"] == "groups"
 
     @pytest.mark.unit
-    def test_fibers_config_use_all(self):
-        """Test FibersConfig with 'all' trace selection."""
-        data = {
-            "groups": {"A": {"range": [1, 36]}},
-            "use": {"norm_flat": "all"},
-        }
-        config = FibersConfig(**data)
-        assert config.use["norm_flat"] == "all"
-
-    @pytest.mark.unit
     def test_fibers_config_rejects_extra_fields(self):
         """Test FibersConfig rejects unknown fields."""
         data = {
