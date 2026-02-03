@@ -474,13 +474,6 @@ def test_curvature(original, traces, trace_range, settings):
     assert curvature["coeffs"].shape[1] == original.shape[1]
     assert curvature["coeffs"].shape[2] == 3  # degree + 1
 
-    # Test backward compatibility
-    p1, p2 = curvature.to_p1_p2()
-    assert isinstance(p1, np.ndarray)
-    assert p2.ndim == 2
-    assert p2.shape[0] == trace_range[1] - trace_range[0]
-    assert p2.shape[1] == original.shape[1]
-
     # Reduce the number of orders this way
     traces_subset = traces[trace_range[0] : trace_range[1]]
 
@@ -502,10 +495,10 @@ def test_curvature(original, traces, trace_range, settings):
     curvature = module.execute(original)
 
     assert curvature is not None
-    assert curvature.coeffs.ndim == 3
-    assert curvature.coeffs.shape[0] == trace_range[1] - trace_range[0]
-    assert curvature.coeffs.shape[1] == original.shape[1]
-    assert curvature.degree == 1
+    assert curvature["coeffs"].ndim == 3
+    assert curvature["coeffs"].shape[0] == trace_range[1] - trace_range[0]
+    assert curvature["coeffs"].shape[1] == original.shape[1]
+    assert curvature["degree"] == 1
 
 
 @pytest.mark.slow

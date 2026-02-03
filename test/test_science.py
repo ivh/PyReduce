@@ -67,9 +67,12 @@ def test_science(
     spec = np.ma.masked_invalid(spec)
     sigma = np.ma.masked_invalid(sigma)
 
+    # Count valid traces (extract() marks invalid traces and excludes them)
+    valid_traces = [t for t in traces_subset if not t.invalid]
+
     assert isinstance(spec, np.ma.masked_array)
     assert spec.ndim == 2
-    assert spec.shape[0] == trace_range[1] - trace_range[0]
+    assert spec.shape[0] == len(valid_traces)
     assert spec.shape[1] == im.shape[1]
     assert np.issubdtype(spec.dtype, np.floating)
     assert not np.any(np.isnan(np.ma.filled(spec, 0)))
@@ -77,7 +80,7 @@ def test_science(
 
     assert isinstance(sigma, np.ma.masked_array)
     assert sigma.ndim == 2
-    assert sigma.shape[0] == trace_range[1] - trace_range[0]
+    assert sigma.shape[0] == len(valid_traces)
     assert sigma.shape[1] == im.shape[1]
     assert np.issubdtype(sigma.dtype, np.floating)
     assert not np.any(np.isnan(np.ma.filled(sigma, 0)))

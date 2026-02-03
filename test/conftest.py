@@ -646,10 +646,10 @@ def wave_master(step_args, settings, files, traces, mask, bias, normflat):
     step = WavelengthCalibrationMaster(*step_args, **settings[name])
 
     try:
-        wavecal, whead = step.load()
+        results = step.load()
     except FileNotFoundError:
         try:
-            wavecal, whead = step.run(
+            results = step.run(
                 files,
                 traces,
                 mask=mask,
@@ -657,7 +657,10 @@ def wave_master(step_args, settings, files, traces, mask, bias, normflat):
                 norm_flat=normflat,
             )
         except FileNotFoundError:
-            wavecal, whead = None, None
+            return None, None
+    # Extract first group's data for backwards compatibility
+    first_group = next(iter(results))
+    wavecal, whead = results[first_group]
     return wavecal, whead
 
 
@@ -721,9 +724,10 @@ def spec(step_args, settings, files, bias, traces, normflat, scatter, mask):
     settings["plot"] = False
 
     step = ScienceExtraction(*step_args, **settings)
+    step.files = files
 
     try:
-        heads, specs, sigmas, slitfus, column_ranges = step.load(files)
+        heads, specs, sigmas, slitfus, column_ranges = step.load()
         return specs[0], sigmas[0]
     except FileNotFoundError:
         files_list = files[name][:1]

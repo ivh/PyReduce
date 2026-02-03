@@ -15,7 +15,7 @@ def test_orders(instr, instrument, channel, files, settings, mask):
     order_img, _ = combine_frames(files["trace"], instrument, channel, mask=mask)
     settings = settings["trace"]
 
-    orders, column_range, _ = trace(
+    traces = trace(
         order_img,
         min_cluster=settings["min_cluster"],
         min_width=settings["min_width"],
@@ -35,6 +35,10 @@ def test_orders(instr, instrument, channel, files, settings, mask):
         plot=False,
     )
 
+    # Extract arrays from Trace objects
+    orders = np.array([t.pos for t in traces])
+    column_range = np.array([list(t.column_range) for t in traces], dtype=int)
+
     assert isinstance(orders, np.ndarray)
     assert np.issubdtype(orders.dtype, np.floating)
     assert orders.shape[1] == settings["degree"] + 1
@@ -52,9 +56,11 @@ def test_simple():
     img = np.full((100, 100), 1)
     img[45:56, :] = 100
 
-    orders, column_range, _ = trace(
-        img, manual=False, degree=1, plot=False, border_width=0
-    )
+    traces = trace(img, manual=False, degree=1, plot=False, border_width=0)
+
+    # Extract arrays from Trace objects
+    orders = np.array([t.pos for t in traces])
+    column_range = np.array([list(t.column_range) for t in traces], dtype=int)
 
     assert orders.shape[0] == 1
     assert np.allclose(orders[0], [0, 50])
@@ -72,22 +78,18 @@ def test_per_side_border_width():
     img[45:56, :] = 100  # middle
 
     # With symmetric border_width=20, top trace should be excluded
-    orders, *_ = trace(img, manual=False, degree=1, plot=False, border_width=20)
-    assert orders.shape[0] == 1  # only middle trace
+    traces = trace(img, manual=False, degree=1, plot=False, border_width=20)
+    assert len(traces) == 1  # only middle trace
 
     # With per-side [5, 0, 0, 0], top trace still excluded (y=10-15 masked by top=5? no wait)
     # Actually top=5 masks rows 0-5, trace at 10-15 should survive
     # Let's use top=20 to exclude trace at y=10-15
-    orders, *_ = trace(
-        img, manual=False, degree=1, plot=False, border_width=[20, 0, 0, 0]
-    )
-    assert orders.shape[0] == 1  # top trace excluded
+    traces = trace(img, manual=False, degree=1, plot=False, border_width=[20, 0, 0, 0])
+    assert len(traces) == 1  # top trace excluded
 
     # With per-side [0, 0, 0, 0], both traces should be found
-    orders, *_ = trace(
-        img, manual=False, degree=1, plot=False, border_width=[0, 0, 0, 0]
-    )
-    assert orders.shape[0] == 2  # both traces found
+    traces = trace(img, manual=False, degree=1, plot=False, border_width=[0, 0, 0, 0])
+    assert len(traces) == 2  # both traces found
 
 
 def test_parameters():

@@ -805,6 +805,54 @@ def fix_extraction_height(xwd, traces, cr, ncol):
     return xwd
 
 
+def validate_traces_for_extraction(
+    traces: list[Trace],
+    extraction_height: float | np.ndarray,
+    nrow: int,
+    ncol: int,
+) -> None:
+    """Validate traces and mark invalid ones.
+
+    Checks if each trace's extraction aperture fits within the image bounds.
+    Invalid traces are marked with trace.invalid = "reason".
+
+    Parameters
+    ----------
+    traces : list[Trace]
+        Trace objects to validate. Modified in-place.
+    extraction_height : float or array
+        Extraction height(s) in pixels.
+    nrow : int
+        Number of rows in image.
+    ncol : int
+        Number of columns in image.
+    """
+    ix = np.arange(ncol)
+
+    for i, trace in enumerate(traces):
+        if trace.invalid:
+            continue
+
+        height = trace.height if trace.height is not None else extraction_height
+        if isinstance(extraction_height, np.ndarray):
+            height = extraction_height[i] if trace.height is None else trace.height
+        half = height / 2
+
+        # Check if extraction aperture stays within image
+        y_cen = np.polyval(trace.pos, ix)
+        y_bot = y_cen - half
+        y_top = y_cen + half
+
+        # Find columns where aperture is fully within image
+        col_start, col_end = trace.column_range
+        valid_cols = np.where((y_bot >= 0) & (y_top < nrow))[0]
+        valid_cols = valid_cols[(valid_cols >= col_start) & (valid_cols < col_end)]
+
+        if len(valid_cols) == 0:
+            trace.invalid = f"extraction height {height:.1f}px exceeds image bounds"
+            logger.warning("Trace %d: %s, marking invalid", i, trace.invalid)
+
+
 def fix_column_range(column_range, traces, extraction_height, nrow, ncol):
     """Fix the column range, so that no pixels outside the image will be accessed (Thus avoiding errors)
 
@@ -1750,26 +1798,42 @@ def extract(
         return []
 
     nrow, ncol = img.shape
-    ntrace = len(traces)
+
+    # Validate traces and mark invalid ones
+    validate_traces_for_extraction(traces, extraction_height, nrow, ncol)
+
+    # Filter to valid traces only
+    valid_traces = [t for t in traces if not t.invalid]
+    if len(valid_traces) == 0:
+        logger.warning("No valid traces remaining after validation")
+        return []
+
+    ntrace = len(valid_traces)
 
     # Convert Trace objects to arrays for internal processing
-    traces_arr = np.array([t.pos for t in traces])
-    column_range = np.array([list(t.column_range) for t in traces], dtype=np.int32)
+    traces_arr = np.array([t.pos for t in valid_traces])
+    column_range = np.array(
+        [list(t.column_range) for t in valid_traces], dtype=np.int32
+    )
 
     # Build per-trace extraction heights (trace.height overrides default)
     heights = np.array(
-        [t.height if t.height is not None else extraction_height for t in traces]
+        [t.height if t.height is not None else extraction_height for t in valid_traces]
     )
 
     # Build curvature arrays from Trace.slit
     curvature = None
-    if any(t.slit is not None for t in traces):
+    if any(t.slit is not None for t in valid_traces):
         # Get max slit dimensions
-        max_y = max((t.slit.shape[0] if t.slit is not None else 0) for t in traces)
-        max_x = max((t.slit.shape[1] if t.slit is not None else 0) for t in traces)
+        max_y = max(
+            (t.slit.shape[0] if t.slit is not None else 0) for t in valid_traces
+        )
+        max_x = max(
+            (t.slit.shape[1] if t.slit is not None else 0) for t in valid_traces
+        )
         if max_y > 0 and max_x > 0:
             curvature = np.zeros((ntrace, ncol, max_y), dtype=np.float64)
-            for i, t in enumerate(traces):
+            for i, t in enumerate(valid_traces):
                 if t.slit is not None:
                     # Evaluate slit polynomial at each column
                     for j in range(ncol):
@@ -1779,13 +1843,13 @@ def extract(
 
     # Build slitdeltas array from Trace.slitdelta
     slitdeltas = None
-    if any(t.slitdelta is not None for t in traces):
+    if any(t.slitdelta is not None for t in valid_traces):
         max_len = max(
-            (len(t.slitdelta) if t.slitdelta is not None else 0) for t in traces
+            (len(t.slitdelta) if t.slitdelta is not None else 0) for t in valid_traces
         )
         if max_len > 0:
             slitdeltas = np.zeros((ntrace, max_len), dtype=np.float32)
-            for i, t in enumerate(traces):
+            for i, t in enumerate(valid_traces):
                 if t.slitdelta is not None:
                     slitdeltas[i, : len(t.slitdelta)] = t.slitdelta
 
@@ -1822,7 +1886,7 @@ def extract(
 
     # Convert results to Spectrum objects
     results = []
-    for i, trace in enumerate(traces):
+    for i, trace in enumerate(valid_traces):
         # Convert masked array to NaN-masked regular array
         spec_1d = np.ma.filled(spectrum[i], np.nan)
         unc_1d = np.ma.filled(uncertainties[i], np.nan)

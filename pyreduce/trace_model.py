@@ -113,6 +113,7 @@ class Trace:
     slit: np.ndarray | None = None
     slitdelta: np.ndarray | None = None
     wave: np.ndarray | None = None
+    invalid: str | None = None  # reason if trace should be skipped
 
     def slit_at_x(self, x: float | np.ndarray) -> np.ndarray | None:
         """Evaluate slit polynomial coefficients at position x.
