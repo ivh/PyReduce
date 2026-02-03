@@ -153,6 +153,12 @@ class Trace:
             return None
         if self.wave.ndim == 2:
             # 2D polynomial: wave[i,j] is coeff for x^i * m^j
+            if self.m is None:
+                logger.warning(
+                    "Cannot evaluate 2D wavelength polynomial: trace.m is None. "
+                    "Set order numbers via order_centers.yaml or wavecal obase."
+                )
+                return None
             # polyval2d requires x and m arrays to have same shape
             m_arr = np.full_like(x, self.m, dtype=float)
             return np.polynomial.polynomial.polyval2d(x, m_arr, self.wave)

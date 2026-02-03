@@ -1945,7 +1945,7 @@ def create_trace_objects(
                     cr = (int(grp_cr_data[i, 0]), int(grp_cr_data[i, 1]))
                     result.append(
                         TraceData(
-                            m=i,  # Sequential index as order number
+                            m=None,  # Unknown until obase from wavecal
                             group=group_name,
                             fiber_idx=None,  # No fiber index for merged groups
                             pos=grp_data[i],
@@ -1962,7 +1962,7 @@ def create_trace_objects(
             cr = (int(column_range[i, 0]), int(column_range[i, 1]))
             result.append(
                 TraceData(
-                    m=i,
+                    m=None,  # Unknown until obase from wavecal
                     pos=traces[i],
                     column_range=cr,
                     height=h,

@@ -1836,15 +1836,23 @@ class WavelengthCalibrationFinalize(Step):
                     continue
 
                 # Update trace.m with actual order numbers if obase is available
+                # BUT only if m is not already set (e.g., from order_centers.yaml)
                 obase = linelist.obase
                 if obase is not None:
-                    for idx_in_group, (_i, t) in enumerate(group_traces):
-                        t.m = obase + idx_in_group
-                    logger.info(
-                        "Updated trace order numbers for group '%s' with obase=%d",
-                        group,
-                        obase,
-                    )
+                    already_have_m = any(t.m is not None for _i, t in group_traces)
+                    if already_have_m:
+                        logger.debug(
+                            "Traces for group '%s' already have m values, skipping obase",
+                            group,
+                        )
+                    else:
+                        for idx_in_group, (_i, t) in enumerate(group_traces):
+                            t.m = obase + idx_in_group
+                        logger.info(
+                            "Updated trace order numbers for group '%s' with obase=%d",
+                            group,
+                            obase,
+                        )
 
                 # Store wavelength polynomial in each trace
                 if self.dimensionality == "1D":
