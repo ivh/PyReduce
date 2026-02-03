@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
-# ///
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits

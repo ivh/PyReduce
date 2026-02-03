@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy", "matplotlib", "astropy"]
-# ///
 """
 Plot ANDES LFC spectra for all channels.
 

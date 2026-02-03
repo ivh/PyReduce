@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["h5py", "numpy"]
-# ///
 """
 Generate PyReduce wavecal files from ANDES E2E HDF optical models.
 

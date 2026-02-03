@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7b3"]
-# ///
 """
 Plot MOSAIC VIS quadrants with bundle centers overlaid.
 """

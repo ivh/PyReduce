@@ -1,6 +1,30 @@
 # Changelog
 
 
+## [0.8a1] - 2026-02-03
+
+### Added
+- Charslit extraction backend with degree 1-5 curvature support
+- ANDES_RIZ instrument configuration and settings
+- `trace_by` config for separate tracing of illumination groups
+- HDF-to-wavecal tool and reference files for ANDES_RIZ
+- ANDES spectra plotting tool
+
+### Changed
+- Curvature: use literal pixel extraction_height, not fractional
+- Simplify extraction_height to single full-height value
+- Move fiber selection default from hardcoded to config
+- Update METIS_IFU for dynamic wavelength-based channels
+- Use git URL for charslit optional dependency
+
+### Removed
+- PEP 723 inline metadata from examples (caused confusion with `uv run`)
+
+### Fixed
+- Fix curve_height to use new full-height format in plot_comparison
+- Fix extraction_height to give exactly N rows
+- Fix CRIRES_PLUS docstring (was incorrectly HARPS)
+
 ## [0.7] - 2026-01-25
 
 First stable release of the 0.7 series!

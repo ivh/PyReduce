@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = ["pyreduce-astro>=0.7"]
-# ///
 """
 Debug script for extracting a single swath from a specific trace.
 
