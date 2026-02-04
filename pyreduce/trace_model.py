@@ -237,20 +237,22 @@ def _validate_traces(traces: list[Trace], context: str = "") -> None:
             seen_fiber.add(key)
 
     # Check y-position ordering (evaluate at midpoint of column range)
-    # Use the first trace's column range midpoint as reference
-    ref_x = (traces[0].column_range[0] + traces[0].column_range[1]) // 2
-    y_positions = [t.y_at_x(ref_x) for t in traces]
-    for i in range(1, len(y_positions)):
-        if y_positions[i] < y_positions[i - 1]:
-            logger.warning(
-                "Traces not ordered by y-position at x=%d: trace %d (y=%.1f) < trace %d (y=%.1f)%s",
-                ref_x,
-                i,
-                y_positions[i],
-                i - 1,
-                y_positions[i - 1],
-                context,
-            )
+    # Only applies to ungrouped traces - grouped traces are organized by (m, group)
+    has_groups = any(t.group is not None for t in traces)
+    if not has_groups:
+        ref_x = (traces[0].column_range[0] + traces[0].column_range[1]) // 2
+        y_positions = [t.y_at_x(ref_x) for t in traces]
+        for i in range(1, len(y_positions)):
+            if y_positions[i] < y_positions[i - 1]:
+                logger.warning(
+                    "Traces not ordered by y-position at x=%d: trace %d (y=%.1f) < trace %d (y=%.1f)%s",
+                    ref_x,
+                    i,
+                    y_positions[i],
+                    i - 1,
+                    y_positions[i - 1],
+                    context,
+                )
 
 
 def save_traces(
