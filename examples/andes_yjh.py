@@ -73,11 +73,11 @@ else:
 
 # Show trace info
 print("\nTraces:")
-fibers = {t.fiber for t in trace_objects}
-print(f"  Fibers: {sorted(fibers)}")
-for fiber in sorted(fibers)[:3]:
-    count = sum(1 for t in trace_objects if t.fiber == fiber)
-    print(f"  {fiber}: {count} traces")
+groups = {t.group for t in trace_objects}
+print(f"  Groups: {sorted(groups, key=str)}")
+for group in sorted(groups, key=str)[:3]:
+    count = sum(1 for t in trace_objects if t.group == group)
+    print(f"  {group}: {count} traces")
 
 # --- Create combined flat for extraction ---
 print("\nCombining even/odd flats...")

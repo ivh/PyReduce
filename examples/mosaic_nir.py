@@ -72,10 +72,9 @@ pipe = Pipeline(
 # - Groups 630 traces into 90 bundles of 7
 # - Selects center fiber from each bundle
 # - Uses grouped traces for curvature and science steps
-# pipe.trace([flat_file])
-# pipe.curvature([thar_file])
-# pipe.flat([flat_file])
-# pipe.normalize_flat()
+pipe.trace([flat_file])
+pipe.curvature([thar_file])
+# pipe.flat([flat_file]).normalize_flat()
 pipe.extract([thar_file])
 
 print("\n=== Running Pipeline ===")
