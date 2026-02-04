@@ -23,29 +23,28 @@
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 1000.0,
-        "extraction_height": 0.28,
-        "oversampling": 12,
-        "swath_width": 200,
-        "threshold": 1000
+        "smooth_slitfunction": 1.0,
+        "smooth_spectrum": 0.0,
+        "extraction_height": 3500,
+        "oversampling": 5,
+        "swath_width": 100,
+        "threshold": 1000,
+        "maxiter": 30
     },
     "curvature": {
         "extraction_method": "simple",
-        "dimensionality": "2D",
+        "mode": "1D",
         "curve_degree": 1,
         "collapse_function": "mean",
-        "curve_height": 700,
-        "extraction_height": 233,
-        "curvature_cutoff": 10,
+        "curve_height": 1000,
+        "extraction_height": 100,
+        "sigma_cutoff": 3,
         "peak_threshold": 10,
-        "peak_width": 2,
-        "window_width": 5,
-        "peak_function": "lorentzian",
+        "peak_width": 1,
+        "window_width": 20,
+        "peak_function": "gaussian",
         "bias_scaling": "exposure_time",
-        "degree": [
-            1,
-            1
-        ]
+        "fit_degree": 1
     },
     "wavecal_master": {
         "extraction_method": "simple",

@@ -9,7 +9,7 @@ date: MJD-OBS
 date_format: mjd
 
 channels: [SPEC]  # janus: renamed from NIR
-kw_channel: "HIERARCH ESO INS MODE"
+kw_channel: "HIERARCH ESO DPR TECH"
 id_channel: [spec]
 extension: 0
 orientation: [1]
