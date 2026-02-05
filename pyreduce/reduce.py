@@ -1494,8 +1494,8 @@ class WavelengthCalibrationInitialize(Step):
         self.steps = config["steps"]
         #:float: resiudal range to accept as match between peaks and atlas in m/s
         self.resid_delta = config["resid_delta"]
-        #:str: element for the atlas to use
-        self.element = config["element"]
+        #:str: name of the line atlas
+        self.atlas_name = config["atlas"]
         #:str: medium the medium of the instrument, air or vac
         self.medium = config["medium"]
         #:float: Gaussian smoothing parameter applied to the observed spectrum in pixel scale, set to 0 to disable smoothing
@@ -1546,7 +1546,8 @@ class WavelengthCalibrationInitialize(Step):
                 nwalkers=self.nwalkers,
                 steps=self.steps,
                 resid_delta=self.resid_delta,
-                element=self.element,
+                atlas_name=self.atlas_name,
+                atlas_search_dirs=[self.instrument._inst_dir],
                 medium=self.medium,
                 smoothing=self.smoothing,
                 cutoff=self.cutoff,
@@ -1626,8 +1627,8 @@ class WavelengthCalibrationFinalize(Step):
         self.correlate_cols = config["correlate_cols"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
-        #:str: elements of the spectral lamp
-        self.element = config["element"]
+        #:str: name of the line atlas
+        self.atlas_name = config["atlas"]
         #:str: medium of the detector, vac or air
         self.medium = config["medium"]
 
@@ -1684,7 +1685,8 @@ class WavelengthCalibrationFinalize(Step):
                 nstep=self.nstep,
                 correlate_cols=self.correlate_cols,
                 shift_window=self.shift_window,
-                element=self.element,
+                atlas_name=self.atlas_name,
+                atlas_search_dirs=[self.instrument._inst_dir],
                 medium=self.medium,
             )
             wlen, wave, linelist = module.execute(wavecal_spec, linelist)

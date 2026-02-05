@@ -21,7 +21,7 @@ instrument = instrument_info.load_instrument("HARPS")
 wave_range = instrument.get_wavelength_range(None, "red")
 
 # Run the linelist module
-module = WavelengthCalibrationInitialize(element="thar", medium="vac", plot=True)
+module = WavelengthCalibrationInitialize(atlas_name="thar", medium="vac", plot=True)
 linelist = module.execute(thar_spec, wave_range)
 
 # Save the linelist

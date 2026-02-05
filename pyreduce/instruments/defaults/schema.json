@@ -304,8 +304,8 @@
                             "type": "number",
                             "minimum": 2
                         },
-                        "element": {
-                            "description": "Element(s) of the Gas Lamp used for calibration",
+                        "atlas": {
+                            "description": "Name of the line atlas to use for calibration (e.g. thar, une, lfc)",
                             "type": "string"
                         },
                         "medium": {
@@ -387,8 +387,8 @@
                             "type": "integer",
                             "minimum": 0
                         },
-                        "element": {
-                            "description": "Element(s) of the Gas Lamp used for calibration",
+                        "atlas": {
+                            "description": "Name of the line atlas to use for calibration (e.g. thar, une, lfc)",
                             "type": [
                                 "string",
                                 "null"

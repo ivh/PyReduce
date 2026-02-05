@@ -85,7 +85,7 @@
     },
     "wavecal_init": {
         "degree": 2,
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac",
         "wave_delta": 20,
         "nwalkers": 100,
@@ -108,7 +108,7 @@
         "nstep": 0,
         "correlate_cols": 0,
         "shift_window": 0.01,
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac",
         "plot": true,
         "plot_title": "Wavelength Calibration"

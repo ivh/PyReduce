@@ -36,7 +36,7 @@
         "dimensionality": "1D",
         "degree": 8,
         "manual": false,
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac"
     },
     "freq_comb_master": {

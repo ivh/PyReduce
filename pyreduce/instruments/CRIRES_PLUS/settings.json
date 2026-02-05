@@ -42,7 +42,7 @@
         "bias_scaling": "exposure_time"
     },
     "wavecal_init": {
-        "element": "UNe",
+        "atlas": "UNe",
         "medium": "vac",
         "cutoff": 5,
         "smoothing": 1
@@ -51,7 +51,7 @@
         "threshold": 100,
         "closing": 0,
         "dimensionality": "2D",
-        "element": null,
+        "atlas": null,
         "degree": [
             5,
             5

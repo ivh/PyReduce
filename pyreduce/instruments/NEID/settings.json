@@ -24,7 +24,7 @@
         "bias_scaling": "number_of_files"
     },
     "wavecal_init": {
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac"
     },
     "wavecal": {
@@ -35,7 +35,7 @@
             5
         ],
         "manual": false,
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac",
         "correlate_cols": 0
     },

@@ -93,7 +93,7 @@ module = WavelengthCalibration(
     dimensionality="1D",
     nstep=0,
     shift_window=0.1,
-    element="thar",
+    atlas_name="thar",
     medium="vac",
 )
 result = module.execute(flux, linelist)

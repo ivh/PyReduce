@@ -27,7 +27,7 @@
         "extraction_height": 20
     },
     "wavecal_init": {
-        "element": "thar",
+        "atlas": "thar",
         "medium": "vac"
     },
     "wavecal": {

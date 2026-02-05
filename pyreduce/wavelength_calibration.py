@@ -5,7 +5,7 @@ Loosely bases on the IDL wavecal function
 """
 
 import logging
-from os.path import dirname, join
+from os.path import dirname, exists, join
 
 import corner
 import emcee
@@ -121,48 +121,99 @@ class AlignmentPlot:
 
 
 class LineAtlas:
-    def __init__(self, element, medium="vac"):
+    def __init__(self, element, medium="vac", search_dirs=None):
         self.element = element
         self.medium = medium
 
-        fname = element.lower() + ".fits"
-        folder = dirname(__file__)
-        self.fname = join(folder, "instruments", "defaults", "atlas", fname)
-        self.wave, self.flux = self.load_fits(self.fname)
+        default_dir = join(dirname(__file__), "instruments", "defaults", "atlas")
+        if search_dirs is None:
+            dirs = [default_dir]
+        else:
+            dirs = list(search_dirs) + [default_dir]
 
-        try:
-            # If a specific linelist file is provided
-            fname_list = element.lower() + "_list.txt"
-            self.fname_list = join(
-                folder, "instruments", "defaults", "atlas", fname_list
-            )
-            linelist = np.genfromtxt(self.fname_list, dtype="f8,U8")
-            wpos, element = linelist["f0"], linelist["f1"]
-            indices = self.wave.searchsorted(wpos)
-            heights = self.flux[indices]
-            self.linelist = np.rec.fromarrays(
-                [wpos, heights, element], names=["wave", "heights", "element"]
-            )
-        except (OSError, FileNotFoundError):
-            # Otherwise fit the line positions from the spectrum
-            logger.warning(
-                "No dedicated linelist found for %s, determining peaks based on the reference spectrum instead.",
-                element,
-            )
-            module = WavelengthCalibration(plot=False)
-            n, peaks = module._find_peaks(self.flux)
-            wpos = np.interp(peaks, np.arange(len(self.wave)), self.wave)
-            element = np.full(len(wpos), element)
-            indices = self.wave.searchsorted(wpos)
-            heights = self.flux[indices]
-            self.linelist = np.rec.fromarrays(
-                [wpos, heights, element], names=["wave", "heights", "element"]
+        base_fits = element.lower() + ".fits"
+        base_list = element.lower() + "_list.txt"
+
+        fname_fits = fname_list = None
+        for d in dirs:
+            if fname_fits is None and exists(join(d, base_fits)):
+                fname_fits = join(d, base_fits)
+            if fname_list is None and exists(join(d, base_list)):
+                fname_list = join(d, base_list)
+
+        has_fits = fname_fits is not None
+        has_list = fname_list is not None
+
+        if not has_fits and not has_list:
+            searched = ", ".join(dirs)
+            raise FileNotFoundError(
+                f"No atlas files found for '{element}' "
+                f"(looked for {base_fits} and {base_list} in: {searched})"
             )
 
-        # The data files are in vaccuum, if the instrument is in air, we need to convert
+        if has_list:
+            linelist = np.genfromtxt(fname_list, dtype="f8,U8")
+            wpos, elem_ids = linelist["f0"], linelist["f1"]
+
+        if has_fits:
+            self.wave, self.flux = self.load_fits(fname_fits)
+            if has_list:
+                indices = self.wave.searchsorted(wpos)
+                heights = self.flux[indices]
+                self.linelist = np.rec.fromarrays(
+                    [wpos, heights, elem_ids], names=["wave", "heights", "element"]
+                )
+            else:
+                logger.warning(
+                    "No dedicated linelist found for %s, determining peaks from spectrum.",
+                    element,
+                )
+                module = WavelengthCalibration(plot=False)
+                n, peaks = module._find_peaks(self.flux)
+                wpos = np.interp(peaks, np.arange(len(self.wave)), self.wave)
+                elem_ids = np.full(len(wpos), element)
+                indices = self.wave.searchsorted(wpos)
+                heights = self.flux[indices]
+                self.linelist = np.rec.fromarrays(
+                    [wpos, heights, elem_ids], names=["wave", "heights", "element"]
+                )
+        else:
+            # Only line list, no FITS — synthesize a reference spectrum
+            logger.info(
+                "No reference spectrum for %s, synthesizing from line list.", element
+            )
+            self.wave, self.flux = self._synthesize_spectrum(wpos)
+            heights = np.ones(len(wpos))
+            self.linelist = np.rec.fromarrays(
+                [wpos, heights, elem_ids], names=["wave", "heights", "element"]
+            )
+
         if medium == "air":
             self.wave = util.vac2air(self.wave)
             self.linelist["wave"] = util.vac2air(self.linelist["wave"])
+
+    @staticmethod
+    def _synthesize_spectrum(wpos, n=10_000, width=5):
+        """Build a synthetic reference spectrum from a list of line wavelengths."""
+        wmin, wmax = wpos.min(), wpos.max()
+        margin = (wmax - wmin) * 0.01
+        wmin -= margin
+        wmax += margin
+        wave = np.linspace(wmin, wmax, num=n, endpoint=True)
+        flux = np.zeros(n)
+        idx = np.searchsorted(wave, wpos)
+        half = int(width * 5)
+        for i in range(len(wpos)):
+            mid = idx[i]
+            lo = max(mid - half, 0)
+            hi = min(mid + half, n)
+            if hi > lo:
+                flux[lo:hi] += signal.windows.gaussian(hi - lo, width)
+        flux = np.clip(flux, 0, None)
+        peak = flux.max()
+        if peak > 0:
+            flux /= peak
+        return wave, flux
 
     def load_fits(self, fname):
         with fits.open(fname, memmap=False) as hdu:
@@ -282,11 +333,16 @@ class WavelengthCalibration:
         polarim=False,
         lfc_peak_width=3,
         closing=5,
-        element=None,
+        atlas_name=None,
+        atlas_search_dirs=None,
         medium="vac",
         plot=True,
         plot_title=None,
+        # deprecated alias
+        element=None,
     ):
+        if element is not None and atlas_name is None:
+            atlas_name = element
         #:float: Residual threshold in m/s above which to remove lines
         self.threshold = threshold
         #:tuple(int, int): polynomial degree of the wavelength fit in (pixel, order) direction
@@ -312,8 +368,10 @@ class WavelengthCalibration:
         #:int: Whether to plot the results. Set to 2 to plot during all steps.
         self.plot = plot
         self.plot_title = plot_title
-        #:str: Elements used in the wavelength calibration. Used in AutoId to find more lines from the Atlas
-        self.element = element
+        #:str: Name of the line atlas used for calibration
+        self.atlas_name = atlas_name
+        #:list: Directories to search for atlas files (before the default)
+        self.atlas_search_dirs = atlas_search_dirs
         #:str: Medium of the detector, vac or air
         self.medium = medium
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
@@ -1367,11 +1425,13 @@ class WavelengthCalibration:
 
         self.ntrace, self.ncol = obs.shape
         lines = LineList(lines)
-        if self.element is not None:
+        if self.atlas_name is not None:
             try:
-                self.atlas = LineAtlas(self.element, self.medium)
+                self.atlas = LineAtlas(
+                    self.atlas_name, self.medium, search_dirs=self.atlas_search_dirs
+                )
             except FileNotFoundError:
-                logger.warning("No Atlas file found for element %s", self.element)
+                logger.warning("No atlas file found for %s", self.atlas_name)
                 self.atlas = None
             except:
                 self.atlas = None
@@ -1597,12 +1657,17 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         resid_delta=1000,
         cutoff=5,
         smoothing=0,
-        element="thar",
+        atlas_name="thar",
+        atlas_search_dirs=None,
         medium="vac",
+        element=None,
     ):
+        if element is not None and atlas_name == "thar":
+            atlas_name = element
         super().__init__(
             degree=degree,
-            element=element,
+            atlas_name=atlas_name,
+            atlas_search_dirs=atlas_search_dirs,
             medium=medium,
             plot=plot,
             plot_title=plot_title,
@@ -1886,7 +1951,9 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         return linelist
 
     def execute(self, spectrum, wave_range) -> LineList:
-        atlas = LineAtlas(self.element, self.medium)
+        atlas = LineAtlas(
+            self.atlas_name, self.medium, search_dirs=self.atlas_search_dirs
+        )
         linelist = LineList()
         orders = range(spectrum.shape[0])
         x = np.arange(spectrum.shape[1])
