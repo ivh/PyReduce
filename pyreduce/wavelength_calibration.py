@@ -152,8 +152,12 @@ class LineAtlas:
             )
 
         if has_list:
-            linelist = np.genfromtxt(fname_list, dtype="f8,U8")
-            wpos, elem_ids = linelist["f0"], linelist["f1"]
+            raw = np.genfromtxt(fname_list, dtype=str, ndmin=2)
+            wpos = raw[:, 0].astype(np.float64)
+            if raw.shape[1] > 1:
+                elem_ids = raw[:, 1]
+            else:
+                elem_ids = np.full(len(wpos), element)
 
         if has_fits:
             self.wave, self.flux = self.load_fits(fname_fits)

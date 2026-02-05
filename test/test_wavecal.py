@@ -713,6 +713,145 @@ class TestWavecalFinalizeTraceUpdate:
         assert loaded_traces[3].wave[1] == pytest.approx(6500)
 
 
+class TestLineAtlas:
+    """Unit tests for LineAtlas loading and synthetic spectrum generation."""
+
+    @pytest.fixture
+    def atlas_dir(self, tmp_path):
+        return tmp_path / "atlas"
+
+    def _write_list(self, atlas_dir, name, lines, two_col=True):
+        atlas_dir.mkdir(exist_ok=True)
+        path = atlas_dir / f"{name}_list.txt"
+        with open(path, "w") as f:
+            for w, el in lines:
+                if two_col:
+                    f.write(f"{w} {el}\n")
+                else:
+                    f.write(f"{w}\n")
+        return path
+
+    @pytest.mark.unit
+    def test_two_column_list(self, atlas_dir):
+        """Two-column list file: wavelength + element label."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(atlas_dir, "lamp", [(5000, "Ar"), (5100, "Th"), (5200, "Ar")])
+        a = LineAtlas("lamp", search_dirs=[str(atlas_dir)])
+        assert len(a.linelist) == 3
+        np.testing.assert_array_equal(a.linelist["wave"], [5000, 5100, 5200])
+        assert a.linelist["element"][0] == "Ar"
+        assert a.linelist["element"][1] == "Th"
+
+    @pytest.mark.unit
+    def test_one_column_list(self, atlas_dir):
+        """One-column list file: wavelengths only, element defaults to atlas name."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(
+            atlas_dir, "lamp", [(5000, ""), (5100, ""), (5200, "")], two_col=False
+        )
+        a = LineAtlas("lamp", search_dirs=[str(atlas_dir)])
+        assert len(a.linelist) == 3
+        np.testing.assert_array_equal(a.linelist["wave"], [5000, 5100, 5200])
+        assert all(a.linelist["element"] == "lamp")
+
+    @pytest.mark.unit
+    def test_single_line_two_col(self, atlas_dir):
+        """Single-line two-column file."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(atlas_dir, "lamp", [(7000, "Ne")])
+        a = LineAtlas("lamp", search_dirs=[str(atlas_dir)])
+        assert len(a.linelist) == 1
+        assert a.linelist["wave"][0] == pytest.approx(7000)
+        assert a.linelist["element"][0] == "Ne"
+
+    @pytest.mark.unit
+    def test_single_line_one_col(self, atlas_dir):
+        """Single-line one-column file."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(atlas_dir, "lamp", [(8000, "")], two_col=False)
+        a = LineAtlas("lamp", search_dirs=[str(atlas_dir)])
+        assert len(a.linelist) == 1
+        assert a.linelist["wave"][0] == pytest.approx(8000)
+
+    @pytest.mark.unit
+    def test_long_element_names(self, atlas_dir):
+        """Element labels longer than 8 chars are preserved."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(atlas_dir, "lamp", [(5000, "VeryLongElementName")])
+        a = LineAtlas("lamp", search_dirs=[str(atlas_dir)])
+        assert a.linelist["element"][0] == "VeryLongElementName"
+
+    @pytest.mark.unit
+    def test_synthesize_spectrum_from_list_only(self, atlas_dir):
+        """When only a _list.txt exists, a synthetic spectrum is generated."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        waves = [(5000, "Ar"), (5500, "Ar"), (6000, "Ar")]
+        self._write_list(atlas_dir, "synth", waves)
+        a = LineAtlas("synth", search_dirs=[str(atlas_dir)])
+
+        assert len(a.wave) == 10_000
+        assert a.wave[0] < 5000
+        assert a.wave[-1] > 6000
+        assert a.flux.max() == pytest.approx(1.0)
+        # Peaks should be near the line positions
+        for w, _ in waves:
+            idx = np.searchsorted(a.wave, w)
+            assert a.flux[idx] > 0.5
+
+    @pytest.mark.unit
+    def test_synthesize_spectrum_shape(self):
+        """_synthesize_spectrum returns correct shape and normalization."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        wpos = np.array([4000.0, 5000.0, 6000.0])
+        wave, flux = LineAtlas._synthesize_spectrum(wpos, n=5000, width=3)
+        assert wave.shape == (5000,)
+        assert flux.shape == (5000,)
+        assert flux.max() == pytest.approx(1.0)
+        assert flux.min() >= 0
+
+    @pytest.mark.unit
+    def test_search_dirs_priority(self, atlas_dir):
+        """Instrument dir is searched before defaults."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        # thar exists in defaults -- put a custom one in atlas_dir
+        atlas_dir.mkdir(exist_ok=True)
+        custom = atlas_dir / "thar_list.txt"
+        custom.write_text("9999.0 Custom\n")
+
+        a = LineAtlas("thar", search_dirs=[str(atlas_dir)])
+        # Should pick up the custom list (with 1 line), not the default (4169 lines)
+        assert len(a.linelist) == 1
+        assert a.linelist["wave"][0] == pytest.approx(9999.0)
+
+    @pytest.mark.unit
+    def test_not_found_raises(self):
+        """Missing atlas raises FileNotFoundError."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        with pytest.raises(FileNotFoundError, match="nonexistent"):
+            LineAtlas("nonexistent")
+
+    @pytest.mark.unit
+    def test_air_medium_converts(self, atlas_dir):
+        """medium='air' converts wavelengths."""
+        from pyreduce.wavelength_calibration import LineAtlas
+
+        self._write_list(atlas_dir, "lamp", [(5000, "Ar"), (6000, "Ar")])
+        a_vac = LineAtlas("lamp", medium="vac", search_dirs=[str(atlas_dir)])
+        a_air = LineAtlas("lamp", medium="air", search_dirs=[str(atlas_dir)])
+        # Air wavelengths should be slightly shorter
+        assert a_air.linelist["wave"][0] < a_vac.linelist["wave"][0]
+        assert a_air.wave[0] < a_vac.wave[0]
+
+
 # Tests that require instrument data follow below
 
 
