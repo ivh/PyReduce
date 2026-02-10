@@ -592,8 +592,9 @@ class TestWavecalFinalizeTraceUpdate:
 
         results = {"A": (wave_A, ll_A), "B": (wave_B, ll_B)}
 
-        # Save results
-        step.save(results)
+        # Update traces in-place and save
+        step._update_traces(traces_with_groups, results)
+        step.save(results, traces_with_groups)
 
         # Load traces and verify
         loaded_traces, _ = load_traces(str(trace_file))
@@ -645,8 +646,9 @@ class TestWavecalFinalizeTraceUpdate:
 
         results = {"A": (wave_A, ll_A), "B": (wave_B, ll_B)}
 
-        # Save results
-        step.save(results)
+        # Update traces in-place and save
+        step._update_traces(traces_with_groups, results)
+        step.save(results, traces_with_groups)
 
         # Load traces and verify
         loaded_traces, _ = load_traces(str(trace_file))
@@ -696,8 +698,9 @@ class TestWavecalFinalizeTraceUpdate:
 
         results = {"fiber_0": (wave_f0, ll), "fiber_1": (wave_f1, ll)}
 
-        # Save results
-        step.save(results)
+        # Update traces in-place and save
+        step._update_traces(traces_with_fibers, results)
+        step.save(results, traces_with_fibers)
 
         # Load traces and verify
         loaded_traces, _ = load_traces(str(trace_file))

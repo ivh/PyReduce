@@ -1609,7 +1609,7 @@ class WavelengthCalibrationFinalize(Step):
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["wavecal_master", "wavecal_init"]
+        self._dependsOn += ["wavecal_master", "wavecal_init", "trace"]
 
         #:tuple(int, int): Polynomial degree of the wavelength calibration in order, column direction
         self.degree = config["degree"]
@@ -1643,10 +1643,10 @@ class WavelengthCalibrationFinalize(Step):
         """str: Name of the linelist file (single-group compat)"""
         return self.savefile_for_group("all")
 
-    def run(self, wavecal_master: dict, wavecal_init: dict):
+    def run(self, wavecal_master: dict, wavecal_init: dict, trace: list):
         """Perform wavelength calibration for each fiber group.
 
-        Fits wavelength polynomials and stores them in traces.fits.
+        Fits wavelength polynomials and updates trace objects in-place.
         Returns linelists for diagnostics.
 
         Parameters
@@ -1655,13 +1655,14 @@ class WavelengthCalibrationFinalize(Step):
             {group: (wavecal_spec, thead)} from wavecal_master step
         wavecal_init : dict[str, LineList]
             {group: linelist} from wavecal_init step
+        trace : list[TraceData]
+            Trace objects to update with wavelength polynomials
 
         Returns
         -------
         results : dict[str, LineList]
             {group: linelist} for each fiber group (wavelengths are in traces)
         """
-        # Collect results: {group: (wave, linelist)} for saving
         results_for_save = {}
         results = {}
 
@@ -1693,95 +1694,97 @@ class WavelengthCalibrationFinalize(Step):
             results_for_save[group] = (wave, linelist)
             results[group] = linelist
 
-        self.save(results_for_save)
+        # Update trace objects in-place
+        self._update_traces(trace, results_for_save)
+
+        self.save(results_for_save, trace)
         return results
 
-    def save(self, results: dict):
-        """Save wavelength calibration results for each fiber group.
+    def _update_traces(self, trace: list, results: dict):
+        """Update trace objects with wavelength polynomials and order numbers.
+
+        Modifies traces in-place.
+        """
+        # Group traces by their group attribute AND by fiber_idx
+        traces_by_group = {}
+        traces_by_fiber = {}
+        for i, t in enumerate(trace):
+            g = str(t.group) if t.group is not None else "all"
+            if g not in traces_by_group:
+                traces_by_group[g] = []
+            traces_by_group[g].append((i, t))
+            if t.fiber_idx is not None:
+                fkey = f"fiber_{t.fiber_idx}"
+                if fkey not in traces_by_fiber:
+                    traces_by_fiber[fkey] = []
+                traces_by_fiber[fkey].append((i, t))
+
+        for group, (wave, linelist) in results.items():
+            if group in traces_by_group:
+                group_traces = traces_by_group[group]
+            elif group in traces_by_fiber:
+                group_traces = traces_by_fiber[group]
+            elif "all" in traces_by_group:
+                group_traces = traces_by_group["all"]
+            else:
+                logger.warning("No traces found for group '%s'", group)
+                continue
+
+            # Update trace.m from obase if not already set
+            obase = linelist.obase
+            if obase is not None:
+                already_have_m = any(t.m is not None for _i, t in group_traces)
+                if already_have_m:
+                    logger.debug(
+                        "Traces for group '%s' already have m values, skipping obase",
+                        group,
+                    )
+                else:
+                    for idx_in_group, (_i, t) in enumerate(group_traces):
+                        t.m = obase + idx_in_group
+                    logger.info(
+                        "Updated trace order numbers for group '%s' with obase=%d",
+                        group,
+                        obase,
+                    )
+
+            # Store wavelength polynomial in each trace
+            if self.dimensionality == "1D":
+                for idx_in_group, (_i, t) in enumerate(group_traces):
+                    if idx_in_group < len(wave):
+                        t.wave = wave[idx_in_group]
+            else:
+                for _i, t in group_traces:
+                    t.wave = wave
+
+    def save(self, results: dict, trace: list):
+        """Save linelists and updated traces to disk.
 
         Parameters
         ----------
         results : dict[str, tuple]
             {group: (wave, linelist)} - wave polynomials and linelists
+        trace : list[TraceData]
+            Already-updated trace objects
         """
-        # Save linelists per group
         for group, (_wave, linelist) in results.items():
             savefile = self.savefile_for_group(group)
             linelist.save(savefile)
             logger.info("Updated linelist with refined positions: %s", savefile)
 
-        # Update traces.fits with wavelength polynomials
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
-        if not os.path.exists(trace_file):
-            return
-
         try:
-            trace_objects, header = load_traces(trace_file)
-
-            # Group traces by their group attribute AND by fiber_idx
-            # to support both group-based and per_fiber wavecal
-            traces_by_group = {}
-            traces_by_fiber = {}
-            for i, t in enumerate(trace_objects):
-                # By group
-                g = str(t.group) if t.group is not None else "all"
-                if g not in traces_by_group:
-                    traces_by_group[g] = []
-                traces_by_group[g].append((i, t))
-                # By fiber_idx
-                if t.fiber_idx is not None:
-                    fkey = f"fiber_{t.fiber_idx}"
-                    if fkey not in traces_by_fiber:
-                        traces_by_fiber[fkey] = []
-                    traces_by_fiber[fkey].append((i, t))
-
-            # Apply wavelength polynomials per group/fiber
-            for group, (wave, linelist) in results.items():
-                # Try group first, then fiber, then "all"
-                if group in traces_by_group:
-                    group_traces = traces_by_group[group]
-                elif group in traces_by_fiber:
-                    group_traces = traces_by_fiber[group]
-                elif "all" in traces_by_group:
-                    group_traces = traces_by_group["all"]
-                else:
-                    logger.warning("No traces found for group '%s'", group)
-                    continue
-
-                # Update trace.m with actual order numbers if obase is available
-                # BUT only if m is not already set (e.g., from order_centers.yaml)
-                obase = linelist.obase
-                if obase is not None:
-                    already_have_m = any(t.m is not None for _i, t in group_traces)
-                    if already_have_m:
-                        logger.debug(
-                            "Traces for group '%s' already have m values, skipping obase",
-                            group,
-                        )
-                    else:
-                        for idx_in_group, (_i, t) in enumerate(group_traces):
-                            t.m = obase + idx_in_group
-                        logger.info(
-                            "Updated trace order numbers for group '%s' with obase=%d",
-                            group,
-                            obase,
-                        )
-
-                # Store wavelength polynomial in each trace
-                if self.dimensionality == "1D":
-                    # Per-order polynomials: wave[i] is poly for trace i within group
-                    for idx_in_group, (_i, t) in enumerate(group_traces):
-                        if idx_in_group < len(wave):
-                            t.wave = wave[idx_in_group]
-                else:
-                    # 2D polynomial - store same poly in each trace of this group
-                    for _i, t in group_traces:
-                        t.wave = wave
-
+            # Read existing header to preserve metadata
+            header = None
+            if os.path.exists(trace_file):
+                with fits.open(trace_file, memmap=False) as hdu:
+                    header = hdu[0].header
+            if header is None:
+                header = fits.Header()
             steps = header.get("E_STEPS", "trace").split(",")
             if "wavecal" not in steps:
                 steps.append("wavecal")
-            save_traces(trace_file, trace_objects, header, steps=steps)
+            save_traces(trace_file, trace, header, steps=steps)
             logger.info("Updated traces with wavelength data: %s", trace_file)
         except Exception as e:
             logger.warning("Could not update traces.fits with wavelength: %s", e)
@@ -1941,7 +1944,7 @@ class LaserFrequencyCombFinalize(Step):
     def run(self, freq_comb_master, trace: list, wavecal: dict):
         """Improve the wavelength calibration with a laser frequency comb.
 
-        Updates traces.fits with improved wavelength polynomial.
+        Updates trace objects in-place with improved wavelength polynomial.
 
         Parameters
         ----------
@@ -1971,38 +1974,35 @@ class LaserFrequencyCombFinalize(Step):
             nstep=self.nstep,
             lfc_peak_width=self.lfc_peak_width,
         )
-        # Returns 2D polynomial coefficients
         coef = module.execute(comb, wlen, linelist)
 
-        self.save(coef, trace)
+        # In step mode, coef is (poly_coef, step_coef); only store the polynomial
+        wave_coef = coef[0] if isinstance(coef, tuple) else coef
+        for t in trace:
+            t.wave = wave_coef
 
-    def save(self, coef, trace: list):
-        """Save improved wavelength polynomial to traces.fits.
+        self.save(trace)
+
+    def save(self, trace: list):
+        """Save updated traces to disk.
 
         Parameters
         ----------
-        coef : ndarray
-            2D polynomial coefficients from freq_comb
         trace : list[TraceData]
-            Trace objects to update
+            Already-updated trace objects
         """
-        # Update traces.fits with improved wavelength polynomial
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
-        if not os.path.exists(trace_file):
-            logger.warning("No traces.fits found, cannot save freq_comb result")
-            return
-
         try:
-            trace_objects, header = load_traces(trace_file)
-
-            # Store the 2D polynomial in each trace (same poly for all)
-            for t in trace_objects:
-                t.wave = coef
-
+            header = None
+            if os.path.exists(trace_file):
+                with fits.open(trace_file, memmap=False) as hdu:
+                    header = hdu[0].header
+            if header is None:
+                header = fits.Header()
             steps = header.get("E_STEPS", "trace").split(",")
             if "freq_comb" not in steps:
                 steps.append("freq_comb")
-            save_traces(trace_file, trace_objects, header, steps=steps)
+            save_traces(trace_file, trace, header, steps=steps)
             logger.info("Updated traces with freq_comb wavelength: %s", trace_file)
         except Exception as e:
             logger.warning("Could not update traces.fits with freq_comb: %s", e)
@@ -2430,13 +2430,23 @@ class ContinuumNormalization(Step):
             column ranges for each spectra
         """
         # Get wavelengths from traces (includes freq_comb improvements if run)
-        wave = wavelengths_from_traces(trace)
+        # Filter out traces marked invalid by extraction validation
+        valid_traces = [t for t in trace if not t.invalid]
+        if len(valid_traces) < len(trace):
+            wave = wavelengths_from_traces(valid_traces)
+        else:
+            wave = wavelengths_from_traces(trace)
         norm, blaze, *_ = norm_flat
 
         # Apply trace_range to wavelength if it has more traces than blaze
         # (blaze was saved with trace_range already applied)
         if self.trace_range is not None and len(wave) > len(blaze):
             wave = wave[self.trace_range[0] : self.trace_range[1]]
+
+        # Trim blaze to match valid traces
+        if len(valid_traces) < len(trace) and len(blaze) > len(wave):
+            valid_mask = np.array([not t.invalid for t in trace])
+            blaze = blaze[valid_mask]
 
         # Handle both old format (5 elements from load) and new format (2 elements from run)
         if len(science) == 2:

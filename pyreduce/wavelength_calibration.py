@@ -1428,7 +1428,8 @@ class WavelengthCalibration:
             raise NotImplementedError("polarized orders not implemented yet")
 
         self.ntrace, self.ncol = obs.shape
-        lines = LineList(lines)
+        if not isinstance(lines, LineList):
+            lines = LineList(lines)
         if self.atlas_name is not None:
             try:
                 self.atlas = LineAtlas(
