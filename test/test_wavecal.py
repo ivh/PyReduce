@@ -653,14 +653,16 @@ class TestWavecalFinalizeTraceUpdate:
         # Load traces and verify
         loaded_traces, _ = load_traces(str(trace_file))
 
-        # Both group A traces should have same 2D polynomial
+        # 2D polynomial is evaluated per-trace to 1D (np.polyfit convention)
+        # wave_A at idx 0: a_i = wave_A[i,0] → [5000, 0.1] → reversed [0.1, 5000]
+        # wave_A at idx 1: a_i = sum_j wave_A[i,j]*1^j → [6000, 0.1] → reversed [0.1, 6000]
         assert loaded_traces[0].wave is not None
-        assert np.array_equal(loaded_traces[0].wave, wave_A)
-        assert np.array_equal(loaded_traces[1].wave, wave_A)
+        np.testing.assert_allclose(loaded_traces[0].wave, [0.1, 5000])
+        np.testing.assert_allclose(loaded_traces[1].wave, [0.1, 6000])
 
-        # Both group B traces should have same 2D polynomial
-        assert np.array_equal(loaded_traces[2].wave, wave_B)
-        assert np.array_equal(loaded_traces[3].wave, wave_B)
+        # wave_B at idx 0/1 in group B
+        np.testing.assert_allclose(loaded_traces[2].wave, [0.1, 6000])
+        np.testing.assert_allclose(loaded_traces[3].wave, [0.1, 7000])
 
     @pytest.mark.unit
     def test_wavecal_finalize_per_fiber_mode(

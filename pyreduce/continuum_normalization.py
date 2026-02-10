@@ -247,6 +247,13 @@ def continuum_normalize(
         b[i, mask[i]] = util.middle(b[i, mask[i]], 1)
     cont = b
 
+    # Ensure consistent masks so compressed arrays have the same length
+    ratio = spec / cont
+    combined_mask = np.ma.getmaskarray(wave) | np.ma.getmaskarray(ratio)
+    wave = np.ma.array(np.ma.getdata(wave), mask=combined_mask)
+    ratio = np.ma.array(np.ma.getdata(ratio), mask=combined_mask)
+    cont = np.ma.array(np.ma.getdata(cont), mask=combined_mask)
+
     # Create new equispaced wavelength grid
     tmp = wave.compressed()
     wmin = np.min(tmp)
@@ -257,7 +264,7 @@ def continuum_normalize(
 
     # Combine all orders into one big spectrum, sorted by wavelength
     wsort, j, index = np.unique(tmp, return_index=True, return_inverse=True)
-    sB = (spec / cont).compressed()[j]
+    sB = ratio.compressed()[j]
 
     # Get initial weights for each point
     weight = util.middle(sB, 0.5, x=wsort - wmin)
@@ -299,7 +306,9 @@ def continuum_normalize(
             # Scale it and update the weights of each point
             contB = c * scale_vert
             contB = util.middle(contB, 1)
+            contB = np.clip(contB, 1e-10, None)
             weight = np.clip(ssB / contB, None, contB / np.clip(ssB, 1, None))
+            np.nan_to_num(weight, copy=False, nan=0, posinf=0, neginf=0)
 
             # Plot the intermediate results
             if plot:  # pragma: no cover

@@ -1704,6 +1704,13 @@ class WavelengthCalibrationFinalize(Step):
         """Update trace objects with wavelength polynomials and order numbers.
 
         Modifies traces in-place.
+
+        Parameters
+        ----------
+        trace : list[TraceData]
+            All trace objects
+        results : dict[str, tuple]
+            {group: (wave_coef, linelist)} polynomial coefficients per group
         """
         # Group traces by their group attribute AND by fiber_idx
         traces_by_group = {}
@@ -1748,14 +1755,17 @@ class WavelengthCalibrationFinalize(Step):
                         obase,
                     )
 
-            # Store wavelength polynomial in each trace
+            # Store wavelength polynomial in each trace.
             if self.dimensionality == "1D":
                 for idx_in_group, (_i, t) in enumerate(group_traces):
                     if idx_in_group < len(wave):
                         t.wave = wave[idx_in_group]
             else:
-                for _i, t in group_traces:
-                    t.wave = wave
+                # Evaluate 2D poly P(x, order_idx) at each trace's 0-based
+                # index to get a 1D poly in x (np.polyfit convention).
+                for idx_in_group, (_i, t) in enumerate(group_traces):
+                    poly_1d = np.polynomial.polynomial.polyval(idx_in_group, wave.T)
+                    t.wave = poly_1d[::-1]
 
     def save(self, results: dict, trace: list):
         """Save linelists and updated traces to disk.
@@ -1976,10 +1986,21 @@ class LaserFrequencyCombFinalize(Step):
         )
         coef = module.execute(comb, wlen, linelist)
 
-        # In step mode, coef is (poly_coef, step_coef); only store the polynomial
-        wave_coef = coef[0] if isinstance(coef, tuple) else coef
-        for t in trace:
-            t.wave = wave_coef
+        # Evaluate the full wavelength image (handles step corrections)
+        new_wave = module.make_wave(coef)
+
+        # Fit per-trace 1D polynomials to the evaluated wavelengths
+        ncol = new_wave.shape[1]
+        x = np.arange(ncol)
+        poly_degree = (
+            self.degree[0] if isinstance(self.degree, (list, tuple)) else self.degree
+        )
+        for i, t in enumerate(trace):
+            cr = t.column_range
+            x_cr = x[cr[0] : cr[1]]
+            w_cr = new_wave[i, cr[0] : cr[1]]
+            deg = min(poly_degree, len(x_cr) - 1)
+            t.wave = np.polyfit(x_cr, w_cr, deg=deg)
 
         self.save(trace)
 
@@ -2364,9 +2385,9 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             )
             heads.append(spectra.header)
 
-            # Stack arrays from Spectrum objects
-            spec_arr = np.array([s.spec for s in spectra.data])
-            sig_arr = np.array([s.sig for s in spectra.data])
+            # Stack arrays from Spectrum objects (NaN encodes masked pixels)
+            spec_arr = np.ma.masked_invalid([s.spec for s in spectra.data])
+            sig_arr = np.ma.masked_invalid([s.sig for s in spectra.data])
             specs.append(spec_arr)
             sigmas.append(sig_arr)
 
@@ -2429,24 +2450,13 @@ class ContinuumNormalization(Step):
         columns : list(array of shape (ntrace, 2))
             column ranges for each spectra
         """
-        # Get wavelengths from traces (includes freq_comb improvements if run)
-        # Filter out traces marked invalid by extraction validation
-        valid_traces = [t for t in trace if not t.invalid]
-        if len(valid_traces) < len(trace):
-            wave = wavelengths_from_traces(valid_traces)
-        else:
-            wave = wavelengths_from_traces(trace)
         norm, blaze, *_ = norm_flat
 
-        # Apply trace_range to wavelength if it has more traces than blaze
-        # (blaze was saved with trace_range already applied)
-        if self.trace_range is not None and len(wave) > len(blaze):
-            wave = wave[self.trace_range[0] : self.trace_range[1]]
-
-        # Trim blaze to match valid traces
-        if len(valid_traces) < len(trace) and len(blaze) > len(wave):
-            valid_mask = np.array([not t.invalid for t in trace])
-            blaze = blaze[valid_mask]
+        # Select same traces as science step (fiber/group selection + trace_range)
+        selected = self._select_traces(trace, "science")
+        trace_list = [t for traces in selected.values() for t in traces]
+        if self.trace_range is not None:
+            trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
 
         # Handle both old format (5 elements from load) and new format (2 elements from run)
         if len(science) == 2:
@@ -2456,13 +2466,26 @@ class ContinuumNormalization(Step):
             sigmas = []
             columns = []
             for spectra in spectra_lists:
-                specs.append(np.array([s.spec for s in spectra]))
-                sigmas.append(np.array([s.sig for s in spectra]))
-                # Get column ranges from spectrum lengths
+                specs.append(np.ma.masked_invalid([s.spec for s in spectra]))
+                sigmas.append(np.ma.masked_invalid([s.sig for s in spectra]))
                 columns.append(np.array([[0, len(s.spec)] for s in spectra]))
         else:
             # Old array format from science.load()
             heads, specs, sigmas, _, columns = science
+
+        nspec = specs[0].shape[0]
+
+        # Filter out traces that extraction marked invalid
+        valid = [t for t in trace_list if not t.invalid]
+        if len(valid) == nspec:
+            trace_list = valid
+        wave = wavelengths_from_traces(trace_list)
+
+        # Trim to match spectra count (extraction may have skipped edge traces)
+        if len(wave) > nspec:
+            wave = wave[len(wave) - nspec :]
+        if len(blaze) > nspec:
+            blaze = blaze[len(blaze) - nspec :]
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]
