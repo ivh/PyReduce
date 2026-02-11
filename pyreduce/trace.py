@@ -38,7 +38,10 @@ logger = logging.getLogger(__name__)
 
 
 def _assign_order_and_fiber_inplace(
-    traces: list, order_centers: dict[int, float] | None, ncol: int
+    traces: list,
+    order_centers: dict[int, float] | None,
+    ncol: int,
+    fibers_per_order: int | None = None,
 ) -> None:
     """Assign m (order number) and fiber_idx to Trace objects.
 
@@ -47,9 +50,13 @@ def _assign_order_and_fiber_inplace(
     traces : list[Trace]
         Trace objects (modified in place)
     order_centers : dict[int, float] | None
-        Order number -> y-position mapping. If None, m stays None.
+        Order number -> y-position mapping. If None, m stays None
+        (unless fibers_per_order is set for auto-pairing).
     ncol : int
         Number of columns in detector
+    fibers_per_order : int or None
+        If set and order_centers is None, group every N consecutive traces
+        (sorted by y-position) into the same order with sequential fiber_idx.
     """
     if not traces:
         return
@@ -57,8 +64,8 @@ def _assign_order_and_fiber_inplace(
     x_center = ncol // 2
     y_positions = [t.y_at_x(x_center) for t in traces]
 
-    # Assign m values from order_centers if provided
     if order_centers is not None:
+        # Match traces to known order centers
         order_nums = np.array(list(order_centers.keys()))
         y_centers = np.array([order_centers[m] for m in order_nums])
 
@@ -67,18 +74,52 @@ def _assign_order_and_fiber_inplace(
             closest_idx = np.argmin(distances)
             traces[i].m = int(order_nums[closest_idx])
 
-    # Group by m to assign fiber_idx within each order
-    from collections import defaultdict
+        # Group by m to assign fiber_idx within each order
+        from collections import defaultdict
 
-    traces_by_m = defaultdict(list)
-    for i, t in enumerate(traces):
-        traces_by_m[t.m].append((i, y_positions[i]))
+        traces_by_m = defaultdict(list)
+        for i, t in enumerate(traces):
+            traces_by_m[t.m].append((i, y_positions[i]))
 
-    # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
-    for _m, trace_list in traces_by_m.items():
-        trace_list.sort(key=lambda x: x[1])
-        for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
-            traces[trace_idx].fiber_idx = fiber_idx
+        # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
+        for _m, trace_list in traces_by_m.items():
+            trace_list.sort(key=lambda x: x[1])
+            for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
+                traces[trace_idx].fiber_idx = fiber_idx
+
+    elif fibers_per_order is not None and fibers_per_order > 1:
+        # Auto-pair consecutive traces by y-position
+        traces.sort(key=lambda t: t.y_at_x(x_center))
+        n_complete = len(traces) // fibers_per_order
+        remainder = len(traces) % fibers_per_order
+
+        if remainder != 0:
+            logger.warning(
+                "Trace count %d is not divisible by fibers_per_order=%d; "
+                "%d remainder traces will be dropped",
+                len(traces),
+                fibers_per_order,
+                remainder,
+            )
+
+        for i in range(n_complete * fibers_per_order):
+            traces[i].m = i // fibers_per_order
+            traces[i].fiber_idx = (i % fibers_per_order) + 1
+
+        # Drop remainder traces (incomplete order at edge)
+        if remainder:
+            del traces[n_complete * fibers_per_order :]
+
+        logger.info(
+            "Auto-paired %d traces into %d orders (fibers_per_order=%d)",
+            n_complete * fibers_per_order,
+            n_complete,
+            fibers_per_order,
+        )
+    else:
+        # No order_centers and no fibers_per_order: assign fiber_idx=1 to all
+        for t in traces:
+            t.fiber_idx = 1
 
     # Sort traces by (m descending, fiber_idx)
     def sort_key(t):
@@ -592,6 +633,7 @@ def trace(
     sigma=0,
     debug_dir=None,
     order_centers: dict[int, float] | None = None,
+    fibers_per_order: int | None = None,
 ):
     """Identify and trace orders, returning Trace objects.
 
@@ -631,6 +673,11 @@ def trace(
         Mapping of order number (m) -> y-position at detector center. If provided,
         traces are assigned m values by matching to these centers. Otherwise,
         m remains None (to be assigned later from wavecal obase).
+    fibers_per_order : int, optional
+        Number of fiber traces per spectral order. When set and order_centers is None,
+        consecutive traces (sorted by y) are grouped into orders of this size.
+        Used for instruments like HARPSpol where a Wollaston prism splits each
+        order into multiple beams.
 
     Returns
     -------
@@ -1013,7 +1060,9 @@ def trace(
     _compute_heights_inplace(trace_objects, im.shape[1])
 
     # Assign order numbers and fiber indices
-    _assign_order_and_fiber_inplace(trace_objects, order_centers, im.shape[1])
+    _assign_order_and_fiber_inplace(
+        trace_objects, order_centers, im.shape[1], fibers_per_order=fibers_per_order
+    )
 
     if plot:  # pragma: no cover
         plot_traces(im, trace_objects, title=plot_title)

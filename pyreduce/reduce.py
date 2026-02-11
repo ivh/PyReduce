@@ -1041,6 +1041,14 @@ class Trace(CalibrationStep):
         """
         trace_img, ohead = self.calibrate(files, mask, bias, None)
 
+        # Get fibers_per_order from instrument config for auto-pairing
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        fpo = (
+            getattr(fibers_config, "fibers_per_order", None)
+            if fibers_config
+            else None
+        )
+
         traces = mark_orders(
             trace_img,
             min_cluster=self.min_cluster,
@@ -1063,6 +1071,7 @@ class Trace(CalibrationStep):
             plot=self.plot,
             plot_title=self.plot_title,
             order_centers=order_centers,
+            fibers_per_order=fpo,
         )
 
         return traces
@@ -1754,8 +1763,9 @@ class WavelengthCalibrationFinalize(Step):
                     if idx_in_group < len(wave):
                         t.wave = wave[idx_in_group]
             else:
-                for _i, t in group_traces:
+                for idx_in_group, (_i, t) in enumerate(group_traces):
                     t.wave = wave
+                    t._wave_idx = idx_in_group
 
     def save(self, results: dict, trace: list):
         """Save linelists and updated traces to disk.
@@ -1978,8 +1988,9 @@ class LaserFrequencyCombFinalize(Step):
 
         # In step mode, coef is (poly_coef, step_coef); only store the polynomial
         wave_coef = coef[0] if isinstance(coef, tuple) else coef
-        for t in trace:
+        for i, t in enumerate(trace):
             t.wave = wave_coef
+            t._wave_idx = i
 
         self.save(trace)
 
@@ -2144,7 +2155,8 @@ class RectifyImage(Step):
         self.input_files = config["input_files"]
 
     def filename(self, name):
-        return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
+        suffix = f".rectify.{self.channel}.fits" if self.channel else ".rectify.fits"
+        return util.swap_extension(name, suffix, path=self.output_dir)
 
     def run(self, files, trace: list[TraceData], mask=None):
         # Get wavelengths from traces (includes freq_comb improvements if run)
@@ -2217,7 +2229,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         name : str
             science file name
         """
-        return util.swap_extension(name, ".science.fits", path=self.output_dir)
+        suffix = f".science.{self.channel}.fits" if self.channel else ".science.fits"
+        return util.swap_extension(name, suffix, path=self.output_dir)
 
     def run(
         self,

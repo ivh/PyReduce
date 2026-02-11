@@ -397,7 +397,7 @@ class TestWavelengthsFromTraces:
         from pyreduce.reduce import wavelengths_from_traces
         from pyreduce.trace_model import Trace
 
-        # 2D poly: wavelength = 5000 + 0.1*x + 1000*m
+        # 2D poly: wavelength = 5000 + 0.1*x + 1000*idx
         wave_2d = np.array([[5000.0, 1000.0], [0.1, 0.0]])
         traces = [
             Trace(
@@ -406,6 +406,7 @@ class TestWavelengthsFromTraces:
                 pos=np.array([1, 0, 100]),
                 column_range=(0, 100),
                 wave=wave_2d,
+                _wave_idx=0,
             ),
             Trace(
                 m=1,
@@ -413,6 +414,7 @@ class TestWavelengthsFromTraces:
                 pos=np.array([1, 0, 200]),
                 column_range=(0, 100),
                 wave=wave_2d,
+                _wave_idx=1,
             ),
         ]
         result = wavelengths_from_traces(traces, ncol=100)

@@ -1892,11 +1892,15 @@ def extract(
         unc_1d = np.ma.filled(uncertainties[i], np.nan)
         slitfu = slitfunction[i] if slitfunction else None
 
+        # Evaluate wavelength from trace polynomial if available
+        wave = trace.wlen(np.arange(len(spec_1d)))
+
         results.append(
             Spectrum.from_trace(
                 trace,
                 spec_1d,
                 unc_1d,
+                wave=wave,
                 slitfu=slitfu,
                 extraction_height=heights[i],
             )

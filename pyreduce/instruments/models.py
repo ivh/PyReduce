@@ -7,9 +7,12 @@ structure described in REDESIGN.md.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class HeaderRef(BaseModel):
@@ -175,11 +178,17 @@ class FibersConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_per_order_config(self):
-        """Ensure order_centers or order_centers_file when fibers_per_order is set."""
+        """Validate per-order config when fibers_per_order is set.
+
+        If order_centers or order_centers_file is provided, traces are matched
+        by y-position. Otherwise, auto-pairing mode groups consecutive traces.
+        """
         if self.fibers_per_order is not None:
             if self.order_centers is None and self.order_centers_file is None:
-                raise ValueError(
-                    "order_centers or order_centers_file required when fibers_per_order is set"
+                logger.info(
+                    "fibers_per_order=%d without order_centers: "
+                    "using auto-pairing mode (consecutive traces grouped by y-proximity)",
+                    self.fibers_per_order,
                 )
         return self
 

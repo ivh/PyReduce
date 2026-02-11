@@ -1013,5 +1013,7 @@ class TestTraceCurvatureExtraction:
         assert wave[0] == pytest.approx(5000.0)
         assert wave[99] == pytest.approx(5000.0 + 0.5 * 99)
 
-        # The spectrum itself doesn't have wave (added by pipeline)
-        assert spectra[0].wave is None
+        # extract() now evaluates trace wavelength into the Spectrum
+        assert spectra[0].wave is not None
+        assert spectra[0].wave[0] == pytest.approx(5000.0)
+        assert spectra[0].wave[99] == pytest.approx(5000.0 + 0.5 * 99)

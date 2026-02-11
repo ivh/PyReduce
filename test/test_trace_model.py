@@ -50,10 +50,10 @@ class TestTraceDataclass:
         np.testing.assert_array_almost_equal(wlen, [5000, 5010, 5100])
 
     def test_wlen_evaluates_2d_polynomial(self):
-        """wlen evaluates 2D wavelength polynomial using trace's m value."""
-        # 2D polynomial: wave[i,j] is coeff for x^i * m^j
-        # wave = c00 + c10*x + c01*m + c11*x*m
-        # Using: wave = 5000 + 0.1*x + 10*m + 0.001*x*m
+        """wlen evaluates 2D wavelength polynomial using trace's _wave_idx."""
+        # 2D polynomial: wave[i,j] is coeff for x^i * idx^j
+        # wave = c00 + c10*x + c01*idx + c11*x*idx
+        # Using: wave = 5000 + 0.1*x + 10*idx + 0.001*x*idx
         wave_2d = np.array(
             [
                 [5000.0, 10.0],  # c00, c01
@@ -61,52 +61,55 @@ class TestTraceDataclass:
             ]
         )
         trace = Trace(
-            m=85,  # physical order number
+            m=85,  # physical order number (not used for 2D eval)
             group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
+            _wave_idx=3,
         )
         x = np.array([0, 1000, 2000])
         wlen = trace.wlen(x)
-        # At x=0: 5000 + 0 + 10*85 + 0 = 5850
-        # At x=1000: 5000 + 100 + 850 + 85 = 6035
-        # At x=2000: 5000 + 200 + 850 + 170 = 6220
-        expected = [5850.0, 6035.0, 6220.0]
+        # At x=0: 5000 + 0 + 10*3 + 0 = 5030
+        # At x=1000: 5000 + 100 + 30 + 3 = 5133
+        # At x=2000: 5000 + 200 + 30 + 6 = 5236
+        expected = [5030.0, 5133.0, 5236.0]
         np.testing.assert_array_almost_equal(wlen, expected)
 
-    def test_wlen_2d_different_m_values(self):
-        """Different traces with same 2D poly but different m give different wavelengths."""
-        # Same polynomial, different order numbers
+    def test_wlen_2d_different_idx_values(self):
+        """Different traces with same 2D poly but different _wave_idx give different wavelengths."""
+        # Same polynomial, different trace indices
         wave_2d = np.array(
             [
                 [5000.0, 10.0],
                 [0.1, 0.0],
             ]
         )
-        trace_m85 = Trace(
+        trace_0 = Trace(
             m=85,
             group="A",
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
+            _wave_idx=0,
         )
-        trace_m90 = Trace(
+        trace_5 = Trace(
             m=90,
             group="A",
             pos=np.array([1.0, 200.0]),
             column_range=(0, 2000),
             wave=wave_2d,
+            _wave_idx=5,
         )
 
         x = np.array([1000])
-        wlen_85 = trace_m85.wlen(x)
-        wlen_90 = trace_m90.wlen(x)
+        wlen_0 = trace_0.wlen(x)
+        wlen_5 = trace_5.wlen(x)
 
-        # At x=1000, m=85: 5000 + 100 + 850 = 5950
-        # At x=1000, m=90: 5000 + 100 + 900 = 6000
-        np.testing.assert_array_almost_equal(wlen_85, [5950.0])
-        np.testing.assert_array_almost_equal(wlen_90, [6000.0])
+        # At x=1000, idx=0: 5000 + 100 + 0 = 5100
+        # At x=1000, idx=5: 5000 + 100 + 50 = 5150
+        np.testing.assert_array_almost_equal(wlen_0, [5100.0])
+        np.testing.assert_array_almost_equal(wlen_5, [5150.0])
 
     def test_slit_at_x_returns_none_when_no_slit(self):
         """slit_at_x returns None when slit is not set."""
@@ -477,6 +480,7 @@ class TestEdgeCases:
             pos=np.array([1.0, 100.0]),
             column_range=(0, 2000),
             wave=wave_2d,
+            _wave_idx=0,
         )
 
         x = np.array([0, 500, 1000, 1500, 2000])
