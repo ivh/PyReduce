@@ -1,7 +1,7 @@
 """
 This script creates a new linelist file based on an atlas for a specific element of the gas lamp
 used in the wavelength calibration. The best match between the atlas and the observed spectrum
-is found using MCMC.
+is found using iterative peak matching.
 """
 
 from os.path import dirname, join

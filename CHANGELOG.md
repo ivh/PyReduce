@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [0.8a3] - 2026-02-11
+
+### Changed
+- Replace MCMC-based `wavecal_init` with iterative peak matching algorithm
+- Remove `emcee` and `corner` dependencies
+
+### Fixed
+- Fix continuum trace count mismatch when norm_flat drops edge traces
+- Fix extraction_height precedence: settings over trace.height
+- Fix LFC plot crash on negative orders and Finalize trace selection
+- Fix 2D wavecal poly eval, continuum trace selection, and numeric guards
+- Fix wavecal/freq_comb trace data flow and continuum trace mismatch
+
 ## [0.8a2] - 2026-02-03
 
 ### Added

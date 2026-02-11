@@ -34,13 +34,10 @@ and a reference atlas of known spectral lines for the calibration lamp.
 Alternatively, run the `wavecal_init` step in PyReduce if the instrument provides
 the correct initial wavelength guess via the `get_wavelength_range` function.
 
-The initial line identification uses MCMC to find the best fit between the observation
-and known atlas. This is slow but stable. The created linelist should be saved
-to the location provided by `get_wavecal_filename` so `wavecal_init` only needs
-to run once.
-
-The MCMC determines the best fit based on a combination of cross correlation
-and least squares matching between the observed and reference spectra.
+The initial line identification detects peaks in the observed spectrum, matches them
+to atlas lines using offset voting and iterative polynomial fitting with outlier
+rejection. The created linelist should be saved to the location provided by
+`get_wavecal_filename` so `wavecal_init` only needs to run once.
 
 ## Spectral Order Numbers
 

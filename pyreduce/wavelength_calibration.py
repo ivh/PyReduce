@@ -7,8 +7,6 @@ Loosely bases on the IDL wavecal function
 import logging
 from os.path import dirname, exists, join
 
-import corner
-import emcee
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
@@ -1622,8 +1620,9 @@ class WavelengthCalibrationComb(WavelengthCalibration):
 
         if self.plot:
             if lines is not None:
+                valid = (lines["order"] >= 0) & (lines["order"] < self.ntrace)
                 self.plot_residuals(
-                    lines,
+                    lines[valid],
                     coef,
                     title="GasLamp Line Residuals in the Laser Frequency Comb Solution",
                 )
@@ -1656,11 +1655,13 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         degree=2,
         plot=False,
         plot_title="Wavecal Initial",
-        wave_delta=20,
-        nwalkers=100,
-        steps=50_000,
-        resid_delta=1000,
-        cutoff=5,
+        resid_delta=2000,
+        match_tolerance=1.0,
+        iterations=3,
+        edge_margin=10,
+        width_min=1.0,
+        width_max=8.0,
+        cutoff=0.01,
         smoothing=0,
         atlas_name="thar",
         atlas_search_dirs=None,
@@ -1678,17 +1679,13 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             plot_title=plot_title,
             dimensionality="1D",
         )
-        #:float: wavelength uncertainty on the initial guess in Angstrom
-        self.wave_delta = wave_delta
-        #:int: number of walkers in the MCMC
-        self.nwalkers = nwalkers
-        #:int: number of steps in the MCMC
-        self.steps = steps
-        #:float: residual uncertainty allowed when matching observation with known lines
         self.resid_delta = resid_delta
-        #:float: gaussian smoothing applied to the wavecal spectrum before the MCMC in pixel scale, disable it by setting it to 0
+        self.match_tolerance = match_tolerance
+        self.iterations = iterations
+        self.edge_margin = edge_margin
+        self.width_min = width_min
+        self.width_max = width_max
         self.smoothing = smoothing
-        #:float: minimum value in the spectrum to be considered a spectral line, if the value is above (or equal 1) it defines the percentile of the spectrum
         self.cutoff = cutoff
 
     def get_cutoff(self, spectrum):
@@ -1702,7 +1699,6 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
 
     def normalize(self, spectrum):
         smoothing = self.smoothing
-        # Handle both masked arrays and regular arrays with NaN
         if np.ma.isMaskedArray(spectrum):
             spectrum = np.ma.filled(spectrum, 0)
         else:
@@ -1714,261 +1710,292 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         spectrum /= np.max(spectrum)
         return spectrum
 
-    def determine_wavelength_coefficients(
-        self,
-        spectrum,
-        atlas,
-        wave_range,
-    ) -> np.ndarray:
-        """
-        Determines the wavelength polynomial coefficients of a spectrum,
-        based on an line atlas with known spectral lines,
-        and an initial guess for the wavelength range.
-        The calculation uses an MCMC approach to sample the probability space and
-        find the best cross correlation value, between observation and atlas.
+    def identify_lines_for_order(self, spectrum, atlas, wave_range, order) -> LineList:
+        """Identify spectral lines via iterative peak matching (IDL algorithm).
+
+        Detects peaks in the observed spectrum, matches them to atlas lines
+        using a polynomial wavelength solution, and iteratively refines the
+        fit with outlier rejection.
 
         Parameters
         ----------
         spectrum : array
-            observed spectrum at each pixel
+            observed spectrum for one order
         atlas : LineAtlas
-            atlas containing a known spectrum with wavelength and flux
+            reference line atlas
         wave_range : 2-tuple
-            initial wavelength guess (begin, end)
-        degrees : int, optional
-            number of degrees of the wavelength polynomial,
-            lower numbers yield better results, by default 2
-        w_range : float, optional
-            uncertainty on the initial wavelength guess in Ansgtrom, by default 20
-        nwalkers : int, optional
-            number of walkers for the MCMC, more is better but increases
-            the time, by default 100
-        steps : int, optional
-            number of steps in the MCMC per walker, more is better but increases
-            the time, by default 20_000
-        plot : bool, optional
-            whether to plot the results or not, by default False
-
-        Returns
-        -------
-        coef : array
-            polynomial coefficients in numpy order
-        """
-        spectrum = np.asarray(spectrum)
-
-        assert self.degree >= 2, "The polynomial degree must be at least 2"
-        assert spectrum.ndim == 1, "The spectrum should only have 1 dimension"
-        assert self.wave_delta > 0, "The wavelength uncertainty needs to be positive"
-
-        n_features = spectrum.shape[0]
-        n_output = ndim = self.degree + 1
-
-        # Normalize the spectrum, and copy it just in case
-        spectrum = self.normalize(spectrum)
-        cutoff = self.get_cutoff(spectrum)
-
-        # The pixel scale used for everything else
-        x = np.arange(n_features)
-        # Initial guess for the wavelength solution
-        coef = np.zeros(n_output)
-        coef[-1] = wave_range[0]
-        coef[-2] = (wave_range[-1] - wave_range[0]) / n_features
-
-        # We scale every coefficient to roughly order 1
-        # this is then in units of the maximum offset due to a change in this value
-        # in angstrom
-        w_scale = 1 / np.power(n_features, range(n_output))
-        factors = w_scale[::-1]
-        coef /= factors
-
-        # Here we define the functions we need for the MCMC
-        def polyval_vectorize(p, x, where=None):
-            n_poly, n_coef = p.shape
-            n_points = x.shape[0]
-            y = np.zeros((n_poly, n_points))
-            if where is not None:
-                for i in range(n_coef):
-                    y[where] *= x
-                    y[where] += p[where, i, None]
-            else:
-                for i in range(n_coef):
-                    y *= x
-                    y += p[:, i, None]
-            return y
-
-        def log_prior(p):
-            prior = np.zeros(p.shape[0])
-            prior[np.any(~np.isfinite(p), axis=1)] = -np.inf
-            prior[np.any(np.abs(p - coef) > self.wave_delta, axis=1)] = -np.inf
-            return prior
-
-        def log_prior_2(w):
-            # Chech that w is increasing
-            prior = np.zeros(w.shape[0])
-            prior[np.any(w[:, 1:] < w[:, :-1], axis=1)] = -np.inf
-            prior[w[:, 0] < wave_range[0] - self.wave_delta] = -np.inf
-            prior[w[:, -1] > wave_range[1] + self.wave_delta] = -np.inf
-            return prior
-
-        def log_prob(p):
-            # Check that p is within bounds
-            prior = log_prior(p)
-            where = np.isfinite(prior)
-            # Calculate the wavelength scale
-            w = polyval_vectorize(p * factors, x, where=where)
-            # Check that it is monotonically increasing
-            prior += log_prior_2(w)
-            where = np.isfinite(prior)
-
-            y = np.zeros((p.shape[0], x.shape[0]))
-            y[where, :] = np.interp(w[where, :], atlas.wave, atlas.flux)
-            y[where, :] /= np.max(y[where, :], axis=1)[:, None]
-            # This is the cross correlation value squared
-            cross = np.sum(y * spectrum, axis=1) ** 2
-            # chi2 = - np.sum((y - spectrum)**2, axis=1)
-            # chi2 = - np.sum((np.where(y > 0.01, 1, 0) - np.where(spectrum > 0.01, 1, 0))**2, axis=1)
-            # this is the same as above, but a lot faster thanks to the magic of bitwise xor
-            if cutoff is not None:
-                chi2 = (y > cutoff) ^ (spectrum > cutoff)
-                chi2 = -np.count_nonzero(chi2, axis=1) / 20
-            else:
-                chi2 = -np.sum((y - spectrum) ** 2, axis=1) / 20
-            return prior + cross + chi2
-
-        p0 = np.zeros((self.nwalkers, ndim))
-        p0 += coef[None, :]
-        p0 += np.random.uniform(
-            low=-self.wave_delta, high=self.wave_delta, size=(self.nwalkers, ndim)
-        )
-        sampler = emcee.EnsembleSampler(
-            self.nwalkers,
-            ndim,
-            log_prob,
-            vectorize=True,
-            moves=[(emcee.moves.DEMove(), 0.8), (emcee.moves.DESnookerMove(), 0.2)],
-        )
-        sampler.run_mcmc(p0, self.steps, progress=True)
-
-        tau = sampler.get_autocorr_time(quiet=True)
-        burnin = int(2 * np.max(tau))
-        thin = int(0.5 * np.min(tau))
-        samples = sampler.get_chain(discard=burnin, thin=thin, flat=True)
-
-        low, mid, high = np.percentile(samples, [32, 50, 68], axis=0)
-        coef = mid * factors
-
-        if self.plot:
-            corner.corner(samples, truths=mid)
-            util.show_or_save("wavecal_init_corner")
-
-            wave = np.polyval(coef, x)
-            y = np.interp(wave, atlas.wave, atlas.flux)
-            y /= np.max(y)
-            plt.plot(wave, spectrum)
-            plt.plot(wave, y)
-            util.show_or_save("wavecal_init_spectrum")
-
-        return coef
-
-    def create_new_linelist_from_solution(
-        self,
-        spectrum,
-        wavelength,
-        atlas,
-        order,
-    ) -> LineList:
-        """
-        Create a new linelist based on an existing wavelength solution for a spectrum,
-        and a line atlas with known lines. The linelist is the one used by the rest of
-        PyReduce wavelength calibration.
-
-        Observed lines are matched with the lines in the atlas to
-        improve the wavelength solution.
-
-        Parameters
-        ----------
-        spectrum : array
-            Observed spectrum at each pixel
-        wavelength : array
-            Wavelength of spectrum at each pixel
-        atlas : LineAtlas
-            Atlas with wavelength of known lines
+            initial wavelength guess (begin, end) in Angstrom
         order : int
-            Order of the spectrum within the detector
-        resid_delta : float, optional
-            Maximum residual allowed between a peak and the closest line in the atlas,
-            to still match them, in m/s, by default 1000.
+            order index
 
         Returns
         -------
-        linelist : LineList
-            new linelist with lines from this order
+        LineList
+            matched lines for this order
         """
-        # The new linelist
-        linelist = LineList()
         spectrum = np.asarray(spectrum)
-        wavelength = np.asarray(wavelength)
+        npix = spectrum.shape[0]
+        x = np.arange(npix)
 
-        assert self.resid_delta > 0, "Residuals Delta must be positive"
-        assert spectrum.ndim == 1, "Spectrum must have only 1 dimension"
-        assert wavelength.ndim == 1, "Wavelength must have only 1 dimension"
-        assert spectrum.size == wavelength.size, (
-            "Spectrum and Wavelength must have the same size"
-        )
-
-        n_features = spectrum.shape[0]
-        x = np.arange(n_features)
-
-        # Normalize just in case
         spectrum = self.normalize(spectrum)
         cutoff = self.get_cutoff(spectrum)
 
-        # TODO: make this use another function, and pass the hight as a parameter
-        scopy = np.copy(spectrum)
-        if cutoff is not None:
-            scopy[scopy < cutoff] = 0
-        _, peaks = self._find_peaks(scopy)
+        # Detect local maxima and minima
+        maxima = np.zeros(npix, dtype=bool)
+        minima = np.zeros(npix, dtype=bool)
+        for j in range(1, npix - 1):
+            if spectrum[j] > spectrum[j - 1] and spectrum[j] > spectrum[j + 1]:
+                maxima[j] = True
+            if spectrum[j] < spectrum[j - 1] and spectrum[j] < spectrum[j + 1]:
+                minima[j] = True
+        peak_idx = np.where(maxima)[0]
+        min_idx = np.where(minima)[0]
 
-        peak_wave = np.interp(peaks, x, wavelength)
-        peak_height = np.interp(peaks, x, spectrum)
+        if len(peak_idx) == 0:
+            logger.warning("Order %d: no peaks found", order)
+            return LineList()
 
-        # Here we only look at the lines within range
-        atlas_linelist = atlas.linelist[
-            (atlas.linelist["wave"] > wavelength[0])
-            & (atlas.linelist["wave"] < wavelength[-1])
+        # Filter: reject peaks near edges
+        peak_idx = peak_idx[
+            (peak_idx >= self.edge_margin) & (peak_idx <= npix - 1 - self.edge_margin)
         ]
+        if len(peak_idx) == 0:
+            return LineList()
 
-        residuals = np.zeros_like(peak_wave)
-        for i, pw in enumerate(peak_wave):
-            resid = np.abs(pw - atlas_linelist["wave"])
-            j = np.argmin(resid)
-            residuals[i] = resid[j] / pw * speed_of_light
-            if residuals[i] < self.resid_delta:
+        # Filter: require at least 3 pixels to the nearest minimum on each side
+        good = np.ones(len(peak_idx), dtype=bool)
+        for i, pk in enumerate(peak_idx):
+            left_mins = min_idx[min_idx < pk]
+            right_mins = min_idx[min_idx > pk]
+            if len(left_mins) == 0 or (pk - left_mins[-1]) < 3:
+                good[i] = False
+            elif len(right_mins) == 0 or (right_mins[0] - pk) < 3:
+                good[i] = False
+        peak_idx = peak_idx[good]
+        if len(peak_idx) == 0:
+            return LineList()
+
+        # Filter by cutoff threshold
+        if cutoff is not None:
+            peak_idx = peak_idx[spectrum[peak_idx] >= cutoff]
+        if len(peak_idx) == 0:
+            return LineList()
+
+        # Gaussian fit each peak to get sub-pixel position, width, height
+        posm = np.zeros(len(peak_idx))
+        widths = np.zeros(len(peak_idx))
+        heights = np.zeros(len(peak_idx))
+        fit_ok = np.ones(len(peak_idx), dtype=bool)
+
+        for i, pk in enumerate(peak_idx):
+            left_mins = min_idx[min_idx < pk]
+            right_mins = min_idx[min_idx > pk]
+            left = left_mins[-1] if len(left_mins) > 0 else max(0, pk - 5)
+            right = right_mins[0] if len(right_mins) > 0 else min(npix - 1, pk + 5)
+            if right - left < 3:
+                fit_ok[i] = False
+                continue
+            seg_x = np.arange(left, right + 1, dtype=float)
+            seg_y = spectrum[left : right + 1]
+            try:
+                popt = util.gaussfit3(seg_x, seg_y)
+                amp, mu, sig2, offset = popt
+                sig = np.sqrt(np.abs(sig2))
+                fwhm = 2.355 * sig
+                if fwhm < self.width_min or fwhm > self.width_max:
+                    fit_ok[i] = False
+                    continue
+                posm[i] = mu
+                widths[i] = fwhm
+                heights[i] = amp
+            except (RuntimeError, ValueError):
+                fit_ok[i] = False
+
+        posm = posm[fit_ok]
+        widths = widths[fit_ok]
+        heights = heights[fit_ok]
+
+        if len(posm) == 0:
+            logger.warning("Order %d: no valid peaks after Gaussian fitting", order)
+            return LineList()
+
+        # Atlas lines within the expected range (with margin)
+        wmin = min(wave_range[0], wave_range[1])
+        wmax = max(wave_range[0], wave_range[1])
+        margin = 0.05 * (wmax - wmin)
+        atlas_waves = atlas.linelist["wave"]
+        atlas_mask = (atlas_waves > wmin - margin) & (atlas_waves < wmax + margin)
+        atlas_sub = atlas_waves[atlas_mask]
+
+        if len(atlas_sub) == 0:
+            logger.warning(
+                "Order %d: no atlas lines in range %.1f-%.1f", order, wmin, wmax
+            )
+            return LineList()
+
+        # Step 1: linear wavelength assignment
+        wlc = wave_range[0] + (wave_range[1] - wave_range[0]) * posm / npix
+
+        # Step 2: offset voting - match each atlas line to nearest peak,
+        # histogram the wavelength offsets to find the true shift
+        offsets = []
+        for aw in atlas_sub:
+            dw = np.abs(wlc - aw)
+            best = np.argmin(dw)
+            if dw[best] < self.match_tolerance:
+                offsets.append(aw - wlc[best])
+
+        if len(offsets) < self.degree + 1:
+            logger.warning("Order %d: only %d coarse matches", order, len(offsets))
+            return LineList()
+
+        offsets = np.array(offsets)
+        n_bins = max(10, len(offsets) // 2)
+        hist, edges = np.histogram(offsets, bins=n_bins)
+        best_bin = np.argmax(hist)
+        mode_offset = (edges[best_bin] + edges[best_bin + 1]) / 2
+        bin_width = edges[1] - edges[0]
+        near_mode = offsets[np.abs(offsets - mode_offset) < bin_width * 3]
+        if len(near_mode) >= 3:
+            wave_offset = np.median(near_mode)
+        else:
+            wave_offset = mode_offset
+
+        # Apply offset correction
+        wlc += wave_offset
+
+        # Step 3: iterative match-fit-reject using corrected wavelengths
+        # After voting, the corrected wlc is accurate to ~bin_width,
+        # so use a tight tolerance for individual matching (like IDL's 0.02A)
+        tight_tol = max(0.02, bin_width * 2)
+
+        best_peak = np.array([])
+        best_atlas = np.array([])
+        best_width = np.array([])
+        best_height = np.array([])
+        coef = None
+
+        for iteration in range(self.iterations):
+            if iteration > 0:
+                wlc = np.polyval(coef, posm)
+
+            tol = (
+                tight_tol
+                if iteration == 0
+                else (self.resid_delta / speed_of_light * np.median(np.abs(wlc)))
+            )
+
+            # For each atlas line, find the nearest detected peak
+            matched_peak_l = []
+            matched_atlas_l = []
+            matched_width_l = []
+            matched_height_l = []
+            used = set()
+            for aw in atlas_sub:
+                dw = np.abs(wlc - aw)
+                best = int(np.argmin(dw))
+                if dw[best] < tol and best not in used:
+                    matched_peak_l.append(posm[best])
+                    matched_atlas_l.append(aw)
+                    matched_width_l.append(widths[best])
+                    matched_height_l.append(heights[best])
+                    used.add(best)
+
+            if len(matched_peak_l) < self.degree + 1:
+                break
+
+            matched_peak = np.array(matched_peak_l)
+            matched_atlas = np.array(matched_atlas_l)
+            matched_width = np.array(matched_width_l)
+            matched_height = np.array(matched_height_l)
+
+            # Iterative sigma-clipping: fit, reject worst outliers, refit
+            for _clip in range(5):
+                coef = polyfit(matched_peak, matched_atlas, self.degree)
+                fitted_wave = np.polyval(coef, matched_peak)
+                resid_vel = (
+                    np.abs(fitted_wave - matched_atlas) / matched_atlas * speed_of_light
+                )
+                med = np.median(resid_vel)
+                mad = np.median(np.abs(resid_vel - med)) * 1.4826
+                clip_thresh = max(med + 3 * mad, self.resid_delta)
+                keep = resid_vel < clip_thresh
+                if np.sum(keep) < self.degree + 1 or np.sum(keep) == len(matched_peak):
+                    break
+                matched_peak = matched_peak[keep]
+                matched_atlas = matched_atlas[keep]
+                matched_width = matched_width[keep]
+                matched_height = matched_height[keep]
+            coef = polyfit(matched_peak, matched_atlas, self.degree)
+
+            # Save best result so far
+            best_peak = matched_peak
+            best_atlas = matched_atlas
+            best_width = matched_width
+            best_height = matched_height
+
+        matched_peak = best_peak
+        matched_atlas = best_atlas
+        matched_width = best_width
+        matched_height = best_height
+
+        if len(matched_peak) > 0:
+            linelist = LineList()
+            for j in range(len(matched_peak)):
                 linelist.add_line(
-                    atlas_linelist["wave"][j],
+                    matched_atlas[j],
                     order,
-                    peaks[i],
-                    3,
-                    peak_height[i],
+                    matched_peak[j],
+                    matched_width[j],
+                    matched_height[j],
                     True,
                 )
 
-        return linelist
+            if self.plot:
+                wave = np.polyval(coef, x)
+                atlas_flux = np.interp(wave, atlas.wave, atlas.flux)
+                atlas_flux /= np.max(atlas_flux)
+                plt.plot(wave, spectrum, label="observed")
+                plt.plot(wave, atlas_flux, alpha=0.5, label="atlas")
+                plt.plot(
+                    matched_atlas,
+                    matched_height,
+                    "rx",
+                    markersize=4,
+                    label=f"{len(matched_peak)} matches",
+                )
+                title = f"Order {order}"
+                if self.plot_title:
+                    title = f"{self.plot_title}\n{title}"
+                plt.title(title)
+                plt.xlabel("Wavelength [A]")
+                plt.legend(fontsize="small")
+                util.show_or_save(f"wavecal_init_order_{order}")
+
+            rms = np.std(
+                (np.polyval(coef, matched_peak) - matched_atlas)
+                / matched_atlas
+                * speed_of_light
+            )
+            logger.info(
+                "Order %d: matched %d lines, rms=%.1f m/s",
+                order,
+                len(matched_peak),
+                rms,
+            )
+            return linelist
+
+        logger.warning("Order %d: no lines matched", order)
+        return LineList()
 
     def execute(self, spectrum, wave_range) -> LineList:
         atlas = LineAtlas(
             self.atlas_name, self.medium, search_dirs=self.atlas_search_dirs
         )
         linelist = LineList()
-        orders = range(spectrum.shape[0])
-        x = np.arange(spectrum.shape[1])
-        for order in orders:
-            spec = spectrum[order]
-            wrange = wave_range[order]
-            coef = self.determine_wavelength_coefficients(spec, atlas, wrange)
-            wave = np.polyval(coef, x)
-            linelist_loc = self.create_new_linelist_from_solution(
-                spec, wave, atlas, order
+        for order in range(spectrum.shape[0]):
+            ll = self.identify_lines_for_order(
+                spectrum[order], atlas, wave_range[order], order
             )
-            linelist.append(linelist_loc)
+            linelist.append(ll)
         return linelist

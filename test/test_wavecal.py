@@ -1,8 +1,14 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
 from pyreduce.extract import extract
-from pyreduce.wavelength_calibration import LineList, WavelengthCalibration
+from pyreduce.wavelength_calibration import (
+    LineList,
+    WavelengthCalibration,
+    WavelengthCalibrationInitialize,
+)
 
 
 class TestLineList:
@@ -655,14 +661,16 @@ class TestWavecalFinalizeTraceUpdate:
         # Load traces and verify
         loaded_traces, _ = load_traces(str(trace_file))
 
-        # Both group A traces should have same 2D polynomial
+        # 2D polynomial is evaluated per-trace to 1D (np.polyfit convention)
+        # wave_A at idx 0: a_i = wave_A[i,0] → [5000, 0.1] → reversed [0.1, 5000]
+        # wave_A at idx 1: a_i = sum_j wave_A[i,j]*1^j → [6000, 0.1] → reversed [0.1, 6000]
         assert loaded_traces[0].wave is not None
-        assert np.array_equal(loaded_traces[0].wave, wave_A)
-        assert np.array_equal(loaded_traces[1].wave, wave_A)
+        np.testing.assert_allclose(loaded_traces[0].wave, [0.1, 5000])
+        np.testing.assert_allclose(loaded_traces[1].wave, [0.1, 6000])
 
-        # Both group B traces should have same 2D polynomial
-        assert np.array_equal(loaded_traces[2].wave, wave_B)
-        assert np.array_equal(loaded_traces[3].wave, wave_B)
+        # wave_B at idx 0/1 in group B
+        np.testing.assert_allclose(loaded_traces[2].wave, [0.1, 6000])
+        np.testing.assert_allclose(loaded_traces[3].wave, [0.1, 7000])
 
     @pytest.mark.unit
     def test_wavecal_finalize_per_fiber_mode(
@@ -855,6 +863,258 @@ class TestLineAtlas:
         # Air wavelengths should be slightly shorter
         assert a_air.linelist["wave"][0] < a_vac.linelist["wave"][0]
         assert a_air.wave[0] < a_vac.wave[0]
+
+
+class TestWavecalInitIdentify:
+    """Unit tests for WavelengthCalibrationInitialize.identify_lines_for_order."""
+
+    @staticmethod
+    def _make_spectrum(npix, peak_positions, sigma=2.5, amplitudes=None):
+        """Create synthetic spectrum with Gaussians at known pixel positions.
+
+        Includes a small noise floor so local minima exist between peaks
+        (as in real detector data with readnoise).
+        """
+        x = np.arange(npix, dtype=float)
+        spec = np.zeros(npix)
+        if amplitudes is None:
+            amplitudes = [1.0] * len(peak_positions)
+        for px, amp in zip(peak_positions, amplitudes, strict=False):
+            spec += amp * np.exp(-0.5 * ((x - px) / sigma) ** 2)
+        rng = np.random.default_rng(42)
+        spec += rng.uniform(1e-4, 1e-3, npix)
+        return spec
+
+    @staticmethod
+    def _make_atlas(wavelengths):
+        """Create minimal atlas with given wavelengths."""
+        linelist = np.zeros(len(wavelengths), dtype=[("wave", "f8")])
+        linelist["wave"] = np.sort(wavelengths)
+        return SimpleNamespace(linelist=linelist)
+
+    @staticmethod
+    def _make_init(**kwargs):
+        defaults = {
+            "degree": 2,
+            "plot": False,
+            "cutoff": 0,
+            "match_tolerance": 1.0,
+            "iterations": 3,
+            "edge_margin": 10,
+            "width_min": 1.0,
+            "width_max": 8.0,
+        }
+        defaults.update(kwargs)
+        return WavelengthCalibrationInitialize(**defaults)
+
+    @pytest.mark.unit
+    def test_synthetic_peaks_matched(self):
+        """Known Gaussian peaks with matching atlas lines are identified."""
+        npix = 1000
+        peak_pixels = np.array([100, 200, 300, 400, 500, 600, 700, 800, 900])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+
+        assert len(ll) >= 5
+        for i in range(len(ll)):
+            assert ll["wlc"][i] in true_waves
+
+    @pytest.mark.unit
+    def test_pixel_positions_accurate(self):
+        """Matched line pixel positions are close to the true peak centers."""
+        npix = 1000
+        peak_pixels = np.array([100, 250, 400, 550, 700, 850])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+
+        for i in range(len(ll)):
+            wl = ll["wlc"][i]
+            expected_px = (wl - 5000) / 0.05
+            assert abs(ll["posm"][i] - expected_px) < 1.0
+
+    @pytest.mark.unit
+    def test_order_stored_in_linelist(self):
+        """The order parameter is recorded in each output line."""
+        npix = 1000
+        peak_pixels = np.array([100, 300, 500, 700, 900])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=42)
+
+        assert len(ll) > 0
+        assert np.all(ll["order"] == 42)
+
+    @pytest.mark.unit
+    def test_zero_spectrum(self):
+        """All-zero spectrum returns empty LineList."""
+        spec = np.zeros(1000)
+        atlas = self._make_atlas([5010, 5020, 5030])
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_constant_spectrum(self):
+        """Flat spectrum (no peaks) returns empty LineList."""
+        spec = np.full(1000, 100.0)
+        atlas = self._make_atlas([5010, 5020, 5030])
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_edge_only_peaks_filtered(self):
+        """Peaks within edge_margin of the detector edges are rejected."""
+        npix = 1000
+        peak_pixels = [5, 995]
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(5000 + 0.05 * np.array(peak_pixels))
+        wci = self._make_init(edge_margin=50)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_narrow_peaks_filtered(self):
+        """Peaks with FWHM below width_min are rejected."""
+        npix = 1000
+        # sigma=0.3 -> FWHM ~0.7 pixels, below width_min=1.0
+        peak_pixels = [200, 500, 800]
+        spec = self._make_spectrum(npix, peak_pixels, sigma=0.3)
+        atlas = self._make_atlas(5000 + 0.05 * np.array(peak_pixels))
+        wci = self._make_init(width_min=1.0)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_wide_peaks_filtered(self):
+        """Peaks with FWHM above width_max are rejected."""
+        npix = 1000
+        # sigma=10 -> FWHM ~23.5 pixels, above width_max=8.0
+        peak_pixels = [200, 500, 800]
+        spec = self._make_spectrum(npix, peak_pixels, sigma=10.0)
+        atlas = self._make_atlas(5000 + 0.05 * np.array(peak_pixels))
+        wci = self._make_init(width_max=8.0)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_no_atlas_lines_in_range(self):
+        """Atlas lines entirely outside wavelength range returns empty LineList."""
+        npix = 1000
+        peak_pixels = [200, 500, 800]
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas([8000.0, 8100.0, 8200.0])
+        wci = self._make_init()
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_offset_voting_corrects_shift(self):
+        """A systematic shift in wave_range is corrected by offset voting."""
+        npix = 1000
+        peak_pixels = np.array([100, 200, 300, 400, 500, 600, 700, 800, 900])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init()
+
+        # Shift wave_range by +0.5 A
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.5, 5050.5), order=0)
+
+        assert len(ll) >= 5
+
+    @pytest.mark.unit
+    def test_too_few_peaks_for_degree(self):
+        """Fewer matchable peaks than degree+1 returns empty LineList."""
+        npix = 1000
+        # Only 2 peaks, but degree=2 needs at least 3
+        peak_pixels = np.array([300, 700])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init(degree=2)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 0
+
+    @pytest.mark.unit
+    def test_minimum_viable_matches(self):
+        """Exactly degree+1 matching peaks still produces a result."""
+        npix = 1000
+        peak_pixels = np.array([200, 500, 800])
+        true_waves = 5000 + 0.05 * peak_pixels
+        spec = self._make_spectrum(npix, peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init(degree=2)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+        assert len(ll) == 3
+
+    @pytest.mark.unit
+    def test_execute_multi_order(self, tmp_path):
+        """execute() combines lines from multiple orders."""
+        npix = 1000
+        norders = 3
+        peak_pixels = np.array([100, 300, 500, 700, 900])
+
+        spectrum = np.zeros((norders, npix))
+        wave_range = np.zeros((norders, 2))
+
+        atlas_dir = tmp_path / "atlas"
+        atlas_dir.mkdir()
+        with open(atlas_dir / "synlamp_list.txt", "w") as f:
+            for o in range(norders):
+                w0 = 5000 + o * 100
+                spectrum[o] = self._make_spectrum(npix, peak_pixels)
+                wave_range[o] = [w0, w0 + 0.05 * npix]
+                for px in peak_pixels:
+                    f.write(f"{w0 + 0.05 * px}\n")
+
+        wci = WavelengthCalibrationInitialize(
+            degree=2,
+            plot=False,
+            cutoff=0,
+            atlas_name="synlamp",
+            atlas_search_dirs=[str(atlas_dir)],
+        )
+        ll = wci.execute(spectrum, wave_range)
+
+        assert len(ll) >= 3 * norders
+        orders_found = set(ll["order"])
+        assert len(orders_found) == norders
+
+    @pytest.mark.unit
+    def test_cutoff_filters_faint_peaks(self):
+        """Peaks below the cutoff fraction of the maximum are rejected."""
+        npix = 1000
+        peak_pixels = [200, 500, 800]
+        # One bright peak (1.0), two faint (0.005 = below 1% cutoff)
+        spec = self._make_spectrum(npix, peak_pixels, amplitudes=[1.0, 0.005, 0.005])
+        true_waves = 5000 + 0.05 * np.array(peak_pixels)
+        atlas = self._make_atlas(true_waves)
+        wci = self._make_init(cutoff=0.01)
+
+        ll = wci.identify_lines_for_order(spec, atlas, (5000.0, 5050.0), order=0)
+
+        # Only the bright peak should survive
+        assert len(ll) <= 1
 
 
 # Tests that require instrument data follow below

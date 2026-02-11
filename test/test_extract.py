@@ -948,11 +948,11 @@ class TestTraceCurvatureExtraction:
         assert spectra[0].m == 42
         assert spectra[0].group == "science_A"
 
-    def test_trace_height_overrides_default(self):
-        """Verify Trace.height overrides default extraction_height."""
+    def test_settings_height_overrides_trace(self):
+        """Settings extraction_height takes precedence over trace.height."""
         nrow, ncol = 50, 100
         img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
-        img[15:35, :] += 100  # Wider signal for larger extraction
+        img[15:35, :] += 100
 
         traces = [
             Trace(
@@ -960,19 +960,41 @@ class TestTraceCurvatureExtraction:
                 group=0,
                 pos=np.array([0.0, 25.0]),
                 column_range=(0, ncol),
-                height=20.0,  # Override to 20 pixels
+                height=20.0,
             )
         ]
 
-        # Default is 10, but trace says 20
+        # Explicit setting (10) wins over trace.height (20)
         spectra = extract.extract(
             img,
             traces,
             extraction_height=10,
             osample=1,
         )
+        assert spectra[0].extraction_height == pytest.approx(10.0)
 
-        # The extraction_height used should be from trace (20)
+    def test_trace_height_used_when_settings_none(self):
+        """trace.height is used as fallback when extraction_height is None."""
+        nrow, ncol = 50, 100
+        img = np.random.normal(100, 10, (nrow, ncol)).astype(np.float64)
+        img[15:35, :] += 100
+
+        traces = [
+            Trace(
+                m=1,
+                group=0,
+                pos=np.array([0.0, 25.0]),
+                column_range=(0, ncol),
+                height=20.0,
+            )
+        ]
+
+        spectra = extract.extract(
+            img,
+            traces,
+            extraction_height=None,
+            osample=1,
+        )
         assert spectra[0].extraction_height == pytest.approx(20.0)
 
     def test_trace_wave_available_for_evaluation(self):

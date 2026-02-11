@@ -76,7 +76,7 @@
     "wavecal_master": {
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 1.0,
+        "extraction_height": null,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "maxiter": 20,
@@ -87,10 +87,12 @@
         "degree": 2,
         "atlas": "thar",
         "medium": "vac",
-        "wave_delta": 20,
-        "nwalkers": 100,
-        "steps": 50000,
-        "resid_delta": 1000,
+        "match_tolerance": 1.0,
+        "resid_delta": 2000,
+        "iterations": 3,
+        "edge_margin": 10,
+        "width_min": 1.0,
+        "width_max": 8.0,
         "cutoff": 0.01,
         "smoothing": 0,
         "plot": true,
@@ -116,7 +118,7 @@
     "freq_comb_master": {
         "extraction_method": "simple",
         "collapse_function": "median",
-        "extraction_height": 1.0,
+        "extraction_height": null,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "plot": true,
@@ -141,7 +143,7 @@
         "extraction_method": "simple",
         "collapse_function": "median",
         "curve_height": 0.5,
-        "extraction_height": 1,
+        "extraction_height": null,
         "curvature_cutoff": 3,
         "peak_threshold": 10,
         "peak_width": 1,
@@ -153,7 +155,7 @@
         "plot_title": "Slit Curvature"
     },
     "rectify": {
-        "extraction_height": 1.0,
+        "extraction_height": null,
         "input_files": "science",
         "plot": true,
         "plot_title": "Rectified Image"

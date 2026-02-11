@@ -1,6 +1,6 @@
 [project]
 name = "pyreduce-astro"
-version = "0.8a2"
+version = "0.8a3"
 requires-python = ">=3.13"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"
@@ -32,8 +32,6 @@ dependencies = [
     "scipy>=1.11.0",
     "astropy>=5.3.0",
     "colorlog>=6.8.0",
-    "corner>=2.2.0",
-    "emcee>=3.1.0",
     "joblib>=1.3.0",
     "jsonschema>=4.20.0",
     "pyyaml>=6.0.0",

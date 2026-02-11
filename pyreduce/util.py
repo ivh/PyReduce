@@ -1102,6 +1102,7 @@ def top(
         fmin = np.min(f) - 1
         fmax = np.max(f) + 1
         fff = (fff - fmin) / (fmax - fmin)
+        fff = np.clip(fff, 1e-10, None)
         ff = (f - fmin) / (fmax - fmin) / fff
         ff_old = ff
 

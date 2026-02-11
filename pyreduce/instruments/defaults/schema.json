@@ -316,25 +316,35 @@
                                 "air"
                             ]
                         },
-                        "wave_delta": {
-                            "description": "Wavelength uncertainty on the initial guess in Angstrom",
+                        "match_tolerance": {
+                            "description": "Wavelength match tolerance between detected peak and atlas line in Angstrom",
                             "type": "number",
-                            "minimum": 0
-                        },
-                        "nwalkers": {
-                            "description": "Number of MCMC walkers",
-                            "type": "number",
-                            "minimum": 1
-                        },
-                        "steps": {
-                            "description": "Number of MCMC steps per walker",
-                            "type": "number",
-                            "minimum": 1
+                            "exclusiveMinimum": 0
                         },
                         "resid_delta": {
-                            "description": "Residual Uncertainty allowed to match a peak to its known wavelength in m/s",
+                            "description": "Maximum velocity residual for outlier rejection in m/s",
                             "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "iterations": {
+                            "description": "Number of match-fit-reject iterations",
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "edge_margin": {
+                            "description": "Pixels from detector edge to reject peaks",
+                            "type": "integer",
                             "minimum": 0
+                        },
+                        "width_min": {
+                            "description": "Minimum peak FWHM in pixels",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "width_max": {
+                            "description": "Maximum peak FWHM in pixels",
+                            "type": "number",
+                            "exclusiveMinimum": 0
                         },
                         "smoothing": {
                             "description": "Gaussian smoothing parameter applied to the observed spectrum in pixel scale, set to 0 to disable smoothing",
@@ -465,8 +475,12 @@
                     "type": "object",
                     "properties": {
                         "extraction_height": {
-                            "description": "Number of rows to bin together when measuring curvature. Unlike other steps, this is always interpreted as literal pixels (no fractional conversion). Use 1 for row-by-row analysis.",
-                            "type": "integer",
+                            "description": "Number of rows to bin together when measuring curvature. Unlike other steps, this is always interpreted as literal pixels (no fractional conversion). If null, uses trace.height.",
+                            "type": [
+                                "integer",
+                                "number",
+                                "null"
+                            ],
                             "minimum": 1
                         },
                         "curve_degree": {
