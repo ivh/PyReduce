@@ -1765,17 +1765,11 @@ class WavelengthCalibrationFinalize(Step):
                     if idx_in_group < len(wave):
                         t.wave = wave[idx_in_group]
             else:
-<<<<<<< HEAD
-                for idx_in_group, (_i, t) in enumerate(group_traces):
-                    t.wave = wave
-                    t._wave_idx = idx_in_group
-=======
                 # Evaluate 2D poly P(x, order_idx) at each trace's 0-based
                 # index to get a 1D poly in x (np.polyfit convention).
                 for idx_in_group, (_i, t) in enumerate(group_traces):
                     poly_1d = np.polynomial.polynomial.polyval(idx_in_group, wave.T)
                     t.wave = poly_1d[::-1]
->>>>>>> refs/remotes/upstream/master
 
     def save(self, results: dict, trace: list):
         """Save linelists and updated traces to disk.
@@ -1996,13 +1990,6 @@ class LaserFrequencyCombFinalize(Step):
         )
         coef = module.execute(comb, wlen, linelist)
 
-<<<<<<< HEAD
-        # In step mode, coef is (poly_coef, step_coef); only store the polynomial
-        wave_coef = coef[0] if isinstance(coef, tuple) else coef
-        for i, t in enumerate(trace):
-            t.wave = wave_coef
-            t._wave_idx = i
-=======
         # Evaluate the full wavelength image (handles step corrections)
         new_wave = module.make_wave(coef)
 
@@ -2018,7 +2005,6 @@ class LaserFrequencyCombFinalize(Step):
             w_cr = new_wave[i, cr[0] : cr[1]]
             deg = min(poly_degree, len(x_cr) - 1)
             t.wave = np.polyfit(x_cr, w_cr, deg=deg)
->>>>>>> refs/remotes/upstream/master
 
         self.save(trace)
 
