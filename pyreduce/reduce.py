@@ -2481,11 +2481,23 @@ class ContinuumNormalization(Step):
             trace_list = valid
         wave = wavelengths_from_traces(trace_list)
 
-        # Trim to match spectra count (extraction may have skipped edge traces)
-        if len(wave) > nspec:
-            wave = wave[len(wave) - nspec :]
-        if len(blaze) > nspec:
-            blaze = blaze[len(blaze) - nspec :]
+        if wave is None:
+            raise ValueError(
+                "Continuum normalization requires wavelength data. "
+                "Run wavecal or freq_comb steps first."
+            )
+
+        # Align all arrays to the smallest count (norm_flat may skip edge traces)
+        nmin = min(nspec, len(blaze), len(wave) if wave is not None else nspec)
+        if nspec > nmin:
+            specs = [s[nspec - nmin :] for s in specs]
+            sigmas = [s[nspec - nmin :] for s in sigmas]
+            columns = [c[nspec - nmin :] for c in columns]
+            nspec = nmin
+        if wave is not None and len(wave) > nmin:
+            wave = wave[len(wave) - nmin :]
+        if len(blaze) > nmin:
+            blaze = blaze[len(blaze) - nmin :]
 
         logger.info("Continuum normalization")
         conts = [None for _ in specs]
