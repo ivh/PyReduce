@@ -1484,23 +1484,16 @@ class WavelengthCalibrationInitialize(Step):
         self._dependsOn += ["wavecal_master"]
         self._loadDependsOn += ["config", "wavecal_master"]
 
-        #:tuple(int, int): Polynomial degree of the wavelength calibration in order, column direction
         self.degree = config["degree"]
-        #:float: wavelength range around the initial guess to explore
-        self.wave_delta = config["wave_delta"]
-        #:int: number of walkers in the MCMC
-        self.nwalkers = config["nwalkers"]
-        #:int: number of steps in the MCMC
-        self.steps = config["steps"]
-        #:float: resiudal range to accept as match between peaks and atlas in m/s
         self.resid_delta = config["resid_delta"]
-        #:str: name of the line atlas
+        self.match_tolerance = config["match_tolerance"]
+        self.iterations = config["iterations"]
+        self.edge_margin = config["edge_margin"]
+        self.width_min = config["width_min"]
+        self.width_max = config["width_max"]
         self.atlas_name = config["atlas"]
-        #:str: medium the medium of the instrument, air or vac
         self.medium = config["medium"]
-        #:float: Gaussian smoothing parameter applied to the observed spectrum in pixel scale, set to 0 to disable smoothing
         self.smoothing = config["smoothing"]
-        #:float: Minimum height of spectral lines in the normalized spectrum, values of 1 and above are interpreted as percentiles of the spectrum, set to 0 to disable the cutoff
         self.cutoff = config["cutoff"]
 
     def savefile_for_group(self, group: str) -> str:
@@ -1515,7 +1508,7 @@ class WavelengthCalibrationInitialize(Step):
         return self.savefile_for_group("all")
 
     def run(self, wavecal_master: dict):
-        """Run MCMC line matching for each fiber group.
+        """Run iterative line matching for each fiber group.
 
         Parameters
         ----------
@@ -1542,10 +1535,12 @@ class WavelengthCalibrationInitialize(Step):
                 plot=self.plot,
                 plot_title=f"{self.plot_title} [{group}]" if self.plot_title else group,
                 degree=self.degree,
-                wave_delta=self.wave_delta,
-                nwalkers=self.nwalkers,
-                steps=self.steps,
                 resid_delta=self.resid_delta,
+                match_tolerance=self.match_tolerance,
+                iterations=self.iterations,
+                edge_margin=self.edge_margin,
+                width_min=self.width_min,
+                width_max=self.width_max,
                 atlas_name=self.atlas_name,
                 atlas_search_dirs=[self.instrument._inst_dir],
                 medium=self.medium,

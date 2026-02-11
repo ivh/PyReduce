@@ -22,8 +22,7 @@
         "degree": 5
     },
     "wavecal_init": {
-        "atlas": "lfc",
-        "wave_delta": 30
+        "atlas": "lfc"
     },
     "wavecal": {
         "dimensionality": "1D",

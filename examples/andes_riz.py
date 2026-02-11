@@ -154,7 +154,7 @@ if __name__ == "__main__":
     print("\n=== Running pipeline ===")
     # pipe.trace(trace_files)
     # pipe.curvature(wavecal_files)
-    # Full wavecal: master -> init (MCMC line matching) -> finalize
+    # Full wavecal: master -> init (peak matching) -> finalize
     pipe.wavelength_calibration([lfc_combined_path])
     pipe.extract([lfc_combined_path])
 
