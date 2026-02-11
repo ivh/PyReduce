@@ -2634,8 +2634,19 @@ class Finalize(Step):
             Pipeline configuration
         """
         heads, specs, sigmas, conts, columns = continuum
-        # Get wavelengths from traces (includes freq_comb improvements if run)
-        wave = wavelengths_from_traces(trace)
+
+        # Select same traces as science/continuum steps
+        selected = self._select_traces(trace, "science")
+        trace_list = [t for traces in selected.values() for t in traces]
+        if self.trace_range is not None:
+            trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
+        valid = [t for t in trace_list if not t.invalid]
+        nspec = specs[0].shape[0]
+        if len(valid) == nspec:
+            trace_list = valid
+        wave = wavelengths_from_traces(trace_list)
+        if wave is not None and len(wave) > nspec:
+            wave = wave[len(wave) - nspec :]
 
         fnames = []
         # Combine science with wavecal and continuum

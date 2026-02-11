@@ -1622,8 +1622,9 @@ class WavelengthCalibrationComb(WavelengthCalibration):
 
         if self.plot:
             if lines is not None:
+                valid = (lines["order"] >= 0) & (lines["order"] < self.ntrace)
                 self.plot_residuals(
-                    lines,
+                    lines[valid],
                     coef,
                     title="GasLamp Line Residuals in the Laser Frequency Comb Solution",
                 )
