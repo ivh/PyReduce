@@ -465,8 +465,12 @@
                     "type": "object",
                     "properties": {
                         "extraction_height": {
-                            "description": "Number of rows to bin together when measuring curvature. Unlike other steps, this is always interpreted as literal pixels (no fractional conversion). Use 1 for row-by-row analysis.",
-                            "type": "integer",
+                            "description": "Number of rows to bin together when measuring curvature. Unlike other steps, this is always interpreted as literal pixels (no fractional conversion). If null, uses trace.height.",
+                            "type": [
+                                "integer",
+                                "number",
+                                "null"
+                            ],
                             "minimum": 1
                         },
                         "curve_degree": {

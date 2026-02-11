@@ -833,9 +833,12 @@ def validate_traces_for_extraction(
         if trace.invalid:
             continue
 
-        height = trace.height if trace.height is not None else extraction_height
         if isinstance(extraction_height, np.ndarray):
-            height = extraction_height[i] if trace.height is None else trace.height
+            height = extraction_height[i]
+        elif extraction_height is not None:
+            height = extraction_height
+        else:
+            height = trace.height if trace.height is not None else 0.5
         half = height / 2
 
         # Check if extraction aperture stays within image
@@ -1782,8 +1785,8 @@ def extract(
     traces : list[Trace]
         Trace objects with position, column_range, and optional slit curvature.
     extraction_height : float, optional
-        Default extraction height. Values below 3 are fractions of trace spacing,
-        values above are pixels. Overridden by trace.height if set. (default: 0.5)
+        Extraction height. Values below 2 are fractions of trace spacing,
+        values above are pixels. If None, falls back to trace.height. (default: 0.5)
     extraction_type : {"optimal", "simple"}, optional
         Extraction algorithm. (default: "optimal")
     **kwargs
@@ -1816,10 +1819,13 @@ def extract(
         [list(t.column_range) for t in valid_traces], dtype=np.int32
     )
 
-    # Build per-trace extraction heights (trace.height overrides default)
-    heights = np.array(
-        [t.height if t.height is not None else extraction_height for t in valid_traces]
-    )
+    # Settings value takes precedence; fall back to trace.height when None
+    if extraction_height is not None:
+        heights = np.full(ntrace, extraction_height)
+    else:
+        heights = np.array(
+            [t.height if t.height is not None else 0.5 for t in valid_traces]
+        )
 
     # Build curvature arrays from Trace.slit
     curvature = None
@@ -1924,7 +1930,7 @@ def extract_normalize(
     traces : list[Trace]
         Trace objects with position, column_range, height, slit curvature.
     extraction_height : float, optional
-        Default extraction height. Overridden by trace.height if set.
+        Extraction height. If None, falls back to trace.height.
     **kwargs
         Additional parameters for extraction.
 
@@ -1950,9 +1956,11 @@ def extract_normalize(
     # Convert Trace objects to arrays
     traces_arr = np.array([t.pos for t in traces])
     column_range = np.array([list(t.column_range) for t in traces], dtype=np.int32)
-    heights = np.array(
-        [t.height if t.height is not None else extraction_height for t in traces]
-    )
+    # Settings value takes precedence; fall back to trace.height when None
+    if extraction_height is not None:
+        heights = np.full(ntrace, extraction_height)
+    else:
+        heights = np.array([t.height if t.height is not None else 0.5 for t in traces])
 
     # Build curvature arrays
     curvature = None
