@@ -25,7 +25,9 @@
     },
     "wavecal_init": {
         "atlas": "thar",
-        "medium": "vac"
+        "medium": "vac",
+        "cutoff": 0.005,
+        "match_tolerance": 1.5
     },
     "wavecal": {
         "threshold": 100,
