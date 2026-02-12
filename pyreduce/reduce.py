@@ -2160,7 +2160,11 @@ class RectifyImage(Step):
         self.input_files = config["input_files"]
 
     def filename(self, name):
-        return util.swap_extension(name, ".rectify.fits", path=self.output_dir)
+        if self.channel:
+            ext = f".{self.channel.lower()}.rectify.fits"
+        else:
+            ext = ".rectify.fits"
+        return util.swap_extension(name, ext, path=self.output_dir)
 
     def run(self, files, trace: list[TraceData], mask=None):
         # Get wavelengths from traces (includes freq_comb improvements if run)
@@ -2233,7 +2237,11 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         name : str
             science file name
         """
-        return util.swap_extension(name, ".science.fits", path=self.output_dir)
+        if self.channel:
+            ext = f".{self.channel.lower()}.science.fits"
+        else:
+            ext = ".science.fits"
+        return util.swap_extension(name, ext, path=self.output_dir)
 
     def run(
         self,
