@@ -5,9 +5,10 @@
         "degree": 4,
         "filter_y": 80,
         "min_cluster": 2000,
-        "min_width": 0.5,
+        "min_width": 0.7,
         "noise": 8,
-        "manual": false
+        "manual": false,
+        "border_width": [10, 10, 0, 0]
     },
     "scatter": {
         "extraction_height": 20
@@ -29,10 +30,7 @@
     "wavecal": {
         "threshold": 100,
         "dimensionality": "2D",
-        "degree": [
-            6,
-            6
-        ],
+        "degree": [3, 6],
         "manual": false
     },
     "curvature": {
