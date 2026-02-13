@@ -457,7 +457,6 @@ class WavelengthCalibration:
         Create a reference image based on a line list
         Each line will be approximated by a Gaussian
         Space inbetween lines is 0
-        The number of orders is from 0 to the maximum order
 
         Parameters
         ----------
@@ -469,17 +468,19 @@ class WavelengthCalibration:
         img : array of shape (ntrace, ncol)
             New reference image
         """
-        min_order = int(np.min(lines["order"]))
-        max_order = int(np.max(lines["order"]))
-        img = np.zeros((max_order - min_order + 1, self.ncol))
+        # Use self.ntrace rows so the image matches the observation shape.
+        # This prevents the cross-correlation alignment from computing a
+        # spurious order offset when lines don't span all orders.
+        img = np.zeros((self.ntrace, self.ncol))
         for line in lines:
-            if line["order"] < 0:
+            order = int(line["order"])
+            if order < 0 or order >= self.ntrace:
                 continue
             if line["xlast"] < 0 or line["xfirst"] > self.ncol:
                 continue
             first = int(max(line["xfirst"], 0))
             last = int(min(line["xlast"], self.ncol))
-            img[int(line["order"]) - min_order, first:last] = line[
+            img[order, first:last] = line[
                 "height"
             ] * signal.windows.gaussian(last - first, line["width"])
         return img
