@@ -37,8 +37,120 @@ from .trace_model import Trace as TraceData
 logger = logging.getLogger(__name__)
 
 
+def _find_beam_pairs_dp(y_positions, fibers_per_order):
+    """Find optimal pairing of traces into beam pairs using gap analysis.
+
+    For dual-beam instruments (fibers_per_order=2), beam pairs have smaller
+    gaps than inter-order gaps. This function uses dynamic programming to
+    find the pairing that maximizes the number of paired traces while only
+    allowing pairs whose gap is below an automatically computed threshold.
+
+    Parameters
+    ----------
+    y_positions : array
+        Sorted y-positions of traces at detector center.
+    fibers_per_order : int
+        Number of fibers (beams) per order (typically 2).
+
+    Returns
+    -------
+    list of tuples
+        Each tuple contains `fibers_per_order` trace indices forming one order.
+    """
+    n = len(y_positions)
+    if n < fibers_per_order:
+        return []
+
+    # Only implemented for fibers_per_order=2
+    if fibers_per_order != 2:
+        # Fallback to simple sequential grouping
+        groups = []
+        for i in range(0, n - n % fibers_per_order, fibers_per_order):
+            groups.append(tuple(range(i, i + fibers_per_order)))
+        return groups
+
+    gaps = np.diff(y_positions)
+
+    # Find threshold separating beam-pair gaps from inter-order gaps.
+    # Use Otsu's method: find the threshold that minimizes the weighted
+    # intra-class variance of the two groups (beam-pair vs inter-order).
+    sorted_gaps = np.sort(gaps)
+    best_threshold = np.median(sorted_gaps)
+    best_variance = np.inf
+
+    for i in range(1, len(sorted_gaps)):
+        if sorted_gaps[i] == sorted_gaps[i - 1]:
+            continue
+        candidate = (sorted_gaps[i - 1] + sorted_gaps[i]) / 2
+        lo_group = sorted_gaps[:i]
+        hi_group = sorted_gaps[i:]
+        w0 = len(lo_group) / len(sorted_gaps)
+        w1 = len(hi_group) / len(sorted_gaps)
+        weighted_var = w0 * np.var(lo_group) + w1 * np.var(hi_group)
+        if weighted_var < best_variance:
+            best_variance = weighted_var
+            best_threshold = candidate
+
+    threshold = best_threshold
+
+    n_beam = int(np.sum(gaps <= threshold))
+    n_inter = int(np.sum(gaps > threshold))
+    logger.info(
+        "Beam-pair gap threshold: %.1f px (%d beam gaps, %d inter-order gaps)",
+        threshold,
+        n_beam,
+        n_inter,
+    )
+
+    # DP: find maximum number of paired traces using only small-gap pairs.
+    # dp[i] = (num_paired, total_gap) for traces 0..i-1
+    # At each position, either skip a trace or pair it with the previous one.
+    dp_count = np.zeros(n + 1, dtype=int)
+    dp_gap = np.zeros(n + 1)
+    choice = np.zeros(n + 1, dtype=int)  # 0=skip, 1=pair
+
+    for i in range(2, n + 1):
+        # Option 1: skip trace i-1
+        dp_count[i] = dp_count[i - 1]
+        dp_gap[i] = dp_gap[i - 1]
+        choice[i] = 0
+
+        # Option 2: pair traces i-2 and i-1
+        if gaps[i - 2] <= threshold:
+            new_count = dp_count[i - 2] + 2
+            new_gap = dp_gap[i - 2] + gaps[i - 2]
+            if new_count > dp_count[i] or (
+                new_count == dp_count[i] and new_gap < dp_gap[i]
+            ):
+                dp_count[i] = new_count
+                dp_gap[i] = new_gap
+                choice[i] = 1
+
+    # Backtrack to find pairs
+    pairs = []
+    i = n
+    while i >= 2:
+        if choice[i] == 1:
+            pairs.append((i - 2, i - 1))
+            i -= 2
+        else:
+            i -= 1
+    pairs.reverse()
+
+    logger.info(
+        "DP pairing: %d pairs from %d traces (%d unpaired)",
+        len(pairs),
+        n,
+        n - 2 * len(pairs),
+    )
+    return pairs
+
+
 def _assign_order_and_fiber_inplace(
-    traces: list, order_centers: dict[int, float] | None, ncol: int
+    traces: list,
+    order_centers: dict[int, float] | None,
+    ncol: int,
+    fibers_per_order: int | None = None,
 ) -> None:
     """Assign m (order number) and fiber_idx to Trace objects.
 
@@ -47,9 +159,13 @@ def _assign_order_and_fiber_inplace(
     traces : list[Trace]
         Trace objects (modified in place)
     order_centers : dict[int, float] | None
-        Order number -> y-position mapping. If None, m stays None.
+        Order number -> y-position mapping. If None, m stays None
+        (unless fibers_per_order is set for auto-pairing).
     ncol : int
         Number of columns in detector
+    fibers_per_order : int or None
+        If set and order_centers is None, group every N consecutive traces
+        (sorted by y-position) into the same order with sequential fiber_idx.
     """
     if not traces:
         return
@@ -57,8 +173,8 @@ def _assign_order_and_fiber_inplace(
     x_center = ncol // 2
     y_positions = [t.y_at_x(x_center) for t in traces]
 
-    # Assign m values from order_centers if provided
     if order_centers is not None:
+        # Match traces to known order centers
         order_nums = np.array(list(order_centers.keys()))
         y_centers = np.array([order_centers[m] for m in order_nums])
 
@@ -67,18 +183,57 @@ def _assign_order_and_fiber_inplace(
             closest_idx = np.argmin(distances)
             traces[i].m = int(order_nums[closest_idx])
 
-    # Group by m to assign fiber_idx within each order
-    from collections import defaultdict
+        # Group by m to assign fiber_idx within each order
+        from collections import defaultdict
 
-    traces_by_m = defaultdict(list)
-    for i, t in enumerate(traces):
-        traces_by_m[t.m].append((i, y_positions[i]))
+        traces_by_m = defaultdict(list)
+        for i, t in enumerate(traces):
+            traces_by_m[t.m].append((i, y_positions[i]))
 
-    # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
-    for _m, trace_list in traces_by_m.items():
-        trace_list.sort(key=lambda x: x[1])
-        for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
-            traces[trace_idx].fiber_idx = fiber_idx
+        # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
+        for _m, trace_list in traces_by_m.items():
+            trace_list.sort(key=lambda x: x[1])
+            for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
+                traces[trace_idx].fiber_idx = fiber_idx
+
+    elif fibers_per_order is not None and fibers_per_order > 1:
+        # Auto-pair traces using gap analysis (beam-pair gaps are smaller
+        # than inter-order gaps). Uses DP to find optimal pairing.
+        traces.sort(key=lambda t: t.y_at_x(x_center))
+        y_pos = np.array([t.y_at_x(x_center) for t in traces])
+        pair_indices = _find_beam_pairs_dp(y_pos, fibers_per_order)
+
+        # Assign m and fiber_idx from DP result
+        order_num = 0
+        paired_set = set()
+        for group in pair_indices:
+            for fiber_idx, trace_idx in enumerate(group, start=1):
+                traces[trace_idx].m = order_num
+                traces[trace_idx].fiber_idx = fiber_idx
+                paired_set.add(trace_idx)
+            order_num += 1
+
+        # Drop unpaired traces
+        n_dropped = len(traces) - len(paired_set)
+        if n_dropped > 0:
+            logger.warning(
+                "%d traces could not be paired and will be dropped", n_dropped
+            )
+        traces[:] = [t for i, t in enumerate(traces) if i in paired_set]
+
+        logger.info(
+            "Auto-paired %d traces into %d orders (fibers_per_order=%d)",
+            len(traces),
+            order_num,
+            fibers_per_order,
+        )
+    else:
+        # No order_centers and no fibers_per_order: assign sequential m and
+        # fiber_idx=1 to all traces (one fiber per order).
+        traces.sort(key=lambda t: t.y_at_x(x_center))
+        for i, t in enumerate(traces):
+            t.m = i
+            t.fiber_idx = 1
 
     # Sort traces by (m descending, fiber_idx)
     def sort_key(t):
@@ -592,6 +747,7 @@ def trace(
     sigma=0,
     debug_dir=None,
     order_centers: dict[int, float] | None = None,
+    fibers_per_order: int | None = None,
 ):
     """Identify and trace orders, returning Trace objects.
 
@@ -631,6 +787,11 @@ def trace(
         Mapping of order number (m) -> y-position at detector center. If provided,
         traces are assigned m values by matching to these centers. Otherwise,
         m remains None (to be assigned later from wavecal obase).
+    fibers_per_order : int, optional
+        Number of fiber traces per spectral order. When set and order_centers is None,
+        consecutive traces (sorted by y) are grouped into orders of this size.
+        Used for instruments like HARPSpol where a Wollaston prism splits each
+        order into multiple beams.
 
     Returns
     -------
@@ -1013,7 +1174,9 @@ def trace(
     _compute_heights_inplace(trace_objects, im.shape[1])
 
     # Assign order numbers and fiber indices
-    _assign_order_and_fiber_inplace(trace_objects, order_centers, im.shape[1])
+    _assign_order_and_fiber_inplace(
+        trace_objects, order_centers, im.shape[1], fibers_per_order=fibers_per_order
+    )
 
     if plot:  # pragma: no cover
         plot_traces(im, trace_objects, title=plot_title)

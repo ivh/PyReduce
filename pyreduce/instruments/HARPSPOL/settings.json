@@ -1,0 +1,55 @@
+{
+    "__instrument__": "HARPSPOL",
+    "__inherits__": "defaults/settings.json",
+    "trace": {
+        "degree": 4,
+        "filter_y": 80,
+        "min_cluster": 2000,
+        "min_width": 0.7,
+        "noise": 8,
+        "manual": false,
+        "border_width": [10, 10, 0, 0]
+    },
+    "scatter": {
+        "extraction_height": 20
+    },
+    "norm_flat": {
+        "smooth_slitfunction": 2,
+        "extraction_height": 20,
+        "oversampling": 12,
+        "swath_width": 200,
+        "threshold": 1000
+    },
+    "wavecal_master": {
+        "extraction_height": 20
+    },
+    "wavecal_init": {
+        "atlas": "thar",
+        "medium": "vac",
+        "cutoff": 0.005,
+        "match_tolerance": 1.5
+    },
+    "wavecal": {
+        "threshold": 100,
+        "dimensionality": "2D",
+        "degree": [3, 6],
+        "manual": false
+    },
+    "curvature": {
+        "curve_height": 20,
+        "extraction_height": 10,
+        "peak_threshold": 0,
+        "peak_width": 3,
+        "window_width": 5,
+        "dimensionality": "1D",
+        "curve_degree": 1,
+        "degree": 3
+    },
+    "science": {
+        "oversampling": 10,
+        "extraction_height": 20,
+        "swath_width": 300,
+        "smooth_slitfunction": 1,
+        "smooth_spectrum": 0
+    }
+}

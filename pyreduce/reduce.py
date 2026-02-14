@@ -1049,6 +1049,12 @@ class Trace(CalibrationStep):
         """
         trace_img, ohead = self.calibrate(files, mask, bias, None)
 
+        # Get fibers_per_order from instrument config for auto-pairing
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        fpo = (
+            getattr(fibers_config, "fibers_per_order", None) if fibers_config else None
+        )
+
         traces = mark_orders(
             trace_img,
             min_cluster=self.min_cluster,
@@ -1071,6 +1077,7 @@ class Trace(CalibrationStep):
             plot=self.plot,
             plot_title=self.plot_title,
             order_centers=order_centers,
+            fibers_per_order=fpo,
         )
 
         return traces

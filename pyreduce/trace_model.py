@@ -113,6 +113,7 @@ class Trace:
     slit: np.ndarray | None = None
     slitdelta: np.ndarray | None = None
     wave: np.ndarray | None = None
+    _wave_idx: int | None = None  # trace index for 2D polynomial evaluation
     invalid: str | None = None  # reason if trace should be skipped
 
     def slit_at_x(self, x: float | np.ndarray) -> np.ndarray | None:
@@ -153,15 +154,16 @@ class Trace:
         if self.wave is None:
             return None
         if self.wave.ndim == 2:
-            # 2D polynomial: wave[i,j] is coeff for x^i * m^j
-            if self.m is None:
+            # 2D polynomial: wave[i,j] is coeff for x^i * idx^j
+            # The polynomial is fitted with trace indices (0, 1, 2, ...),
+            # so we must use _wave_idx (not physical order number m).
+            idx = self._wave_idx
+            if idx is None:
                 logger.warning(
-                    "Cannot evaluate 2D wavelength polynomial: trace.m is None. "
-                    "Set order numbers via order_centers.yaml or wavecal obase."
+                    "Cannot evaluate 2D wavelength polynomial: trace._wave_idx is None."
                 )
                 return None
-            # polyval2d requires x and m arrays to have same shape
-            m_arr = np.full_like(x, self.m, dtype=float)
+            m_arr = np.full_like(x, idx, dtype=float)
             return np.polynomial.polynomial.polyval2d(x, m_arr, self.wave)
         else:
             # 1D polynomial: standard polyval
@@ -557,6 +559,18 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
                     wave=wave,
                 )
             )
+
+        # Reconstruct _wave_idx for 2D wave polynomials.
+        # The 2D polynomial was fitted with trace index within group as the
+        # order coordinate, so we assign sequential indices per group.
+        if wave_is_2d:
+            group_counters: dict = {}
+            for t in traces:
+                if t.wave is not None and t.wave.ndim == 2:
+                    g = t.group
+                    idx = group_counters.get(g, 0)
+                    t._wave_idx = idx
+                    group_counters[g] = idx + 1
 
         logger.info("Loaded %d traces from: %s", len(traces), path)
         _validate_traces(traces, f" loaded from {path}")

@@ -729,17 +729,18 @@ class TestTraceReturnsTraceObjects:
         assert m_values == {90, 91}
 
     @pytest.mark.unit
-    def test_trace_without_order_centers_m_is_none(self, simple_image):
-        """Test that without order_centers, m is None."""
+    def test_trace_without_order_centers_assigns_sequential_m(self, simple_image):
+        """Without order_centers, traces get sequential m values."""
         result = trace.trace(
             simple_image,
             manual=False,
             order_centers=None,
         )
 
-        # All m values should be None (to be assigned later from wavecal)
+        m_values = sorted(t.m for t in result)
+        assert m_values == list(range(len(result)))
         for t in result:
-            assert t.m is None
+            assert t.fiber_idx == 1
 
 
 class TestGroupFibers:
