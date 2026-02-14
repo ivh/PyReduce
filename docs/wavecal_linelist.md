@@ -156,15 +156,76 @@ The dense peak coverage provides a much better solution than gas lamps alone.
 
 - Redman S.L. et al., *A High-Resolution Atlas of Uranium-Neon in the H Band*
 
-## Step Dependencies
+## Data Flow and File Updates
 
-The wavelength calibration steps have dependencies:
+Understanding which files are read and written by each step is important,
+especially when re-running steps iteratively.
+
+### Pipeline flow
+
+```
+trace step
+  └─ creates traces.fits (order positions, no wavelengths yet)
+
+wavecal_master step
+  └─ reads traces.fits
+  └─ extracts calibration lamp spectrum per fiber group
+  └─ writes wavecal_master.{group}.fits
+
+wavecal_init step
+  └─ reads wavecal_master output
+  └─ identifies lines by matching peaks to atlas
+  └─ writes linelist.{group}.npz
+
+wavecal step
+  └─ reads linelist.{group}.npz (from wavecal_init or previous wavecal run)
+  └─ reads wavecal_master output
+  └─ reads traces.fits
+  └─ aligns, refines positions, fits 2D polynomial
+  └─ overwrites linelist.{group}.npz with refined linelist
+  └─ updates traces.fits with wavelength polynomials (Trace.wave, Trace.m)
+
+science step
+  └─ reads traces.fits (including wavelength polynomials)
+  └─ extracts spectra; wavelength scale comes from Trace.wlen()
+```
+
+### Linelist iterative refinement
+
+The `wavecal` step both reads and overwrites `linelist.{group}.npz`. This is
+intentional: re-running `wavecal` uses the previously refined linelist as its
+starting point, aligns it to the current observation, re-fits line positions,
+rejects outliers, and auto-identifies new lines. Each run improves the linelist.
+
+On the first run, the linelist comes from `wavecal_init` (or from the
+instrument's bundled `wavecal_*.npz` file). On subsequent runs, `wavecal_init`
+is skipped because the linelist file already exists, and `wavecal` refines it
+further.
+
+Order numbers in the linelist (`lines["order"]`) are 0-based trace indices.
+They are normalized back to 0-based when saving to prevent alignment offsets
+from accumulating across runs.
+
+### traces.fits lifecycle
+
+`traces.fits` is created by the `trace` step with order geometry (polynomial
+positions, column ranges, slit curvature) but no wavelength information. The
+`wavecal` step then updates the same file, adding:
+
+- `Trace.wave` — wavelength polynomial coefficients (1D or 2D)
+- `Trace.m` — physical spectral order number
+
+Later steps (`science`, `continuum`, `finalize`) read `traces.fits` and use
+`Trace.wlen(x)` to evaluate the wavelength polynomial at each pixel. This is
+how the extracted science spectra get their wavelength scale.
+
+## Step Dependencies
 
 ```
 wavecal_master  ->  wavecal_init  ->  wavecal
        |                |               |
-   Extract         Initial line     Refine
-   calibration     identification   solution
+   Extract         Initial line     Refine solution,
+   calibration     identification   update traces.fits
    spectrum
 ```
 
