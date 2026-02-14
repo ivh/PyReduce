@@ -90,6 +90,7 @@ def main(
     skip_existing=False,
     plot=0,
     plot_dir=None,
+    use_groups=None,
 ):
     r"""
     Main entry point for REDUCE scripts.
@@ -160,6 +161,13 @@ def main(
     if isinstance(instrument, str):
         instrument = instruments.instrument_info.load_instrument(instrument)
     info = instrument.info
+
+    if use_groups is not None:
+        fibers = getattr(instrument.config, "fibers", None)
+        if fibers is not None:
+            fibers.use = {"default": use_groups}
+        else:
+            logger.warning("--use ignored: instrument has no fiber config")
 
     # load default settings from settings_pyreduce.json
     # $REDUCE_DATA overrides config for base_dir (but "" means use relative paths)
@@ -1774,6 +1782,12 @@ class WavelengthCalibrationFinalize(Step):
         """
         for group, (_wave, linelist) in results.items():
             savefile = self.savefile_for_group(group)
+            # Re-normalize order numbers to 0-based so the linelist can be
+            # reloaded as a starting point without accumulating alignment offsets.
+            if len(linelist) > 0:
+                min_order = int(np.min(linelist["order"]))
+                if min_order != 0:
+                    linelist["order"] -= min_order
             linelist.save(savefile)
             logger.info("Updated linelist with refined positions: %s", savefile)
 

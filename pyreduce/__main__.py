@@ -57,7 +57,7 @@ def cli():
     "--input-dir", "-i", default=None, help="Input directory relative to base"
 )
 @click.option(
-    "--output-dir", "-o", default="reduced", help="Output directory relative to base"
+    "--output-dir", "-o", default=None, help="Output directory relative to base"
 )
 @click.option("--plot", "-p", default=0, help="Plot level: 0=none, 1=basic, 2=detailed")
 @click.option(
@@ -82,6 +82,11 @@ def cli():
     type=click.Path(exists=True),
     help="JSON file with settings overrides",
 )
+@click.option(
+    "--use",
+    default=None,
+    help="Fiber group(s) to reduce (e.g., 'upper' or 'upper,lower')",
+)
 def run(
     instrument,
     target,
@@ -96,6 +101,7 @@ def run(
     plot_show,
     trace_range,
     settings,
+    use,
 ):
     """Run the reduction pipeline.
 
@@ -121,6 +127,9 @@ def run(
         parts = trace_range.split(",")
         trace_range = (int(parts[0]), int(parts[1]))
 
+    # Parse --use
+    use_groups = [g.strip() for g in use.split(",")] if use else None
+
     # Load configuration
     config = get_configuration_for_instrument(instrument)
     if settings:
@@ -141,6 +150,7 @@ def run(
             trace_range=trace_range,
             plot=plot,
             plot_dir=plot_dir,
+            use_groups=use_groups,
         )
     except FileNotFoundError as e:
         raise click.ClickException(str(e)) from None
@@ -315,7 +325,7 @@ def make_step_command(step_name):
     @click.option("--channel", "-c", default=None, help="Instrument channel")
     @click.option("--base-dir", "-b", default=None, help="Base directory")
     @click.option("--input-dir", "-i", default="raw", help="Input directory")
-    @click.option("--output-dir", "-o", default="reduced", help="Output directory")
+    @click.option("--output-dir", "-o", default=None, help="Output directory")
     @click.option("--plot", "-p", default=0, help="Plot level")
     @click.option(
         "--file",
@@ -329,6 +339,11 @@ def make_step_command(step_name):
         type=click.Path(exists=True),
         help="JSON file with settings overrides",
     )
+    @click.option(
+        "--use",
+        default=None,
+        help="Fiber group(s) to reduce (e.g., 'upper' or 'upper,lower')",
+    )
     def cmd(
         instrument,
         target,
@@ -340,6 +355,7 @@ def make_step_command(step_name):
         plot,
         file,
         settings,
+        use,
     ):
         from .configuration import (
             get_configuration_for_instrument,
@@ -358,9 +374,14 @@ def make_step_command(step_name):
 
             inst = load_instrument(instrument)
             channel = channel or (inst.channels[0] if inst.channels else "")
-            output_dir_full = output_dir
+            output_dir_full = (output_dir or "reduced").format(
+                instrument=inst.name.upper(),
+                target=target or "",
+                night=night or "",
+                channel=channel,
+            )
             if base_dir:
-                output_dir_full = os.path.join(base_dir, output_dir)
+                output_dir_full = os.path.join(base_dir, output_dir_full)
             os.makedirs(output_dir_full, exist_ok=True)
 
             # Load configuration for this step
@@ -479,6 +500,7 @@ def make_step_command(step_name):
 
             step.run(**run_kwargs)
         else:
+            use_groups = [g.strip() for g in use.split(",")] if use else None
             config = get_configuration_for_instrument(instrument)
             if settings:
                 config = load_settings_override(config, settings)
@@ -493,6 +515,7 @@ def make_step_command(step_name):
                 output_dir=output_dir,
                 configuration=config,
                 plot=plot,
+                use_groups=use_groups,
             )
 
     cmd.__doc__ = f"Run the '{step_name}' step."
