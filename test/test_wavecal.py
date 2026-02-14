@@ -464,13 +464,13 @@ class TestWavecalPerGroupSaveLoad:
     def test_savefile_for_group_named(self, wavecal_master_step, tmp_path):
         """Named groups get group in filename."""
         path = wavecal_master_step.savefile_for_group("A")
-        assert path.endswith(".wavecal_master.A.fits")
+        assert path.endswith("_A.wavecal_master.fits")
 
     @pytest.mark.unit
     def test_savefile_for_group_fiber(self, wavecal_master_step, tmp_path):
         """Fiber groups get fiber_N in filename."""
         path = wavecal_master_step.savefile_for_group("fiber_0")
-        assert path.endswith(".wavecal_master.fiber_0.fits")
+        assert path.endswith("_fiber_0.wavecal_master.fits")
 
 
 class TestWavecalFinalizeTraceUpdate:

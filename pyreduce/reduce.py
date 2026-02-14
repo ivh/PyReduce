@@ -1368,7 +1368,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         """Get savefile path for a specific group."""
         if group == "all":
             return join(self.output_dir, self.prefix + ".wavecal_master.fits")
-        return join(self.output_dir, self.prefix + f".wavecal_master.{group}.fits")
+        return join(self.output_dir, self.prefix + f"_{group}.wavecal_master.fits")
 
     @property
     def savefile(self):
@@ -1459,22 +1459,25 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         import glob
 
         # Find all wavecal_master files for this prefix
-        pattern = join(self.output_dir, self.prefix + ".wavecal_master*.fits")
+        # Naming: {prefix}.wavecal_master.fits (no group)
+        #         {prefix}_{group}.wavecal_master.fits (with group)
+        pattern = join(self.output_dir, self.prefix + "*.wavecal_master.fits")
         files = glob.glob(pattern)
 
         if not files:
             raise FileNotFoundError(f"No wavecal_master files found matching {pattern}")
 
         results = {}
+        prefix_base = self.prefix
         for fpath in files:
-            # Extract group from filename
             basename = os.path.basename(fpath)
-            if ".wavecal_master." in basename and basename.endswith(".fits"):
-                # Format: prefix.wavecal_master.{group}.fits
-                group = basename.split(".wavecal_master.")[-1].replace(".fits", "")
-            else:
-                # Format: prefix.wavecal_master.fits (single group)
+            stem = basename.replace(".wavecal_master.fits", "")
+            if stem == prefix_base:
                 group = "all"
+            elif stem.startswith(prefix_base + "_"):
+                group = stem[len(prefix_base) + 1 :]
+            else:
+                continue
 
             with fits.open(fpath, memmap=False) as hdu:
                 wavecal_spec, thead = hdu[0].data, hdu[0].header
@@ -1508,7 +1511,7 @@ class WavelengthCalibrationInitialize(Step):
         """Get savefile path for a specific group."""
         if group == "all":
             return join(self.output_dir, self.prefix + ".linelist.npz")
-        return join(self.output_dir, self.prefix + f".linelist.{group}.npz")
+        return join(self.output_dir, self.prefix + f"_{group}.linelist.npz")
 
     @property
     def savefile(self):
@@ -1639,7 +1642,7 @@ class WavelengthCalibrationFinalize(Step):
         """Get savefile path for a specific group."""
         if group == "all":
             return join(self.output_dir, self.prefix + ".linelist.npz")
-        return join(self.output_dir, self.prefix + f".linelist.{group}.npz")
+        return join(self.output_dir, self.prefix + f"_{group}.linelist.npz")
 
     @property
     def savefile(self):
@@ -1823,18 +1826,23 @@ class WavelengthCalibrationFinalize(Step):
         old_wavecal_file = join(self.output_dir, self.prefix + ".wavecal.npz")
 
         # Find all linelist files
-        pattern = join(self.output_dir, self.prefix + ".linelist*.npz")
+        # Naming: {prefix}.linelist.npz (no group)
+        #         {prefix}_{group}.linelist.npz (with group)
+        pattern = join(self.output_dir, self.prefix + "*.linelist.npz")
         linelist_files = glob.glob(pattern)
 
         if linelist_files:
             results = {}
+            prefix_base = self.prefix
             for fpath in linelist_files:
-                # Extract group from filename
                 basename = os.path.basename(fpath)
-                if ".linelist." in basename and basename.endswith(".npz"):
-                    group = basename.split(".linelist.")[-1].replace(".npz", "")
-                else:
+                stem = basename.replace(".linelist.npz", "")
+                if stem == prefix_base:
                     group = "all"
+                elif stem.startswith(prefix_base + "_"):
+                    group = stem[len(prefix_base) + 1 :]
+                else:
+                    continue
 
                 linelist = LineList.load(fpath)
                 results[group] = linelist
