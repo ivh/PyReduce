@@ -232,7 +232,7 @@ def main(
                 target=k.get("target"),
                 instrument=instrument,
                 channel=c,
-                night=k.get("night"),
+                night=k.get("night") or "",
                 config=config,
                 trace_range=trace_range,
                 steps=steps,

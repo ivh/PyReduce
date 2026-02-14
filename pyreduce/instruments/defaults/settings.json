@@ -5,7 +5,7 @@
     "reduce": {
         "base_dir": "./",
         "input_dir": "raw",
-        "output_dir": "reduced"
+        "output_dir": "reduced/{night}"
     },
     "instrument": {},
     "mask": {},
