@@ -170,19 +170,19 @@ trace step
 wavecal_master step
   └─ reads traces.fits
   └─ extracts calibration lamp spectrum per fiber group
-  └─ writes wavecal_master.{group}.fits
+  └─ writes {prefix}_{group}.wavecal_master.fits
 
 wavecal_init step
   └─ reads wavecal_master output
   └─ identifies lines by matching peaks to atlas
-  └─ writes linelist.{group}.npz
+  └─ writes {prefix}_{group}.linelist.npz
 
 wavecal step
-  └─ reads linelist.{group}.npz (from wavecal_init or previous wavecal run)
+  └─ reads {prefix}_{group}.linelist.npz (from wavecal_init or previous wavecal run)
   └─ reads wavecal_master output
   └─ reads traces.fits
   └─ aligns, refines positions, fits 2D polynomial
-  └─ overwrites linelist.{group}.npz with refined linelist
+  └─ overwrites {prefix}_{group}.linelist.npz with refined linelist
   └─ updates traces.fits with wavelength polynomials (Trace.wave, Trace.m)
 
 science step

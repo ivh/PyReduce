@@ -1,6 +1,26 @@
 # Changelog
 
 
+## [0.8a4] - 2026-02-14
+
+### Added
+- HARPSPOL instrument with dual-beam (Wollaston prism) support
+- Otsu+DP beam-pair detection for multi-fiber trace pairing
+- `--use` CLI flag to select fiber groups (e.g., `--use upper,lower`)
+- Wavelength propagation from trace into extracted Spectrum
+
+### Changed
+- Output files go into per-night subdirectory (`reduced/{night}/`)
+- Group filenames use `{prefix}_{group}.{step}.{ext}` convention
+- Traces without order_centers get sequential m values (was None)
+
+### Fixed
+- Fix `create_image_from_lines` row count (use ntrace, not order range)
+- Fix 2D wavecal polynomial eval: use trace index, not physical order m
+- Fix multi-channel filename overwrite (include channel in science/rectify)
+- Fix linelist order drift across re-runs (normalize to 0-based on save)
+- Fix output_dir CLI default (None, so config's `reduced/{night}` is used)
+
 ## [0.8a3] - 2026-02-11
 
 ### Changed
