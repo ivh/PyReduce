@@ -16,8 +16,6 @@
         "auto_merge_threshold": 1.0
     },
     "curvature": {
-        "curve_height": 75,
-        "extraction_height": 5,
         "curve_degree": 2,
         "degree": 5
     },

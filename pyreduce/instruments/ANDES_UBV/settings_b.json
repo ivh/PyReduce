@@ -1,0 +1,7 @@
+{
+    "__inherits__": "ANDES_UBV/settings.json",
+    "curvature": {
+        "curve_height": 136,
+        "extraction_height": 20
+    }
+}

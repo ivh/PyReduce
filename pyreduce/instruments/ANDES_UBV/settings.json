@@ -1,5 +1,5 @@
 {
-    "__instrument__": "ANDES_RIZ",
+    "__instrument__": "ANDES_UBV",
     "__inherits__": "defaults/settings.json",
     "trace": {
         "degree": 4,
@@ -19,18 +19,10 @@
         "curve_degree": 2,
         "degree": 5
     },
-    "wavecal_init": {
-        "atlas": "lfc"
-    },
-    "wavecal": {
-        "dimensionality": "1D",
-        "degree": 6,
-        "atlas": "lfc"
-    },
     "science": {
-        "swath_width"   : 500,
+        "swath_width": 500,
         "oversampling": 8,
-        "extraction_reject"   : 10,
+        "extraction_reject": 10,
         "smooth_slitfunction": 2
     }
 }

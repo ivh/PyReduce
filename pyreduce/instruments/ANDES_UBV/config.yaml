@@ -1,6 +1,7 @@
-# ANDES_RIZ instrument configuration
+# ANDES blue-arm instrument configuration
+# 66-fiber slit, 9216x9232 detector, bands U/B/V
 
-__instrument__: ANDES_RIZ
+__instrument__: ANDES_UBV
 instrument: INSTRUME
 id_instrument: "ANDES"
 telescope: ELT
@@ -8,7 +9,7 @@ telescope: ELT
 date: DATE-OBS
 date_format: fits
 
-channels: [R, R1, R2, IZ]
+channels: [U, B, V]
 extension: 0
 orientation: 0
 transpose: false
@@ -30,7 +31,7 @@ ra: null
 dec: null
 target: PYE1
 
-# Additional ANDES E2E simulation headers
+# ANDES E2E simulation headers
 hdfmodel: HDFMODEL
 simtype: SIMTYPE
 srctype: SRCTYPE
@@ -39,10 +40,7 @@ vshift: VSHIFT
 wl_min: WL_MIN
 wl_max: WL_MAX
 
-# File classification using ANDES E2E headers
-# Channel is determined by HDFMODEL header (distinguishes R variants and IZ)
-# File type is determined by SIMTYPE header
-# Even/odd flats are determined by FIBMODE header
+# File classification
 kw_bias: SIMTYPE
 kw_flat: SIMTYPE
 kw_flat_even: FIBMODE
@@ -50,7 +48,7 @@ kw_flat_odd: FIBMODE
 kw_orders: SIMTYPE
 kw_wave: SIMTYPE
 kw_spec: SIMTYPE
-kw_channel: HDFMODEL
+kw_channel: BAND
 
 id_bias: "^bias$"
 id_flat: "^flat_field$"
@@ -59,16 +57,14 @@ id_flat_odd: "^odd$"
 id_orders: "^flat_field$"
 id_wave: "^(fabry_perot|lfc)$"
 id_spec: "^spectrum$"
-id_channel: ["^ANDES_123_R3.hdf$", "^ANDES_full_F18A33_win_jmr_MC_T0019_Rband_p0.hdf$", "^Andes_full_F18A33_win_jmr_MC_T0108_Rband_P0_cfg1.hdf$", "^ANDES_123_IZ3.hdf$"]
+id_channel: ["^U$", "^B$", "^V$"]
 
-# Fiber grouping configuration
-# A/B/cal: spatial division of the slit
+# Fiber grouping (66 fibers, same layout as ANDES_RIZ)
 fibers:
   trace_by: FIBMODE
-  fibers_per_order: 66  # implies per-order organization
+  fibers_per_order: 66
   order_centers_file: order_centers_{channel}.yaml
   groups:
-    # Spatial groups
     A:
       range: [1, 32]
       merge: average

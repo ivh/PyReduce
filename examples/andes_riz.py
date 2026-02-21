@@ -31,7 +31,7 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "ANDES_RIZ"
 target = "psf_comp"
 night = ""
-channel = "R0"  # R0, R1, or R2 (different optical models)
+channel = "R"  # R, R1, R2 (different optical models), or IZ
 
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # pipe.trace(trace_files)
     # pipe.curvature(wavecal_files)
     # Full wavecal: master -> init (peak matching) -> finalize
-    pipe.wavelength_calibration([lfc_combined_path])
+    # pipe.wavelength_calibration([lfc_combined_path])
     pipe.extract([lfc_combined_path])
 
     results = pipe.run()

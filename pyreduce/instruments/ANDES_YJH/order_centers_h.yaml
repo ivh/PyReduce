@@ -1,9 +1,17 @@
-# H-band order Y-centers at x=2048
-# H-band: ~1.45-1.8 µm (longer wavelengths, lower order numbers)
-# TODO: Fill in with actual order positions from H-band flat field data
-# Expected orders: approximately 60-85
-# Example format:
-# 60: 3900
-# 61: 3650
-# 62: 3400
-# ...
+# Order centers for ANDES_YJH channel H (ANDES_75fibre_H.hdf)
+# Y-position of fiber_38 at detector center (tx~2717)
+68: 3789.0
+69: 3492.9
+70: 3206.2
+71: 2928.8
+72: 2660.3
+73: 2400.5
+74: 2149.2
+75: 1906.1
+76: 1671.1
+77: 1443.8
+78: 1224.0
+79: 1011.5
+80: 806.0
+81: 607.3
+82: 415.1
