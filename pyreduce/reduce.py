@@ -973,6 +973,10 @@ class Trace(CalibrationStep):
         with open(path) as f:
             data = yaml.safe_load(f)
 
+        if not data:
+            logger.info("Order centers file is empty: %s", path)
+            return None
+
         if "order_centers" in data:
             data = data["order_centers"]
 
