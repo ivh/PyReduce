@@ -23,7 +23,8 @@ from astropy.io import fits
 from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
-RERUN_TRACE = False
+RERUN_TRACE = True
+RERUN_CURVE = True
 
 # Band -> (instrument, channel)
 BANDS = {
@@ -85,20 +86,24 @@ for band in requested:
     # --- Trace & curvature ---
     if RERUN_TRACE:
         pipe.trace(trace_files)
-        if lfc_files:
-            pipe.curvature(lfc_files)
+    if RERUN_CURVE and lfc_files:
+        pipe.curvature(lfc_files)
 
+    if RERUN_TRACE or RERUN_CURVE:
         try:
             results = pipe.run()
         except Exception as e:
-            print(f"[{band}] TRACE FAILED: {e}")
+            print(f"[{band}] FAILED: {e}")
             continue
 
-        traces = results.get("trace", [])
-        groups = sorted({t.group for t in traces}, key=str)
-        print(f"[{band}] {len(traces)} traces, groups: {groups}")
+        if "trace" in results:
+            traces = results["trace"]
+            groups = sorted({t.group for t in traces}, key=str)
+            print(f"[{band}] {len(traces)} traces, groups: {groups}")
+        if "curvature" in results:
+            print(f"[{band}] curvature done")
     else:
-        print(f"[{band}] Skipping trace (RERUN_TRACE=False)")
+        print(f"[{band}] Skipping trace & curvature")
 
     # --- Build combined frame for extraction ---
     input_files = trace_files + lfc_files

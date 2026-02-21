@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-PyReduce is a Python port of the REDUCE echelle spectrograph data reduction pipeline. It processes raw astronomical observations from instruments like HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS and others into calibrated 1D spectra.
+PyReduce is a Python port of the REDUCE echelle spectrograph data reduction pipeline. It processes raw astronomical observations from instruments like HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS, ANDES and others into calibrated 1D spectra.
 
 ## Quick Start
 
@@ -53,6 +53,8 @@ pyreduce/
 │       ├── __init__.py     # Instrument class
 │       ├── config.yaml     # Hardware/header config
 │       ├── settings.json   # Reduction parameters
+│       ├── settings_{channel}.json  # Per-channel overrides (optional)
+│       ├── order_centers_{channel}.yaml  # Order y-positions for trace detection
 │       ├── wavecal_*.npz   # Pre-computed wavelength solutions
 │       └── mask_*.fits.gz  # Bad pixel masks
 │
@@ -192,7 +194,9 @@ Defines HOW to reduce - algorithm parameters per step:
 }
 ```
 
-Settings cascade: `instruments/defaults/settings.json` < `instruments/{INSTRUMENT}/settings.json` < runtime overrides.
+Settings cascade: `instruments/defaults/settings.json` < `instruments/{INSTRUMENT}/settings.json` < `instruments/{INSTRUMENT}/settings_{channel}.json` < runtime overrides.
+
+Per-channel settings files use `"__inherits__": "{INSTRUMENT}/settings.json"` and override only channel-specific values (e.g., `curve_height`, `extraction_height`). They are auto-selected when `channel` is passed to `load_config()`.
 
 ## Python API
 
@@ -228,12 +232,25 @@ pipe = Pipeline(
     output_dir="/output",
     channel="middle",
     plot=0,
+    plot_dir="/output",  # required for saving plot PNGs
 )
 pipe.bias(bias_files)
 pipe.flat(flat_files)
 pipe.trace()
 pipe.extract(science_files)
 result = pipe.run()
+```
+
+### Skipping Calibration Steps
+
+For simulated data where bias/flat/scatter calibration is not needed, pre-populate `_data` to bypass dependency resolution:
+
+```python
+pipe._data["mask"] = None
+pipe._data["bias"] = None
+pipe._data["norm_flat"] = None
+pipe._data["scatter"] = None
+pipe.extract([science_file]).run()
 ```
 
 ### Legacy API (deprecated)
@@ -282,6 +299,49 @@ Plot modes: `block` shows each plot interactively; `defer` accumulates all plots
 
 The charslit backend supports higher-degree curvature polynomials (up to degree 5) and per-row slitdelta corrections. It requires the optional `charslit` dependency.
 
+## ANDES Instruments
+
+ANDES (ArmazoNes high Dispersion Echelle Spectrograph) is split across three instrument definitions matching detector/fiber configurations:
+
+| Instrument | Bands | Detector | Fibers | Channel selection |
+|-----------|-------|----------|--------|-------------------|
+| ANDES_UBV | U, B, V | 9216x9232 | 66 (31+3+31) | `BAND` header |
+| ANDES_RIZ | R, R1, R2, IZ | 9216x9232 | 66 (31+3+31) | `HDFMODEL` header |
+| ANDES_YJH | Y, J, H | 4096x4096 | 75 (35+cal+35+ifu) | `BAND` header |
+
+ANDES_RIZ uses `HDFMODEL` (not `BAND`) for channel selection because R/R1/R2 all have `BAND=R` but differ by optical model HDF file.
+
+Fiber groups: A (slit A, 31 or 35 fibers), cal (calibration, 3-4 fibers), B (slit B, 31 or 35 fibers). YJH also has ifu and ring0-4 groups. Traces are merged (averaged) per group.
+
+### Order Centers from HDF Optical Models
+
+The `order_centers_{channel}.yaml` files contain the y-position of the center fiber at the detector center x-position. These are extracted from the ANDES E2E simulator HDF files:
+
+```python
+# HDF structure: CCD_1/fiber_{n}/order{m} -> array of 15 samples
+# Each sample has: translation_x, translation_y, wavelength, rotation, scale_x, scale_y, shear
+# The 15 samples span the detector x-range (not uniformly spaced)
+# Use the mid-sample (index 7) for the detector center position
+
+import h5py
+f = h5py.File("ANDES_123_R3.hdf", "r")
+fiber = "fiber_33"  # center fiber: 33 for 66-fiber, 38 for 75-fiber
+for order_key in sorted(f["CCD_1"][fiber].keys()):
+    if not order_key.startswith("order"):
+        continue
+    m = int(order_key.replace("order", ""))
+    data = f[f"CCD_1/{fiber}/{order_key}"]
+    mid = len(data) // 2  # sample at detector center
+    y = float(data["translation_y"][mid])
+    print(f"{m}: {y:.1f}")
+```
+
+HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf` (R), `ANDES_123_IZ3.hdf` (IZ), `ANDES_U_v88.hdf` (U), `ANDES_B_v88.hdf` (B), `ANDES_V_v88.hdf` (V), `ANDES_75fibre_Y.hdf` (Y), `ANDES_75fibre_J.hdf` (J), `ANDES_75fibre_H.hdf` (H).
+
+### Curvature Settings
+
+`curve_height` should match the median A+B trace height (from trace FITS files, `HEIGHT` column for groups A and B), minus 2 pixels. `extraction_height` for curvature is set independently per channel (currently 20 for U-IZ, 10 for Y-H). Both are in per-channel settings files.
+
 ## Development
 
 ### Commands
@@ -304,10 +364,12 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 
 1. Create `pyreduce/instruments/{NAME}/` directory
 2. Add `config.yaml` with detector/header config
-3. Add `settings.json` for reduction parameters (can use `"__inherits__": "defaults"`)
-4. Add `__init__.py` with instrument class if custom logic needed (optional)
-5. Add wavecal/mask files if available
-6. Add example script to `examples/name_example.py`
+3. Add `settings.json` for reduction parameters (can use `"__inherits__": "defaults/settings.json"`)
+4. Add `settings_{channel}.json` for per-channel overrides (inherits from `"{NAME}/settings.json"`)
+5. Add `order_centers_{channel}.yaml` with y-positions for order detection
+6. Add `__init__.py` with instrument class if custom logic needed (optional)
+7. Add wavecal/mask files if available
+8. Add example script to `examples/name_example.py`
 
 ### Test Organization
 
@@ -335,7 +397,7 @@ After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to s
 
 ## Release Process
 
-To release a new version (e.g., `0.7a6`):
+To release a new version (e.g., `0.8a5`):
 
 1. **Update documentation** for any renamed steps, new CLI options, etc:
    - `README.md` - Quick start examples
