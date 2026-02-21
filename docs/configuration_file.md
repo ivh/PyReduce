@@ -204,6 +204,7 @@ This performs single-pass extraction without iterating to find the slit function
 | `iterations` | Refinement iterations | 3 |
 | `medium` | Refractive medium ("air" or "vacuum") | "air" |
 | `dimensionality` | "1D" (per-trace) or "2D" (shared polynomial) | "2D" |
+| `atlas` | Line atlas name ("thar", "une", "lfc", etc.) | "thar" |
 
 #### Per-Group Wavelength Calibration
 

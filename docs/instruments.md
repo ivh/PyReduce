@@ -8,6 +8,7 @@ by creating YAML configuration files.
 ### ESO Instruments
 - **HARPS** - High Accuracy Radial velocity Planet Searcher
 - **HARPS-N** - HARPS-North at TNG
+- **HARPSPOL** - HARPS Polarimeter (dual-beam mode)
 - **UVES** - UV-Visual Echelle Spectrograph
 - **XSHOOTER** - Wide-band spectrograph (UVB/VIS/NIR)
 - **CRIRES+** - Cryogenic IR Echelle Spectrograph
@@ -26,7 +27,9 @@ by creating YAML configuration files.
 - **METIS** - Mid-infrared ELT Imager and Spectrograph (LSS and IFU modes)
 - **MICADO** - Multi-AO Imaging Camera for Deep Observations
 - **MOSAIC** - Multi-Object Spectrograph for Astrophysics, Intergalactic-medium studies and Cosmology
-- **ANDES_YJH** - ArmazoNes high Dispersion Echelle Spectrograph (YJH channels)
+- **ANDES_UBV** - ArmazoNes high Dispersion Echelle Spectrograph (U/B/V channels)
+- **ANDES_RIZ** - ArmazoNes high Dispersion Echelle Spectrograph (R/IZ channels)
+- **ANDES_YJH** - ArmazoNes high Dispersion Echelle Spectrograph (Y/J/H channels)
 - **NTE** - New Technology Echelle spectrograph
 
 ## Adding a Custom Instrument
@@ -165,6 +168,8 @@ The goal is to orient the image so that:
 
 Each instrument has its own settings file at `pyreduce/instruments/{INSTRUMENT}/settings.json`.
 This inherits from and overrides `pyreduce/instruments/defaults/settings.json`.
+Per-channel overrides can be placed in `settings_{channel}.json` (e.g., `settings_r.json`),
+which inherit from the instrument's base settings.
 See [Configuration](configuration_file.md) for details.
 
 ## Multi-Fiber Instruments

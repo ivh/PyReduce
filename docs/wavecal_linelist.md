@@ -61,12 +61,12 @@ Order numbers are assigned to traces in one of three ways:
    and assigned the corresponding order number immediately.
 
    ```yaml
-   # Example: pyreduce/instruments/ANDES_RIZ/order_centers_r2.yaml
-   orders:
-     85: 2048.5   # Order 85 centered at y=2048.5
-     86: 1892.3
-     87: 1741.2
-     ...
+   # Example: pyreduce/instruments/ANDES_RIZ/order_centers_r.yaml
+   # Y-position of center fiber at detector center
+   81: 8371.1   # Order 81 centered at y=8371.1
+   82: 7772.6
+   83: 7194.3
+   ...
    ```
 
 2. **From the initial linelist** (wavecal_init step):
