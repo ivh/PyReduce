@@ -2162,10 +2162,13 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
                 trace_objects, header = load_traces(trace_file)
 
                 # Update each trace with slit data from fitted traces
-                for i, t in enumerate(traces):
-                    if i < len(trace_objects):
-                        trace_objects[i].slit = t.slit
-                        trace_objects[i].slitdelta = t.slitdelta
+                # Match by (m, group) since traces may be a filtered subset
+                fitted = {(t.m, t.group): t for t in traces}
+                for t in trace_objects:
+                    match = fitted.get((t.m, t.group))
+                    if match is not None:
+                        t.slit = match.slit
+                        t.slitdelta = match.slitdelta
 
                 # Save updated traces
                 steps = header.get("E_STEPS", "trace").split(",")
