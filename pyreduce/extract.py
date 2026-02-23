@@ -437,7 +437,7 @@ class ProgressPlot:  # pragma: no cover
         x_slit, y_slit = self.get_slitf(img, spec, slitf, ycen, slitcurve, slitdeltas)
         ycen = ycen + ny / 2
 
-        old = np.linspace(-1, ny, len(slitf))
+        old = np.linspace(-1, ny, len(slitf)) + 0.5
 
         # Separate rejected (output_mask=True) and good (output_mask=False) pixels
         rejected = output_mask.ravel()
@@ -528,7 +528,7 @@ class ProgressPlot:  # pragma: no cover
         if not np.isnan(limit):
             self.ax_spec.set_ylim((0, limit))
 
-        self.ax_slit.set_ylim((0, ny - 1))
+        self.ax_slit.set_ylim((0, ny))
         limit = np.nanmax(slitf) * 1.1
         if not np.isnan(limit):
             self.ax_slit.set_xlim((0, limit))
@@ -591,7 +591,7 @@ class ProgressPlot:  # pragma: no cover
         ycen_frac = ycen - ycen.astype(int)
 
         # Slit position for display
-        slit_pos = row_idx - ycen_frac + 0.5
+        slit_pos = row_idx - ycen_frac + 1
 
         # Compute effective column position for spectrum lookup
         col_eff = col_idx.astype(float)
