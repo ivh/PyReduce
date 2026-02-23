@@ -1395,15 +1395,19 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
 
     Returns
     -------
-    y_low, y_high : int, int
+    ylow, yhigh : int, int
         lower and upper y bound for extraction (pixels below/above trace)
-        These satisfy: y_low + y_high + 1 = extraction_height
+        These satisfy: ylow + yhigh + 1 = extraction_height
     """
     ycen = ycen[xrange[0] : xrange[1]]
     half = extraction_height // 2
 
-    ymin = ycen - half
-    ymin = np.floor(ymin)
+    if extraction_height % 2 == 0:
+        ycen += 1
+    else:
+        ycen += 0.5
+    ymin = np.floor(ycen - half).astype(int)
+
     if min(ymin) < 0:
         ymin = ymin - min(ymin)  # help for orders at edge
     if max(ymin) >= nrow:
@@ -1414,11 +1418,10 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
         ymax = ymax - max(ymax) + nrow - 1  # helps at edge
         ymin = ymax - extraction_height + 1
 
-    # Define a fixed height area containing one spectral order
-    y_lower_lim = int(np.min(ycen - ymin))  # Pixels below center line
-    y_upper_lim = int(np.min(ymax - ycen))  # Pixels above center line
+    ylow = int(np.min(ycen - ymin))  # Pixels below center line
+    yhigh = extraction_height - 1 - ylow  # Guarantee total = extraction_height
 
-    return y_lower_lim, y_upper_lim
+    return ylow, yhigh
 
 
 def optimal_extraction(
