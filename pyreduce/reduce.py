@@ -922,9 +922,8 @@ class Trace(CalibrationStep):
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            self.trace_objects = group_fibers(
-                raw_traces, fibers_config, degree=self.fit_degree
-            )
+            grouped = group_fibers(raw_traces, fibers_config, degree=self.fit_degree)
+            self.trace_objects = grouped + raw_traces
         else:
             self.trace_objects = raw_traces
 
@@ -1029,13 +1028,24 @@ class Trace(CalibrationStep):
             logger.info("  Found %d traces", len(traces))
             all_traces.extend(traces)
 
-        # Sort by y-position
-        def sort_key(t):
-            # Use middle of column range for y evaluation
-            x_mid = sum(t.column_range) / 2
-            return t.y_at_x(x_mid)
+        # Re-assign fiber_idx within each order by y-position, since
+        # each trace_by group assigned its own 1..N independently.
+        from collections import defaultdict
 
-        all_traces.sort(key=sort_key)
+        traces_by_m = defaultdict(list)
+        for t in all_traces:
+            traces_by_m[t.m].append(t)
+
+        for _m, order_traces in traces_by_m.items():
+            x_mid = sum(order_traces[0].column_range) / 2
+            order_traces.sort(key=lambda t: t.y_at_x(x_mid))
+            for idx, t in enumerate(order_traces, start=1):
+                t.fiber_idx = idx
+
+        # Sort by (m descending, fiber_idx)
+        all_traces.sort(
+            key=lambda t: (-t.m if t.m is not None else 0, t.fiber_idx or 0)
+        )
 
         logger.info(
             "Merged %d total traces from %d groups", len(all_traces), len(file_groups)
@@ -1995,8 +2005,11 @@ class LaserFrequencyCombFinalize(Step):
         """
         comb, chead = freq_comb_master
 
-        # Get base wavelengths from traces
-        wlen = wavelengths_from_traces(trace)
+        selected = self._select_traces(trace, "wavecal")
+        flat_traces = [t for group in selected.values() for t in group]
+
+        # Get base wavelengths from selected traces
+        wlen = wavelengths_from_traces(flat_traces)
         if wlen is None:
             raise ValueError("No wavelength data in traces - run wavecal first")
 
@@ -2023,7 +2036,7 @@ class LaserFrequencyCombFinalize(Step):
         poly_degree = (
             self.degree[0] if isinstance(self.degree, (list, tuple)) else self.degree
         )
-        for i, t in enumerate(trace):
+        for i, t in enumerate(flat_traces):
             cr = t.column_range
             x_cr = x[cr[0] : cr[1]]
             w_cr = new_wave[i, cr[0] : cr[1]]
@@ -2203,8 +2216,11 @@ class RectifyImage(Step):
         return util.swap_extension(name, ext, path=self.output_dir)
 
     def run(self, files, trace: list[TraceData], mask=None):
+        selected = self._select_traces(trace, "science")
+        flat_traces = [t for group in selected.values() for t in group]
+
         # Get wavelengths from traces (includes freq_comb improvements if run)
-        wave = wavelengths_from_traces(trace)
+        wave = wavelengths_from_traces(flat_traces)
 
         files = files[self.input_files]
 
@@ -2216,7 +2232,7 @@ class RectifyImage(Step):
 
             images, cr, xwd = rectify_image(
                 img,
-                trace,
+                flat_traces,
                 self.extraction_height,
                 self.trace_range,
             )

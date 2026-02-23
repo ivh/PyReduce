@@ -1248,13 +1248,19 @@ def select_traces_for_step(
         return result
 
     elif isinstance(selection, list):
-        # Select specific groups by name - keep them separate
+        # Select specific groups by name (or fiber index if numeric)
         result = {}
         for name in selection:
             # Match by group (compare as string, skip ungrouped traces)
             selected = [
                 t for t in traces if t.group is not None and str(t.group) == name
             ]
+            if not selected:
+                try:
+                    idx = int(name)
+                    selected = [t for t in traces if t.fiber_idx == idx]
+                except (ValueError, TypeError):
+                    pass
             if not selected:
                 logger.warning("Group '%s' not found in trace data", name)
                 continue

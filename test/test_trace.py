@@ -882,6 +882,224 @@ class TestGroupFibers:
         assert groups == {"bundle_1", "bundle_2"}
 
 
+class TestGroupedPlusRawTraces:
+    """Tests for the combined grouped+raw trace list behavior.
+
+    After Tracing.run() with fiber grouping, the result is grouped + raw_traces.
+    These tests verify that downstream selection and filtering work correctly
+    on such mixed lists.
+    """
+
+    @pytest.fixture
+    def mixed_traces(self):
+        """Simulate the output of Tracing.run() with fiber grouping.
+
+        Creates grouped traces (group set, fiber_idx=None) followed by
+        the original individual fiber traces (fiber_idx set, group=None).
+        """
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        # 6 raw fiber traces: 2 orders x 3 fibers
+        raw = [
+            TraceData(
+                m=90,
+                fiber_idx=i,
+                pos=np.array([0.0, 0.0, 100.0 + i * 10]),
+                column_range=(10, 990),
+            )
+            for i in range(1, 4)
+        ] + [
+            TraceData(
+                m=91,
+                fiber_idx=i,
+                pos=np.array([0.0, 0.0, 200.0 + i * 10]),
+                column_range=(10, 990),
+            )
+            for i in range(1, 4)
+        ]
+
+        config = FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 2), merge="center"),
+                "B": FiberGroupConfig(range=(2, 4), merge="center"),
+            },
+            use={"default": "groups", "science": ["A", "B"]},
+        )
+
+        grouped = trace.group_fibers(raw, config)
+        # This is what Tracing.run() now produces
+        combined = grouped + raw
+        return combined, config
+
+    @pytest.mark.unit
+    def test_raw_traces_preserved_after_grouping(self, mixed_traces):
+        """Individual fiber traces are still present alongside grouped traces."""
+        combined, _ = mixed_traces
+
+        fiber_traces = [t for t in combined if t.fiber_idx is not None]
+        grouped_traces = [t for t in combined if t.group is not None]
+
+        assert len(fiber_traces) == 6  # 2 orders x 3 fibers
+        assert len(grouped_traces) == 4  # 2 orders x 2 groups
+        assert len(combined) == 10
+
+    @pytest.mark.unit
+    def test_grouped_traces_come_first(self, mixed_traces):
+        """Grouped traces precede individual fiber traces in the list."""
+        combined, _ = mixed_traces
+
+        first_fiber_idx = next(
+            i for i, t in enumerate(combined) if t.fiber_idx is not None
+        )
+        last_group_idx = max(i for i, t in enumerate(combined) if t.group is not None)
+        assert last_group_idx < first_fiber_idx
+
+    @pytest.mark.unit
+    def test_select_groups_excludes_fibers(self, mixed_traces):
+        """'groups' selection returns only grouped traces, not fiber traces."""
+        combined, config = mixed_traces
+
+        result = trace.select_traces_for_step(combined, config, "default")
+
+        all_traces = result["all"]
+        assert len(all_traces) == 4
+        assert all(t.group is not None for t in all_traces)
+        assert all(t.fiber_idx is None for t in all_traces)
+
+    @pytest.mark.unit
+    def test_select_named_groups_excludes_fibers(self, mixed_traces):
+        """List selection ['A', 'B'] returns only grouped traces."""
+        combined, config = mixed_traces
+
+        result = trace.select_traces_for_step(combined, config, "science")
+
+        assert set(result.keys()) == {"A", "B"}
+        all_selected = [t for group in result.values() for t in group]
+        assert len(all_selected) == 4
+        assert all(t.group is not None for t in all_selected)
+
+    @pytest.mark.unit
+    def test_select_per_fiber_excludes_groups(self, mixed_traces):
+        """'per_fiber' selection returns only fiber traces, not grouped."""
+        combined, config = mixed_traces
+        config = config.model_copy(update={"use": {"default": "per_fiber"}})
+
+        result = trace.select_traces_for_step(combined, config, "default")
+
+        all_selected = [t for group in result.values() for t in group]
+        assert len(all_selected) == 6
+        assert all(t.fiber_idx is not None for t in all_selected)
+
+    @pytest.mark.unit
+    def test_fiber_traces_retain_original_properties(self, mixed_traces):
+        """Individual fiber traces keep their m, fiber_idx, and positions."""
+        combined, _ = mixed_traces
+
+        fiber_traces = [t for t in combined if t.fiber_idx is not None]
+
+        m_values = {t.m for t in fiber_traces}
+        assert m_values == {90, 91}
+
+        fiber_indices = {t.fiber_idx for t in fiber_traces}
+        assert fiber_indices == {1, 2, 3}
+
+        # Check positions are distinct per fiber
+        m90_fibers = sorted(
+            [t for t in fiber_traces if t.m == 90], key=lambda t: t.fiber_idx
+        )
+        for i, t in enumerate(m90_fibers, start=1):
+            assert t.y_at_x(500) == pytest.approx(100.0 + i * 10, abs=0.1)
+
+    @pytest.mark.unit
+    def test_grouped_traces_have_no_fiber_idx(self, mixed_traces):
+        """Grouped traces have group set and fiber_idx cleared."""
+        combined, _ = mixed_traces
+
+        grouped = [t for t in combined if t.group is not None]
+        assert all(t.fiber_idx is None for t in grouped)
+        assert {t.group for t in grouped} == {"A", "B"}
+
+
+class TestSelectByFiberIndex:
+    """Tests for selecting individual fiber traces by numeric index."""
+
+    @pytest.fixture
+    def traces_with_fibers(self):
+        from pyreduce.trace_model import Trace as TraceData
+
+        return [
+            TraceData(
+                m=90,
+                fiber_idx=i,
+                pos=np.array([0.0, 0.0, 100.0 + i * 10]),
+                column_range=(10, 990),
+            )
+            for i in range(1, 4)
+        ]
+
+    @pytest.mark.unit
+    def test_select_fiber_by_index(self, traces_with_fibers):
+        """Numeric name in list selection matches fiber_idx."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 4))},
+            use={"science": ["2"]},
+        )
+
+        result = trace.select_traces_for_step(traces_with_fibers, config, "science")
+
+        assert "2" in result
+        assert len(result["2"]) == 1
+        assert result["2"][0].fiber_idx == 2
+
+    @pytest.mark.unit
+    def test_select_fiber_index_no_match(self, traces_with_fibers):
+        """Numeric name that matches no fiber_idx warns and falls back."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 4))},
+            use={"science": ["99"]},
+        )
+
+        result = trace.select_traces_for_step(traces_with_fibers, config, "science")
+
+        # Falls back to all traces
+        assert "all" in result
+
+    @pytest.mark.unit
+    def test_select_mixed_group_and_fiber_index(self):
+        """List with both group names and fiber indices works."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        traces = [
+            TraceData(
+                m=90, group="A", pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990)
+            ),
+            TraceData(
+                m=90,
+                fiber_idx=5,
+                pos=np.array([0.0, 0.0, 150.0]),
+                column_range=(10, 990),
+            ),
+        ]
+
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 4))},
+            use={"science": ["A", "5"]},
+        )
+
+        result = trace.select_traces_for_step(traces, config, "science")
+
+        assert "A" in result
+        assert "5" in result
+        assert len(result["A"]) == 1
+        assert len(result["5"]) == 1
+
+
 class TestNaturalSortKey:
     """Tests for _natural_sort_key function."""
 
