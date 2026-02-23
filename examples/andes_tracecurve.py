@@ -10,8 +10,8 @@ Data layout:
     ~/REDUCE_DATA/ANDES/lfc_allfib_allbands/{BAND}_LFC_combined_all.fits
 
 Usage:
-    PYREDUCE_PLOT=1 uv run python examples/andes_allbands.py
-    PYREDUCE_PLOT=1 uv run python examples/andes_allbands.py R Y
+    PYREDUCE_PLOT=1 uv run python examples/andes_tracecurve.py
+    PYREDUCE_PLOT=1 uv run python examples/andes_tracecurve.py R Y
 """
 
 import os
@@ -23,8 +23,8 @@ from astropy.io import fits
 from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
-RERUN_TRACE = True
-RERUN_CURVE = True
+RERUN_TRACE = False
+RERUN_CURVE = False
 
 # Band -> (instrument, channel)
 BANDS = {
