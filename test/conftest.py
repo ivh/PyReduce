@@ -46,8 +46,10 @@ def pytest_addoption(parser):
 def tempfiles():
     n = 10
     files = [tempfile.NamedTemporaryFile(delete=False) for _ in range(n)]
-    files = [f.name for f in files]
-    yield files
+    names = [f.name for f in files]
+    for f in files:
+        f.close()
+    yield names
 
     for f in files:
         try:

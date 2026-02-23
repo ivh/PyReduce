@@ -234,7 +234,10 @@ class LineAtlas:
                 wave = data["wave"]
                 spec = data["spec"]
 
-        spec /= np.nanmax(spec)
+        spec = np.nan_to_num(spec, nan=0.0)
+        smax = np.max(spec)
+        if smax > 0:
+            spec /= smax
         spec = np.clip(spec, 0, None)
         return wave, spec
 
@@ -1708,7 +1711,9 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         if smoothing != 0:
             spectrum = gaussian_filter1d(spectrum, smoothing)
         spectrum[spectrum < 0] = 0
-        spectrum /= np.max(spectrum)
+        smax = np.max(spectrum)
+        if smax > 0:
+            spectrum /= smax
         return spectrum
 
     def identify_lines_for_order(self, spectrum, atlas, wave_range, order) -> LineList:

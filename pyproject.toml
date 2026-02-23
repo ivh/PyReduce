@@ -181,6 +181,7 @@ markers = [
 ]
 filterwarnings = [
     "ignore:The following header keyword is invalid:astropy.utils.exceptions.AstropyUserWarning",
+    "ignore:File may have been truncated:astropy.utils.exceptions.AstropyUserWarning",
     "ignore::astropy.io.fits.verify.VerifyWarning",
 ]
 
