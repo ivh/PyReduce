@@ -9,8 +9,7 @@ Modes:
   1. standard     - merged slitA/B traces, CFFI backend
   2. charslit     - merged slitA/B, charslit backend, no deltas
   3. charslit+d   - merged slitA/B, charslit backend, with deltas
-  4. fibers       - individual fiber traces (not merged), CFFI backend
-  5. no_curve     - merged slitA/B, curvature nulled (vertical slit)
+  4. fibers       - individual fiber traces (no curvature), CFFI backend
 
 Data layout (same as andes_tracecurve.py):
     ~/REDUCE_DATA/ANDES/trace_allbands/{BAND}_FLAT_even.fits
@@ -21,11 +20,11 @@ Data layout (same as andes_tracecurve.py):
 Usage:
     PYREDUCE_PLOT=1 uv run python examples/andes_compLSF.py R
     PYREDUCE_PLOT=0 uv run python examples/andes_compLSF.py U B V
+    uv run python examples/andes_compLSF.py R --order 120
 """
 
-import copy
+import argparse
 import os
-import sys
 
 import numpy as np
 from astropy.io import fits
@@ -45,13 +44,30 @@ BANDS = {
     "H": ("ANDES_YJH", "H"),
 }
 
+MID_ORDER = {
+    "U": 124,
+    "B": 105,
+    "V": 85,
+    "R": 90,
+    "IZ": 74,
+    "Y": 118,
+    "J": 99,
+    "H": 75,
+}
+
 MODES = [
+    ("fibers", {}),
     ("standard", {}),
     ("charslit", {"PYREDUCE_USE_CHARSLIT": "1", "PYREDUCE_USE_DELTAS": "0"}),
     ("charslit+d", {"PYREDUCE_USE_CHARSLIT": "1", "PYREDUCE_USE_DELTAS": "1"}),
-    ("fibers", {}),
-    ("no_curve", {}),
 ]
+
+parser = argparse.ArgumentParser(description="ANDES LSF comparison")
+parser.add_argument("bands", nargs="*", default=list(BANDS), help="Bands to process")
+parser.add_argument(
+    "--order", default=None, help="Order number (m) to extract, or 'middle'"
+)
+args = parser.parse_args()
 
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
 trace_dir = os.path.join(data_dir, "ANDES", "trace_allbands")
@@ -59,7 +75,7 @@ lfc_dir = os.path.join(data_dir, "ANDES", "lfc_allfib_allbands")
 base_output = os.path.join(data_dir, "ANDES", "reduced_allbands")
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
-requested = sys.argv[1:] if len(sys.argv) > 1 else list(BANDS)
+requested = args.bands
 
 
 def make_pipeline(instrument_name, channel, output_dir, config):
@@ -96,11 +112,18 @@ for band in requested:
         continue
 
     traces, trace_header = load_traces(trace_file)
+    if args.order is not None:
+        order_m = MID_ORDER[band] if args.order == "middle" else int(args.order)
+        traces = [t for t in traces if t.m == order_m]
+        if not traces:
+            print(f"[{band}] No traces with m={order_m}, skipping")
+            continue
     grouped = [t for t in traces if t.group is not None]
     individual = [t for t in traces if t.fiber_idx is not None]
     groups = sorted({t.group for t in grouped}, key=str)
+    order_str = f"  order {order_m}" if args.order is not None else ""
     print(f"\n{'=' * 60}")
-    print(f"  {band}  ({instrument_name} / {channel})")
+    print(f"  {band}  ({instrument_name} / {channel}){order_str}")
     print(f"  {len(grouped)} grouped traces ({groups}), {len(individual)} fiber traces")
     print(f"{'=' * 60}")
 
@@ -146,11 +169,6 @@ for band in requested:
                 )
                 continue
             mode_traces = individual
-        elif mode_name == "no_curve":
-            mode_traces = copy.deepcopy(grouped)
-            for t in mode_traces:
-                t.slit = None
-                t.slitdelta = None
         else:
             mode_traces = grouped
 
@@ -161,7 +179,13 @@ for band in requested:
             os.environ[k] = v
 
         try:
-            pipe = make_pipeline(instrument_name, channel, output_dir, config)
+            mode_config = config
+            if mode_name == "fibers":
+                import copy
+
+                mode_config = copy.deepcopy(config)
+                mode_config["science"]["extraction_height"] = 6
+            pipe = make_pipeline(instrument_name, channel, output_dir, mode_config)
             pipe._data["trace"] = mode_traces
             pipe.extract([combined_file])
             results = pipe.run()

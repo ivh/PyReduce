@@ -23,8 +23,9 @@ from astropy.io import fits
 from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
-RERUN_TRACE = False
-RERUN_CURVE = False
+RUN_TRACE = True
+RUN_CURVE = True
+RUN_EXTRACT = False
 
 # Band -> (instrument, channel)
 BANDS = {
@@ -84,12 +85,12 @@ for band in requested:
     )
 
     # --- Trace & curvature ---
-    if RERUN_TRACE:
+    if RUN_TRACE:
         pipe.trace(trace_files)
-    if RERUN_CURVE and lfc_files:
+    if RUN_CURVE and lfc_files:
         pipe.curvature(lfc_files)
 
-    if RERUN_TRACE or RERUN_CURVE:
+    if RUN_TRACE or RUN_CURVE:
         try:
             results = pipe.run()
         except Exception as e:
@@ -120,7 +121,9 @@ for band in requested:
     fits.writeto(combined_file, img_combined.astype(np.float32), head, overwrite=True)
     print(f"[{band}] Combined {len(input_files)} frames -> {combined_file}")
 
-    # --- Extract ---
+    if not RUN_EXTRACT:
+        print(f"[{band}] Skipping extraction")
+        continue
     # No bias/flat/scatter calibration for these simulated frames
     pipe._data.setdefault("mask", None)
     pipe._data.setdefault("bias", None)
