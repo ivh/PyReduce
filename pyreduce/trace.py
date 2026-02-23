@@ -295,7 +295,7 @@ def _compute_heights_inplace(traces: list, ncol: int) -> None:
             else:
                 y_prev = traces[i - 1].y_at_x(x)
                 y_next = traces[i + 1].y_at_x(x)
-                height = (y_next - y_prev) / 2
+                height = min(y_i - y_prev, y_next - y_i)
 
             max_height = max(max_height, height)
 

@@ -100,8 +100,8 @@ class TestComputeTraceHeights:
 
         # First: distance to next = 20
         assert traces[0].height == pytest.approx(20.0, rel=0.01)
-        # Middle: half distance between neighbors = (90-10)/2 = 40
-        assert traces[1].height == pytest.approx(40.0, rel=0.01)
+        # Middle: distance to nearest neighbor = min(20, 60) = 20
+        assert traces[1].height == pytest.approx(20.0, rel=0.01)
         # Last: distance to prev = 60
         assert traces[2].height == pytest.approx(60.0, rel=0.01)
 

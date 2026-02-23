@@ -52,6 +52,7 @@ from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
 from .spectra import ExtractionParams, Spectra, Spectrum
 from .trace import (
+    _compute_heights_inplace,
     group_fibers,
     select_traces_for_step,
 )
@@ -1041,6 +1042,13 @@ class Trace(CalibrationStep):
             order_traces.sort(key=lambda t: t.y_at_x(x_mid))
             for idx, t in enumerate(order_traces, start=1):
                 t.fiber_idx = idx
+
+        # Recompute heights now that all groups are merged, so each trace
+        # sees its true nearest neighbor (not just within its trace_by group).
+        ncol = max(t.column_range[1] for t in all_traces)
+        x_mid = ncol // 2
+        all_traces.sort(key=lambda t: t.y_at_x(x_mid))
+        _compute_heights_inplace(all_traces, ncol)
 
         # Sort by (m descending, fiber_idx)
         all_traces.sort(
