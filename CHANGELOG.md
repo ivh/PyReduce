@@ -1,6 +1,22 @@
 # Changelog
 
 
+## [0.8a5] - 2026-02-25
+
+### Added
+- ANDES_UBV instrument, IZ channel for ANDES_RIZ, per-channel settings files
+- Preserve individual fiber traces alongside merged group traces
+- Tests for `get_y_scale` covering standard, edge, and invariant cases
+
+### Fixed
+- Center extraction window on trace peak (+0.5/+1 shift for odd/even height)
+- Fix `get_y_scale` silently mutating caller's ycen array
+- Fix slit function plot alignment in ProgressPlot
+- Fix curvature save: match traces by (m, group) instead of index
+- Recompute heights after merging even/odd fibers (use nearest neighbor)
+- Fix test warnings: tempfile leak, divide-by-zero, misplaced instrument test
+- Guard against empty order_centers YAML files
+
 ## [0.8a4] - 2026-02-14
 
 ### Added
