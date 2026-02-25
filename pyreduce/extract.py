@@ -1399,7 +1399,7 @@ def get_y_scale(ycen, xrange, extraction_height, nrow):
         lower and upper y bound for extraction (pixels below/above trace)
         These satisfy: ylow + yhigh + 1 = extraction_height
     """
-    ycen = ycen[xrange[0] : xrange[1]]
+    ycen = ycen[xrange[0] : xrange[1]].copy()
     half = extraction_height // 2
 
     if extraction_height % 2 == 0:
@@ -1500,6 +1500,10 @@ def optimal_extraction(
         # Define a fixed height area containing one trace
         ycen = np.polyval(traces[i], ix)
         yrange = get_y_scale(ycen, column_range[i], extraction_height[i], nrow)
+        # Shift ycen so floor() rounds to nearest integer, centering the trace
+        # in the extraction window (sub-pixel offset near 0 instead of biased to +1)
+        cr = column_range[i]
+        ycen[cr[0] : cr[1]] += 0.5 if extraction_height[i] % 2 == 1 else 1
 
         osample = kwargs.get("osample", 1)
         slitfunction[i] = np.zeros(osample * (sum(yrange) + 2) + 1)

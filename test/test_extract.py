@@ -392,6 +392,74 @@ def test_get_y_scale(ycen, height, width):
     assert y_upper_lim < height
 
 
+class TestGetYScale:
+    """Tests capturing get_y_scale outputs for standard and edge cases."""
+
+    def test_centered_odd_height(self):
+        ycen = np.full(100, 24.5)
+        assert extract.get_y_scale(ycen, (0, 100), 21, 50) == (10, 10)
+
+    def test_centered_even_height(self):
+        ycen = np.full(100, 24.5)
+        assert extract.get_y_scale(ycen, (0, 100), 20, 50) == (10, 9)
+
+    def test_integer_ycen(self):
+        ycen = np.full(100, 25.0)
+        assert extract.get_y_scale(ycen, (0, 100), 21, 50) == (10, 10)
+        ycen = np.full(100, 25.0)
+        assert extract.get_y_scale(ycen, (0, 100), 20, 50) == (10, 9)
+
+    def test_sloped_trace(self):
+        ycen = np.linspace(23.0, 27.0, 100)
+        assert extract.get_y_scale(ycen, (0, 100), 21, 50) == (10, 10)
+        ycen = np.linspace(23.0, 27.0, 100)
+        assert extract.get_y_scale(ycen, (0, 100), 20, 50) == (10, 9)
+
+    def test_partial_column_range(self):
+        ycen = np.full(100, 24.5)
+        assert extract.get_y_scale(ycen, (20, 80), 21, 50) == (10, 10)
+
+    def test_near_bottom(self):
+        ycen = np.full(100, 3.7)
+        assert extract.get_y_scale(ycen, (0, 100), 21, 50) == (4, 16)
+        ycen = np.full(100, 3.7)
+        assert extract.get_y_scale(ycen, (0, 100), 20, 50) == (4, 15)
+
+    def test_near_top(self):
+        ycen = np.full(100, 46.3)
+        assert extract.get_y_scale(ycen, (0, 100), 21, 50) == (17, 3)
+        ycen = np.full(100, 46.3)
+        assert extract.get_y_scale(ycen, (0, 100), 20, 50) == (17, 2)
+
+    def test_height_1(self):
+        ycen = np.full(100, 24.5)
+        assert extract.get_y_scale(ycen, (0, 100), 1, 50) == (0, 0)
+
+    def test_sloped_near_edge(self):
+        ycen = np.linspace(2.0, 8.0, 100)
+        assert extract.get_y_scale(ycen, (0, 100), 15, 50) == (2, 12)
+
+    def test_oversize_extraction(self):
+        ycen = np.full(100, 24.5)
+        ylow, yhigh = extract.get_y_scale(ycen, (0, 100), 200, 50)
+        assert ylow + yhigh + 1 <= 200
+        assert ylow >= 0
+
+    def test_no_mutation(self):
+        """get_y_scale must not modify the input ycen array."""
+        ycen = np.full(100, 24.5)
+        original = ycen.copy()
+        extract.get_y_scale(ycen, (0, 100), 21, 50)
+        np.testing.assert_array_equal(ycen, original)
+
+    def test_total_height_invariant(self):
+        """ylow + yhigh + 1 must equal extraction_height when it fits."""
+        for eh in [1, 5, 10, 15, 20, 21]:
+            ycen = np.full(100, 24.5)
+            ylow, yhigh = extract.get_y_scale(ycen, (0, 100), eh, 50)
+            assert ylow + yhigh + 1 == eh, f"height={eh}: {ylow}+{yhigh}+1 != {eh}"
+
+
 def test_extract(sample_data, trace_objects):
     img, spec, slitf = sample_data
 
