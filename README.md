@@ -4,11 +4,11 @@
 
 # What's new?
 
-Version 0.7 is a major overhaul with many improvements, please see [WhatsNew.md](WhatsNew.md) for the highlights. If the update breaks your existing setup, you are very welcome to file an issue, so we can assist you.
+Version 0.8 brings a unified Trace data model and new Spectra format; see [WhatsNew.md](WhatsNew.md) for the highlights. If the update breaks your existing setup, you are very welcome to file an issue, so we can assist you.
 
 # PyReduce
 
-A data reduction pipeline for echelle spectrographs (HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS, and more).
+A data reduction pipeline for echelle spectrographs (HARPS, UVES, XSHOOTER, CRIRES+, JWST/NIRISS, ANDES, MOSAIC, NEID, and more).
 
 Based on the [REDUCE](http://www.astro.uu.se/~piskunov/RESEARCH/REDUCE/) package. See the papers:
 - Piskunov & Valenti (2001) [doi:10.1051/0004-6361:20020175](https://doi.org/10.1051/0004-6361:20020175)
@@ -29,6 +29,7 @@ For development:
 git clone https://github.com/ivh/PyReduce
 cd PyReduce
 uv sync
+uv run reduce-build
 ```
 
 ## Quick Start
@@ -54,6 +55,7 @@ Pipeline.from_instrument(
     target="HD132205",
     night="2010-04-01",
     channel="middle",
+    steps=("bias", "flat", "trace", "science"),
 ).run()
 ```
 

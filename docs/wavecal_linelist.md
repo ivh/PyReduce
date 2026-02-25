@@ -83,22 +83,25 @@ Order numbers are assigned to traces in one of three ways:
 ### Why Order Numbers Matter
 
 The 2D wavelength polynomial fits wavelength as a function of both pixel position (x)
-and order number (m):
+and trace index (idx):
 
 ```
-wavelength = P(x, m) = sum_{i,j} c_{i,j} * x^i * m^j
+wavelength = P(x, idx) = sum_{i,j} c_{i,j} * x^i * idx^j
 ```
 
-Using physical order numbers (not sequential indices) is critical because the grating
-equation creates predictable relationships between adjacent orders. A fit using physical
-order numbers can interpolate and extrapolate more accurately.
+Currently the fit uses sequential trace indices (0, 1, 2, ...) as the order
+coordinate, assigned per group. Each trace stores its index in `_wave_idx`.
 
-When you call `Trace.wlen(x)`, it evaluates the 2D polynomial at the trace's order number:
+When you call `Trace.wlen(x)`, it evaluates the 2D polynomial at the trace's index:
 
 ```python
 # Inside Trace.wlen():
-wavelength = np.polynomial.polynomial.polyval2d(x, self.m, self.wave)
+wavelength = np.polynomial.polynomial.polyval2d(x, self._wave_idx, self.wave)
 ```
+
+Physical order numbers (`trace.m`) are used for identification and matching, but the
+polynomial evaluation uses the sequential index because that is what the fit was built
+against.
 
 ## Gas Lamp Calibration
 

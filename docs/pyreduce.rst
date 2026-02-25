@@ -12,10 +12,74 @@ Subpackages
 Submodules
 ----------
 
-pyreduce.clipnflip module
--------------------------
+pyreduce.pipeline module
+------------------------
 
-.. automodule:: pyreduce.clipnflip
+.. automodule:: pyreduce.pipeline
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.reduce module
+----------------------
+
+.. automodule:: pyreduce.reduce
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.configuration module
+-----------------------------
+
+.. automodule:: pyreduce.configuration
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.extract module
+-----------------------
+
+.. automodule:: pyreduce.extract
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.trace module
+---------------------
+
+.. automodule:: pyreduce.trace
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.trace\_model module
+----------------------------
+
+.. automodule:: pyreduce.trace_model
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.spectra module
+-----------------------
+
+.. automodule:: pyreduce.spectra
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.wavelength\_calibration module
+---------------------------------------
+
+.. automodule:: pyreduce.wavelength_calibration
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.slit\_curve module
+---------------------------
+
+.. automodule:: pyreduce.slit_curve
     :members:
     :undoc-members:
     :show-inheritance:
@@ -36,6 +100,30 @@ pyreduce.continuum\_normalization module
     :undoc-members:
     :show-inheritance:
 
+pyreduce.estimate\_background\_scatter module
+---------------------------------------------
+
+.. automodule:: pyreduce.estimate_background_scatter
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.rectify module
+-----------------------
+
+.. automodule:: pyreduce.rectify
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.clipnflip module
+-------------------------
+
+.. automodule:: pyreduce.clipnflip
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pyreduce.cwrappers module
 -------------------------
 
@@ -52,51 +140,10 @@ pyreduce.datasets module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.estimate\_background\_scatter module
----------------------------------------------
-
-.. automodule:: pyreduce.estimate_background_scatter
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pyreduce.extract module
+pyreduce.echelle module
 -----------------------
 
-.. automodule:: pyreduce.extract
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pyreduce.slit\_curve module
----------------------------
-
-.. automodule:: pyreduce.slit_curve
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-pyreduce.reduce module
-----------------------
-
-.. automodule:: pyreduce.reduce
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pyreduce.spectra module
------------------------
-
-.. automodule:: pyreduce.spectra
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pyreduce.trace module
----------------------
-
-.. automodule:: pyreduce.trace
+.. automodule:: pyreduce.echelle
     :members:
     :undoc-members:
     :show-inheritance:
@@ -109,14 +156,13 @@ pyreduce.util module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.wavelength\_calibration module
----------------------------------------
+pyreduce.cli module
+-------------------
 
-.. automodule:: pyreduce.wavelength_calibration
+.. automodule:: pyreduce.cli
     :members:
     :undoc-members:
     :show-inheritance:
-
 
 Module contents
 ---------------

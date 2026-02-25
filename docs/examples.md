@@ -110,8 +110,8 @@ previous runs if the output files exist.
 | `mosaic_nir.py` | ELT MOSAIC NIR channel |
 | `mosaic_vis.py` | ELT MOSAIC VIS channels |
 | `andes_riz.py` | ELT ANDES R/IZ channels |
-| `andes_allbands.py` | ELT ANDES all bands (U/B/V/R/IZ/Y/J/H) |
-| `andes_yjh_example.py` | ELT ANDES YJH channels |
+| `andes_tracecurve.py` | ELT ANDES all bands (U/B/V/R/IZ/Y/J/H) |
+| `andes_yjh.py` | ELT ANDES YJH channels |
 
 ### Advanced Usage
 

@@ -99,15 +99,15 @@ The binary table has a single row containing flattened 2D arrays:
 
 The `TDIM` keyword stores the original shape as `(ncol, ntrace)`.
 
-### Key Differences from v2/v3
+### Key Differences from v2
 
-| Aspect | Legacy (v1) | Current (v2/v3) |
-|--------|-------------|-----------------|
+| Aspect | Legacy (v1) | Current (v2) |
+|--------|-------------|--------------|
 | Table rows | 1 (flattened) | ntrace (one per spectrum) |
 | Masking | Separate `COLUMNS` array | NaN in data |
 | Order info | Not stored | `M` column |
-| Group info | Not stored | `GROUP` column (was `FIBER` in v2) |
-| Fiber index | Not stored | `FIBER_IDX` column (v3 only) |
+| Group info | Not stored | `GROUP` column |
+| Fiber index | Not stored | `FIBER_IDX` column |
 | Extraction height | Not stored | `EXTR_H` column |
 | Slit function | Separate files | `SLITFU` column |
 

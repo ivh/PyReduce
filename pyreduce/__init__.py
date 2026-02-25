@@ -1,7 +1,4 @@
-try:
-    from importlib.metadata import PackageNotFoundError, version
-except ImportError:  # for Python<3.8
-    from importlib_metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version
 
 try:
     __version__ = version("pyreduce-astro")
@@ -47,7 +44,6 @@ try:
     del colorlog
 except ImportError:
     console.setFormatter("%(levelname)s - %(message)s")
-    print("Install colorlog for colored logging output")
 
 logger.addHandler(console)
 

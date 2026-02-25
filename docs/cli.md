@@ -42,7 +42,7 @@ uv run reduce run INSTRUMENT [OPTIONS]
 | `--plot` | `-p` | Plot level: 0=none, 1=basic, 2=detailed |
 | `--plot-dir` | | Save plots to this directory as PNG files |
 | `--plot-show` | | Display mode: block, defer, or off |
-| `--order-range` | | Order range to process (e.g., "1,21") |
+| `--trace-range` | | Trace range to process (e.g., "1,21") |
 | `--settings` | | JSON file with settings overrides |
 | `--use` | | Fiber group(s) to reduce (e.g., "upper" or "upper,lower") |
 
