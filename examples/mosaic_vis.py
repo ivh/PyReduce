@@ -23,7 +23,7 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "MOSAIC"
 target = "MOSAIC_VIS"
 night = ""
-channel = "VIS3"
+channel = "VIS1"
 plot = 2
 
 # Data location
@@ -74,7 +74,10 @@ pipe = Pipeline(
 # Run pipeline steps
 pipe.trace([flat_file])
 pipe.curvature([thar_file])
-pipe.extract([thar_file])
+pipe.normalize_flat()
+pipe.wavecal_master([thar_file])
+pipe.wavecal_init()
+pipe.wavecal()
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()

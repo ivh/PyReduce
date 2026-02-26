@@ -16,9 +16,9 @@ class MOSAIC(Instrument):
     # Active region: rows 2038-10734
     VIS_QUADRANTS = {
         "VIS1": {"xlo": 0, "xhi": 6144, "ylo": 2020, "yhi": 6144},  # lower-left
-        "VIS2": {"xlo": 6250, "xhi": 12394, "ylo": 2020, "yhi": 6144},  # lower-right
+        "VIS2": {"xlo": 6249, "xhi": 12393, "ylo": 2045, "yhi": 6169},  # lower-right
         "VIS3": {"xlo": 0, "xhi": 6144, "ylo": 6644, "yhi": 10734},  # upper-left
-        "VIS4": {"xlo": 6250, "xhi": 12394, "ylo": 6644, "yhi": 10734},  # upper-right
+        "VIS4": {"xlo": 6249, "xhi": 12393, "ylo": 6644, "yhi": 10734},  # upper-right
     }
 
     def add_header_info(self, header, channel, **kwargs):
