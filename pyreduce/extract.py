@@ -27,21 +27,29 @@ from .util import make_index
 
 logger = logging.getLogger(__name__)
 
-# Backend selection: set PYREDUCE_USE_CHARSLIT=1 to use charslit
-USE_CHARSLIT = os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
-# Slitdelta correction: set PYREDUCE_USE_DELTAS=0 to disable (default enabled)
-USE_DELTAS = os.environ.get("PYREDUCE_USE_DELTAS", "1") == "1"
+# Backend selection: set PYREDUCE_USE_CHARSLIT=1 to use charslit.
+# Checked at call time so env var changes within a process take effect.
+_charslit_mod = None
 
-if USE_CHARSLIT:
-    import charslit
 
-    logger.info("Using charslit extraction backend")
-    if not USE_DELTAS:
-        logger.info("Slitdelta correction disabled (PYREDUCE_USE_DELTAS=0)")
-else:
-    from . import cwrappers
+def _use_charslit():
+    return os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
 
-    logger.info("Using CFFI extraction backend")
+
+def _use_deltas():
+    return os.environ.get("PYREDUCE_USE_DELTAS", "1") == "1"
+
+
+def _get_charslit():
+    global _charslit_mod
+    if _charslit_mod is None:
+        import charslit
+
+        _charslit_mod = charslit
+    return _charslit_mod
+
+
+from . import cwrappers
 
 
 def _slitdec_charslit(
@@ -139,7 +147,7 @@ def _slitdec_charslit(
         logger.debug("preset_slitfunc is not yet supported by charslit, ignoring")
 
     # Call charslit
-    result = charslit.slitdec(
+    result = _get_charslit().slitdec(
         data,
         pix_unc,
         mask_c,
@@ -1167,7 +1175,7 @@ def extract_spectrum(
         )
 
     # CFFI backend only supports curvature degree <= 2; truncate if needed
-    if not USE_CHARSLIT and curvature is not None and curvature.shape[1] > 3:
+    if not _use_charslit() and curvature is not None and curvature.shape[1] > 3:
         logger.warning(
             "curve_degree > 2 requires charslit backend. "
             "Truncating to degree 2. Set PYREDUCE_USE_CHARSLIT=1 for full curvature support."
@@ -1232,7 +1240,7 @@ def extract_spectrum(
 
             # Prepare curvature for both backends and visualization
             slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
-            if USE_DELTAS and slitdeltas is not None and len(slitdeltas) > 0:
+            if _use_deltas() and slitdeltas is not None and len(slitdeltas) > 0:
                 # Interpolate slitdeltas to match swath nrows if needed
                 if len(slitdeltas) == swath_nrows:
                     swath_slitdeltas = slitdeltas.astype(np.float64)
@@ -1244,7 +1252,7 @@ def extract_spectrum(
             else:
                 swath_slitdeltas = None
 
-            if USE_CHARSLIT:
+            if _use_charslit():
                 charslit_slitdeltas = (
                     swath_slitdeltas
                     if swath_slitdeltas is not None

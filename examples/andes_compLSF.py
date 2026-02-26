@@ -184,7 +184,7 @@ for band in requested:
                 import copy
 
                 mode_config = copy.deepcopy(config)
-                mode_config["science"]["extraction_height"] = 6
+                mode_config["science"]["extraction_height"] = 4
             pipe = make_pipeline(instrument_name, channel, output_dir, mode_config)
             pipe._data["trace"] = mode_traces
             pipe.extract([combined_file])
