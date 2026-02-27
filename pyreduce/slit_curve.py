@@ -409,9 +409,8 @@ class Curvature:
 
         Returns
         -------
-        fitted_coeffs : array of shape (curve_degree, fit_degree + 1)
-            Fitted polynomial coefficients for each curvature term.
-            fitted_coeffs[i] gives polyval coefficients for the i-th curvature term.
+        fitted_coeffs : array of shape (curve_degree, fit_degree + 1) or None
+            Fitted polynomial coefficients for each curvature term, or None on failure.
         peaks : array
             Filtered peak columns
         """
@@ -436,10 +435,7 @@ class Curvature:
                 fitted_coeffs[i] = res.x
 
         except Exception:
-            logger.error(
-                "Could not fit the curvature of this order. Using no curvature instead"
-            )
-            fitted_coeffs = np.zeros((self.curve_degree, self.fit_degree + 1))
+            return None, peaks
 
         return fitted_coeffs, peaks
 
@@ -533,9 +529,13 @@ class Curvature:
         if self.mode == "1D":
             fitted_coeffs = np.zeros((self.n, self.curve_degree, self.fit_degree + 1))
             for j in range(self.n):
-                fitted_coeffs[j], _ = self._fit_curvature_single_order(
-                    peaks[j], all_coeffs[j]
-                )
+                result, _ = self._fit_curvature_single_order(peaks[j], all_coeffs[j])
+                if result is None:
+                    logger.warning(
+                        "Could not fit curvature for trace %d, using zero curvature", j
+                    )
+                else:
+                    fitted_coeffs[j] = result
         elif self.mode == "2D":
             x = np.concatenate(peaks)
             y = [np.full(len(p), i) for i, p in enumerate(peaks)]
@@ -734,7 +734,7 @@ class Curvature:
             offset from the polynomial (red lines).
         """
         plt.figure()
-        _, ncol = original.shape
+        nrow, ncol = original.shape
         output = np.zeros((np.sum(self.curve_height) + self.ntrace, ncol))
         pos = [0]
         x = np.arange(ncol)
@@ -744,6 +744,9 @@ class Curvature:
             yb = ycen - half
             yt = yb + self.curve_height[i] - 1
             xl, xr = self.column_range[i]
+            if np.any(yb[xl:xr] < 0) or np.any(yt[xl:xr] >= nrow):
+                pos += [pos[i] + self.curve_height[i]]
+                continue
             index = make_index(yb, yt, xl, xr)
             yl = pos[i]
             yr = pos[i] + index[0].shape[0]

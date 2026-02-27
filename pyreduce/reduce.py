@@ -903,6 +903,10 @@ class Trace(CalibrationStep):
         # Load order_centers for m assignment if available
         order_centers = self._load_order_centers()
 
+        # Fall back to bundle_centers if no order_centers
+        if order_centers is None:
+            order_centers = self._load_bundle_centers()
+
         # Check if we should trace file groups separately
         fibers_config = getattr(self.instrument.config, "fibers", None)
         trace_by = getattr(fibers_config, "trace_by", None) if fibers_config else None
@@ -983,6 +987,60 @@ class Trace(CalibrationStep):
         order_centers = {int(k): float(v) for k, v in data.items()}
         logger.info("Loaded order centers from %s: %d orders", path, len(order_centers))
         return order_centers
+
+    def _load_bundle_centers(self) -> dict[int, float] | None:
+        """Load bundle_centers from fibers.bundles config as order_centers fallback."""
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        if fibers_config is None or fibers_config.bundles is None:
+            return None
+
+        bundles = fibers_config.bundles
+
+        if bundles.bundle_centers is not None:
+            logger.info(
+                "Using inline bundle_centers: %d bundles", len(bundles.bundle_centers)
+            )
+            return bundles.bundle_centers
+
+        if bundles.bundle_centers_file is None:
+            return None
+
+        from pathlib import Path
+
+        import yaml
+
+        centers_file = bundles.bundle_centers_file
+        if isinstance(centers_file, list):
+            channels = self.instrument.config.channels or []
+            ch_idx = channels.index(self.channel) if self.channel in channels else 0
+            centers_file = (
+                centers_file[ch_idx] if ch_idx < len(centers_file) else centers_file[0]
+            )
+
+        if self.channel and "{channel}" in centers_file:
+            centers_file = centers_file.format(channel=self.channel.lower())
+
+        inst_dir = getattr(self.instrument, "_inst_dir", None)
+        path = Path(centers_file)
+        if not path.is_absolute() and inst_dir:
+            path = Path(inst_dir) / centers_file
+
+        if not path.exists():
+            logger.info("Bundle centers file not found: %s", path)
+            return None
+
+        with open(path) as f:
+            data = yaml.safe_load(f)
+
+        if not data:
+            return None
+
+        if "bundle_centers" in data:
+            data = data["bundle_centers"]
+
+        result = {int(k): float(v) for k, v in data.items()}
+        logger.info("Loaded bundle_centers from %s: %d bundles", path, len(result))
+        return result
 
     def _trace_by_groups(self, files, mask, bias, trace_by, order_centers):
         """Trace files grouped by header value, then merge traces.
@@ -1276,6 +1334,10 @@ class NormalizeFlatField(Step):
         slitfunc_meta : dict
             Metadata for slitfunc (extraction_height, osample, trace_range)
         """
+        if flat is None or (isinstance(flat, tuple) and flat[0] is None):
+            logger.warning("No master flat available, skipping flat normalization")
+            return None
+
         flat, fhead = flat
 
         # Apply fiber selection based on instrument config
