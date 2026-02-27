@@ -1,6 +1,7 @@
 {
     "__inherits__": "CRIRES_PLUS/settings.json",
     "trace": {
-        "min_cluster": 5000
+        "min_cluster": 5000,
+        "filter_y": 400
     }
 }
