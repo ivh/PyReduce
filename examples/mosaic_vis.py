@@ -36,8 +36,6 @@ if "PYREDUCE_PLOT" in os.environ:
     plot = int(os.environ["PYREDUCE_PLOT"])
 plot_dir = join(data_dir, "pyreduce_plots", channel)
 util.set_plot_dir(plot_dir)
-# to not show plots during processing:
-# PYREDUCE_PLOT_SHOW=off uv run...
 
 # File paths (simulated data)
 flat_file = join(
@@ -72,8 +70,9 @@ pipe = Pipeline(
 )
 
 # Run pipeline steps
-pipe.trace([flat_file])
-pipe.curvature([thar_file])
+# pipe.trace([flat_file])
+# pipe.curvature([thar_file])
+pipe.flat([flat_file])
 pipe.normalize_flat()
 pipe.wavecal_master([thar_file])
 pipe.wavecal_init()
