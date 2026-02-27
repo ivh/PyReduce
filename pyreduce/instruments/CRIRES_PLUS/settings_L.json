@@ -1,0 +1,6 @@
+{
+    "__inherits__": "CRIRES_PLUS/settings.json",
+    "trace": {
+        "min_cluster": 5000
+    }
+}

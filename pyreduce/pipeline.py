@@ -700,11 +700,18 @@ class Pipeline:
         util.set_plot_dir(plot_dir)
         util.set_plot_show(plot_show, plot_level=plot)
 
-        # Load configuration (channel-specific if settings_{channel}.json exists)
-        config = load_config(configuration, instrument, 0, channel=channel)
-
-        # Load instrument
+        # Load instrument (before config, so we can get settings fallbacks)
         inst = load_instrument(instrument)
+
+        # Load configuration (channel-specific if settings_{channel}.json exists)
+        channel_fallbacks = inst.get_settings_fallbacks(channel) if channel else None
+        config = load_config(
+            configuration,
+            instrument,
+            0,
+            channel=channel,
+            channel_fallbacks=channel_fallbacks,
+        )
         info = inst.info
 
         # Get directories from config if not specified

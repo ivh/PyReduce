@@ -25,25 +25,30 @@ else:
     hasJsonSchema = True
 
 
-def get_configuration_for_instrument(instrument, channel=None, **kwargs):
+def get_configuration_for_instrument(
+    instrument, channel=None, channel_fallbacks=None, **kwargs
+):
     local = dirname(__file__)
     instrument = str(instrument)
     if instrument in ["pyreduce", "defaults", None]:
         fname = join(local, "instruments", "defaults", "settings.json")
     else:
         inst_dir = join(local, "instruments", instrument.upper())
-        # Check for channel-specific settings file (case-insensitive)
-        if channel:
-            channel_fname = join(inst_dir, f"settings_{channel}.json")
-            channel_fname_lower = join(inst_dir, f"settings_{channel.lower()}.json")
-            if exists(channel_fname):
-                fname = channel_fname
-            elif exists(channel_fname_lower):
-                fname = channel_fname_lower
+        fname = join(inst_dir, "settings.json")
+
+        # Build list of channel names to try
+        candidates = (
+            channel_fallbacks if channel_fallbacks else ([channel] if channel else [])
+        )
+        for candidate in candidates:
+            for name in (candidate, candidate.lower()):
+                path = join(inst_dir, f"settings_{name}.json")
+                if exists(path):
+                    fname = path
+                    break
             else:
-                fname = join(inst_dir, "settings.json")
-        else:
-            fname = join(inst_dir, "settings.json")
+                continue
+            break
 
     config = load_config(fname, instrument)
 
@@ -134,13 +139,13 @@ def _resolve_inheritance(config, seen=None):
     return update(parent, config, check=False)
 
 
-def load_config(configuration, instrument, j=0, channel=None):
+def load_config(configuration, instrument, j=0, channel=None, channel_fallbacks=None):
     if configuration is None:
         logger.info(
             "No configuration specified, using default values for this instrument"
         )
         config = get_configuration_for_instrument(
-            instrument, channel=channel, plot=False
+            instrument, channel=channel, channel_fallbacks=channel_fallbacks, plot=False
         )
     elif isinstance(configuration, dict):
         if instrument in configuration.keys():

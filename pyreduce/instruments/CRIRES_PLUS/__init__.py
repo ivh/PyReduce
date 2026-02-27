@@ -75,6 +75,11 @@ class CRIRES_PLUS(Instrument):
         detector = match.group(2)
         return setting, detector
 
+    def get_settings_fallbacks(self, channel):
+        setting, detector = self.parse_channel(channel)
+        band = setting[0]  # e.g. "L" from "L3340"
+        return [f"{setting}_det{detector}", setting, band]
+
     def get_expected_values(self, target, night, channel):
         expectations = super().get_expected_values(target, night)
         setting, detector = self.parse_channel(channel)

@@ -178,3 +178,108 @@ def test_legacy_inheritance_formats():
     config3 = {"__inherits__": "UVES", "science": {"extraction_height": 42}}
     result3 = _resolve_inheritance(config3.copy())
     assert result3["science"]["extraction_height"] == 42
+
+
+def test_channel_fallbacks(tmp_path):
+    """Test that channel_fallbacks are tried in order."""
+    inst_dir = os.path.join(os.path.dirname(conf.__file__), "instruments", "UVES")
+    band_file = os.path.join(inst_dir, "settings_R.json")
+
+    try:
+        band_settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES/settings.json",
+            "trace": {"degree": 2},
+        }
+        with open(band_file, "w") as f:
+            json.dump(band_settings, f)
+
+        # Fallback list: exact channel not found, band-level file is found
+        config = conf.get_configuration_for_instrument(
+            "UVES", channel_fallbacks=["R4000_det1", "R4000", "R"]
+        )
+        assert config["trace"]["degree"] == 2
+
+        # First match wins: if exact file existed it would take priority
+        exact_file = os.path.join(inst_dir, "settings_R4000.json")
+        exact_settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES/settings.json",
+            "trace": {"degree": 9},
+        }
+        with open(exact_file, "w") as f:
+            json.dump(exact_settings, f)
+
+        config = conf.get_configuration_for_instrument(
+            "UVES", channel_fallbacks=["R4000_det1", "R4000", "R"]
+        )
+        assert config["trace"]["degree"] == 9
+        os.remove(exact_file)
+
+        # No fallback matches -> base settings.json
+        config = conf.get_configuration_for_instrument(
+            "UVES", channel_fallbacks=["Z9999_det7", "Z9999", "Z"]
+        )
+        base = conf.get_configuration_for_instrument("UVES")
+        assert config["trace"]["degree"] == base["trace"]["degree"]
+
+        # Empty fallbacks -> base settings
+        config = conf.get_configuration_for_instrument("UVES", channel_fallbacks=[])
+        assert config["trace"]["degree"] == base["trace"]["degree"]
+
+    finally:
+        for f in [band_file]:
+            if os.path.exists(f):
+                os.remove(f)
+
+
+def test_channel_fallbacks_case_insensitive():
+    """Test that fallback lookup is case-insensitive."""
+    inst_dir = os.path.join(os.path.dirname(conf.__file__), "instruments", "UVES")
+    lower_file = os.path.join(inst_dir, "settings_testband.json")
+
+    try:
+        settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES/settings.json",
+            "trace": {"degree": 3},
+        }
+        with open(lower_file, "w") as f:
+            json.dump(settings, f)
+
+        # Uppercase fallback should find lowercase file
+        config = conf.get_configuration_for_instrument(
+            "UVES", channel_fallbacks=["TESTBAND"]
+        )
+        assert config["trace"]["degree"] == 3
+
+    finally:
+        if os.path.exists(lower_file):
+            os.remove(lower_file)
+
+
+def test_channel_fallbacks_passed_through_load_config():
+    """Test that load_config passes channel_fallbacks to get_configuration_for_instrument."""
+    inst_dir = os.path.join(os.path.dirname(conf.__file__), "instruments", "UVES")
+    band_file = os.path.join(inst_dir, "settings_Q.json")
+
+    try:
+        settings = {
+            "__instrument__": "UVES",
+            "__inherits__": "UVES/settings.json",
+            "science": {"extraction_height": 77},
+        }
+        with open(band_file, "w") as f:
+            json.dump(settings, f)
+
+        config = conf.load_config(
+            None,
+            "UVES",
+            channel="Q5000_det1",
+            channel_fallbacks=["Q5000_det1", "Q5000", "Q"],
+        )
+        assert config["science"]["extraction_height"] == 77
+
+    finally:
+        if os.path.exists(band_file):
+            os.remove(band_file)

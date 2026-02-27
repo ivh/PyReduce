@@ -894,6 +894,16 @@ class Instrument:
     def get_supported_channels(self):
         return self.channels
 
+    def get_settings_fallbacks(self, channel):
+        """Return channel names to try when looking up settings files.
+
+        Searched in order: most specific first, least specific last.
+        The base settings.json is always the final fallback (handled by the caller).
+
+        Override in subclasses for instruments with composite channel names.
+        """
+        return [channel] if channel else []
+
     def get_mask_filename(self, channel, **kwargs):
         c = channel.lower() if channel else ""
         fname = f"mask_{c}.fits.gz" if c else "mask.fits.gz"

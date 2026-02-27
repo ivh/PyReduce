@@ -119,6 +119,29 @@ def test_sort_files(supported_instrument, supported_channels, config):
 
 
 @pytest.mark.unit
+def test_get_settings_fallbacks_base_class():
+    """Base class returns [channel]."""
+    instr = instrument_info.load_instrument(None)
+    assert instr.get_settings_fallbacks("red") == ["red"]
+    assert instr.get_settings_fallbacks(None) == []
+
+
+@pytest.mark.unit
+def test_get_settings_fallbacks_crires_plus():
+    """CRIRES_PLUS returns [setting_det, setting, band]."""
+    instr = instrument_info.load_instrument("CRIRES_PLUS")
+
+    fb = instr.get_settings_fallbacks("L3340_det1")
+    assert fb == ["L3340_det1", "L3340", "L"]
+
+    fb = instr.get_settings_fallbacks("M4318_det3")
+    assert fb == ["M4318_det3", "M4318", "M"]
+
+    fb = instr.get_settings_fallbacks("J1228_det2")
+    assert fb == ["J1228_det2", "J1228", "J"]
+
+
+@pytest.mark.unit
 def test_discover_channels_base_class():
     """Base class discover_channels returns [None]."""
     instr = instrument_info.load_instrument(None)
