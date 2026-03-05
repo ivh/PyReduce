@@ -1,6 +1,22 @@
 # Changelog
 
 
+## [0.8.1] - 2026-03-05
+
+### Added
+- CRIRES+ L-band example script
+- Settings fallback chain for composite channel names
+- `hdf2trace` tool: write HDF wavelength polynomials into trace FITS
+
+### Fixed
+- Fix `create_custom_instrument` crash (was returning None config)
+- Fix charslit backend selection to check env var at call time
+- Bundle centers fallback, curvature and norm_flat fixes for MOSAIC VIS
+
+### Changed
+- Rewrite custom instrument example as student-friendly walkthrough
+- `create_custom_instrument` now accepts `**overrides` for inline property setting
+
 ## [0.8a5] - 2026-02-25
 
 ### Added

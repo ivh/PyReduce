@@ -4,7 +4,7 @@
 
 # What's new?
 
-Version 0.8 brings a unified Trace data model and new Spectra format; see [WhatsNew.md](WhatsNew.md) for the highlights. If the update breaks your existing setup, you are very welcome to file an issue, so we can assist you.
+Version 0.8.1 fixes `create_custom_instrument` and adds a student-friendly example for reducing data from unsupported spectrographs. See [CHANGELOG.md](CHANGELOG.md) for all changes since 0.8.
 
 # PyReduce
 
