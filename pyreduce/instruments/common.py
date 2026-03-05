@@ -929,22 +929,58 @@ class COMMON(Instrument):
 
 
 def create_custom_instrument(
-    name, extension=0, info=None, mask_file=None, wavecal_file=None
+    name, extension=0, info=None, mask_file=None, wavecal_file=None, **overrides
 ):
+    """Create a custom instrument for reducing data from unsupported spectrographs.
+
+    Parameters
+    ----------
+    name : str
+        Instrument name (used for output file naming)
+    extension : int or str
+        FITS extension to read data from (default: 0)
+    info : dict or str, optional
+        Instrument properties as a dict, or path to a config file (JSON/YAML).
+        If None, uses sensible defaults. Dict values can be literal numbers
+        or FITS header keyword strings (looked up at runtime).
+    mask_file : str, optional
+        Path to bad pixel mask FITS file
+    wavecal_file : str, optional
+        Path to wavelength calibration file
+    **overrides
+        Additional instrument properties, e.g. ``gain=1.1``, ``readnoise=5``,
+        ``orientation=4``. These override values from the info dict.
+        See ``instruments/defaults/config.yaml`` for available keys.
+
+    Returns
+    -------
+    Instrument
+        Configured instrument instance
+    """
+
     class CUSTOM(Instrument):
         def __init__(self):
             super().__init__()
             self.name = name
 
         def load_info(self):
-            if info is None:
-                return None, COMMON().info
-            try:
-                with open(info) as f:
-                    data = json.load(f)
-                return None, data
-            except:
-                return None, info
+            base_info = COMMON().info.copy()
+
+            if info is not None:
+                if isinstance(info, dict):
+                    base_info.update(info)
+                elif isinstance(info, str):
+                    with open(info) as f:
+                        if info.endswith((".yaml", ".yml")):
+                            base_info.update(yaml.safe_load(f))
+                        else:
+                            base_info.update(json.load(f))
+
+            base_info["extension"] = extension
+            base_info.update(overrides)
+
+            config = InstrumentConfig(**base_info)
+            return config, base_info
 
         def get_extension(self, header, channel):
             return extension
