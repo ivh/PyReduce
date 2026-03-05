@@ -17,6 +17,10 @@
 - Rewrite custom instrument example as student-friendly walkthrough
 - `create_custom_instrument` now accepts `**overrides` for inline property setting
 
+## [0.8] - 2026-02-25
+
+No code changes from 0.8a5; docs update and stable release.
+
 ## [0.8a5] - 2026-02-25
 
 ### Added
