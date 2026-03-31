@@ -12,12 +12,12 @@ from pyreduce.pipeline import Pipeline
 instrument = "METIS_IFU"
 target = ""
 night = ""
-channel = "IFU_NOMINAL"
+channel = "3.555_det1"
 steps = (
     # "bias",
-    # "flat",
-    "trace",
-    "curvature",
+    "flat",
+    # "trace",
+    # "curvature",
     # "scatter",
     # "norm_flat",
     # "wavecal_master",

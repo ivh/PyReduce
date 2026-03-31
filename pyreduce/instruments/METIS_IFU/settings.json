@@ -8,7 +8,7 @@
         "bias_scaling": "exposure_time"
     },
     "trace": {
-        "degree": 4,
+        "degree": 2,
         "degree_before_merge": "best",
         "filter_y": 20,
         "min_cluster": 100,
@@ -25,7 +25,7 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 1000.0,
-        "extraction_height": 0.28,
+        "extraction_height": 120,
         "oversampling": 12,
         "swath_width": 200,
         "threshold": 1000
@@ -35,15 +35,15 @@
         "dimensionality": "1D",
         "curve_degree": 2,
         "collapse_function": "mean",
-        "curve_height": 1.54,
-        "extraction_height": 1,
-        "curvature_cutoff": 3,
-        "peak_threshold": 0.9725,
-        "peak_width": 1,
-        "window_width": 1,
+        "curve_height": 120,
+        "extraction_height": 30,
+        "curvature_cutoff": 5,
+        "peak_threshold": 2,
+        "peak_width": 5,
+        "window_width": 15,
         "peak_function": "lorentzian",
         "bias_scaling": "exposure_time",
-        "degree": 2
+        "degree": 1
     },
     "wavecal_master": {
         "extraction_method": "simple",
