@@ -125,8 +125,13 @@ class Curvature:
         else:
             curve_height = np.asarray(curve_height, dtype=int)
 
-        # For curvature, extraction_height is always literal pixels
+        # For curvature, extraction_height is always literal pixels.
+        # When None, fall back to per-trace height (matches extract.py behavior).
         extraction_height = self.extraction_height
+        if extraction_height is None:
+            extraction_height = np.array(
+                [t.height if t.height is not None else 0.5 for t in traces]
+            )
         if np.isscalar(extraction_height):
             extraction_height = np.full(ntrace, int(extraction_height))
         else:

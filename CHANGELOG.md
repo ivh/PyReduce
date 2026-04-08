@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [0.8.2] - 2026-04-08
+
+### Fixed
+- Curvature step: fall back to per-trace height when `extraction_height` is `None` (matches `extract.py` behavior)
+
+### Changed
+- Lower minimum Python version to 3.12
+- CI test matrix now covers Python 3.12, 3.13, and 3.14
+
 ## [0.8.1] - 2026-03-05
 
 ### Added
