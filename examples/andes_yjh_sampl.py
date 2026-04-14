@@ -35,9 +35,54 @@ CHANNELS = ["Y", "J", "H"]
 FIBERS_TO_EXTRACT = [1, 38, 75]
 
 DATA_DIR = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+HDF_DIR = os.path.expanduser("~/ANDES/E2E/src/HDF")
+# Map HDFMODEL header value -> file in HDF_DIR
+HDF_FILES = {
+    "ANDES_75fibre_Y.hdf": "ANDES_75fibre_Y.hdf",
+    "ANDES_75fibre_J.hdf": "ANDES_75fibre_J.hdf",
+    "ANDES_75fibre_H.hdf": "ANDES_75fibre_H.hdf",
+}
 PLOT = int(os.environ.get("PYREDUCE_PLOT", "0"))
 
 SIGMA_TO_FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))
+
+
+def load_wavelength_model(hdf_path: str, fiber: str = "fiber_38") -> dict:
+    """Read wavelength(x) per order from an ANDES E2E HDF file.
+
+    Returns dict mapping order number m -> (x_samples, wl_samples) sorted by x,
+    where x is detector pixel and wl is wavelength in microns.
+    """
+    import h5py
+
+    model = {}
+    with h5py.File(hdf_path, "r") as f:
+        for key in f["CCD_1"][fiber]:
+            if not key.startswith("order"):
+                continue
+            m = int(key.replace("order", ""))
+            data = f[f"CCD_1/{fiber}/{key}"]
+            tx = np.array(data["translation_x"])
+            wl = np.array(data["wavelength"])
+            order = np.argsort(tx)
+            model[m] = (tx[order], wl[order])
+    return model
+
+
+def compute_resolving_power(
+    x_peaks: np.ndarray,
+    fwhm_px: np.ndarray,
+    wl_model: tuple[np.ndarray, np.ndarray],
+) -> np.ndarray:
+    """Convert FWHM in pixels to resolving power R = lambda / delta_lambda."""
+    x_samp, wl_samp = wl_model
+    wl_at_peak = np.interp(x_peaks, x_samp, wl_samp)
+    # dλ/dx via finite differences of the model samples
+    dwl_dx = np.gradient(wl_samp, x_samp)
+    dwl_dx_at_peak = np.interp(x_peaks, x_samp, dwl_dx)
+    delta_wl = fwhm_px * np.abs(dwl_dx_at_peak)
+    R = wl_at_peak / delta_wl
+    return R
 
 
 def gaussian(x, amp, mu, sigma, baseline):
@@ -104,6 +149,16 @@ def process_channel(channel: str) -> bool:
         print(f"  Skipping: LFC file not found ({lfc_file})")
         return False
 
+    # --- Load wavelength model from HDF ---
+    hdf_model = fits.getheader(lfc_file).get("HDFMODEL", "")
+    hdf_file = os.path.join(HDF_DIR, HDF_FILES.get(hdf_model, hdf_model))
+    if os.path.exists(hdf_file):
+        wl_model = load_wavelength_model(hdf_file)
+        print(f"  Loaded wavelength model: {os.path.basename(hdf_file)}")
+    else:
+        wl_model = None
+        print(f"  Warning: HDF file not found ({hdf_file}), no R map")
+
     # --- Create Pipeline ---
     config = load_config(None, INSTRUMENT_NAME)
     # Narrow aperture so we don't bleed over unlit neighbours (~2.2 px spacing).
@@ -158,23 +213,26 @@ def process_channel(channel: str) -> bool:
         if t.group is None and t.fiber_idx is not None
     }
 
-    per_fiber: dict[int, list[tuple[int, np.ndarray, np.ndarray, np.ndarray]]] = {
-        f: [] for f in FIBERS_TO_EXTRACT
-    }
+    # per_fiber[fiber_idx] -> list of (m, x_peaks, y_peaks, fwhms, resolving_power)
+    per_fiber: dict[int, list[tuple]] = {f: [] for f in FIBERS_TO_EXTRACT}
     for s in spectra:
         if s.fiber_idx not in per_fiber:
             continue
         xp, fw = fit_peaks(s.spec)
         t = trace_lookup.get((s.m, s.fiber_idx))
         yp = t.y_at_x(xp) if t is not None and xp.size else np.array([])
-        per_fiber[s.fiber_idx].append((s.m, xp, yp, fw))
+        if wl_model is not None and s.m in wl_model and xp.size:
+            rp = compute_resolving_power(xp, fw, wl_model[s.m])
+        else:
+            rp = np.full_like(fw, np.nan)
+        per_fiber[s.fiber_idx].append((s.m, xp, yp, fw, rp))
 
     # Per-fiber summary
     print(f"\nFWHM summary (pixels) for {channel}:")
     print(f"  {'fiber':>5}  {'npeaks':>6}  {'median':>7}  {'mean':>7}  {'std':>6}")
     for fiber in FIBERS_TO_EXTRACT:
         all_fw_f = (
-            np.concatenate([fw for _, _, _, fw in per_fiber[fiber]])
+            np.concatenate([fw for _, _, _, fw, _ in per_fiber[fiber]])
             if per_fiber[fiber]
             else np.array([])
         )
@@ -203,7 +261,7 @@ def process_channel(channel: str) -> bool:
     colors = {1: "tab:blue", 38: "tab:orange", 75: "tab:green"}
     for fiber in FIBERS_TO_EXTRACT:
         all_x_f, all_fw_f = [], []
-        for _m, xp, _yp, fw in per_fiber[fiber]:
+        for _m, xp, _yp, fw, _rp in per_fiber[fiber]:
             all_x_f.append(xp)
             all_fw_f.append(fw)
         if not all_x_f:
@@ -232,13 +290,13 @@ def process_channel(channel: str) -> bool:
 
     # --- 2D interpolated FWHM map across the full detector ---
     all_x = np.concatenate(
-        [xp for lst in per_fiber.values() for _m, xp, _yp, _fw in lst if xp.size]
+        [xp for lst in per_fiber.values() for _m, xp, _yp, _fw, _rp in lst if xp.size]
     )
     all_y = np.concatenate(
-        [yp for lst in per_fiber.values() for _m, _xp, yp, _fw in lst if yp.size]
+        [yp for lst in per_fiber.values() for _m, _xp, yp, _fw, _rp in lst if yp.size]
     )
     all_fw = np.concatenate(
-        [fw for lst in per_fiber.values() for _m, _xp, _yp, fw in lst if fw.size]
+        [fw for lst in per_fiber.values() for _m, _xp, _yp, fw, _rp in lst if fw.size]
     )
 
     with fits.open(lfc_file) as hdu:
@@ -309,6 +367,80 @@ def process_channel(channel: str) -> bool:
     )
     fig2.savefig(out_map_png, dpi=120)
     print(f"Saved FWHM map: {out_map_png}")
+
+    # --- 2D interpolated resolving power map ---
+    if wl_model is not None:
+        all_rp = np.concatenate(
+            [
+                rp
+                for lst in per_fiber.values()
+                for _m, _xp, _yp, _fw, rp in lst
+                if rp.size
+            ]
+        )
+        good = np.isfinite(all_rp) & np.isfinite(all_x) & np.isfinite(all_y)
+        if good.sum() > 100:
+            stat_r, _, _, _ = binned_statistic_2d(
+                all_x[good],
+                all_y[good],
+                all_rp[good],
+                statistic="median",
+                bins=[nbx, nby],
+                range=[[0, ncol], [0, nrow]],
+            )
+            valid_r = np.isfinite(stat_r)
+            pts_r = np.column_stack([XB[valid_r], YB[valid_r]])
+            vals_r = stat_r[valid_r]
+            r_map = griddata(pts_r, vals_r, (GX, GY), method="linear")
+
+            fig3, ax_r = plt.subplots(figsize=(9, 8))
+            rvmin, rvmax = np.nanpercentile(r_map, [2, 98])
+            im_r = ax_r.imshow(
+                r_map,
+                origin="lower",
+                extent=(0, ncol, 0, nrow),
+                aspect="equal",
+                cmap="inferno",
+                vmin=rvmin,
+                vmax=rvmax,
+                interpolation="bilinear",
+            )
+            r_levels = np.arange(
+                np.floor(rvmin / 5000) * 5000,
+                np.ceil(rvmax / 5000) * 5000 + 1,
+                5000,
+            )
+            cs_r = ax_r.contour(
+                GX,
+                GY,
+                r_map,
+                levels=r_levels,
+                colors="white",
+                linewidths=0.7,
+                alpha=0.8,
+            )
+            ax_r.clabel(cs_r, inline=True, fontsize=8, fmt="%.0f")
+            ax_r.scatter(all_x[good], all_y[good], s=1, color="k", alpha=0.15)
+
+            cbar_r = fig3.colorbar(im_r, ax=ax_r, shrink=0.85)
+            cbar_r.set_label("Resolving power R")
+            ax_r.set_xlabel("x [pixel]  (dispersion)")
+            ax_r.set_ylabel("y [pixel]  (cross-dispersion)")
+            ax_r.set_title(f"{channel}-band resolving power map (from LFC FWHM)")
+            ax_r.set_xlim(0, ncol)
+            ax_r.set_ylim(0, nrow)
+
+            fig3.tight_layout()
+            out_r_png = os.path.join(
+                output_dir, f"andes_{channel.lower()}_sampl_R_map.png"
+            )
+            fig3.savefig(out_r_png, dpi=120)
+            print(f"Saved R map: {out_r_png}")
+
+            # Print R summary
+            med_r = np.nanmedian(all_rp[good])
+            mean_r = np.nanmean(all_rp[good])
+            print(f"  Resolving power: median R = {med_r:.0f}, mean R = {mean_r:.0f}")
 
     return True
 
