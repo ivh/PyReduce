@@ -1,0 +1,70 @@
+# HERMES instrument configuration
+# High Efficiency and Resolution Mercator Echelle Spectrograph
+# Mercator telescope, La Palma
+# Detector: E2V42-90 (CCD), 2048x4608 active pixels
+
+__instrument__: HERMES
+instrument: INSTRUME
+id_instrument: HERMES
+telescope: Mercator
+
+date: DATE-OBS
+date_format: fits
+
+extension: 0
+orientation: 3
+transpose: false
+
+prescan_x: 53
+overscan_x: 47
+prescan_y: 0
+overscan_y: 64
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+gain: DETGAIN
+readnoise: 5.5
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: OBJ_RA
+dec: OBJ_DEC
+longitude: -17.8792
+latitude: 28.7603
+altitude: 2333
+target: OBJECT
+observation_type: OBSMODE
+
+# File classification keywords and patterns
+kw_bias: OBSMODE
+kw_flat: OBSMODE
+kw_curvature: OBSMODE
+kw_scatter: OBSMODE
+kw_orders: OBSMODE
+kw_wave: OBSMODE
+kw_comb: null
+kw_spec: OBSMODE
+
+id_bias: BIAS
+id_flat: HRF_FF
+id_orders: HRF_FF
+id_curvature: HRF_TH
+id_scatter: HRF_FF
+id_wave: HRF_TH
+id_comb: null
+id_spec: HRF_OBJ
+
+# Fiber configuration: 2 fibers per order (science + simultaneous cal/sky)
+# Fiber 1 is the object fiber, fiber 2 is the simultaneous reference fiber
+fibers:
+  fibers_per_order: 2
+  groups:
+    obj:
+      range: [1, 2]
+      merge: center
+    sky:
+      range: [2, 3]
+      merge: center
+  use:
+    default: [obj, sky]

@@ -1,0 +1,24 @@
+{
+    "__instrument__": "HERMES",
+    "__inherits__": "defaults/settings.json",
+    "trace": {
+        "degree": 3,
+        "noise": 50,
+        "noise_relative": 0.05,
+        "min_cluster": 3000,
+        "filter_y": 8
+    },
+    "norm_flat": {
+        "extraction_height": 6,
+        "oversampling": 10
+    },
+    "wavecal_master": {
+        "extraction_height": 6
+    },
+    "science": {
+        "extraction_height": 6,
+        "oversampling": 10,
+        "swath_width": 600,
+        "smooth_slitfunction": 2
+    }
+}
