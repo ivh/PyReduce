@@ -593,9 +593,11 @@ class Pipeline:
             "flat": lambda: pipe.flat(files.get("flat", []))
             if len(files.get("flat", []))
             else pipe,
-            "trace": lambda: pipe.trace(files.get("trace")),
-            "curvature": lambda: pipe.curvature(files.get("curvature")),
-            "scatter": lambda: pipe.scatter(files.get("scatter")),
+            "trace": lambda: pipe.trace(files.get("trace", files.get("flat"))),
+            "curvature": lambda: pipe.curvature(
+                files.get("curvature", files.get("flat"))
+            ),
+            "scatter": lambda: pipe.scatter(files.get("scatter", files.get("flat"))),
             "norm_flat": lambda: pipe.normalize_flat(),
             "wavecal_master": lambda: pipe.wavecal_master(
                 files.get("wavecal_master", [])
