@@ -6,6 +6,7 @@ Mostly reading data from the header
 
 import logging
 import os.path
+import re
 
 from ..common import Instrument
 
@@ -29,10 +30,29 @@ class MICADO(Instrument):
 
         return header
 
-    def get_extension(self, header, channel):
-        extension = 5
+    def parse_channel(self, channel):
+        """Parse channel string into wavelength and detector.
 
-        return extension
+        Parameters
+        ----------
+        channel : str
+            Channel identifier, e.g. "SPEC_det1"
+
+        Returns
+        -------
+        detector : str
+            Detector number, e.g. "1"
+        """
+        pattern = r"SPEC_det(\d)"
+        match = re.match(pattern, channel, re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Invalid channel format: {channel}")
+        detector = match.group(1)
+        return detector
+
+    def get_extension(self, header, channel):
+        detector = self.parse_channel(channel)
+        return f"DET{detector}.IMG"
 
     def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the wavelength calibration config file"""
