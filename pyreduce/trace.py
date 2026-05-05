@@ -1395,7 +1395,11 @@ def group_fibers(
 
             n_bundles = (n_in_order + bundle_size - 1) // bundle_size
             for i in range(n_bundles):
-                bundle_name = f"bundle_{i + 1}"
+                # When each m is its own bundle (bundle_centers used as
+                # order_centers, one bundle per m), name by m so bundle IDs
+                # are unique across orders. Otherwise fall back to the
+                # within-order index.
+                bundle_name = f"bundle_{m}" if n_bundles == 1 else f"bundle_{i + 1}"
                 start_idx = i * bundle_size
                 end_idx = min((i + 1) * bundle_size, n_in_order)
 
