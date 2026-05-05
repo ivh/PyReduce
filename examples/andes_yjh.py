@@ -22,10 +22,14 @@ from pyreduce.pipeline import Pipeline
 
 # --- Configuration ---
 instrument_name = "ANDES_YJH"
-channel = "J"  # Y, J, or H
+channel = "H"  # Y, J, or H
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
 raw_dir = os.path.join(data_dir, "ANDES", channel)
 output_dir = os.path.join(data_dir, "ANDES", "reduced", channel)
+# Optional suffix so parallel jobs can write to separate dirs
+_out_suffix = os.environ.get("PYREDUCE_OUTPUT_SUBDIR", "")
+if _out_suffix:
+    output_dir = os.path.join(output_dir, _out_suffix)
 
 # Input files (even and odd illuminated flats)
 # File selection is header-based:
@@ -40,6 +44,9 @@ plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
 # --- Create Pipeline ---
 config = load_config(None, instrument_name)
+_tr = os.environ.get("ANDES_TRACE_RANGE")
+trace_range = tuple(int(x) for x in _tr.split(",")) if _tr else None
+
 pipe = Pipeline(
     instrument=instrument_name,
     channel=channel,
@@ -47,6 +54,7 @@ pipe = Pipeline(
     target="ANDES_fiber_test",
     config=config,
     plot=plot,
+    trace_range=trace_range,
 )
 
 print(f"Instrument: {pipe.instrument.name}")
@@ -97,5 +105,9 @@ print(f"  Saved combined flat: {combined_file}")
 
 # --- Extract using the science step ---
 print("\nExtracting spectra (group A from fiber config)...")
-pipe.instrument.config.fibers.use["science"] = ["ring2"]
-pipe.extract([combined_file]).run()
+pipe.instrument.config.fibers.use["science"] = ["ifu"]
+science_file = os.environ.get(
+    "ANDES_SCIENCE_FILE",
+    os.path.join(raw_dir, "H_ifu_HR1544_skyabs_skyemi_fp_20260314.fits"),
+)
+pipe.extract([science_file]).run()
