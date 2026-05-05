@@ -12,7 +12,10 @@ date_format: fits
 
 # NIR channel and VIS quadrants (VIS1-VIS4)
 # VIS detector is a 4-quadrant mosaic, each quadrant processed separately
-channels: [NIR, VIS1, VIS2, VIS3, VIS4]
+# NIR is the legacy E2E REF NIR simulation; LR-J / LR-H are the newer
+# pyechelle ZEMAX-model simulations on the same H4RG detector.
+channels: [NIR, LR-J, LR-H, VIS1, VIS2, VIS3, VIS4]
+instrument_mode: BAND
 extension: 0
 orientation: 0
 transpose: false
