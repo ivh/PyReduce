@@ -15,8 +15,8 @@ night = ""
 channel = "3.555_det1"
 steps = (
     # "bias",
-    "flat",
-    # "trace",
+    # "flat",
+    "trace",
     # "curvature",
     # "scatter",
     # "norm_flat",

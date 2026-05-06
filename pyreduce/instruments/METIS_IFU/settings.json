@@ -10,8 +10,8 @@
     "trace": {
         "degree": 2,
         "degree_before_merge": "best",
-        "filter_y": 20,
-        "min_cluster": 100,
+        "filter_y": 200,
+        "min_cluster": 1000,
         "noise": 120,
         "border_width": 6,
         "auto_merge_threshold": 0.9,

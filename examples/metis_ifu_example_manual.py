@@ -30,7 +30,7 @@ output_dir = join(base_dir, "reduced")
 # File paths (simulated data)
 flat_file = join(
     input_dir,
-    "METIS.IFU_IMG_WCUOFF_RAW.2027-01-25_00_16_44.fits",
+    "METIS.IFU_RSRF_RAW.2027-01-25_00_19_34.fits",
 )
 print(f"FLAT: {flat_file}")
 
@@ -55,8 +55,8 @@ pipe = Pipeline(
 )
 
 # Run pipeline steps
-# pipe.trace([flat_file])
-pipe.curvature([wav_file])
+pipe.trace([flat_file])
+# pipe.curvature([wav_file])
 
 print("\n=== Running Pipeline ===")
 results = pipe.run()
