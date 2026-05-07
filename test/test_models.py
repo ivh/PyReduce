@@ -356,6 +356,16 @@ class TestFiberConfig:
             FibersConfig(**data)
 
     @pytest.mark.unit
+    def test_fibers_config_rejects_bundle_named_group(self):
+        """Named groups with bundle_N names collide with bundle group names."""
+        data = {
+            "groups": {"bundle_5": {"range": [1, 8]}},
+            "use": {"science": ["bundle_5"]},
+        }
+        with pytest.raises(ValidationError, match="bundle_"):
+            FibersConfig(**data)
+
+    @pytest.mark.unit
     def test_instrument_config_with_fibers(self):
         """Test InstrumentConfig includes fibers field."""
         data = {

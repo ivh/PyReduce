@@ -151,8 +151,9 @@ def _assign_order_and_fiber_inplace(
     order_centers: dict[int, float] | None,
     ncol: int,
     fibers_per_order: int | None = None,
+    bundle_centers: dict[int, float] | None = None,
 ) -> None:
-    """Assign m (order number) and fiber_idx to Trace objects.
+    """Assign m (order number), bundle, and fiber_idx to Trace objects.
 
     Parameters
     ----------
@@ -160,12 +161,19 @@ def _assign_order_and_fiber_inplace(
         Trace objects (modified in place)
     order_centers : dict[int, float] | None
         Order number -> y-position mapping. If None, m stays None
-        (unless fibers_per_order is set for auto-pairing).
+        (unless fibers_per_order is set for auto-pairing or bundle_centers
+        is provided alone, in which case the sequential-m fallback is
+        skipped because each trace is one fiber within a bundle, not its
+        own order).
     ncol : int
         Number of columns in detector
     fibers_per_order : int or None
         If set and order_centers is None, group every N consecutive traces
         (sorted by y-position) into the same order with sequential fiber_idx.
+    bundle_centers : dict[int, float] | None
+        Bundle id -> y-position mapping. When set, each trace is matched
+        to the nearest bundle center; t.bundle is populated. fiber_idx is
+        then re-assigned within each (m, bundle).
     """
     if not traces:
         return
@@ -227,18 +235,40 @@ def _assign_order_and_fiber_inplace(
             order_num,
             fibers_per_order,
         )
-    else:
-        # No order_centers and no fibers_per_order: assign sequential m and
-        # fiber_idx=1 to all traces (one fiber per order).
+    elif bundle_centers is None:
+        # No order_centers, no fibers_per_order, no bundle_centers: assign
+        # sequential m and fiber_idx=1 to all traces (one fiber per order).
         traces.sort(key=lambda t: t.y_at_x(x_center))
         for i, t in enumerate(traces):
             t.m = i
             t.fiber_idx = 1
+    # else: bundle_centers handles assignment below; m stays None.
 
-    # Sort traces by (m descending, fiber_idx)
+    # Bundle assignment: independent of m, populates t.bundle and
+    # re-derives fiber_idx within each (m, bundle).
+    if bundle_centers is not None:
+        from collections import defaultdict
+
+        bundle_ids = np.array(list(bundle_centers.keys()))
+        bundle_ys = np.array([bundle_centers[b] for b in bundle_ids])
+
+        for i, y in enumerate(y_positions):
+            closest = int(np.argmin(np.abs(y - bundle_ys)))
+            traces[i].bundle = int(bundle_ids[closest])
+
+        traces_by_mb = defaultdict(list)
+        for i, t in enumerate(traces):
+            traces_by_mb[(t.m, t.bundle)].append((i, y_positions[i]))
+        for _key, trace_list in traces_by_mb.items():
+            trace_list.sort(key=lambda x: x[1])
+            for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
+                traces[trace_idx].fiber_idx = fiber_idx
+
+    # Sort traces by (m descending, bundle, fiber_idx)
     def sort_key(t):
         m_val = t.m if t.m is not None else float("inf")
-        return (-m_val, t.fiber_idx or 0)
+        b_val = t.bundle if t.bundle is not None else 0
+        return (-m_val, b_val, t.fiber_idx or 0)
 
     traces.sort(key=sort_key)
 
@@ -246,6 +276,14 @@ def _assign_order_and_fiber_inplace(
     if order_centers is not None:
         unique_m = {t.m for t in traces if t.m is not None}
         logger.info("  Order numbers (m): %s", sorted(unique_m, reverse=True))
+    if bundle_centers is not None:
+        unique_b = {t.bundle for t in traces if t.bundle is not None}
+        logger.info(
+            "  Bundle ids: %d unique (range %d..%d)",
+            len(unique_b),
+            min(unique_b),
+            max(unique_b),
+        )
 
 
 def _compute_heights_inplace(traces: list, ncol: int) -> None:
@@ -748,6 +786,7 @@ def trace(
     debug_dir=None,
     order_centers: dict[int, float] | None = None,
     fibers_per_order: int | None = None,
+    bundle_centers: dict[int, float] | None = None,
 ):
     """Identify and trace orders, returning Trace objects.
 
@@ -1173,9 +1212,13 @@ def trace(
     # Compute extraction heights based on trace spacing
     _compute_heights_inplace(trace_objects, im.shape[1])
 
-    # Assign order numbers and fiber indices
+    # Assign order numbers, bundles, and fiber indices
     _assign_order_and_fiber_inplace(
-        trace_objects, order_centers, im.shape[1], fibers_per_order=fibers_per_order
+        trace_objects,
+        order_centers,
+        im.shape[1],
+        fibers_per_order=fibers_per_order,
+        bundle_centers=bundle_centers,
     )
 
     if plot:  # pragma: no cover
@@ -1375,50 +1418,66 @@ def group_fibers(
                         )
                     )
 
-    elif fibers_config.bundles is not None:
+    # Bundles run in addition to (not instead of) named groups: a single
+    # input fiber can feed both a named-group merge AND a bundle merge,
+    # producing two distinct output traces with different `group` slots.
+    if fibers_config.bundles is not None:
         bundle_cfg = fibers_config.bundles
         bundle_size = bundle_cfg.size
 
-        for m, order_traces in sorted(traces_by_m.items()):
-            n_in_order = len(order_traces)
-            if n_in_order == 0:
-                continue
+        # Group traces by (m, bundle). Each group's fibers are merged
+        # into one Trace named "bundle_{bundle_id}". `m` and `bundle` are
+        # independent fields: a multi-order bundled instrument has one
+        # merged trace per (m, bundle), and the same bundle name repeats
+        # across orders (uniqueness is on (m, bundle, group)).
+        traces_by_mb = defaultdict(list)
+        for t in traces:
+            traces_by_mb[(t.m, t.bundle)].append(t)
+        for key in traces_by_mb:
+            traces_by_mb[key].sort(key=lambda t: t.fiber_idx if t.fiber_idx else 0)
 
-            # Check divisibility
-            if n_in_order % bundle_size != 0:
+        for (m, bundle), members in sorted(
+            traces_by_mb.items(),
+            key=lambda kv: (
+                kv[0][0] if kv[0][0] is not None else float("inf"),
+                kv[0][1] if kv[0][1] is not None else 0,
+            ),
+        ):
+            if not members:
+                continue
+            if bundle is None:
                 logger.warning(
-                    "Order %s has %d fibers, not divisible by bundle size %d",
+                    "Order %s has %d fibers but no bundle assignment; "
+                    "skipping. Configure bundle_centers_file or set "
+                    "Trace.bundle manually.",
                     m,
-                    n_in_order,
+                    len(members),
+                )
+                continue
+            if len(members) != bundle_size:
+                logger.warning(
+                    "Order %s bundle %s has %d fibers, expected %d",
+                    m,
+                    bundle,
+                    len(members),
                     bundle_size,
                 )
 
-            n_bundles = (n_in_order + bundle_size - 1) // bundle_size
-            for i in range(n_bundles):
-                # When each m is its own bundle (bundle_centers used as
-                # order_centers, one bundle per m), name by m so bundle IDs
-                # are unique across orders. Otherwise fall back to the
-                # within-order index.
-                bundle_name = f"bundle_{m}" if n_bundles == 1 else f"bundle_{i + 1}"
-                start_idx = i * bundle_size
-                end_idx = min((i + 1) * bundle_size, n_in_order)
-
-                selected = order_traces[start_idx:end_idx]
-                merged = _merge_trace_objects(selected, bundle_cfg.merge, degree)
-
-                if merged is not None:
-                    height = _compute_group_height_from_traces(selected, bundle_cfg)
-
-                    result.append(
-                        TraceData(
-                            m=m,
-                            group=bundle_name,
-                            fiber_idx=None,
-                            pos=merged.pos,
-                            column_range=merged.column_range,
-                            height=height,
-                        )
-                    )
+            merged = _merge_trace_objects(members, bundle_cfg.merge, degree)
+            if merged is None:
+                continue
+            height = _compute_group_height_from_traces(members, bundle_cfg)
+            result.append(
+                TraceData(
+                    m=m,
+                    bundle=bundle,
+                    group=f"bundle_{bundle}",
+                    fiber_idx=None,
+                    pos=merged.pos,
+                    column_range=merged.column_range,
+                    height=height,
+                )
+            )
 
     # Sort by (m descending, group)
     def sort_key(t):

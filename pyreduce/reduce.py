@@ -900,12 +900,12 @@ class Trace(CalibrationStep):
 
         logger.info("Tracing files: %s", files)
 
-        # Load order_centers for m assignment if available
+        # Load order_centers for m assignment, and bundle_centers for
+        # bundle assignment. They are independent: order_centers populates
+        # t.m (spectral order), bundle_centers populates t.bundle (spatial
+        # bundle id within an order).
         order_centers = self._load_order_centers()
-
-        # Fall back to bundle_centers if no order_centers
-        if order_centers is None:
-            order_centers = self._load_bundle_centers()
+        bundle_centers = self._load_bundle_centers()
 
         # Check if we should trace file groups separately
         fibers_config = getattr(self.instrument.config, "fibers", None)
@@ -913,10 +913,12 @@ class Trace(CalibrationStep):
 
         if trace_by and len(files) > 1:
             raw_traces = self._trace_by_groups(
-                files, mask, bias, trace_by, order_centers
+                files, mask, bias, trace_by, order_centers, bundle_centers
             )
         else:
-            raw_traces = self._trace_single(files, mask, bias, order_centers)
+            raw_traces = self._trace_single(
+                files, mask, bias, order_centers, bundle_centers
+            )
 
         # Store heights for backward compatibility
         self.heights = np.array(
@@ -1042,7 +1044,9 @@ class Trace(CalibrationStep):
         logger.info("Loaded bundle_centers from %s: %d bundles", path, len(result))
         return result
 
-    def _trace_by_groups(self, files, mask, bias, trace_by, order_centers):
+    def _trace_by_groups(
+        self, files, mask, bias, trace_by, order_centers, bundle_centers=None
+    ):
         """Trace files grouped by header value, then merge traces.
 
         Parameters
@@ -1083,19 +1087,21 @@ class Trace(CalibrationStep):
         all_traces = []
         for group_key, group_files in file_groups.items():
             logger.info("Tracing group '%s': %d files", group_key, len(group_files))
-            traces = self._trace_single(group_files, mask, bias, order_centers)
+            traces = self._trace_single(
+                group_files, mask, bias, order_centers, bundle_centers
+            )
             logger.info("  Found %d traces", len(traces))
             all_traces.extend(traces)
 
-        # Re-assign fiber_idx within each order by y-position, since
+        # Re-assign fiber_idx within each (m, bundle) by y-position, since
         # each trace_by group assigned its own 1..N independently.
         from collections import defaultdict
 
-        traces_by_m = defaultdict(list)
+        traces_by_mb = defaultdict(list)
         for t in all_traces:
-            traces_by_m[t.m].append(t)
+            traces_by_mb[(t.m, t.bundle)].append(t)
 
-        for _m, order_traces in traces_by_m.items():
+        for _key, order_traces in traces_by_mb.items():
             x_mid = sum(order_traces[0].column_range) / 2
             order_traces.sort(key=lambda t: t.y_at_x(x_mid))
             for idx, t in enumerate(order_traces, start=1):
@@ -1119,7 +1125,7 @@ class Trace(CalibrationStep):
 
         return all_traces
 
-    def _trace_single(self, files, mask, bias, order_centers):
+    def _trace_single(self, files, mask, bias, order_centers, bundle_centers=None):
         """Trace a single set of files.
 
         Returns
@@ -1158,6 +1164,7 @@ class Trace(CalibrationStep):
             plot_title=self.plot_title,
             order_centers=order_centers,
             fibers_per_order=fpo,
+            bundle_centers=bundle_centers,
         )
 
         return traces

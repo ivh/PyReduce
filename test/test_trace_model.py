@@ -165,6 +165,53 @@ class TestSaveLoadRoundtrip:
             wave=np.array([0.0001, 0.1, 5000.0]),  # quadratic wavelength
         )
 
+    def test_roundtrip_bundle_field(self, tmp_path):
+        """Trace.bundle survives save/load roundtrip; defaults to None.
+
+        Mix of: bundle set + group derived (merged bundle traces),
+        bundle set + fiber_idx (individual fibers in a bundle),
+        bundle=None (echelle traces with no bundle concept).
+        """
+        traces = [
+            Trace(
+                m=12,
+                bundle=45,
+                group="bundle_45",
+                pos=np.array([1.0, 100.0]),
+                column_range=(0, 1000),
+            ),
+            Trace(
+                m=12,
+                bundle=45,
+                fiber_idx=3,
+                pos=np.array([1.0, 105.0]),
+                column_range=(0, 1000),
+            ),
+            Trace(
+                m=12,
+                group="A",
+                pos=np.array([1.0, 200.0]),
+                column_range=(0, 1000),
+            ),
+        ]
+        path = tmp_path / "traces.fits"
+        save_traces(path, traces)
+        loaded, _ = load_traces(path)
+
+        assert len(loaded) == 3
+        # Order is sorted in save_traces, find by identity
+        merged = next(t for t in loaded if t.group == "bundle_45")
+        fiber = next(t for t in loaded if t.fiber_idx == 3)
+        groupA = next(t for t in loaded if t.group == "A")
+
+        assert merged.bundle == 45
+        assert merged.m == 12
+        assert fiber.bundle == 45
+        assert fiber.m == 12
+        assert fiber.fiber_idx == 3
+        assert groupA.bundle is None
+        assert groupA.m == 12
+
     def test_roundtrip_minimal_trace(self, tmp_path, minimal_trace):
         """Minimal trace survives save/load roundtrip."""
         path = tmp_path / "traces.fits"
@@ -281,7 +328,7 @@ class TestSaveLoadRoundtrip:
         save_traces(path, [minimal_trace])
         _, header = load_traces(path)
 
-        assert header["E_FMTVER"] == 3
+        assert header["E_FMTVER"] == 4
 
 
 class TestLegacyNpzLoading:
@@ -359,6 +406,61 @@ class TestLegacyNpzLoading:
         _, header = load_traces(path)
 
         assert len(header) == 0
+
+
+class TestValidationGuards:
+    """Tests for invariants enforced by _validate_traces during save."""
+
+    def test_save_rejects_bundle_group_mismatch(self, tmp_path):
+        """A merged trace with group='bundle_5' but bundle=3 must be rejected.
+
+        The bundle id is encoded in two fields on merged-bundle traces;
+        keep them in sync or fail loudly.
+        """
+        traces = [
+            Trace(
+                m=1,
+                bundle=3,
+                group="bundle_5",
+                pos=np.array([1.0, 100.0]),
+                column_range=(0, 1000),
+            )
+        ]
+        path = tmp_path / "traces.fits"
+        with pytest.raises(ValueError, match="bundle.*does not match"):
+            save_traces(path, traces)
+
+    def test_save_accepts_bundle_group_matching(self, tmp_path):
+        """Matching bundle/group pair is fine."""
+        traces = [
+            Trace(
+                m=1,
+                bundle=5,
+                group="bundle_5",
+                pos=np.array([1.0, 100.0]),
+                column_range=(0, 1000),
+            )
+        ]
+        path = tmp_path / "traces.fits"
+        save_traces(path, traces)  # no raise
+
+    def test_save_accepts_named_group_with_bundle(self, tmp_path):
+        """Named group ('A') alongside a bundle membership is allowed.
+
+        Future use case: per-bundle named subsets. Validator must only
+        guard the bundle_N pattern, not all groups.
+        """
+        traces = [
+            Trace(
+                m=1,
+                bundle=5,
+                group="A",
+                pos=np.array([1.0, 100.0]),
+                column_range=(0, 1000),
+            )
+        ]
+        path = tmp_path / "traces.fits"
+        save_traces(path, traces)  # no raise
 
 
 class TestEdgeCases:

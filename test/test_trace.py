@@ -431,6 +431,40 @@ class TestSelectTracesForStep:
         assert len(result["A"]) == 2  # 2 orders with fiber A
 
     @pytest.mark.unit
+    def test_select_bundle_across_orders(self):
+        """Selecting "bundle_1" must return all orders' bundle_1 traces.
+
+        This is the bundled-echelle case: m and bundle are independent,
+        so the same bundle name appears once per order.
+        """
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+        from pyreduce.trace_model import Trace
+
+        traces = [
+            Trace(
+                m=m,
+                bundle=b,
+                group=f"bundle_{b}",
+                pos=np.array([0.0, 0.0, 1000.0 * m + 10.0 * b]),
+                column_range=(10, 990),
+            )
+            for m in (10, 11, 12)
+            for b in (1, 2)
+        ]
+
+        config = FibersConfig(
+            bundles=FiberBundleConfig(size=2, merge="center"),
+            use={"science": ["bundle_1"]},
+        )
+
+        result = trace.select_traces_for_step(traces, config, "science")
+
+        assert "bundle_1" in result
+        assert len(result["bundle_1"]) == 3  # one per order
+        assert {t.m for t in result["bundle_1"]} == {10, 11, 12}
+        assert all(t.bundle == 1 for t in result["bundle_1"])
+
+    @pytest.mark.unit
     def test_select_traces_with_height(self):
         """Test that Trace objects preserve height information."""
         from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
@@ -857,29 +891,159 @@ class TestGroupFibers:
             assert t.fiber_idx is None
 
     @pytest.mark.unit
-    def test_group_fibers_bundles(self):
-        """Test group_fibers with bundles config."""
+    def test_group_fibers_bundles_within_order(self):
+        """Bundles inside a single echelle order m=90.
+
+        4 fibers split into 2 bundles of 2 — bundle is preset on input
+        traces (the trace step assigns it from bundle_centers). Group
+        names are derived from `bundle`, never from `m`.
+        """
         from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
         from pyreduce.trace_model import Trace as TraceData
 
-        # 4 traces in one order, 2 fibers per bundle
         traces = [
             TraceData(
                 m=90,
-                fiber_idx=i,
-                pos=np.array([0.0, 0.0, 100.0 + i * 10]),
+                bundle=b,
+                fiber_idx=fi,
+                pos=np.array([0.0, 0.0, 100.0 + 10 * (2 * (b - 1) + fi - 1)]),
                 column_range=(10, 990),
             )
-            for i in range(1, 5)
+            for b in (1, 2)
+            for fi in (1, 2)
         ]
 
         config = FibersConfig(bundles=FiberBundleConfig(size=2, merge="center"))
+        result = trace.group_fibers(traces, config)
+
+        assert len(result) == 2
+        groups = {t.group for t in result}
+        assert groups == {"bundle_1", "bundle_2"}
+        # m and bundle preserved on merged traces; bundle drives the name
+        for t in result:
+            assert t.m == 90
+            assert t.fiber_idx is None
+            assert t.group == f"bundle_{t.bundle}"
+
+    def test_group_fibers_bundles_single_order(self):
+        """Single-order MOSAIC-style: m=1 always, bundle varies.
+
+        Regression test for the naming bug: when each output bundle was
+        the only bundle in its order (the bundle-centers path), every
+        merged trace was named "bundle_1". With m and bundle independent,
+        m=1 stays constant and the name comes from bundle.
+        """
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        # 3 bundles of 2 fibers each, all in m=1
+        traces = [
+            TraceData(
+                m=1,
+                bundle=b,
+                fiber_idx=fi,
+                pos=np.array([0.0, 0.0, 100.0 * b + fi]),
+                column_range=(10, 990),
+            )
+            for b in (1, 2, 3)
+            for fi in (1, 2)
+        ]
+
+        config = FibersConfig(bundles=FiberBundleConfig(size=2, merge="center"))
+        result = trace.group_fibers(traces, config)
+
+        assert len(result) == 3
+        groups = {t.group for t in result}
+        assert groups == {"bundle_1", "bundle_2", "bundle_3"}
+        for t in result:
+            assert t.m == 1
+            assert t.group == f"bundle_{t.bundle}"
+
+    def test_group_fibers_groups_and_bundles_together(self):
+        """Both 'groups' and 'bundles' configured: produce both kinds of merges.
+
+        A trace can't simultaneously be a named-group merge AND a bundle
+        merge (group is a single slot), but the same fibers can feed
+        into multiple merged output traces. Result must contain both:
+        named-group merges ("A", "B") and bundle merges ("bundle_1",
+        "bundle_2").
+        """
+        from pyreduce.instruments.models import (
+            FiberBundleConfig,
+            FiberGroupConfig,
+            FibersConfig,
+        )
+        from pyreduce.trace_model import Trace as TraceData
+
+        # 4 fibers in m=10, split as bundle 1 = fibers 1-2, bundle 2 = 3-4
+        traces = [
+            TraceData(
+                m=10,
+                bundle=(fi - 1) // 2 + 1,
+                fiber_idx=fi,
+                pos=np.array([0.0, 0.0, 100.0 + 5 * fi]),
+                column_range=(10, 990),
+            )
+            for fi in (1, 2, 3, 4)
+        ]
+
+        # Named groups: A = fibers 1-2, B = fibers 3-4 (within m=10)
+        config = FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 3)),  # half-open
+                "B": FiberGroupConfig(range=(3, 5)),
+            },
+            bundles=FiberBundleConfig(size=2, merge="center"),
+        )
 
         result = trace.group_fibers(traces, config)
 
-        # Should have 2 bundles
         groups = {t.group for t in result}
-        assert groups == {"bundle_1", "bundle_2"}
+        # 2 named-group merges + 2 bundle merges = 4 total
+        assert "A" in groups
+        assert "B" in groups
+        assert "bundle_1" in groups
+        assert "bundle_2" in groups
+        assert len(result) == 4
+
+    def test_group_fibers_bundles_multi_order(self):
+        """Bundled echelle: multiple orders × multiple bundles.
+
+        Each merged trace has its own (m, bundle) pair. Group names
+        repeat across orders (bundle_1 exists in m=10 and m=11), which
+        is allowed: uniqueness is on (m, bundle, group).
+        """
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        # 2 orders × 2 bundles × 2 fibers = 8 traces
+        traces = [
+            TraceData(
+                m=m,
+                bundle=b,
+                fiber_idx=fi,
+                pos=np.array([0.0, 0.0, 1000.0 * m + 10.0 * b + fi]),
+                column_range=(10, 990),
+            )
+            for m in (10, 11)
+            for b in (1, 2)
+            for fi in (1, 2)
+        ]
+
+        config = FibersConfig(bundles=FiberBundleConfig(size=2, merge="center"))
+        result = trace.group_fibers(traces, config)
+
+        assert len(result) == 4  # 2 orders × 2 bundles
+        # bundle_1 appears once per order
+        bundle1 = [t for t in result if t.group == "bundle_1"]
+        assert {t.m for t in bundle1} == {10, 11}
+        # Within each m, bundle_1 and bundle_2 both present
+        for m in (10, 11):
+            in_m = [t for t in result if t.m == m]
+            assert {t.group for t in in_m} == {"bundle_1", "bundle_2"}
+            # bundle attribute matches name
+            for t in in_m:
+                assert t.group == f"bundle_{t.bundle}"
 
 
 class TestGroupedPlusRawTraces:

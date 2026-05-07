@@ -192,6 +192,26 @@ class FibersConfig(BaseModel):
                 )
         return self
 
+    @model_validator(mode="after")
+    def validate_no_bundle_named_groups(self):
+        """Reject named groups whose names collide with bundle merge names.
+
+        Bundle merges produce group names of the form ``bundle_<int>``;
+        a named group with the same shape would create silent name
+        collisions in selection.
+        """
+        import re
+
+        if self.groups:
+            pat = re.compile(r"^bundle_\d+$")
+            for name in self.groups:
+                if pat.match(name):
+                    raise ValueError(
+                        f"Group name {name!r} collides with bundle merge "
+                        f"naming (bundle_<int>); pick a different name."
+                    )
+        return self
+
 
 class InstrumentConfig(BaseModel):
     """Configuration for an astronomical instrument.

@@ -11,6 +11,7 @@ separate files (traces.npz, curve.npz, wavecal.npz) into a single structure.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +23,8 @@ logger = logging.getLogger(__name__)
 # Format version for backwards compatibility detection
 # v2: Initial FITS format with FIBER column
 # v3: Renamed FIBER→GROUP, added FIBER_IDX column
-FORMAT_VERSION = 3
+# v4: Added BUNDLE column (bundle id, independent of m)
+FORMAT_VERSION = 4
 
 
 @dataclass
@@ -60,11 +62,21 @@ class Trace:
         evaluating wavelengths via ``Trace.wlen()``, the trace's ``m`` value
         is used as the second coordinate in the 2D polynomial.
 
+    bundle : int | None
+        Bundle identifier (1-indexed), independent of `m`. Used by
+        instruments where fibers are organised into spatial bundles
+        within each spectral order (MOSAIC: 90 bundles × 7 fibers; in
+        principle also bundled echelle: m orders × bundles). For
+        instruments without a bundle concept (ANDES groups, single-fiber
+        echelles), bundle stays None. Drives the bundle group name
+        ``f"bundle_{bundle}"``.
+
     group : str | int | None
         Group identifier, or None if trace is ungrouped. When set, indicates
         this trace is the result of grouping/merging fibers for this order.
-        There should be exactly one trace per (m, group). String for named
-        groups ('A', 'B', 'cal'), int for bundle indices.
+        There should be exactly one trace per (m, bundle, group). String
+        for named groups ('A', 'B', 'cal') or bundle merges
+        ('bundle_45'); int kept for legacy compatibility.
 
         **Mutually exclusive with fiber_idx.** A trace has either:
         - group set (merged/grouped result) and fiber_idx=None, or
@@ -72,10 +84,10 @@ class Trace:
         - both None (ungrouped single-fiber instrument)
 
     fiber_idx : int | None
-        Physical fiber index (1-indexed). For multi-fiber instruments where
-        fibers are tracked individually (not merged). Used for per-fiber
-        wavelength calibration. There should be exactly one trace per
-        (m, fiber_idx).
+        Physical fiber index (1-indexed) within (m, bundle). For
+        multi-fiber instruments where fibers are tracked individually
+        (not merged). Used for per-fiber wavelength calibration. There
+        should be exactly one trace per (m, bundle, fiber_idx).
 
         **Mutually exclusive with group.** See group docstring for details.
     pos : np.ndarray
@@ -107,6 +119,7 @@ class Trace:
     column_range: tuple[int, int]
 
     # Optional fields (must come after required fields)
+    bundle: int | None = None
     group: str | int | None = None
     fiber_idx: int | None = None
     height: float | None = None
@@ -189,8 +202,9 @@ def _validate_traces(traces: list[Trace], context: str = "") -> None:
     """Validate trace list invariants.
 
     Checks:
-    1. (group, m) is unique for grouped traces (group is not None)
-    2. Traces are ordered by y-position (ascending)
+    1. (m, bundle, group) is unique for grouped traces (group is not None)
+    2. (m, bundle, fiber_idx) is unique for individual fiber traces
+    3. Traces are ordered by y-position (ascending)
 
     Parameters
     ----------
@@ -216,25 +230,36 @@ def _validate_traces(traces: list[Trace], context: str = "") -> None:
                 f"fiber_idx indicates individual fiber{context}"
             )
 
-    # Check (group, m) uniqueness for grouped traces
+    # Check (m, bundle, group) uniqueness for grouped traces, and that
+    # bundle merges encode their bundle id consistently in both fields
+    # (group="bundle_5" must mean bundle=5).
     seen_group = set()
+    bundle_pat = re.compile(r"^bundle_(\d+)$")
     for t in traces:
         if t.group is not None:
-            key = (t.group, t.m)
+            key = (t.m, t.bundle, t.group)
             if key in seen_group:
                 raise ValueError(
-                    f"Duplicate (group={t.group}, m={t.m}) in traces{context}"
+                    f"Duplicate (m={t.m}, bundle={t.bundle}, group={t.group}) "
+                    f"in traces{context}"
                 )
             seen_group.add(key)
+            match = bundle_pat.match(str(t.group))
+            if match and t.bundle != int(match.group(1)):
+                raise ValueError(
+                    f"Trace group={t.group!r} does not match bundle={t.bundle} "
+                    f"(m={t.m}){context}"
+                )
 
-    # Check (fiber_idx, m) uniqueness for fiber traces
+    # Check (m, bundle, fiber_idx) uniqueness for fiber traces
     seen_fiber = set()
     for t in traces:
         if t.fiber_idx is not None:
-            key = (t.fiber_idx, t.m)
+            key = (t.m, t.bundle, t.fiber_idx)
             if key in seen_fiber:
                 raise ValueError(
-                    f"Duplicate (fiber_idx={t.fiber_idx}, m={t.m}) in traces{context}"
+                    f"Duplicate (m={t.m}, bundle={t.bundle}, "
+                    f"fiber_idx={t.fiber_idx}) in traces{context}"
                 )
             seen_fiber.add(key)
 
@@ -323,6 +348,9 @@ def save_traces(
 
     # Build arrays
     m_arr = np.array([t.m if t.m is not None else -1 for t in traces], dtype=np.int16)
+    bundle_arr = np.array(
+        [t.bundle if t.bundle is not None else -1 for t in traces], dtype=np.int16
+    )
     group_arr = np.array(
         [str(t.group) if t.group is not None else "" for t in traces], dtype="U16"
     )
@@ -371,6 +399,7 @@ def save_traces(
     # Build FITS columns
     columns = [
         fits.Column(name="M", format="I", array=m_arr),
+        fits.Column(name="BUNDLE", format="I", array=bundle_arr),
         fits.Column(name="GROUP", format="16A", array=group_arr),
         fits.Column(name="FIBER_IDX", format="I", array=fiber_idx_arr),
         fits.Column(name="POS", format=f"{max_pos_deg}D", array=pos_arr),
@@ -457,6 +486,7 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
         data = hdu["TRACES"].data
 
         m_arr = data["M"]
+        bundle_arr = data["BUNDLE"] if "BUNDLE" in data.dtype.names else None
         # Handle both new (GROUP) and old (FIBER) column names
         if "GROUP" in data.dtype.names:
             group_arr = data["GROUP"]
@@ -505,6 +535,11 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
                 if fiber_idx_arr is not None and fiber_idx_arr[i] >= 0
                 else None
             )
+            bundle = (
+                int(bundle_arr[i])
+                if bundle_arr is not None and bundle_arr[i] >= 0
+                else None
+            )
 
             # Remove trailing NaN/zeros from pos
             pos = pos_arr[i]
@@ -549,6 +584,7 @@ def load_traces(path: str | Path) -> tuple[list[Trace], fits.Header]:
             traces.append(
                 Trace(
                     m=m,
+                    bundle=bundle,
                     group=group,
                     fiber_idx=fiber_idx,
                     pos=pos,
