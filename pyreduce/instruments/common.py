@@ -892,7 +892,9 @@ class Instrument:
         return fname
 
     def get_supported_channels(self):
-        return self.channels
+        # Single-channel instruments with no `channels:` in config.yaml
+        # iterate once with channel=None.
+        return self.channels or [None]
 
     def get_settings_fallbacks(self, channel):
         """Return channel names to try when looking up settings files.
