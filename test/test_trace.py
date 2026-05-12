@@ -959,6 +959,57 @@ class TestGroupFibers:
             assert t.m == 1
             assert t.group == f"bundle_{t.bundle}"
 
+    @pytest.mark.unit
+    def test_group_fibers_bundles_center_weight(self):
+        """center_weight: merged y collapses to bundle_center regardless of which fibers detected.
+
+        Three scenarios with a 7-slot bundle at center y=100, fiber step 7.57:
+        - all 7 detected: closest-to-center weight dominates -> y ~= 100
+        - center (slot 4) missing: symmetric flanks average to ~100
+        - center + slot 3 missing: still ~100 within ~3 px (the corner-case
+          bias we showed in discussion)
+        """
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        bundle_center = 100.0
+        fiber_step = 7.57
+
+        def make_traces(slots):
+            return [
+                TraceData(
+                    m=1,
+                    bundle=1,
+                    fiber_idx=fi,
+                    pos=np.array([0.0, 0.0, bundle_center + (s - 4) * fiber_step]),
+                    column_range=(10, 990),
+                )
+                for fi, s in enumerate(slots, start=1)
+            ]
+
+        config = FibersConfig(bundles=FiberBundleConfig(size=7, merge="center_weight"))
+
+        # All 7 detected
+        traces_all = make_traces([1, 2, 3, 4, 5, 6, 7])
+        r = trace.group_fibers(traces_all, config, bundle_centers={1: bundle_center})
+        assert len(r) == 1
+        # y at midpoint
+        x_mid = (r[0].column_range[0] + r[0].column_range[1]) / 2
+        assert r[0].y_at_x(x_mid) == pytest.approx(bundle_center, abs=0.2)
+
+        # Center (slot 4) missing -> symmetric flanks
+        traces_no_center = make_traces([1, 2, 3, 5, 6, 7])
+        r = trace.group_fibers(
+            traces_no_center, config, bundle_centers={1: bundle_center}
+        )
+        assert r[0].y_at_x(x_mid) == pytest.approx(bundle_center, abs=0.5)
+
+        # Center + adjacent missing: asymmetric, larger but bounded bias
+        traces_corner = make_traces([1, 2, 5, 6, 7])
+        r = trace.group_fibers(traces_corner, config, bundle_centers={1: bundle_center})
+        # the corner case has ~0.4 * fiber_step bias by analysis
+        assert abs(r[0].y_at_x(x_mid) - bundle_center) < fiber_step
+
     def test_group_fibers_groups_and_bundles_together(self):
         """Both 'groups' and 'bundles' configured: produce both kinds of merges.
 

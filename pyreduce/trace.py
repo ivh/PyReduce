@@ -1325,6 +1325,7 @@ def group_fibers(
     traces: list[TraceData],
     fibers_config,
     degree: int = 4,
+    bundle_centers: dict[int, float] | None = None,
 ) -> list[TraceData]:
     """Merge individual fiber traces into groups according to config.
 
@@ -1463,7 +1464,12 @@ def group_fibers(
                     bundle_size,
                 )
 
-            merged = _merge_trace_objects(members, bundle_cfg.merge, degree)
+            bundle_center_y = (
+                bundle_centers.get(bundle) if bundle_centers is not None else None
+            )
+            merged = _merge_trace_objects(
+                members, bundle_cfg.merge, degree, bundle_center=bundle_center_y
+            )
             if merged is None:
                 continue
             height = _compute_group_height_from_traces(members, bundle_cfg)
@@ -1494,6 +1500,7 @@ def _merge_trace_objects(
     traces: list[TraceData],
     merge_method: str | list[int],
     degree: int,
+    bundle_center: float | None = None,
 ) -> TraceData | None:
     """Merge multiple traces into one according to merge method.
 
@@ -1502,9 +1509,15 @@ def _merge_trace_objects(
     traces : list[Trace]
         Traces to merge (must have same m)
     merge_method : str or list[int]
-        "average", "center", or list of 1-based indices
+        "center", "center_weight", "average", or list of 1-based indices.
+        "center_weight" needs ``bundle_center`` and inverse-distance-weights
+        every member trace against it, so a missing center fiber doesn't
+        shift the merged y by a fiber slot.
     degree : int
         Polynomial degree for refitting
+    bundle_center : float, optional
+        Reference y at the detector midpoint for this bundle. Required for
+        ``merge_method == "center_weight"``.
 
     Returns
     -------
@@ -1528,6 +1541,32 @@ def _merge_trace_objects(
         return TraceData(
             m=traces[idx].m,
             pos=traces[idx].pos,
+            column_range=(col_min, col_max),
+        )
+
+    elif merge_method == "center_weight":
+        if bundle_center is None:
+            raise ValueError(
+                "merge='center_weight' requires bundle_centers to be configured"
+            )
+        # Weight each detected fiber by 1 / |y - bundle_center| at the
+        # detector midpoint, then blend their full polynomials with those
+        # fixed weights. Symmetric flanks cancel; a present center fiber
+        # dominates; a missing center collapses to the symmetric mean.
+        x_mid = (col_min + col_max) / 2
+        eps = 0.1  # px; avoids div-by-zero on a perfect-match fiber
+        weights = np.array(
+            [1.0 / max(abs(t.y_at_x(x_mid) - bundle_center), eps) for t in traces]
+        )
+        weights /= weights.sum()
+        x_eval = np.arange(col_min, col_max)
+        y_values = np.array([t.y_at_x(x_eval) for t in traces])
+        y_mean = (weights[:, None] * y_values).sum(axis=0)
+        fit = Polynomial.fit(x_eval, y_mean, deg=degree, domain=[])
+        coeffs = fit.coef[::-1]
+        return TraceData(
+            m=traces[0].m,
+            pos=coeffs,
             column_range=(col_min, col_max),
         )
 

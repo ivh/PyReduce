@@ -85,7 +85,9 @@ class FiberGroupConfig(BaseModel):
     """
 
     range: tuple[int, int]  # [start, end) half-open interval, 1-based
-    merge: str | list[int] = "center"  # "average", "center", or [indices]
+    merge: str | list[int] = (
+        "center"  # "average", "center", "center_weight", or [indices]
+    )
     height: float | Literal["derived"] | None = None
 
     model_config = ConfigDict(extra="forbid")
@@ -104,7 +106,9 @@ class FiberBundleConfig(BaseModel):
 
     size: int  # expected fibers per bundle
     count: int | None = None  # number of bundles (validated if provided)
-    merge: str | list[int] = "center"  # "average", "center", or [indices]
+    merge: str | list[int] = (
+        "center"  # "average", "center", "center_weight", or [indices]
+    )
     height: str | float | None = "derived"  # "derived", explicit pixels, or None
 
     # Bundle centers for robust assignment (handles missing fibers)

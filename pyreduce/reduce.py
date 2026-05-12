@@ -929,7 +929,12 @@ class Trace(CalibrationStep):
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
-            grouped = group_fibers(raw_traces, fibers_config, degree=self.fit_degree)
+            grouped = group_fibers(
+                raw_traces,
+                fibers_config,
+                degree=self.fit_degree,
+                bundle_centers=bundle_centers,
+            )
             self.trace_objects = grouped + raw_traces
         else:
             self.trace_objects = raw_traces

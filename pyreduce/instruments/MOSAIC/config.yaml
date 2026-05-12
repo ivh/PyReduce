@@ -72,7 +72,10 @@ wavelength_range:
 fibers:
   bundles:
     size: 7
-    merge: center
+    # center_weight: inverse-distance weighted average of detected fibers
+    # around bundle_center, so a missing center fiber doesn't shift the
+    # merged y by one fiber slot.
+    merge: center_weight
     bundle_centers_file: bundle_centers_{channel}.yaml
   use:
     curvature: groups
