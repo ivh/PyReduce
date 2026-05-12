@@ -84,8 +84,8 @@ for channel in [channels[2]]:
     # Run pipeline steps
     pipe.trace([flat_file])
     pipe.curvature([thar_file])
-    pipe.flat([flat_file])
-    pipe.normalize_flat()
+    # pipe.flat([flat_file])
+    # pipe.normalize_flat()
     pipe.wavecal_master([thar_file])
     pipe.wavecal_init()
     pipe.wavecal()
