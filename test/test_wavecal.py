@@ -1101,6 +1101,42 @@ class TestWavecalInitIdentify:
         assert len(orders_found) == norders
 
     @pytest.mark.unit
+    def test_execute_broadcasts_single_wave_range(self, tmp_path):
+        """A single wave_range entry is reused for every spectrum row.
+
+        Models the MOSAIC layout: one spectral order, many fiber bundles. The
+        wavecal_master output has shape (n_bundles, n_pixels); every bundle
+        sees the same wavelength range, so one entry should suffice.
+        """
+        npix = 1000
+        nrows = 4
+        peak_pixels = np.array([100, 300, 500, 700, 900])
+        w0 = 5000.0
+
+        spectrum = np.stack(
+            [self._make_spectrum(npix, peak_pixels) for _ in range(nrows)]
+        )
+        wave_range = [[w0, w0 + 0.05 * npix]]  # one entry, not nrows
+
+        atlas_dir = tmp_path / "atlas"
+        atlas_dir.mkdir()
+        with open(atlas_dir / "synlamp_list.txt", "w") as f:
+            for px in peak_pixels:
+                f.write(f"{w0 + 0.05 * px}\n")
+
+        wci = WavelengthCalibrationInitialize(
+            degree=2,
+            plot=False,
+            cutoff=0,
+            atlas_name="synlamp",
+            atlas_search_dirs=[str(atlas_dir)],
+        )
+        ll = wci.execute(spectrum, wave_range)
+
+        # every row produced lines, all distinct order indices appear
+        assert set(ll["order"]) == set(range(nrows))
+
+    @pytest.mark.unit
     def test_cutoff_filters_faint_peaks(self):
         """Peaks below the cutoff fraction of the maximum are rejected."""
         npix = 1000

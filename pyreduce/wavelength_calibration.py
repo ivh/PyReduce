@@ -1999,7 +1999,16 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             self.atlas_name, self.medium, search_dirs=self.atlas_search_dirs
         )
         linelist = LineList()
-        for order in range(spectrum.shape[0]):
+        n_rows = spectrum.shape[0]
+        # Single-order multi-fiber instruments (e.g. MOSAIC) give one wave_range
+        # entry but extract many bundles -- reuse the same range for each row.
+        if len(wave_range) == 1 and n_rows > 1:
+            logger.info(
+                "wavelength_range has 1 entry but spectrum has %d rows; broadcasting",
+                n_rows,
+            )
+            wave_range = [wave_range[0]] * n_rows
+        for order in range(n_rows):
             ll = self.identify_lines_for_order(
                 spectrum[order], atlas, wave_range[order], order
             )

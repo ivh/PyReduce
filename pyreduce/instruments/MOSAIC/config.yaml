@@ -51,6 +51,21 @@ id_orders: ".*FLAT.*"
 id_wave: ".*ThAr.*"
 id_spec: ".*"
 
+# Initial wavelength guess for wavecal_init, indexed by channel.
+# Each entry is a list of per-order [min, max] in Angstroms.
+# VIS: derived from MOSAIC_VIS_LR_Blue.hdf (fiber_462, detector y-center),
+#      with a -30 px blueward shift to match the as-built ThAr reference.
+# NIR/LR-J/LR-H: center fiber of the corresponding HDF; refine per-fiber
+#                later for the curved-slit NIR channels.
+wavelength_range:
+  - [[9500.0, 13400.0]]    # NIR   (legacy 2Cam, J-band coverage)
+  - [[9500.0, 13400.0]]    # LR-J
+  - [[14300.0, 18000.0]]   # LR-H
+  - [[5117.3, 6250.0]]     # VIS1  (lower-left:  detector x=0..6144)
+  - [[3900.0, 5096.8]]     # VIS2  (lower-right: detector x=6249..12393)
+  - [[5117.3, 6250.0]]     # VIS3  (upper-left:  detector x=0..6144)
+  - [[3900.0, 5096.8]]     # VIS4  (upper-right: detector x=6249..12393)
+
 # Fiber grouping configuration
 # IFU targets with ~7 fibers each
 # bundle_centers_file assigns traces to bundles by proximity, handling missing fibers
