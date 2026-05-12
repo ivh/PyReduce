@@ -1508,8 +1508,17 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "wavecal_master")
 
-        # Load wavecal image (same for all groups)
-        orig, thead = self.calibrate(files, mask, bias, norm_flat)
+        # Load wavecal image (same for all groups) and overlay selected
+        # traces on the diagnostic plot, like the science step does.
+        all_selected = [t for group_traces in selected.values() for t in group_traces]
+        orig, thead = self.calibrate(
+            files,
+            mask,
+            bias,
+            norm_flat,
+            traces=all_selected if all_selected else None,
+            extraction_height=self.extraction_kwargs.get("extraction_height"),
+        )
 
         # Extract per group
         results = {}
