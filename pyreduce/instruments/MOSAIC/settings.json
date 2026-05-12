@@ -12,6 +12,10 @@
         "extraction_height": 5,
         "curve_degree": 1
     },
+    "wavecal_init": {
+        "atlas": "thar",
+        "medium": "vac"
+    },
     "science": {
         "extraction_reject": 12,
         "oversampling": 8,

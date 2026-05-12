@@ -18,71 +18,83 @@ from pyreduce import util
 from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
+# instrument = instrument_info.load_instrument("MOSAIC")
+# wave_range = instrument.get_wavelength_range(None, "B")
+
 # Parameters
 # Change channel to VIS2, VIS3, or VIS4 for other quadrants
 instrument_name = "MOSAIC"
 target = "MOSAIC_VIS"
 night = ""
-channel = "VIS1"
+channels = ["VIS1", "VIS2", "VIS3", "VIS4"]
 plot = 2
 
-# Data location
-data_dir = "/disk/miri-b1/jeand/mosaic/virtualmosaic/simdata"
-base_dir = join(data_dir, "VIS")
-output_dir = join(data_dir, "reduced", channel)
-
-# Handle plot environment variables
-if "PYREDUCE_PLOT" in os.environ:
-    plot = int(os.environ["PYREDUCE_PLOT"])
-plot_dir = join(data_dir, "pyreduce_plots", channel)
-util.set_plot_dir(plot_dir)
-
 # File paths (simulated data)
+# Data location
+data_dir = "/disk/miri-b1/jeand/mosaic/virtualmosaic/simdata_260429"
+base_dir = join(data_dir, "VIS/moons_reduce")
+
 flat_file = join(
     base_dir,
-    "E2E_as_built_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_000.fits",
+    "E2E_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits",
 )
 thar_file = join(
     base_dir,
-    "E2E_as_built_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE.fits",
+    "E2E_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits",
+)
+sky_file = join(
+    base_dir,
+    "E2E_SKY_DIT_150s_MOSAIC_VIS_c01_FOCAL_PLANE_000_REF.fits",
 )
 
 # Verify files exist
-for fpath in [flat_file, thar_file]:
+for fpath in [flat_file, thar_file, sky_file]:
     if not os.path.exists(fpath):
         raise FileNotFoundError(f"Data file not found: {fpath}")
 
+
 print(f"FLAT: {flat_file}")
 print(f"ThAr: {thar_file}")
+print(f"Sky: {sky_file}")
 
-# Load configuration
-config = load_config(None, instrument_name, channel=channel)
+for channel in [channels[2]]:
+    output_dir = join(data_dir, "reduced", channel)
 
-# Create pipeline - fiber grouping is handled by config.yaml
-pipe = Pipeline(
-    instrument=instrument_name,
-    output_dir=output_dir,
-    target=target,
-    channel=channel,
-    night=night,
-    config=config,
-    plot=plot,
-)
+    # Handle plot environment variables
+    if "PYREDUCE_PLOT" in os.environ:
+        plot = int(os.environ["PYREDUCE_PLOT"])
+    plot_dir = join(data_dir, "pyreduce_plots", channel)
+    util.set_plot_dir(plot_dir)
 
-# Run pipeline steps
-# pipe.trace([flat_file])
-# pipe.curvature([thar_file])
-pipe.flat([flat_file])
-pipe.normalize_flat()
-pipe.wavecal_master([thar_file])
-pipe.wavecal_init()
-pipe.wavecal()
+    # Load configuration
+    config = load_config(None, instrument_name, channel=channel)
 
-print("\n=== Running Pipeline ===")
-results = pipe.run()
+    # Create pipeline - fiber grouping is handled by config.yaml
+    pipe = Pipeline(
+        instrument=instrument_name,
+        output_dir=output_dir,
+        target=target,
+        channel=channel,
+        night=night,
+        config=config,
+        plot=plot,
+    )
 
-print("\n=== Results ===")
-traces = results["trace"]  # list[Trace]
-print(f"Traces: {len(traces)}")
-for t in traces[:3]:
-    print(f"  m={t.m}, fiber={t.fiber}, columns={t.column_range}")
+    # Run pipeline steps
+    pipe.trace([flat_file])
+    pipe.curvature([thar_file])
+    pipe.flat([flat_file])
+    pipe.normalize_flat()
+    pipe.wavecal_master([thar_file])
+    # pipe.wavecal_init()
+    # pipe.wavecal()
+    pipe.extract([thar_file, sky_file])
+
+    print("\n=== Running Pipeline ===")
+    results = pipe.run()
+
+# print("\n=== Results ===")
+# traces = results["trace"]  # list[Trace]
+# print(f"Traces: {len(traces)}")
+# for t in traces[:3]:
+#    print(f"  m={t.m}, fiber={t.fiber}, columns={t.column_range}")
