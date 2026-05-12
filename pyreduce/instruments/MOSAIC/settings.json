@@ -18,7 +18,9 @@
     },
     "wavecal": {
         "dimensionality": "1D",
-        "degree": 6
+        "degree": 6,
+        "threshold": 2000,
+        "iterations": 2
     },
     "science": {
         "extraction_reject": 12,

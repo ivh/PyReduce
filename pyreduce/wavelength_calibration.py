@@ -702,9 +702,12 @@ class WavelengthCalibration:
 
         return lines
 
-    def build_2d_solution(self, lines, plot=False):
-        """
-        Create a 2D polynomial fit to flagged lines.
+    def fit_wavelengths(self, lines, plot=False):
+        """Fit a wavelength solution to flagged lines (1D per row or 2D).
+
+        Dispatches on ``self.dimensionality``: either a per-row 1D
+        ``np.polyfit`` (rows with too few flagged lines yield NaN coefs and
+        are skipped) or a single 2D polynomial over (pixel, order).
 
         Parameters
         ----------
@@ -715,8 +718,8 @@ class WavelengthCalibration:
 
         Returns
         -------
-        coef : array[degree_x, degree_y]
-            2d polynomial coefficients
+        coef : array
+            1D: shape (ntrace, degree+1). 2D: shape (degree_x, degree_y).
         """
 
         if self.step_mode:
@@ -733,16 +736,18 @@ class WavelengthCalibration:
             coef = np.zeros((ntrace, self.degree + 1))
             for i in range(ntrace):
                 select = m_ord == i
-                if np.count_nonzero(select) < 2:
-                    # Not enough lines for wavelength solution
+                n_select = int(np.count_nonzero(select))
+                if n_select == 0:
+                    coef[i] = np.nan
+                    continue
+                if n_select < 2:
                     logger.warning(
-                        "Not enough valid lines found wavelength calibration in order % i",
-                        i,
+                        "Row %d: only %d flagged line(s); skipping fit", i, n_select
                     )
                     coef[i] = np.nan
                     continue
 
-                deg = max(min(self.degree, np.count_nonzero(select) - 2), 0)
+                deg = max(min(self.degree, n_select - 2), 0)
                 coef[i, -(deg + 1) :] = np.polyfit(
                     m_pix[select], m_wave[select], deg=deg
                 )
@@ -754,7 +759,7 @@ class WavelengthCalibration:
                 f"Parameter 'mode' not understood. Expected '1D' or '2D' but got {self.dimensionality}"
             )
 
-        if plot or self.plot >= 2:  # pragma: no cover
+        if plot or self.plot >= 3:  # pragma: no cover
             self.plot_residuals(lines, coef, title="Residuals")
 
         return coef
@@ -1204,17 +1209,17 @@ class WavelengthCalibration:
             Line data with updated flags
         """
 
-        wave_solution = self.build_2d_solution(lines)
+        wave_solution = self.fit_wavelengths(lines)
         residual = self.calculate_residual(wave_solution, lines)
         nbad = 0
         while np.ma.any(np.abs(residual) > self.threshold):
             lines = self.reject_outlier(residual, lines)
-            wave_solution = self.build_2d_solution(lines)
+            wave_solution = self.fit_wavelengths(lines)
             residual = self.calculate_residual(wave_solution, lines)
             nbad += 1
         logger.info("Discarding %i lines", nbad)
 
-        if plot or self.plot >= 2:  # pragma: no cover
+        if plot or self.plot >= 3:  # pragma: no cover
             mask = lines["flag"]
             _, axis = plt.subplots()
             axis.plot(lines["order"][mask], residual[mask], "X", label="Accepted Lines")
@@ -1467,7 +1472,7 @@ class WavelengthCalibration:
         for i in range(self.iterations):
             logger.info(f"Wavelength calibration iteration: {i}")
             # Step 3: Create a wavelength solution on known lines
-            wave_solution = self.build_2d_solution(lines)
+            wave_solution = self.fit_wavelengths(lines)
             wave_img = self.make_wave(wave_solution)
             # Step 4: Identify lines that fit into the solution
             lines = self.auto_id(obs, wave_img, lines)
@@ -1481,7 +1486,7 @@ class WavelengthCalibration:
         )
 
         # Step 6: build final 2d solution
-        wave_solution = self.build_2d_solution(lines, plot=self.plot)
+        wave_solution = self.fit_wavelengths(lines, plot=self.plot)
         wave_img = self.make_wave(wave_solution)
 
         if self.plot:
@@ -1603,10 +1608,10 @@ class WavelengthCalibrationComb(WavelengthCalibration):
 
         # Use now better resolution to find the new solution
         # A single pass of discarding outliers should be enough
-        coef = self.build_2d_solution(laser_lines)
+        coef = self.fit_wavelengths(laser_lines)
         # resid = self.calculate_residual(coef, laser_lines)
         # laser_lines["flag"] = np.abs(resid) < self.threshold
-        # coef = self.build_2d_solution(laser_lines)
+        # coef = self.fit_wavelengths(laser_lines)
         new_wave = self.make_wave(coef)
 
         self.calculate_AIC(laser_lines, coef)
@@ -1974,7 +1979,17 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                     bundle=bundle,
                 )
 
+            # Cap per-row plots so single-order multi-bundle runs don't
+            # spawn dozens of figures (mirrors _fit_single_line's "5 of many").
+            if not hasattr(self, "_init_plot_count"):
+                self._init_plot_count = 0
             if self.plot:
+                self._init_plot_count += 1
+                if self._init_plot_count == 6:
+                    logger.info(
+                        "Skipping remaining wavecal_init plots (shown 5 of many)"
+                    )
+            if self.plot and self._init_plot_count <= 5:
                 wave = np.polyval(coef, x)
                 atlas_flux = np.interp(wave, atlas.wave, atlas.flux)
                 atlas_flux /= np.max(atlas_flux)
@@ -1987,7 +2002,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                     markersize=4,
                     label=f"{len(matched_peak)} matches",
                 )
-                title = label
+                title = f"{label} ({self._init_plot_count}/5)"
                 if self.plot_title:
                     title = f"{self.plot_title}\n{title}"
                 plt.title(title)
