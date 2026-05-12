@@ -45,6 +45,28 @@ class TestLineList:
 
         assert len(ll) == 1
         assert ll["wlc"][0] == pytest.approx(5000.0)
+        # bundle defaults to -1 (not bundled)
+        assert ll["bundle"][0] == -1
+
+    @pytest.mark.unit
+    def test_bundle_field_roundtrip(self):
+        """bundle column survives from_list and add_line."""
+        ll = LineList.from_list(
+            [5000, 6000],
+            order=[0, 0],
+            pos=[100, 200],
+            width=[3, 3],
+            height=[1, 0.8],
+            flag=[True, True],
+            bundle=[7, 12],
+        )
+        assert list(ll["bundle"]) == [7, 12]
+
+        ll2 = LineList()
+        ll2.add_line(
+            wave=5000.0, order=0, pos=100, width=3, height=1.0, flag=True, bundle=42
+        )
+        assert ll2["bundle"][0] == 42
 
     @pytest.mark.unit
     def test_append(self):
@@ -618,6 +640,65 @@ class TestWavecalFinalizeTraceUpdate:
         assert loaded_traces[3].wave[1] == pytest.approx(6500)
 
     @pytest.mark.unit
+    def test_update_traces_single_order_multi_bundle_keeps_m_none(
+        self, mock_instrument, tmp_path
+    ):
+        """_update_traces must not overwrite t.m for single-order multi-bundle traces.
+
+        Models MOSAIC: traces have m=None and bundle=N. Even when the
+        linelist provides an obase, _update_traces should leave m=None and
+        still populate t.wave per row.
+        """
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import Trace
+        from pyreduce.wavelength_calibration import LineList
+
+        traces = [
+            Trace(
+                m=None,
+                bundle=b,
+                pos=np.array([1, 0, 100 + b * 50]),
+                column_range=(0, 100),
+            )
+            for b in (1, 2, 3)
+        ]
+
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "1D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+
+        # 1D wave polys, one row per bundle
+        wave = np.array([[0.1, 5000], [0.1, 5100], [0.1, 5200]])
+        ll = LineList.from_list(
+            [5000.0, 5100.0, 5200.0],
+            order=[0, 1, 2],
+            pos=[50, 50, 50],
+            width=[3, 3, 3],
+            height=[1.0, 1.0, 1.0],
+            flag=[True, True, True],
+            bundle=[1, 2, 3],
+        )
+        ll.obase = 42  # would normally produce m=42,43,44
+
+        step._update_traces(traces, {"all": (wave, ll)})
+
+        # m stays None because these are bundles, not orders
+        assert all(t.m is None for t in traces)
+        # wave is populated per row
+        for i, t in enumerate(traces):
+            assert t.wave is not None
+            np.testing.assert_allclose(t.wave, wave[i])
+
+    @pytest.mark.unit
     def test_wavecal_finalize_saves_to_traces_2d(
         self, mock_instrument, tmp_path, traces_with_groups
     ):
@@ -1099,6 +1180,42 @@ class TestWavecalInitIdentify:
         assert len(ll) >= 3 * norders
         orders_found = set(ll["order"])
         assert len(orders_found) == norders
+
+    @pytest.mark.unit
+    def test_execute_single_order_tags_bundles(self, tmp_path):
+        """single_order=True: every emitted line has order=0 and bundle=row_idx."""
+        npix = 1000
+        nrows = 4
+        peak_pixels = np.array([100, 300, 500, 700, 900])
+        w0 = 5000.0
+
+        spectrum = np.stack(
+            [self._make_spectrum(npix, peak_pixels) for _ in range(nrows)]
+        )
+        wave_range = [[w0, w0 + 0.05 * npix]]
+
+        atlas_dir = tmp_path / "atlas"
+        atlas_dir.mkdir()
+        with open(atlas_dir / "synlamp_list.txt", "w") as f:
+            for px in peak_pixels:
+                f.write(f"{w0 + 0.05 * px}\n")
+
+        wci = WavelengthCalibrationInitialize(
+            degree=2,
+            plot=False,
+            cutoff=0,
+            atlas_name="synlamp",
+            atlas_search_dirs=[str(atlas_dir)],
+        )
+        ll = wci.execute(spectrum, wave_range, single_order=True)
+
+        # In single-order mode, the linelist still uses `order` as a row
+        # selector (so the per-row 1D fitter still works), but the explicit
+        # bundle column carries the bundle id.
+        assert set(ll["bundle"]) == set(range(nrows))
+        # Default multi-order path leaves bundle=-1.
+        ll2 = wci.execute(spectrum, [wave_range[0]] * nrows, single_order=False)
+        assert set(ll2["bundle"]) == {-1}
 
     @pytest.mark.unit
     def test_execute_broadcasts_single_wave_range(self, tmp_path):

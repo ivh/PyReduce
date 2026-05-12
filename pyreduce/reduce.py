@@ -1585,12 +1585,26 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         return results
 
 
+def _is_single_order_multi_bundle(traces) -> bool:
+    """True iff every trace is a bundle of a single-order spectrograph.
+
+    Used to switch wavecal between (a) the multi-order indexing where each
+    extracted row is a distinct spectral order, and (b) the MOSAIC-style
+    case where every row is a different fiber bundle sharing one m.
+    """
+    return (
+        len(traces) > 1
+        and all(t.bundle is not None for t in traces)
+        and all(t.m is None for t in traces)
+    )
+
+
 class WavelengthCalibrationInitialize(Step):
     """Create the initial wavelength solution file"""
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
-        self._dependsOn += ["wavecal_master"]
+        self._dependsOn += ["wavecal_master", "trace"]
         self._loadDependsOn += ["config", "wavecal_master"]
 
         self.degree = config["degree"]
@@ -1616,22 +1630,35 @@ class WavelengthCalibrationInitialize(Step):
         """str: Name of the linelist file (single-group compat)"""
         return self.savefile_for_group("all")
 
-    def run(self, wavecal_master: dict):
+    def run(self, wavecal_master: dict, trace: list):
         """Run iterative line matching for each fiber group.
 
         Parameters
         ----------
         wavecal_master : dict[str, tuple]
             {group: (wavecal_spec, thead)} from wavecal_master step
+        trace : list[TraceData]
+            All trace objects (used to detect single-order multi-bundle mode)
 
         Returns
         -------
         results : dict[str, LineList]
             {group: linelist} for each fiber group
         """
+        selected = self._select_traces(trace, "wavecal_master")
+
         results = {}
         for group, (wavecal_spec, thead) in wavecal_master.items():
             logger.info("Running wavecal_init for group '%s'", group)
+
+            group_traces = selected.get(group, [])
+            single_order = _is_single_order_multi_bundle(group_traces)
+            if single_order:
+                logger.info(
+                    "Group '%s': single-order multi-bundle mode (%d bundles)",
+                    group,
+                    len(group_traces),
+                )
 
             # Get the initial wavelength guess from the instrument
             wave_range = self.instrument.get_wavelength_range(thead, self.channel)
@@ -1656,7 +1683,9 @@ class WavelengthCalibrationInitialize(Step):
                 smoothing=self.smoothing,
                 cutoff=self.cutoff,
             )
-            linelist = module.execute(wavecal_spec, wave_range)
+            linelist = module.execute(
+                wavecal_spec, wave_range, single_order=single_order
+            )
             results[group] = linelist
 
         self.save(results)
@@ -1841,9 +1870,13 @@ class WavelengthCalibrationFinalize(Step):
                 logger.warning("No traces found for group '%s'", group)
                 continue
 
-            # Update trace.m from obase if not already set
+            # Update trace.m from obase if not already set.
+            # Skip when traces are bundles of a single-order spectrograph --
+            # there t.bundle is the meaningful spatial id and m must stay None.
+            traces_only = [t for _i, t in group_traces]
+            single_order = _is_single_order_multi_bundle(traces_only)
             obase = linelist.obase
-            if obase is not None:
+            if obase is not None and not single_order:
                 already_have_m = any(t.m is not None for _i, t in group_traces)
                 if already_have_m:
                     logger.debug(

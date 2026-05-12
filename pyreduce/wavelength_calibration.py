@@ -259,7 +259,11 @@ class LineList:
                 ),  # Not used. Describes the shape used to approximate the line. "G" for Gaussian
                 (("width", "WIDTH"), ">f8"),  # width of the line in pixels
                 (("height", "HEIGHT"), ">f8"),  # relative strength of the line
-                (("order", "ORDER"), ">i2"),  # echelle order the line is found in
+                (("order", "ORDER"), ">i2"),  # row index in the wavecal spectrum
+                (
+                    ("bundle", "BUNDLE"),
+                    ">i2",
+                ),  # bundle id (single-order multi-bundle), -1 if not bundled
                 ("flag", "?"),  # flag that tells us if we should use the line or not
             ],
         )
@@ -301,16 +305,20 @@ class LineList:
             linelist = linelist.data
         self.data = np.append(self.data, linelist)
 
-    def add_line(self, wave, order, pos, width, height, flag):
-        lines = self.from_list([wave], [order], [pos], [width], [height], [flag])
+    def add_line(self, wave, order, pos, width, height, flag, bundle=-1):
+        lines = self.from_list(
+            [wave], [order], [pos], [width], [height], [flag], bundle=[bundle]
+        )
         self.data = np.append(self.data, lines)
 
     @classmethod
-    def from_list(cls, wave, order, pos, width, height, flag):
+    def from_list(cls, wave, order, pos, width, height, flag, bundle=None):
+        if bundle is None:
+            bundle = [-1] * len(wave)
         lines = [
-            (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, f)
-            for w, o, p, wi, h, f in zip(
-                wave, order, pos, width, height, flag, strict=False
+            (w, w, p, p, p - wi / 2, p + wi / 2, b"G", wi, h, o, b, f)
+            for w, o, p, wi, h, b, f in zip(
+                wave, order, pos, width, height, bundle, flag, strict=False
             )
         ]
         lines = np.array(lines, dtype=cls.dtype)
@@ -1716,7 +1724,9 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             spectrum /= smax
         return spectrum
 
-    def identify_lines_for_order(self, spectrum, atlas, wave_range, order) -> LineList:
+    def identify_lines_for_order(
+        self, spectrum, atlas, wave_range, order, bundle=-1, is_bundle=False
+    ) -> LineList:
         """Identify spectral lines via iterative peak matching (IDL algorithm).
 
         Detects peaks in the observed spectrum, matches them to atlas lines
@@ -1739,6 +1749,8 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         LineList
             matched lines for this order
         """
+        label = f"Bundle {bundle}" if is_bundle else f"Order {order}"
+
         spectrum = np.asarray(spectrum)
         npix = spectrum.shape[0]
         x = np.arange(npix)
@@ -1758,7 +1770,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         min_idx = np.where(minima)[0]
 
         if len(peak_idx) == 0:
-            logger.warning("Order %d: no peaks found", order)
+            logger.warning("%s: no peaks found", label)
             return LineList()
 
         # Filter: reject peaks near edges
@@ -1822,7 +1834,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         heights = heights[fit_ok]
 
         if len(posm) == 0:
-            logger.warning("Order %d: no valid peaks after Gaussian fitting", order)
+            logger.warning("%s: no valid peaks after Gaussian fitting", label)
             return LineList()
 
         # Atlas lines within the expected range (with margin)
@@ -1834,9 +1846,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         atlas_sub = atlas_waves[atlas_mask]
 
         if len(atlas_sub) == 0:
-            logger.warning(
-                "Order %d: no atlas lines in range %.1f-%.1f", order, wmin, wmax
-            )
+            logger.warning("%s: no atlas lines in range %.1f-%.1f", label, wmin, wmax)
             return LineList()
 
         # Step 1: linear wavelength assignment
@@ -1852,7 +1862,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                 offsets.append(aw - wlc[best])
 
         if len(offsets) < self.degree + 1:
-            logger.warning("Order %d: only %d coarse matches", order, len(offsets))
+            logger.warning("%s: only %d coarse matches", label, len(offsets))
             return LineList()
 
         offsets = np.array(offsets)
@@ -1945,6 +1955,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         matched_width = best_width
         matched_height = best_height
 
+        save_tag = (
+            f"wavecal_init_bundle_{bundle}"
+            if is_bundle
+            else f"wavecal_init_order_{order}"
+        )
+
         if len(matched_peak) > 0:
             linelist = LineList()
             for j in range(len(matched_peak)):
@@ -1955,6 +1971,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                     matched_width[j],
                     matched_height[j],
                     True,
+                    bundle=bundle,
                 )
 
             if self.plot:
@@ -1970,13 +1987,13 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                     markersize=4,
                     label=f"{len(matched_peak)} matches",
                 )
-                title = f"Order {order}"
+                title = label
                 if self.plot_title:
                     title = f"{self.plot_title}\n{title}"
                 plt.title(title)
                 plt.xlabel("Wavelength [A]")
                 plt.legend(fontsize="small")
-                util.show_or_save(f"wavecal_init_order_{order}")
+                util.show_or_save(save_tag)
 
             rms = np.std(
                 (np.polyval(coef, matched_peak) - matched_atlas)
@@ -1984,17 +2001,14 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
                 * speed_of_light
             )
             logger.info(
-                "Order %d: matched %d lines, rms=%.1f m/s",
-                order,
-                len(matched_peak),
-                rms,
+                "%s: matched %d lines, rms=%.1f m/s", label, len(matched_peak), rms
             )
             return linelist
 
-        logger.warning("Order %d: no lines matched", order)
+        logger.warning("%s: no lines matched", label)
         return LineList()
 
-    def execute(self, spectrum, wave_range) -> LineList:
+    def execute(self, spectrum, wave_range, single_order=False) -> LineList:
         atlas = LineAtlas(
             self.atlas_name, self.medium, search_dirs=self.atlas_search_dirs
         )
@@ -2010,7 +2024,12 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             wave_range = [wave_range[0]] * n_rows
         for order in range(n_rows):
             ll = self.identify_lines_for_order(
-                spectrum[order], atlas, wave_range[order], order
+                spectrum[order],
+                atlas,
+                wave_range[order],
+                order,
+                bundle=order if single_order else -1,
+                is_bundle=single_order,
             )
             linelist.append(ll)
         return linelist

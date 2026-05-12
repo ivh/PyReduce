@@ -16,6 +16,10 @@
         "atlas": "thar",
         "medium": "vac"
     },
+    "wavecal": {
+        "dimensionality": "1D",
+        "degree": 6
+    },
     "science": {
         "extraction_reject": 12,
         "oversampling": 8,
