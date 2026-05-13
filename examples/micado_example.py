@@ -10,15 +10,17 @@ from pyreduce.pipeline import Pipeline
 instrument = "MICADO"
 target = ""
 night = ""
-channel = ""
+channel = "SPEC_det2"
 steps = (
     # "bias",
-    "flat",
-    "trace",
-    "curvature",
-    # # "scatter",
+    # "flat",
+    # "trace",
+    # "curvature",
+    # "scatter",
     # "norm_flat",
-    "wavecal",
+    "wavecal_master",
+    # "wavecal_init",
+    # "wavecal",
     # "science",
     # "continuum",
     # "finalize",
@@ -32,10 +34,10 @@ steps = (
 # The data (with fixed header keywords) can be fetched from https://www.dropbox.com/sh/e3lnvtkmyjveajk/AABPHxeUdDO5AnkWCAjbM0e1a?dl=0 and stored in input_dir
 
 # PC
-base_dir = "/media/data/Dropbox/Dropbox/WORKING/iMICADO/Working/WORKING_PyReduce/DATA/datasets/MICADO/"  # an example path which you should change to your prefered one
+base_dir = "/Volumes/Ext_SSD/data/micado/pyreduce/SCOPESIM/"  # an example path which you should change to your prefered one
 
-input_dir = "raw_new/HK/"
-output_dir = "reduced_new/"
+input_dir = "raw/IJ/"
+output_dir = "reduced/IJ_Short/"
 
 config = get_configuration_for_instrument(instrument)
 
@@ -64,5 +66,8 @@ Pipeline.from_instrument(
     output_dir=output_dir,
     configuration=config,
     trace_range=(3, 4),
+    # trace_range=(10, 11),
+    # trace_range=(12, 13),
+    # trace_range=(14, 15),
     plot=1,
 ).run()
