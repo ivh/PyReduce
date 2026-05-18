@@ -76,8 +76,7 @@ fibers:
     # around bundle_center, so a missing center fiber doesn't shift the
     # merged y by one fiber slot.
     merge: center_weight
-    # Bundle centers come from MOSAIC.assign_bundles() reading FIBRE_TABLE
-    # in the raw FITS, not from a YAML.
+    bundle_centers_file: bundle_centers_{channel}.yaml
   use:
     curvature: groups
     wavecal_master: groups

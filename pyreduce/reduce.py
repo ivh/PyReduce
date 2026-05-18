@@ -925,18 +925,6 @@ class Trace(CalibrationStep):
             [t.height if t.height is not None else np.nan for t in raw_traces]
         )
 
-        # Optional instrument hook: override bundle assignments from FITS
-        # metadata (e.g. MOSAIC's FIBRE_TABLE). Run only after _trace_single
-        # / _trace_by_groups so traces already have their detected y.
-        # When it returns a dict, it replaces bundle_centers for downstream
-        # group_fibers (so center_weight merge uses the right y per bundle).
-        header = fits.getheader(files[0]) if files else None
-        assigned_centers = self.instrument.assign_bundles(
-            raw_traces, files, header, self.channel
-        )
-        if assigned_centers is not None:
-            bundle_centers = assigned_centers
-
         # Group fibers if configured (creates new traces with group set)
         if fibers_config is not None and (
             fibers_config.groups is not None or fibers_config.bundles is not None

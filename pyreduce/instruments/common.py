@@ -916,20 +916,6 @@ class Instrument:
     def get_wavelength_range(self, header, channel, **kwargs):
         return self.get("wavelength_range", header, channel)
 
-    def assign_bundles(self, traces, files, header, channel):
-        """Optional hook to assign t.bundle / t.fiber_idx from metadata.
-
-        Instruments that ship per-fiber bundle assignments in FITS extensions
-        (e.g. MOSAIC's FIBRE_TABLE) override this to set ``t.bundle`` and
-        ``t.fiber_idx`` directly on each detected trace, bypassing the
-        default nearest-y matching against ``bundle_centers``.
-
-        Return a ``{bundle_id: y_center}`` dict if assignments were made
-        (used by the ``center_weight`` merge). Return None (default) to
-        leave existing assignments in place.
-        """
-        return None
-
 
 class COMMON(Instrument):
     def load_info(self):

@@ -30,17 +30,25 @@ channels = ["VIS1", "VIS2", "VIS3", "VIS4"]
 plot = 2
 
 # File paths (simulated data)
-# Set MOSAIC_USE_LOCAL=1 to use Tom's local E2E_may26 copies; otherwise Jens' paths.
+# Set MOSAIC_USE_LOCAL=1 to use Tom's local REF_E2E copies; otherwise Jens' paths.
 if os.environ.get("MOSAIC_USE_LOCAL", "0") == "1":
-    base_dir = "/Users/tom/REDUCE_DATA/MOSAIC/E2E_may26"
-else:
-    base_dir = (
-        "/disk/miri-b1/jeand/mosaic/virtualmosaic/simdata_260429/VIS/moons_reduce"
+    data_dir = "/Users/tom/REDUCE_DATA/MOSAIC"
+    base_dir = join(data_dir, "REF_E2E/VIS")
+    flat_file = join(
+        base_dir, "E2E_as_built_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_000.fits"
     )
-
-flat_file = join(base_dir, "E2E_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
-thar_file = join(base_dir, "E2E_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
-sky_file = join(base_dir, "E2E_SKY_DIT_150s_MOSAIC_VIS_c01_FOCAL_PLANE_000_REF.fits")
+    thar_file = join(
+        base_dir, "E2E_as_built_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE.fits"
+    )
+    sky_file = None
+else:
+    data_dir = "/disk/miri-b1/jeand/mosaic/virtualmosaic/simdata_260429"
+    base_dir = join(data_dir, "VIS/moons_reduce")
+    flat_file = join(base_dir, "E2E_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
+    thar_file = join(base_dir, "E2E_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
+    sky_file = join(
+        base_dir, "E2E_SKY_DIT_150s_MOSAIC_VIS_c01_FOCAL_PLANE_000_REF.fits"
+    )
 
 for fpath in [flat_file, thar_file] + ([sky_file] if sky_file else []):
     if not os.path.exists(fpath):
@@ -51,12 +59,12 @@ print(f"ThAr: {thar_file}")
 print(f"Sky:  {sky_file}")
 
 for channel in [channels[2]]:
-    output_dir = join(base_dir, "reduced", channel)
+    output_dir = join(data_dir, "reduced", channel)
 
     # Handle plot environment variables
     if "PYREDUCE_PLOT" in os.environ:
         plot = int(os.environ["PYREDUCE_PLOT"])
-    plot_dir = join(base_dir, "pyreduce_plots", channel)
+    plot_dir = join(data_dir, "pyreduce_plots", channel)
     util.set_plot_dir(plot_dir)
 
     # Load configuration
