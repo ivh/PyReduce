@@ -1098,9 +1098,17 @@ class Trace(CalibrationStep):
             logger.info("  Found %d traces", len(traces))
             all_traces.extend(traces)
 
-        # Re-assign fiber_idx within each (m, bundle) by y-position, since
-        # each trace_by group assigned its own 1..N independently.
+        # Re-assign fiber_idx within each (m, bundle), since each trace_by
+        # group assigned its own 1..N independently. Direction follows
+        # fibers.numbering, matching assign_orders_and_fibers.
         from collections import defaultdict
+
+        fibers_config = getattr(self.instrument.config, "fibers", None)
+        top_down = (
+            getattr(fibers_config, "numbering", "bottom_up") == "top_down"
+            if fibers_config
+            else False
+        )
 
         traces_by_mb = defaultdict(list)
         for t in all_traces:
@@ -1108,7 +1116,7 @@ class Trace(CalibrationStep):
 
         for _key, order_traces in traces_by_mb.items():
             x_mid = sum(order_traces[0].column_range) / 2
-            order_traces.sort(key=lambda t: t.y_at_x(x_mid))
+            order_traces.sort(key=lambda t: t.y_at_x(x_mid), reverse=top_down)
             for idx, t in enumerate(order_traces, start=1):
                 t.fiber_idx = idx
 
@@ -1145,6 +1153,11 @@ class Trace(CalibrationStep):
         fpo = (
             getattr(fibers_config, "fibers_per_order", None) if fibers_config else None
         )
+        top_down = (
+            getattr(fibers_config, "numbering", "bottom_up") == "top_down"
+            if fibers_config
+            else False
+        )
 
         traces = mark_orders(
             trace_img,
@@ -1170,6 +1183,7 @@ class Trace(CalibrationStep):
             order_centers=order_centers,
             fibers_per_order=fpo,
             bundle_centers=bundle_centers,
+            top_down=top_down,
         )
 
         return traces

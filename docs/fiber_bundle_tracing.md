@@ -162,10 +162,34 @@ fibers:
 
 If fiber arrangements differ fundamentally between channels, use separate instrument configs.
 
+### Fiber Numbering Direction
+
+`fiber_idx` is assigned by sorting traces along the cross-dispersion (y) axis
+within each order/group. The `numbering` field controls the direction:
+
+```yaml
+fibers:
+  numbering: top_down   # fiber 1 = highest-y trace
+  # numbering: bottom_up  # (default) fiber 1 = lowest-y trace
+```
+
+- `bottom_up` (default): fiber 1 is the lowest-y trace, counting upward.
+- `top_down`: fiber 1 is the highest-y trace, counting downward.
+
+Set this to match the frame in which your group/bundle `range`s are written.
+The ANDES instruments use `top_down` so that the group ranges line up with the
+ANDES E2E simulator's fiber numbering, where fiber 1 sits at the top of the
+slit (highest y on the detector). If your `range`s appear flipped relative to
+the physical slit, switch this field rather than rewriting every range.
+
 ## Merge Methods
 
 - `average` - Fit polynomial to mean y-positions of all fibers in group
-- `center` - Select the middle fiber's trace
+- `center` - Select the middle fiber's trace (`traces[n//2]`, order-dependent)
+- `center_weight` - Blend all fibers' polynomials with inverse-distance weights
+  to the bundle center. Requires `bundle_centers`. Robust to a missing center
+  fiber (symmetric flanks then average to the center) and order-independent, so
+  it suits bundles where the present-fiber pattern varies between orders.
 - `[i]` or `[i, j, ...]` - Select specific 1-based indices within group
 
 ## Per-Step Trace Selection

@@ -165,6 +165,14 @@ class FibersConfig(BaseModel):
     order_centers: dict[int, float] | None = None  # inline (single channel only)
     order_centers_file: str | list[str] | None = None  # per-channel list supported
 
+    # Direction in which fiber_idx is numbered within each order/group:
+    #   "bottom_up" (default) -> fiber 1 = lowest-y trace
+    #   "top_down"            -> fiber 1 = highest-y trace
+    # Set this to match the frame your group/ring `range`s are written in.
+    # ANDES uses "top_down" so the ranges line up with the E2E simulator's
+    # fiber numbering (fiber 1 at the top of the slit).
+    numbering: Literal["top_down", "bottom_up"] = "bottom_up"
+
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("order_centers", mode="before")

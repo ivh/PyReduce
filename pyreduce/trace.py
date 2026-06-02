@@ -152,6 +152,7 @@ def _assign_order_and_fiber_inplace(
     ncol: int,
     fibers_per_order: int | None = None,
     bundle_centers: dict[int, float] | None = None,
+    top_down: bool = False,
 ) -> None:
     """Assign m (order number), bundle, and fiber_idx to Trace objects.
 
@@ -174,6 +175,10 @@ def _assign_order_and_fiber_inplace(
         Bundle id -> y-position mapping. When set, each trace is matched
         to the nearest bundle center; t.bundle is populated. fiber_idx is
         then re-assigned within each (m, bundle).
+    top_down : bool
+        If True, fiber_idx 1 is the highest-y trace in each order/group;
+        if False (default), fiber_idx 1 is the lowest-y trace. Driven by
+        the instrument's ``fibers.numbering`` config.
     """
     if not traces:
         return
@@ -198,9 +203,10 @@ def _assign_order_and_fiber_inplace(
         for i, t in enumerate(traces):
             traces_by_m[t.m].append((i, y_positions[i]))
 
-        # Assign fiber_idx: sort by y within each order, then 1, 2, 3...
+        # Assign fiber_idx by y within each order. Direction follows the
+        # instrument's fibers.numbering (top_down -> fiber 1 = highest y).
         for _m, trace_list in traces_by_m.items():
-            trace_list.sort(key=lambda x: x[1])
+            trace_list.sort(key=lambda x: x[1], reverse=top_down)
             for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
                 traces[trace_idx].fiber_idx = fiber_idx
 
@@ -215,7 +221,8 @@ def _assign_order_and_fiber_inplace(
         order_num = 0
         paired_set = set()
         for group in pair_indices:
-            for fiber_idx, trace_idx in enumerate(group, start=1):
+            ordered = sorted(group, key=lambda ti: y_pos[ti], reverse=top_down)
+            for fiber_idx, trace_idx in enumerate(ordered, start=1):
                 traces[trace_idx].m = order_num
                 traces[trace_idx].fiber_idx = fiber_idx
                 paired_set.add(trace_idx)
@@ -260,7 +267,7 @@ def _assign_order_and_fiber_inplace(
         for i, t in enumerate(traces):
             traces_by_mb[(t.m, t.bundle)].append((i, y_positions[i]))
         for _key, trace_list in traces_by_mb.items():
-            trace_list.sort(key=lambda x: x[1])
+            trace_list.sort(key=lambda x: x[1], reverse=top_down)
             for fiber_idx, (trace_idx, _y) in enumerate(trace_list, start=1):
                 traces[trace_idx].fiber_idx = fiber_idx
 
@@ -787,6 +794,7 @@ def trace(
     order_centers: dict[int, float] | None = None,
     fibers_per_order: int | None = None,
     bundle_centers: dict[int, float] | None = None,
+    top_down: bool = False,
 ):
     """Identify and trace orders, returning Trace objects.
 
@@ -831,6 +839,9 @@ def trace(
         consecutive traces (sorted by y) are grouped into orders of this size.
         Used for instruments like HARPSpol where a Wollaston prism splits each
         order into multiple beams.
+    top_down : bool, optional
+        If True, fiber_idx 1 is the highest-y trace within each order/group
+        (default False = lowest-y). Set from ``fibers.numbering``.
 
     Returns
     -------
@@ -1219,6 +1230,7 @@ def trace(
         im.shape[1],
         fibers_per_order=fibers_per_order,
         bundle_centers=bundle_centers,
+        top_down=top_down,
     )
 
     if plot:  # pragma: no cover

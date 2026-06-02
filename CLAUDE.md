@@ -313,6 +313,10 @@ ANDES_RIZ uses `HDFMODEL` (not `BAND`) for channel selection because R/R1/R2 all
 
 Fiber groups: A (slit A, 31 or 35 fibers), cal (calibration, 3-4 fibers), B (slit B, 31 or 35 fibers). YJH also has ifu and ring0-4 groups. Traces are merged (averaged) per group.
 
+### Fiber Numbering Direction
+
+`fiber_idx` is assigned by sorting traces along y within each order. The `fibers.numbering` field in `config.yaml` controls the direction: `bottom_up` (default, fiber 1 = lowest y) or `top_down` (fiber 1 = highest y). All three ANDES configs set `numbering: top_down` so the group/ring `range`s line up with the ANDES E2E simulator, where fiber 1 sits at the top of the slit. If group ranges look flipped relative to the physical slit, switch this field instead of rewriting ranges. See `docs/fiber_bundle_tracing.md`.
+
 ### Order Centers from HDF Optical Models
 
 The `order_centers_{channel}.yaml` files contain the y-position of the center fiber at the detector center x-position. These are extracted from the ANDES E2E simulator HDF files:

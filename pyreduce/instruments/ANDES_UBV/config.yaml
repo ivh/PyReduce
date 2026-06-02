@@ -64,6 +64,8 @@ fibers:
   trace_by: FIBMODE
   fibers_per_order: 66
   order_centers_file: order_centers_{channel}.yaml
+  # fiber 1 = top of slit (highest y), matching the ANDES E2E simulator
+  numbering: top_down
   groups:
     A:
       range: [1, 32]
