@@ -105,7 +105,7 @@ print(f"  Saved combined flat: {combined_file}")
 
 # --- Extract using the science step ---
 print("\nExtracting spectra (group A from fiber config)...")
-pipe.instrument.config.fibers.use["science"] = ["ifu"]
+pipe.instrument.config.fibers.use["science"] = ["ring4"]
 science_file = os.environ.get(
     "ANDES_SCIENCE_FILE",
     os.path.join(raw_dir, "H_ifu_HR1544_skyabs_skyemi_fp_20260314.fits"),
