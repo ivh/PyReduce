@@ -39,12 +39,17 @@ if _out_suffix:
 file_even = os.path.join(raw_dir, f"{channel}_FF_even_1s.fits")
 file_odd = os.path.join(raw_dir, f"{channel}_FF_odd_1s.fits")
 
+# Combined LFC frame (all fibers) used for slit curvature determination
+curvature_file = os.path.join(
+    data_dir, "ANDES", "lfc_allfib_allbands", f"{channel}_LFC_combined_all.fits"
+)
+
 # Plot settings
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
 # --- Create Pipeline ---
 config = load_config(None, instrument_name)
-config["science"]["extraction_height"] = 4
+# config["science"]["extraction_height"] = 4
 config["science"]["extraction_reject"] = 20
 _tr = os.environ.get("ANDES_TRACE_RANGE")
 trace_range = tuple(int(x) for x in _tr.split(",")) if _tr else None
@@ -65,7 +70,8 @@ print(f"Per-order grouping: {fibers_config.per_order}")
 print(f"Groups: {list(fibers_config.groups.keys())}")
 
 # --- Trace or load from previous run ---
-LOAD_TRACE = True  # Set True to load traces from previous run
+LOAD_TRACE = True  # Set False to trace fresh from the flats
+LOAD_CURVE = False  # Set True to reuse curvature stored in the loaded traces
 
 if LOAD_TRACE:
     print("\nLoading traces from previous run...")
@@ -80,6 +86,15 @@ else:
     results = pipe.run()
     trace_objects = results["trace"]  # list[Trace]
     print(f"  Found {len(trace_objects)} traces")
+
+# --- Determine or load slit curvature ---
+if not LOAD_CURVE:
+    # Determine slit curvature from the combined LFC frame
+    print(f"\nDetermining slit curvature from {os.path.basename(curvature_file)}...")
+    pipe.curvature([curvature_file])
+    results = pipe.run()
+    trace_objects = results["trace"]  # traces updated in-place with curvature
+    print(f"  Curvature applied to {len(trace_objects)} traces")
 
 # Show trace info
 print("\nTraces:")
@@ -107,7 +122,8 @@ print(f"  Saved combined flat: {combined_file}")
 
 # --- Extract using the science step ---
 print("\nExtracting spectra (group A from fiber config)...")
-pipe.instrument.config.fibers.use["science"] = ["1", "75"]
+# pipe.instrument.config.fibers.use["science"] = ["1", "75"]
+pipe.instrument.config.fibers.use["science"] = ["ring4"]
 science_file = os.environ.get(
     "ANDES_SCIENCE_FILE",
     os.path.join(raw_dir, "H_ifu_HR1544_skyabs_skyemi_fp_20260314.fits"),
