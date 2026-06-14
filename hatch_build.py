@@ -41,54 +41,31 @@ class CustomBuildHook(BuildHookInterface):
             # Import the CFFI FFI builder
             from cffi import FFI
 
-            # Build vertical extraction
-            print("\n[1/2] Building vertical extraction extension...")
-            ffibuilder_vertical = FFI()
+            # Build slit decomposition (slitdec.c, copied from charslit)
+            print("\n[1/1] Building slit decomposition extension...")
+            ffibuilder_slitdec = FFI()
 
-            with open(clib_dir / "slit_func_bd.h") as f:
-                ffibuilder_vertical.cdef(f.read())
+            with open(clib_dir / "slitdec.h") as f:
+                ffibuilder_slitdec.cdef(f.read())
 
-            with open(clib_dir / "slit_func_bd.c") as f:
-                ffibuilder_vertical.set_source(
-                    "_slitfunc_bd",
+            with open(clib_dir / "slitdec.c") as f:
+                ffibuilder_slitdec.set_source(
+                    "_slitdec",
                     f.read(),
-                    include_dirs=[str(clib_dir), str(clib_dir / "Release")],
-                    depends=["slit_func_bd.h"],
+                    include_dirs=[str(clib_dir)],
+                    depends=["slitdec.h"],
                 )
 
             old_cwd = os.getcwd()
             try:
                 os.chdir(clib_dir)
-                ffibuilder_vertical.compile(verbose=True)
-                print("[OK] Vertical extraction extension built successfully\n")
-            finally:
-                os.chdir(old_cwd)
-
-            # Build curved extraction
-            print("[2/2] Building curved extraction extension...")
-            ffibuilder_curved = FFI()
-
-            with open(clib_dir / "slit_func_2d_xi_zeta_bd.h") as f:
-                ffibuilder_curved.cdef(f.read())
-
-            with open(clib_dir / "slit_func_2d_xi_zeta_bd.c") as f:
-                ffibuilder_curved.set_source(
-                    "_slitfunc_2d",
-                    f.read(),
-                    include_dirs=[str(clib_dir), str(clib_dir / "Release")],
-                    depends=["slit_func_2d_xi_zeta_bd.h"],
-                )
-
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(clib_dir)
-                ffibuilder_curved.compile(verbose=True)
-                print("[OK] Curved extraction extension built successfully\n")
+                ffibuilder_slitdec.compile(verbose=True)
+                print("[OK] slit decomposition extension built successfully\n")
             finally:
                 os.chdir(old_cwd)
 
             print("=" * 60)
-            print("All CFFI extensions built successfully!")
+            print("CFFI extension built successfully!")
             print("=" * 60)
 
         except Exception as e:

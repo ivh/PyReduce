@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-from pyreduce import cwrappers, extract
+from pyreduce import extract
 from pyreduce.trace_model import load_traces
 
 input_dir = "../DATA/datasets/UVES/reduced/2010-04-01/middle/"
@@ -32,17 +32,31 @@ ycen_int = ycen.astype(int)
 
 index = extract.make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
 swath_img = img[index]
-swath_ycen = ycen[ibeg:iend] - ycen_int[ibeg:iend]
+# slitdec takes the absolute trace position; it strips the integer part itself
+swath_ycen = ycen[ibeg:iend]
 osample = 10
 
 np.savetxt("image.txt", swath_img)
 np.savetxt("ycen.txt", swath_ycen)
 
-data2 = cwrappers.slitfunc_curved(
-    swath_img, swath_ycen, 0, 0, 0.0, 0.5, osample=osample, yrange=(ylow, yhigh)
+ncols = iend - ibeg
+slitcurve = np.zeros((ncols, 6))  # no curvature
+slitdeltas = np.zeros(swath_img.shape[0])
+data = extract._slitdec_charslit(
+    swath_img,
+    swath_ycen,
+    slitcurve,
+    slitdeltas,
+    lambda_sp=0.0,
+    lambda_sf=0.5,
+    osample=osample,
+    yrange=(ylow, yhigh),
+    maxiter=20,
+    gain=1,
+    reject_threshold=0,
+    preset_slitfunc=None,
 )
 
-data = data2
 spec = data[0]
 slitf = data[1]
 model = data[2]

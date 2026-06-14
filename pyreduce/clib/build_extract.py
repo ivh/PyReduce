@@ -17,7 +17,6 @@ from cffi import FFI
 
 CWD = os.path.dirname(__file__)
 CWD = os.path.abspath(CWD)
-release_path = os.path.join(CWD, "Release")
 
 
 def clean():
@@ -35,7 +34,7 @@ def clean():
 
 
 def build():
-    """Build the C slitfunc libraries in-place."""
+    """Build the slitdec C library in-place."""
     print("Building CFFI extensions for development...")
     print(f"  Source dir: {CWD}")
 
@@ -43,33 +42,19 @@ def build():
     os.chdir(CWD)
 
     try:
-        # Vertical extraction
-        ffibuilder_vertical = FFI()
-        with open("slit_func_bd.h") as f:
-            ffibuilder_vertical.cdef(f.read())
-        with open("slit_func_bd.c") as f:
-            ffibuilder_vertical.set_source(
-                "_slitfunc_bd",
+        # Slit decomposition (slitdec.c, copied from charslit)
+        ffibuilder_slitdec = FFI()
+        with open("slitdec.h") as f:
+            ffibuilder_slitdec.cdef(f.read())
+        with open("slitdec.c") as f:
+            ffibuilder_slitdec.set_source(
+                "_slitdec",
                 f.read(),
-                include_dirs=[CWD, release_path],
-                depends=["slit_func_bd.h"],
+                include_dirs=[CWD],
+                depends=["slitdec.h"],
             )
-        ffibuilder_vertical.compile(verbose=True)
-        print("[OK] _slitfunc_bd")
-
-        # Curved extraction
-        ffibuilder_curved = FFI()
-        with open("slit_func_2d_xi_zeta_bd.h") as f:
-            ffibuilder_curved.cdef(f.read())
-        with open("slit_func_2d_xi_zeta_bd.c") as f:
-            ffibuilder_curved.set_source(
-                "_slitfunc_2d",
-                f.read(),
-                include_dirs=[CWD, release_path],
-                depends=["slit_func_2d_xi_zeta_bd.h"],
-            )
-        ffibuilder_curved.compile(verbose=True)
-        print("[OK] _slitfunc_2d")
+        ffibuilder_slitdec.compile(verbose=True)
+        print("[OK] _slitdec")
 
         print("Done.")
     finally:

@@ -593,68 +593,6 @@ class TestPresetSlitfunc:
         assert spectra2[0].spec.shape == spectra1[0].spec.shape
 
 
-class TestAdaptSlitfunc:
-    """Tests for _adapt_slitfunc helper function."""
-
-    def test_same_parameters_returns_copy(self):
-        """When parameters match, should return a copy."""
-        from pyreduce.cwrappers import _adapt_slitfunc
-
-        osample = 10
-        yrange = (5, 5)
-        nslitf = osample * (yrange[0] + yrange[1] + 2) + 1
-        slitfunc = np.random.rand(nslitf)
-
-        result = _adapt_slitfunc(slitfunc, osample, yrange, osample, yrange)
-
-        assert result is not slitfunc  # should be a copy
-        np.testing.assert_array_equal(result, slitfunc)
-
-    def test_truncate_extraction_height(self):
-        """Test truncating to smaller extraction height."""
-        from pyreduce.cwrappers import _adapt_slitfunc
-
-        osample = 10
-        src_yrange = (10, 10)
-        tgt_yrange = (5, 5)
-
-        src_nslitf = osample * (src_yrange[0] + src_yrange[1] + 2) + 1
-        tgt_nslitf = osample * (tgt_yrange[0] + tgt_yrange[1] + 2) + 1
-
-        # Gaussian-like slitfunc
-        src_y = np.linspace(-11, 11, src_nslitf)
-        slitfunc = np.exp(-0.5 * (src_y / 3) ** 2)
-        slitfunc /= slitfunc.sum() / osample
-
-        result = _adapt_slitfunc(slitfunc, osample, src_yrange, osample, tgt_yrange)
-
-        assert len(result) == tgt_nslitf
-        # Should still be normalized to osample
-        assert abs(result.sum() - osample) < 0.1
-
-    def test_resample_osample(self):
-        """Test resampling to different osample."""
-        from pyreduce.cwrappers import _adapt_slitfunc
-
-        src_osample = 10
-        tgt_osample = 5
-        yrange = (5, 5)
-
-        src_nslitf = src_osample * (yrange[0] + yrange[1] + 2) + 1
-        tgt_nslitf = tgt_osample * (yrange[0] + yrange[1] + 2) + 1
-
-        # Gaussian-like slitfunc
-        src_y = np.linspace(-6, 6, src_nslitf)
-        slitfunc = np.exp(-0.5 * (src_y / 2) ** 2)
-        slitfunc /= slitfunc.sum() / src_osample
-
-        result = _adapt_slitfunc(slitfunc, src_osample, yrange, tgt_osample, yrange)
-
-        assert len(result) == tgt_nslitf
-        # Should be normalized to target osample
-        assert abs(result.sum() - tgt_osample) < 0.1
-
-
 class TestSlitdeltasExtraction:
     """Tests for slitdeltas handling in extraction."""
 

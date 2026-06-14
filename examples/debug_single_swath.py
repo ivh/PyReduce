@@ -11,8 +11,7 @@ from os.path import join
 import numpy as np
 from astropy.io import fits
 
-from pyreduce.cwrappers import slitfunc_curved
-from pyreduce.extract import fix_parameters, make_bins
+from pyreduce.extract import _slitdec_charslit, fix_parameters, make_bins
 from pyreduce.trace_model import load_traces
 from pyreduce.util import make_index
 
@@ -94,7 +93,8 @@ def main():
     # Extract swath region
     index = make_index(ycen_int - xlow, ycen_int + xhigh + 1, swath_start, swath_end)
     swath_img = img[index]
-    swath_ycen = ycen[swath_start:swath_end] - ycen_int[swath_start:swath_end]
+    # slitdec takes the absolute trace position; it strips the integer part itself
+    swath_ycen = ycen[swath_start:swath_end]
 
     print(f"Swath image shape: {swath_img.shape}")
     print(f"Swath ycen range: [{swath_ycen.min():.3f}, {swath_ycen.max():.3f}]")
@@ -105,21 +105,24 @@ def main():
     print("Saved debug_swath_img.txt and debug_swath_ycen.txt")
 
     # Run extraction
-    print("\nRunning slitfunc_curved...")
-    result = slitfunc_curved(
+    print("\nRunning slitdec...")
+    ncols = swath_end - swath_start
+    slitcurve = np.zeros((ncols, 6))  # no curvature
+    slitdeltas = np.zeros(swath_img.shape[0])
+    spec, slitf, model, unc, mask, info = _slitdec_charslit(
         swath_img,
         swath_ycen,
-        0,  # p0 (tilt)
-        0,  # p1 (curvature)
-        LAMBDA_SF,
-        LAMBDA_SP,
+        slitcurve,
+        slitdeltas,
+        lambda_sp=LAMBDA_SP,
+        lambda_sf=LAMBDA_SF,
         osample=OSAMPLE,
+        yrange=(int(xlow), int(xhigh)),
         maxiter=MAXITER,
         gain=GAIN,
-        yrange=(int(xlow), int(xhigh)),
+        reject_threshold=0,
+        preset_slitfunc=None,
     )
-
-    spec, slitf, model, unc, mask = result
 
     # Save outputs
     np.savetxt("debug_spectrum.txt", spec)

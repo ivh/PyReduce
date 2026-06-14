@@ -6,8 +6,7 @@ __pycache__
 cov.xml
 *.so
 *.o
-pyreduce/clib/_slitfunc_2d.c
-pyreduce/clib/_slitfunc_bd.c
+pyreduce/clib/_slitdec.c
 pyreduce_astro.egg*
 .vscode
 *.py[cod]

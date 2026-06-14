@@ -27,7 +27,12 @@ from .util import make_index
 
 logger = logging.getLogger(__name__)
 
-# Backend selection: set PYREDUCE_USE_CHARSLIT=1 to use charslit.
+from . import cwrappers
+
+# The default backend is the CFFI slitdec extension (pyreduce.clib, wrapped by
+# cwrappers.slitdec), whose C source is copied from charslit. Set
+# PYREDUCE_USE_CHARSLIT=1 to instead import the external charslit package, for
+# trying out upstream charslit development before copying it over.
 # Checked at call time so env var changes within a process take effect.
 _charslit_mod = None
 
@@ -41,15 +46,16 @@ def _use_deltas():
 
 
 def _get_charslit():
-    global _charslit_mod
-    if _charslit_mod is None:
-        import charslit
+    """Return the slitdec backend: the external charslit package when
+    PYREDUCE_USE_CHARSLIT=1, otherwise the vendored cwrappers implementation."""
+    if _use_charslit():
+        global _charslit_mod
+        if _charslit_mod is None:
+            import charslit
 
-        _charslit_mod = charslit
-    return _charslit_mod
-
-
-from . import cwrappers
+            _charslit_mod = charslit
+        return _charslit_mod
+    return cwrappers
 
 
 def _slitdec_charslit(
@@ -93,7 +99,8 @@ def _slitdec_charslit(
     reject_threshold : float
         Outlier rejection threshold in sigma units (passed as kappa to charslit)
     preset_slitfunc : array or None
-        Preset slit function (not supported by charslit yet, ignored)
+        Preset slit function (length ny or nrows). If given, the slit-function
+        solve is skipped and only the spectrum is fit against it.
 
     Returns
     -------
@@ -142,9 +149,10 @@ def _slitdec_charslit(
         slitdeltas = np.zeros(nrows, dtype=np.float64)
     slitdeltas = np.ascontiguousarray(slitdeltas.astype(np.float64))
 
-    # Note: preset_slitfunc is not currently supported by charslit
     if preset_slitfunc is not None:
-        logger.debug("preset_slitfunc is not yet supported by charslit, ignoring")
+        preset_slitfunc = np.ascontiguousarray(
+            np.asarray(preset_slitfunc, dtype=np.float64)
+        )
 
     # Call charslit
     result = _get_charslit().slitdec(
@@ -159,6 +167,7 @@ def _slitdec_charslit(
         lambda_sL=float(lambda_sf),
         maxiter=maxiter,
         kappa=float(reject_threshold),
+        preset_slitfunc=preset_slitfunc,
     )
 
     sp = result["spectrum"]
@@ -179,51 +188,6 @@ def _slitdec_charslit(
         info = np.array([float(return_code == 0), 0.0, float(return_code), 0.0, 0.0])
 
     return sp, sl, model, unc, mask_out, info
-
-
-def _slitdec_cffi(
-    img,
-    ycen,
-    curvature,
-    lambda_sp,
-    lambda_sf,
-    osample,
-    yrange,
-    maxiter,
-    gain,
-    reject_threshold,
-    preset_slitfunc,
-):
-    """Call CFFI slitfunc_curved and return results in the same format as charslit.
-
-    This is the legacy extraction backend using the CFFI C extension.
-    Only supports curvature degrees 1-2 (p1, p2).
-    """
-    # Extract p1, p2 from curvature array
-    if curvature is not None:
-        p1 = curvature[:, 1] if curvature.shape[1] > 1 else np.zeros(curvature.shape[0])
-        p2 = curvature[:, 2] if curvature.shape[1] > 2 else np.zeros(curvature.shape[0])
-    else:
-        ncols = len(ycen)
-        p1 = np.zeros(ncols)
-        p2 = np.zeros(ncols)
-
-    sp, sl, model, unc, mask, info = cwrappers.slitfunc_curved(
-        img,
-        ycen,
-        p1,
-        p2,
-        lambda_sp,
-        lambda_sf,
-        osample,
-        yrange,
-        maxiter=maxiter,
-        gain=gain,
-        reject_threshold=reject_threshold,
-        preset_slitfunc=preset_slitfunc,
-    )
-
-    return sp, sl, model, unc, mask, info
 
 
 def _ensure_slitcurve(curvature, ncols, n_coeffs=6):
@@ -1174,14 +1138,6 @@ def extract_spectrum(
             f"Ensure norm_flat and extraction use the same extraction_height and osample."
         )
 
-    # CFFI backend only supports curvature degree <= 2; truncate if needed
-    if not _use_charslit() and curvature is not None and curvature.shape[1] > 3:
-        logger.warning(
-            "curve_degree > 2 requires charslit backend. "
-            "Truncating to degree 2. Set PYREDUCE_USE_CHARSLIT=1 for full curvature support."
-        )
-        curvature = curvature[:, :3]
-
     ycen_int = np.floor(ycen).astype(int)
 
     spec = np.zeros(ncol) if out_spec is None else out_spec
@@ -1252,40 +1208,25 @@ def extract_spectrum(
             else:
                 swath_slitdeltas = None
 
-            if _use_charslit():
-                charslit_slitdeltas = (
-                    swath_slitdeltas
-                    if swath_slitdeltas is not None
-                    else np.zeros(swath_nrows, dtype=np.float64)
-                )
-                swath[ihalf] = _slitdec_charslit(
-                    swath_img,
-                    swath_ycen_abs,
-                    slitcurve,
-                    charslit_slitdeltas,
-                    lambda_sp=lambda_sp,
-                    lambda_sf=lambda_sf,
-                    osample=osample,
-                    yrange=yrange,
-                    maxiter=maxiter,
-                    gain=gain,
-                    reject_threshold=reject_threshold,
-                    preset_slitfunc=preset_slitfunc,
-                )
-            else:
-                swath[ihalf] = _slitdec_cffi(
-                    swath_img,
-                    swath_ycen_abs,
-                    swath_curv,
-                    lambda_sp=lambda_sp,
-                    lambda_sf=lambda_sf,
-                    osample=osample,
-                    yrange=yrange,
-                    maxiter=maxiter,
-                    gain=gain,
-                    reject_threshold=reject_threshold,
-                    preset_slitfunc=preset_slitfunc,
-                )
+            charslit_slitdeltas = (
+                swath_slitdeltas
+                if swath_slitdeltas is not None
+                else np.zeros(swath_nrows, dtype=np.float64)
+            )
+            swath[ihalf] = _slitdec_charslit(
+                swath_img,
+                swath_ycen_abs,
+                slitcurve,
+                charslit_slitdeltas,
+                lambda_sp=lambda_sp,
+                lambda_sf=lambda_sf,
+                osample=osample,
+                yrange=yrange,
+                maxiter=maxiter,
+                gain=gain,
+                reject_threshold=reject_threshold,
+                preset_slitfunc=preset_slitfunc,
+            )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
             if normalize:
