@@ -1,6 +1,25 @@
 # Changelog
 
 
+## [0.9b1] - 2026-06-17
+
+### Added
+- HERMES instrument (Mercator telescope)
+- MOSAIC LR-J / LR-H NIR channels and starsky example
+- ANDES YJH sampling/resolution example (`examples/andes_yjh_sampl.py`)
+- Explicit `fibers.numbering` config field (`bottom_up`/`top_down`) for fiber numbering direction
+- Fallback to `flat` files for `trace`/`curvature`/`scatter` when files are set manually
+
+### Changed
+- Extraction: `slitdec` (copied from charslit) is now the sole CFFI backend, ~10x faster
+- Wavecal: disentangle bundle index from spectral order `m`
+- ANDES YJH: env-var output suffix, `trace_range`, and IFU science flow
+- Trace: `center_weight` merge for missing-fiber bundles
+
+### Fixed
+- `get_supported_channels` for single-channel instruments
+- Bundle naming in `group_fibers` when one bundle per `m`
+
 ## [0.8.2] - 2026-04-08
 
 ### Fixed
