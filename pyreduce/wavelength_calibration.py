@@ -288,11 +288,24 @@ class LineList:
     @classmethod
     def load(cls, filename):
         data = np.load(filename, allow_pickle=True)
-        linelist = cls(data["cs_lines"])
+        linelist = cls(cls._coerce_dtype(data["cs_lines"]))
         # Load obase if present
         if "obase" in data:
             linelist.obase = int(data["obase"])
         return linelist
+
+    @classmethod
+    def _coerce_dtype(cls, lines):
+        # Legacy linelists predate the BUNDLE field; migrate so runtime-created
+        # lines (which always carry it) can be appended without a dtype clash.
+        if lines.dtype == cls.dtype:
+            return lines
+        out = np.empty(len(lines), dtype=cls.dtype)
+        for name in lines.dtype.names:
+            out[name] = lines[name]
+        if "BUNDLE" not in (lines.dtype.names or ()):
+            out["BUNDLE"] = -1
+        return out
 
     def save(self, filename):
         if self.obase is not None:
