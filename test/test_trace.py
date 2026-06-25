@@ -561,6 +561,55 @@ class TestMaxError:
         assert len(traces_cut) >= 1
         assert "max_error" in caplog.text
 
+    @pytest.mark.unit
+    def test_fused_adjacent_orders_dropped(self):
+        """The real MOSAIC case: two adjacent orders whose gap closes at one
+        edge get merged into a single cluster. That fused cluster has a large
+        fit RMS and must be dropped, while a separate clean order survives."""
+        nrow, ncol = 120, 400
+        im = np.full((nrow, ncol), 1000.0)
+        # A clean, well-isolated order near the bottom.
+        im[20:24, :] = 1300.0
+        # Two nearby orders that start apart on the left and converge until
+        # they touch on the right, so the clustering fuses them into one
+        # V-shaped blob no single polynomial can follow.
+        for col in range(ncol):
+            gap = int(round(20 * (1 - col / (ncol - 1))))  # 20 px -> 0 px
+            top = 70
+            im[top : top + 3, col] = 1300.0
+            im[top + gap : top + gap + 3, col] = 1300.0
+
+        traces_all = trace.trace(im, manual=False, min_cluster=100, min_width=0)
+        traces_cut = trace.trace(
+            im, manual=False, min_cluster=100, min_width=0, max_error=2.0
+        )
+        # The fused blob is rejected, the clean isolated order is kept.
+        assert len(traces_cut) < len(traces_all)
+        assert len(traces_cut) >= 1
+
+    @pytest.mark.unit
+    def test_trace_step_reads_max_error_from_config(self):
+        """The reduce.Trace step picks up max_error from its config and
+        defaults to None when the key is absent."""
+        from pyreduce import configuration
+        from pyreduce.reduce import Trace
+
+        config = configuration.load_config(None, "UVES", 0)["trace"]
+        step_kwargs = {
+            "instrument": "UVES",
+            "channel": "middle",
+            "target": "",
+            "night": "",
+            "output_dir": "",
+            "trace_range": None,
+        }
+
+        config["max_error"] = 1.5
+        assert Trace(**step_kwargs, **config).max_error == 1.5
+
+        del config["max_error"]
+        assert Trace(**step_kwargs, **config).max_error is None
+
 
 class TestNoiseThreshold:
     """Tests for noise threshold settings in trace()."""
