@@ -916,6 +916,16 @@ class Instrument:
     def get_wavelength_range(self, header, channel, **kwargs):
         return self.get("wavelength_range", header, channel)
 
+    def get_wavelength_range_per_bundle(self, header, channel, **kwargs):
+        """Optional per-bundle initial wavelength guess for single-order
+        multi-bundle instruments. Return {bundle_id: [min, max]} or None.
+
+        Override in subclasses. wavecal_init uses this to give each bundle its
+        own guess (looked up by trace bundle id, robust to missing/reordered
+        bundles); otherwise the single get_wavelength_range value is used.
+        """
+        return None
+
 
 class COMMON(Instrument):
     def load_info(self):

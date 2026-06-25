@@ -1693,6 +1693,7 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         width_max=8.0,
         cutoff=0.01,
         smoothing=0,
+        wave_delta=20,
         atlas_name="thar",
         atlas_search_dirs=None,
         medium="vac",
@@ -1717,6 +1718,8 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         self.width_max = width_max
         self.smoothing = smoothing
         self.cutoff = cutoff
+        #:float: search radius (Angstrom) for the FFT cross-correlation offset
+        self.wave_delta = wave_delta
 
     def get_cutoff(self, spectrum):
         if self.cutoff == 0:
@@ -1741,6 +1744,62 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         if smax > 0:
             spectrum /= smax
         return spectrum
+
+    @staticmethod
+    def _subpixel_peak(corr, idx):
+        """Parabolic interpolation around a correlation peak for sub-pixel accuracy."""
+        if idx <= 0 or idx >= len(corr) - 1:
+            return float(idx)
+        y0, y1, y2 = corr[idx - 1], corr[idx], corr[idx + 1]
+        denom = 2 * (2 * y1 - y0 - y2)
+        if denom == 0:
+            return float(idx)
+        return idx + (y0 - y2) / denom
+
+    def _measure_shift(self, obs, ref, search_radius):
+        """Cross-correlate obs vs ref (via FFT) and return the sub-pixel shift."""
+        corr = signal.fftconvolve(obs, ref[::-1], mode="full")
+        mid = len(ref) - 1
+        lo = max(mid - search_radius, 0)
+        hi = min(mid + search_radius + 1, len(corr))
+        search = corr[lo:hi]
+        raw_peak = int(np.argmax(search))
+        peak = self._subpixel_peak(search, raw_peak)
+        return peak - (mid - lo)
+
+    @staticmethod
+    def _synthesize_reference(wave_grid, atlas, line_sigma=3.0):
+        """Synthetic reference spectrum on wave_grid: a Gaussian per atlas line,
+        scaled by the line's height from the atlas continuous spectrum."""
+        n = len(wave_grid)
+        ref = np.zeros(n)
+        w0, w1 = wave_grid[0], wave_grid[-1]  # may be descending (red->blue)
+        glo, ghi = (w0, w1) if w0 <= w1 else (w1, w0)
+        sel = (atlas.linelist["wave"] >= glo) & (atlas.linelist["wave"] <= ghi)
+        lines = atlas.linelist["wave"][sel]
+        if len(lines) == 0:
+            return ref
+        # Use real per-line heights from the atlas continuous spectrum if it has
+        # one; otherwise (line-list-only atlas) fall back to uniform heights.
+        atlas_wave = getattr(atlas, "wave", None)
+        atlas_flux = getattr(atlas, "flux", None)
+        have_spec = atlas_wave is not None and atlas_flux is not None
+        idx = np.arange(n)
+        half_window = 3
+        for w in lines:
+            if have_spec:
+                j = np.searchsorted(atlas_wave, w)
+                lo = max(j - half_window, 0)
+                hi = min(j + half_window + 1, len(atlas_flux))
+                height = np.nanmax(atlas_flux[lo:hi]) if hi > lo else 0.0
+                if not np.isfinite(height) or height < 1e-10:
+                    height = 0.01
+            else:
+                height = 1.0
+            # linear (grid is linspace), direction-agnostic
+            pix = (w - w0) / (w1 - w0) * (n - 1)
+            ref += height * np.exp(-0.5 * ((idx - pix) / line_sigma) ** 2)
+        return ref
 
     def identify_lines_for_order(
         self, spectrum, atlas, wave_range, order, bundle=-1, is_bundle=False
@@ -1867,41 +1926,25 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             logger.warning("%s: no atlas lines in range %.1f-%.1f", label, wmin, wmax)
             return LineList()
 
-        # Step 1: linear wavelength assignment
+        # Step 1: linear wavelength assignment from the per-bundle guess
         wlc = wave_range[0] + (wave_range[1] - wave_range[0]) * posm / npix
 
-        # Step 2: offset voting - match each atlas line to nearest peak,
-        # histogram the wavelength offsets to find the true shift
-        offsets = []
-        for aw in atlas_sub:
-            dw = np.abs(wlc - aw)
-            best = np.argmin(dw)
-            if dw[best] < self.match_tolerance:
-                offsets.append(aw - wlc[best])
+        # Step 2: FFT cross-correlation for the global wavelength offset.
+        # Cross-correlating the whole observed spectrum against a synthetic atlas
+        # reference finds the single best global alignment, avoiding the alias
+        # that per-line offset-voting locks onto in a dense line forest.
+        wave_linear = np.linspace(wave_range[0], wave_range[1], npix)
+        reference = self.normalize(self._synthesize_reference(wave_linear, atlas))
+        dispersion = (wave_range[1] - wave_range[0]) / npix
+        pix_per_ang = npix / abs(wave_range[1] - wave_range[0])
+        search_radius = int(self.wave_delta * pix_per_ang) + 1
+        global_shift = self._measure_shift(spectrum, reference, search_radius)
+        wlc = wlc + global_shift * dispersion
 
-        if len(offsets) < self.degree + 1:
-            logger.warning("%s: only %d coarse matches", label, len(offsets))
-            return LineList()
-
-        offsets = np.array(offsets)
-        n_bins = max(10, len(offsets) // 2)
-        hist, edges = np.histogram(offsets, bins=n_bins)
-        best_bin = np.argmax(hist)
-        mode_offset = (edges[best_bin] + edges[best_bin + 1]) / 2
-        bin_width = edges[1] - edges[0]
-        near_mode = offsets[np.abs(offsets - mode_offset) < bin_width * 3]
-        if len(near_mode) >= 3:
-            wave_offset = np.median(near_mode)
-        else:
-            wave_offset = mode_offset
-
-        # Apply offset correction
-        wlc += wave_offset
-
-        # Step 3: iterative match-fit-reject using corrected wavelengths
-        # After voting, the corrected wlc is accurate to ~bin_width,
-        # so use a tight tolerance for individual matching (like IDL's 0.02A)
-        tight_tol = max(0.02, bin_width * 2)
+        # Step 3: iterative match-fit-reject using corrected wavelengths.
+        # After the FFT alignment the corrected wlc is accurate to ~1 px, so use
+        # match_tolerance for the first individual matching pass.
+        tight_tol = self.match_tolerance
 
         best_peak = np.array([])
         best_atlas = np.array([])

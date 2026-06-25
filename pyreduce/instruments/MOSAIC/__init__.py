@@ -13,6 +13,8 @@ independently. A VIS channel is therefore ``<mode>_<quadrant>`` with quadrant in
 (``kw_channel = "ESO INS MODE"``), the quadrant half selects the detector crop.
 """
 
+import os
+
 from ..common import Instrument
 
 QUADRANTS = ("LL", "LR", "UL", "UR")
@@ -94,6 +96,22 @@ class MOSAIC(Instrument):
 
     def get_wavelength_range(self, header, channel, **kwargs):
         return self.WAVELENGTH_RANGE.get(self.mode_of(channel))
+
+    def get_wavelength_range_per_bundle(self, header, channel, **kwargs):
+        """Per-bundle guess from wavelength_range_<channel>.yaml if present.
+
+        Keyed by trace bundle id. These files were seeded once from the E2E
+        WAVEMAP middle fiber (see the file header); the actual solution is still
+        fit from the ThAr lines.
+        """
+        import yaml
+
+        path = os.path.join(self._inst_dir, f"wavelength_range_{channel.lower()}.yaml")
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        return {int(k): list(v) for k, v in data.items()}
 
     def get_expected_values(self, target, night, channel=None, **kwargs):
         # Classify files by mode (the header value), not by the full channel

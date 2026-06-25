@@ -1698,6 +1698,16 @@ class WavelengthCalibrationInitialize(Step):
                     "This instrument is missing an initial wavelength guess for wavecal_init"
                 )
 
+            # Per-bundle guess (single-order multi-bundle): look up each spectrum
+            # row's range by its trace bundle id. group_traces is in the same
+            # order as the extracted wavecal_spec rows.
+            per_bundle = self.instrument.get_wavelength_range_per_bundle(
+                thead, self.channel
+            )
+            if single_order and per_bundle and group_traces:
+                default = wave_range[0]
+                wave_range = [per_bundle.get(t.bundle, default) for t in group_traces]
+
             module = WavelengthCalibrationInitializeModule(
                 plot=self.plot,
                 plot_title=f"{self.plot_title} [{group}]" if self.plot_title else group,
@@ -1876,46 +1886,51 @@ class WavelengthCalibrationFinalize(Step):
         results : dict[str, tuple]
             {group: (wave_coef, linelist)} polynomial coefficients per group
         """
-        # Group traces by their group attribute AND by fiber_idx
-        traces_by_group = {}
-        traces_by_fiber = {}
-        for i, t in enumerate(trace):
-            g = str(t.group) if t.group is not None else "all"
-            if g not in traces_by_group:
-                traces_by_group[g] = []
-            traces_by_group[g].append((i, t))
-            if t.fiber_idx is not None:
-                fkey = f"fiber_{t.fiber_idx}"
-                if fkey not in traces_by_fiber:
-                    traces_by_fiber[fkey] = []
-                traces_by_fiber[fkey].append((i, t))
+        # Resolve traces with the SAME selection wavecal_master used, so the
+        # wave rows line up with the right traces and in the same order. Using
+        # t.group directly is wrong for single-order multi-bundle instruments
+        # (MOSAIC): the trace list mixes bundle representatives with the raw
+        # ungrouped fibers, and results is keyed "all".
+        selected = self._select_traces(trace, "wavecal_master")
 
         for group, (wave, linelist) in results.items():
-            if group in traces_by_group:
-                group_traces = traces_by_group[group]
-            elif group in traces_by_fiber:
-                group_traces = traces_by_fiber[group]
-            elif "all" in traces_by_group:
-                group_traces = traces_by_group["all"]
-            else:
+            # Prefer the same grouping wavecal_master used (handles MOSAIC, where
+            # results is keyed "all" but the trace list mixes bundle reps with
+            # raw fibers). Fall back to matching trace.group for named-group
+            # instruments, then to all selected traces.
+            group_traces = selected.get(group)
+            if not group_traces:
+                group_traces = [
+                    t
+                    for t in trace
+                    if (str(t.group) if t.group is not None else "all") == group
+                ]
+            if not group_traces and group.startswith("fiber_"):
+                try:
+                    fidx = int(group.split("_", 1)[1])
+                    group_traces = [t for t in trace if t.fiber_idx == fidx]
+                except ValueError:
+                    pass
+            if not group_traces:
+                group_traces = selected.get("all")
+            if not group_traces:
                 logger.warning("No traces found for group '%s'", group)
                 continue
 
             # Update trace.m from obase if not already set.
             # Skip when traces are bundles of a single-order spectrograph --
             # there t.bundle is the meaningful spatial id and m must stay None.
-            traces_only = [t for _i, t in group_traces]
-            single_order = _is_single_order_multi_bundle(traces_only)
+            single_order = _is_single_order_multi_bundle(group_traces)
             obase = linelist.obase
             if obase is not None and not single_order:
-                already_have_m = any(t.m is not None for _i, t in group_traces)
+                already_have_m = any(t.m is not None for t in group_traces)
                 if already_have_m:
                     logger.debug(
                         "Traces for group '%s' already have m values, skipping obase",
                         group,
                     )
                 else:
-                    for idx_in_group, (_i, t) in enumerate(group_traces):
+                    for idx_in_group, t in enumerate(group_traces):
                         t.m = obase + idx_in_group
                     logger.info(
                         "Updated trace order numbers for group '%s' with obase=%d",
@@ -1925,13 +1940,13 @@ class WavelengthCalibrationFinalize(Step):
 
             # Store wavelength polynomial in each trace.
             if self.dimensionality == "1D":
-                for idx_in_group, (_i, t) in enumerate(group_traces):
+                for idx_in_group, t in enumerate(group_traces):
                     if idx_in_group < len(wave):
                         t.wave = wave[idx_in_group]
             else:
                 # Evaluate 2D poly P(x, order_idx) at each trace's 0-based
                 # index to get a 1D poly in x (np.polyfit convention).
-                for idx_in_group, (_i, t) in enumerate(group_traces):
+                for idx_in_group, t in enumerate(group_traces):
                     poly_1d = np.polynomial.polynomial.polyval(idx_in_group, wave.T)
                     t.wave = poly_1d[::-1]
 
