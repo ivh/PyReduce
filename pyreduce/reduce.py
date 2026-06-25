@@ -856,6 +856,8 @@ class Trace(CalibrationStep):
         self.noise_relative = config.get("noise_relative", 0)
         #:int: Polynomial degree of the fit to each order
         self.fit_degree = config["degree"]
+        #:float: Maximum RMS of the order fit; clusters above this are discarded
+        self.max_error = config.get("max_error", None)
 
         self.degree_before_merge = config["degree_before_merge"]
         self.regularization = config["regularization"]
@@ -1169,6 +1171,7 @@ class Trace(CalibrationStep):
             noise=self.noise,
             noise_relative=self.noise_relative,
             degree=self.fit_degree,
+            max_error=self.max_error,
             degree_before_merge=self.degree_before_merge,
             regularization=self.regularization,
             closing_shape=self.closing_shape,

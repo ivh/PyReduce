@@ -22,6 +22,7 @@
     },
     "trace": {
         "degree": 4,
+        "max_error": null,
         "degree_before_merge": 2,
         "bias_scaling": "number_of_files",
         "norm_scaling": "none",

@@ -779,6 +779,7 @@ def trace(
     noise=0,
     noise_relative=0,
     degree=4,
+    max_error=None,
     border_width=None,
     degree_before_merge=2,
     regularization=0,
@@ -820,6 +821,12 @@ def trace(
         If both noise and noise_relative are 0, defaults to 0.001 (0.1%).
     degree : int, optional
         polynomial degree of the order fit (default: 4)
+    max_error : float, optional
+        Maximum RMS (in pixels) of the final polynomial fit to a cluster.
+        Clusters whose fit residual exceeds this are discarded. This rejects
+        clusters that span two separate orders fused into one (their single
+        polynomial cannot follow both, so the RMS is large). Disabled if None
+        (default).
     border_width : int or list of 4 int, optional
         Pixels to ignore at image edges for order tracing.
         If int, same value applied to all edges.
@@ -1193,6 +1200,29 @@ def trace(
 
     logger.info("Fitting polynomials to %d clusters", len(x))
     traces_dict = fit_polynomials_to_clusters(x, y, n, degree)
+
+    # Reject clusters whose fit is too poor. A cluster that accidentally spans
+    # two separate orders cannot be followed by a single polynomial, so its
+    # residual RMS is large (~half the order separation) compared to a genuine
+    # trace (sub-pixel). x[c] are row positions, y[c] columns; the fit maps
+    # column -> row, so the residual is a cross-dispersion distance in pixels.
+    if max_error is not None:
+        rms = {
+            c: np.sqrt(np.mean((x[c] - np.polyval(traces_dict[c], y[c])) ** 2))
+            for c in traces_dict
+        }
+        too_large = [c for c, e in rms.items() if e > max_error]
+        for c in too_large:
+            del x[c], y[c], traces_dict[c]
+        n = list(x.keys())
+        if too_large:
+            logger.info(
+                "Removed %d clusters with fit RMS > max_error=%g px "
+                "(likely two orders fused into one), %d remain",
+                len(too_large),
+                max_error,
+                len(x),
+            )
 
     # Sort traces from bottom to top, using relative position
     def compare(i, j):

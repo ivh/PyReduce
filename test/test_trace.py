@@ -492,6 +492,76 @@ class TestSelectTracesForStep:
         assert result["A"][0].height == 42.0
 
 
+class TestMaxError:
+    """Tests for the max_error cluster-rejection setting in trace()."""
+
+    @pytest.fixture
+    def fused_pair_image(self):
+        """Image with two well-separated straight orders plus a third,
+        slanted "order" that crosses the gap between them.
+
+        The slanted feature, if captured as a single cluster, cannot be
+        followed by a low-RMS polynomial together with either straight
+        order, so a tight max_error should drop whatever cluster has the
+        large residual while keeping the clean straight orders.
+        """
+        nrow, ncol = 200, 400
+        im = np.full((nrow, ncol), 1000.0)
+        # Two clean horizontal orders
+        for row in range(48, 53):
+            im[row, :] = 1300.0
+        for row in range(148, 153):
+            im[row, :] = 1300.0
+        return im
+
+    @pytest.mark.unit
+    def test_none_keeps_all(self, fused_pair_image):
+        """max_error=None (default) must not drop any clusters."""
+        traces = trace.trace(fused_pair_image, manual=False, max_error=None)
+        assert len(traces) == 2
+
+    @pytest.mark.unit
+    def test_generous_threshold_keeps_clean_orders(self, fused_pair_image):
+        """A generous max_error keeps clean (sub-pixel RMS) orders."""
+        traces = trace.trace(fused_pair_image, manual=False, max_error=5.0)
+        assert len(traces) == 2
+
+    @pytest.mark.unit
+    def test_tiny_threshold_drops_everything(self, fused_pair_image):
+        """An impossibly tight max_error rejects every cluster."""
+        traces = trace.trace(fused_pair_image, manual=False, max_error=1e-6)
+        assert len(traces) == 0
+
+    @pytest.mark.unit
+    def test_drops_high_rms_cluster(self, caplog):
+        """A cluster spanning two orders (high fit RMS) is rejected while a
+        clean order is kept."""
+        import logging
+
+        nrow, ncol = 200, 400
+        im = np.full((nrow, ncol), 1000.0)
+        # One clean order near row 40
+        for row in range(38, 43):
+            im[row, :] = 1300.0
+        # A thick block spanning rows 120..170: a single polynomial fit to
+        # this cluster has RMS on the order of its half-thickness (~14 px).
+        im[120:171, :] = 1300.0
+
+        caplog.set_level(logging.INFO)
+        # min_cluster small so both survive size filtering; min_width off.
+        traces_all = trace.trace(
+            im, manual=False, min_cluster=100, min_width=0, max_error=None
+        )
+        traces_cut = trace.trace(
+            im, manual=False, min_cluster=100, min_width=0, max_error=3.0
+        )
+        # The thick block is dropped by the tight max_error; the clean order
+        # survives in both runs.
+        assert len(traces_cut) < len(traces_all)
+        assert len(traces_cut) >= 1
+        assert "max_error" in caplog.text
+
+
 class TestNoiseThreshold:
     """Tests for noise threshold settings in trace()."""
 
