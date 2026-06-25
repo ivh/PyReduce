@@ -20,8 +20,8 @@ fibers:
   use:
     # Per-channel selection (new syntax)
     science:
-      NIR: [sci_nir]
-      VIS1: [sci_vis]
+      J_LR: [sci_nir]
+      R1_HR_LL: [sci_vis]
       default: [sci_nir]  # fallback for unlisted channels
     # Same for all channels (existing syntax, unchanged)
     wavecal: [cal_nir, cal_vis]

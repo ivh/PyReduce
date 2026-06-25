@@ -58,11 +58,11 @@ Every settings file (except `defaults/settings.json`) declares its parent via `_
 
 The path is relative to `pyreduce/instruments/`. Inheritance is resolved recursively — a per-channel file inherits from the instrument file, which inherits from defaults.
 
-You can also inherit from another channel's settings to avoid duplication. For example, MOSAIC VIS2-VIS4 inherit from VIS1:
+You can also inherit from another channel's settings to avoid duplication. For example, a MOSAIC per-channel file can inherit from a mode-level settings file:
 
 ```json
 {
-    "__inherits__": "MOSAIC/settings_VIS1.json"
+    "__inherits__": "MOSAIC/settings_R1_HR.json"
 }
 ```
 

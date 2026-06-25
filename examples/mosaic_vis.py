@@ -1,14 +1,19 @@
 """
 MOSAIC VIS spectrograph example.
 
-The VIS detector is a 4-quadrant mosaic (12788x12394 pixels total).
-Each quadrant is processed as a separate channel:
-- VIS1: lower-left quadrant
-- VIS2: lower-right quadrant
-- VIS3: upper-left quadrant
-- VIS4: upper-right quadrant
+Each VIS mode (B_LR, B1_HR, B2_HR, R_LR, R1_HR, R2_HR) is a single
+12788x12394 image stitching four slightly-misaligned detectors in a 2x2
+mosaic. Each detector is reduced independently as its own channel:
 
-This example processes VIS1. Run with different channel values for other quadrants.
+    <mode>_LL  lower-left      <mode>_LR  lower-right
+    <mode>_UL  upper-left      <mode>_UR  upper-right
+
+The mode half of the channel selects which files belong to it (via the
+ESO INS MODE header); the quadrant half selects the detector crop.
+
+Note: as of the June-2026 release only a single VIS frame is available
+locally. Point base_dir at the VIS data and confirm the cube->mode mapping
+from the ESO INS MODE header before running.
 """
 
 import os
@@ -18,39 +23,31 @@ from pyreduce import util
 from pyreduce.configuration import load_config
 from pyreduce.pipeline import Pipeline
 
-# instrument = instrument_info.load_instrument("MOSAIC")
-# wave_range = instrument.get_wavelength_range(None, "B")
-
-# Parameters
-# Change channel to VIS2, VIS3, or VIS4 for other quadrants
 instrument_name = "MOSAIC"
 target = "MOSAIC_VIS"
 night = ""
-channels = ["VIS1", "VIS2", "VIS3", "VIS4"]
 plot = 2
 
-# File paths (simulated data)
-# Set MOSAIC_USE_LOCAL=1 to use Tom's local REF_E2E copies; otherwise Jens' paths.
-if os.environ.get("MOSAIC_USE_LOCAL", "0") == "1":
-    data_dir = "/Users/tom/REDUCE_DATA/MOSAIC"
-    base_dir = join(data_dir, "REF_E2E/VIS")
-    flat_file = join(
-        base_dir, "E2E_as_built_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_000.fits"
-    )
-    thar_file = join(
-        base_dir, "E2E_as_built_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE.fits"
-    )
-    sky_file = None
-else:
-    data_dir = "/disk/miri-b1/jeand/mosaic/virtualmosaic/simdata_260429"
-    base_dir = join(data_dir, "VIS/moons_reduce")
-    flat_file = join(base_dir, "E2E_FLAT_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
-    thar_file = join(base_dir, "E2E_ThAr_DIT_20s_MOSAIC_VIS_c01_FOCAL_PLANE_REF.fits")
-    sky_file = join(
-        base_dir, "E2E_SKY_DIT_150s_MOSAIC_VIS_c01_FOCAL_PLANE_000_REF.fits"
-    )
+# Pick one mode; its four detector quadrants are processed in turn.
+mode = "R1_HR"
+quadrants = [f"{mode}_{q}" for q in ("LL", "LR", "UL", "UR")]
 
-for fpath in [flat_file, thar_file] + ([sky_file] if sky_file else []):
+# Raw E2E focal-plane frames use a "cNN" cube index that maps to a mode via
+# the ESO INS MODE header (e.g. c04 -> R1_HR). Confirm for each mode.
+cube = "c04"
+data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
+base_dir = join(data_dir, "MOSAIC", "E2E_june26")
+flat_file = join(
+    base_dir, f"E2E_FLAT_DIT_20s_MOSAIC_VIS_{cube}_FOCAL_PLANE_000_REF.fits"
+)
+thar_file = join(
+    base_dir, f"E2E_ThAr_DIT_20s_MOSAIC_VIS_{cube}_FOCAL_PLANE_000_REF.fits"
+)
+sky_file = join(
+    base_dir, f"E2E_SKY_DIT_150s_MOSAIC_VIS_{cube}_FOCAL_PLANE_001_REF.fits"
+)
+
+for fpath in [flat_file, thar_file]:
     if not os.path.exists(fpath):
         raise FileNotFoundError(f"Data file not found: {fpath}")
 
@@ -58,19 +55,16 @@ print(f"FLAT: {flat_file}")
 print(f"ThAr: {thar_file}")
 print(f"Sky:  {sky_file}")
 
-for channel in [channels[2]]:
-    output_dir = join(data_dir, "reduced", channel)
+if "PYREDUCE_PLOT" in os.environ:
+    plot = int(os.environ["PYREDUCE_PLOT"])
 
-    # Handle plot environment variables
-    if "PYREDUCE_PLOT" in os.environ:
-        plot = int(os.environ["PYREDUCE_PLOT"])
-    plot_dir = join(data_dir, "pyreduce_plots", channel)
+for channel in quadrants:
+    output_dir = join(data_dir, "MOSAIC", "reduced", channel)
+    plot_dir = join(data_dir, "MOSAIC", "pyreduce_plots", channel)
     util.set_plot_dir(plot_dir)
 
-    # Load configuration
     config = load_config(None, instrument_name, channel=channel)
 
-    # Create pipeline - fiber grouping is handled by config.yaml
     pipe = Pipeline(
         instrument=instrument_name,
         output_dir=output_dir,
@@ -81,22 +75,13 @@ for channel in [channels[2]]:
         plot=plot,
     )
 
-    # Run pipeline steps
     pipe.trace([flat_file])
     pipe.curvature([thar_file])
-    # pipe.flat([flat_file])
-    # pipe.normalize_flat()
     pipe.wavecal_master([thar_file])
     pipe.wavecal_init()
     pipe.wavecal()
-    science_files = [thar_file] + ([sky_file] if sky_file else [])
+    science_files = [thar_file] + ([sky_file] if os.path.exists(sky_file) else [])
     pipe.extract(science_files)
 
-    print("\n=== Running Pipeline ===")
+    print(f"\n=== Running Pipeline ({channel}) ===")
     results = pipe.run()
-
-# print("\n=== Results ===")
-# traces = results["trace"]  # list[Trace]
-# print(f"Traces: {len(traces)}")
-# for t in traces[:3]:
-#    print(f"  m={t.m}, fiber={t.fiber}, columns={t.column_range}")

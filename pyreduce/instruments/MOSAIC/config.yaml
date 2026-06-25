@@ -10,12 +10,48 @@ telescope: ELT
 date: DATE-OBS
 date_format: fits
 
-# NIR channel and VIS quadrants (VIS1-VIS4)
-# VIS detector is a 4-quadrant mosaic, each quadrant processed separately
-# NIR is the legacy E2E REF NIR simulation; LR-J / LR-H are the newer
-# pyechelle ZEMAX-model simulations on the same H4RG detector.
-channels: [NIR, LR-J, LR-H, VIS1, VIS2, VIS3, VIS4]
-instrument_mode: BAND
+# Channel naming follows the E2E `ESO INS MODE` header verbatim:
+#   NIR (one 4096x4096 detector per mode): J_LR, H_LR, H_HR
+#   VIS (each mode is a 12788x12394 four-detector mosaic): B_LR, B1_HR, B2_HR,
+#        R_LR, R1_HR, R2_HR -- each fanned out by detector quadrant LL/LR/UL/UR.
+# A VIS channel is <mode>_<quadrant>; the mode half selects files (kw_channel),
+# the quadrant half selects the crop (see MOSAIC.QUADRANTS in __init__.py).
+# The detectors are slightly misaligned with a non-uniform gap, so each quadrant
+# is reduced independently rather than tracing across the mosaic.
+channels:
+  - J_LR
+  - H_LR
+  - H_HR
+  - B_LR_LL
+  - B_LR_LR
+  - B_LR_UL
+  - B_LR_UR
+  - B1_HR_LL
+  - B1_HR_LR
+  - B1_HR_UL
+  - B1_HR_UR
+  - B2_HR_LL
+  - B2_HR_LR
+  - B2_HR_UL
+  - B2_HR_UR
+  - R_LR_LL
+  - R_LR_LR
+  - R_LR_UL
+  - R_LR_UR
+  - R1_HR_LL
+  - R1_HR_LR
+  - R1_HR_UL
+  - R1_HR_UR
+  - R2_HR_LL
+  - R2_HR_LR
+  - R2_HR_UL
+  - R2_HR_UR
+
+# Mode is carried in the header; used both to auto-select the channel and to
+# classify which files belong to a channel (the quadrant suffix is stripped).
+instrument_mode: "ESO INS MODE"
+kw_channel: "ESO INS MODE"
+
 extension: 0
 orientation: 0
 transpose: false
@@ -50,21 +86,6 @@ id_flat: ".*FLAT.*"
 id_orders: ".*FLAT.*"
 id_wave: ".*ThAr.*"
 id_spec: ".*"
-
-# Initial wavelength guess for wavecal_init, indexed by channel.
-# Each entry is a list of per-order [min, max] in Angstroms.
-# VIS: derived from MOSAIC_VIS_LR_Blue.hdf (fiber_462, detector y-center),
-#      with a -30 px blueward shift to match the as-built ThAr reference.
-# NIR/LR-J/LR-H: center fiber of the corresponding HDF; refine per-fiber
-#                later for the curved-slit NIR channels.
-wavelength_range:
-  - [[9500.0, 13400.0]]    # NIR   (legacy 2Cam, J-band coverage)
-  - [[9500.0, 13400.0]]    # LR-J
-  - [[14300.0, 18000.0]]   # LR-H
-  - [[5117.3, 6250.0]]     # VIS1  (lower-left:  detector x=0..6144)
-  - [[3900.0, 5096.8]]     # VIS2  (lower-right: detector x=6249..12393)
-  - [[5117.3, 6250.0]]     # VIS3  (upper-left:  detector x=0..6144)
-  - [[3900.0, 5096.8]]     # VIS4  (upper-right: detector x=6249..12393)
 
 # Fiber grouping configuration
 # IFU targets with ~7 fibers each

@@ -1,6 +1,12 @@
 """
 MOSAIC NIR LR-J starsky example.
 
+NOTE: This example targets the pyechelle "LR-J" simulations under REDUCE_DATA/
+MOSAIC/myE2E, which predate the channel renaming to the E2E `ESO INS MODE`
+scheme (J_LR/H_LR/H_HR, VIS modes by detector quadrant). The "LR-J" channel and
+its settings/bundle_centers no longer exist in the instrument definition, so this
+script needs verification/updating before it will run against the current setup.
+
 Uses the newer LR-J simulations:
 - LR-J_FF_all_1s.fits        : flat field (all fibers illuminated) for tracing
 - LR-J_LFC_all_1s.fits       : laser frequency comb (all fibers) for slit curvature

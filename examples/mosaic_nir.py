@@ -19,7 +19,8 @@ from pyreduce.pipeline import Pipeline
 instrument_name = "MOSAIC"
 target = "MOSAIC_NIR"
 night = ""
-channel = "NIR"
+# NIR modes (one 4096x4096 detector each): J_LR (c01), H_LR (c02), H_HR (c03)
+channel = "J_LR"
 plot = 1
 
 # Handle plot environment variables
@@ -30,19 +31,17 @@ util.set_plot_dir(plot_dir)
 
 # Data location
 data_dir = os.environ.get("REDUCE_DATA", os.path.expanduser("~/REDUCE_DATA"))
-base_dir = join(data_dir, "MOSAIC", "REF_E2E", "NIR")
-output_dir = join(data_dir, "MOSAIC", "reduced", "NIR")
+base_dir = join(data_dir, "MOSAIC", "E2E_june26", "NIR")
+output_dir = join(data_dir, "MOSAIC", "reduced", channel)
 
-# File paths (simulated data)
+# File paths (simulated data). The "cNN" cube index encodes the mode:
+# c01 -> J_LR, c02 -> H_LR, c03 -> H_HR (verify against ESO INS MODE header).
+cube = {"J_LR": "c01", "H_LR": "c02", "H_HR": "c03"}[channel]
 flat_file = join(
-    base_dir,
-    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_FLAT_DIT_20s_MOSAIC_2Cam_c01_FOCAL_PLANE.fits",
+    base_dir, f"E2E_FLAT_DIT_20s_MOSAIC_2Cam_{cube}_FOCAL_PLANE_000_REF.fits"
 )
 thar_file = join(
-    base_dir,
-    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01",
-    "E2E_ThAr_DIT_20s_MOSAIC_2Cam_c01_FOCAL_PLANE.fits",
+    base_dir, f"E2E_ThAr_DIT_20s_MOSAIC_2Cam_{cube}_FOCAL_PLANE_000_REF.fits"
 )
 
 # Verify files exist
@@ -84,4 +83,6 @@ print("\n=== Results ===")
 traces = results["trace"]  # list[Trace]
 print(f"Traces: {len(traces)}")
 for t in traces[:3]:
-    print(f"  m={t.m}, fiber={t.fiber}, columns={t.column_range}")
+    print(
+        f"  m={t.m}, bundle={t.bundle}, fiber_idx={t.fiber_idx}, columns={t.column_range}"
+    )

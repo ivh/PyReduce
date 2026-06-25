@@ -3,7 +3,7 @@
     "__inherits__": "MOSAIC/settings.json",
     "trace": {
         "degree": 8,
-        "noise": 0,
+        "noise": 500,
         "noise_relative": 0.05,
         "min_cluster": 100,
         "min_width": 0.6,
