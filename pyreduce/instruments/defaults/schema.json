@@ -75,6 +75,14 @@
                             "type": "integer",
                             "minimum": 0
                         },
+                        "max_error": {
+                            "description": "Maximum RMS (pixels) of the order polynomial fit. Clusters whose fit residual exceeds this are discarded, rejecting clusters that span two fused orders. Disabled if null.",
+                            "type": [
+                                "number",
+                                "null"
+                            ],
+                            "minimum": 0
+                        },
                         "degree_before_merge": {
                             "description": "Polynomial degree of the first fit to the orders, before merging clusters",
                             "type": [
