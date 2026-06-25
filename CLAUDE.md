@@ -364,6 +364,8 @@ uv run ruff check --fix .            # Lint and fix
 
 After a fresh clone or `rm -rf .venv`, run `uv sync && uv run reduce-build` to set up.
 
+If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run `uv self update` and start over — this resolves a known compatibility issue with some packages.
+
 ### Adding Instruments
 
 1. Create `pyreduce/instruments/{NAME}/` directory
