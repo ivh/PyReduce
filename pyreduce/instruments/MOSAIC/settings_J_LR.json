@@ -5,11 +5,11 @@
         "degree": 8,
         "noise": 500,
         "noise_relative": 0.05,
-        "min_cluster": 100,
+        "min_cluster": 2000,
         "min_width": 0.6,
         "filter_y": 7,
         "border_width": [70, 50, 0, 0],
-        "closing_shape": [1, 50],
+        "closing_shape": [1, 10],
         "opening_shape": [1, 3]
     },
     "norm_flat": {
