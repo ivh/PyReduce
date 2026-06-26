@@ -2,7 +2,6 @@
     "__instrument__": "MOSAIC",
     "__inherits__": "defaults/settings.json",
     "trace": {
-
         "manual": false,
         "auto_merge_threshold": 1,
         "merge_min_threshold": 0
@@ -13,12 +12,17 @@
         "curve_degree": 1
     },
     "wavecal_init": {
-        "atlas": "thar",
-        "medium": "vac"
+        "atlas": "thar_full",
+        "medium": "vac",
+        "cutoff": 0.001,
+        "match_tolerance": 1.0,
+        "width_max": 10.0,
+        "wave_delta": 3.0
     },
     "wavecal": {
+        "atlas": "thar_full",
         "dimensionality": "1D",
-        "degree": 6,
+        "degree": 5,
         "threshold": 2000,
         "iterations": 2
     },
