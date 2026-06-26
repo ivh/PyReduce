@@ -329,6 +329,11 @@
                             "type": "number",
                             "exclusiveMinimum": 0
                         },
+                        "wave_delta": {
+                            "description": "Search radius in Angstrom for the FFT cross-correlation global wavelength offset",
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
                         "resid_delta": {
                             "description": "Maximum velocity residual for outlier rejection in m/s",
                             "type": "number",

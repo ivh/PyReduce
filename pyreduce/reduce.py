@@ -1649,6 +1649,7 @@ class WavelengthCalibrationInitialize(Step):
         self.medium = config["medium"]
         self.smoothing = config["smoothing"]
         self.cutoff = config["cutoff"]
+        self.wave_delta = config.get("wave_delta", 20)
 
     def savefile_for_group(self, group: str) -> str:
         """Get savefile path for a specific group."""
@@ -1723,6 +1724,7 @@ class WavelengthCalibrationInitialize(Step):
                 medium=self.medium,
                 smoothing=self.smoothing,
                 cutoff=self.cutoff,
+                wave_delta=self.wave_delta,
             )
             linelist = module.execute(
                 wavecal_spec, wave_range, single_order=single_order

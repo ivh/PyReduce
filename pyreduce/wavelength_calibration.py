@@ -1757,13 +1757,29 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         return idx + (y0 - y2) / denom
 
     def _measure_shift(self, obs, ref, search_radius):
-        """Cross-correlate obs vs ref (via FFT) and return the sub-pixel shift."""
+        """Cross-correlate obs vs ref (via FFT) and return the sub-pixel shift.
+
+        Returns 0.0 (no shift) when the best correlation sits on the edge of the
+        search window: the true offset then exceeds wave_delta and the lag is
+        meaningless. Logged so a starved/out-of-range init is visible. (A
+        prominence test isn't useful here -- the window is only +/-wave_delta
+        wide, too few points for a meaningful background estimate.)
+        """
         corr = signal.fftconvolve(obs, ref[::-1], mode="full")
         mid = len(ref) - 1
         lo = max(mid - search_radius, 0)
         hi = min(mid + search_radius + 1, len(corr))
         search = corr[lo:hi]
         raw_peak = int(np.argmax(search))
+
+        if raw_peak == 0 or raw_peak == len(search) - 1:
+            logger.warning(
+                "wavecal_init: cross-correlation peak at search-window edge; "
+                "offset likely exceeds wave_delta=%.1f A. Using zero shift.",
+                self.wave_delta,
+            )
+            return 0.0
+
         peak = self._subpixel_peak(search, raw_peak)
         return peak - (mid - lo)
 
@@ -1926,8 +1942,11 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
             logger.warning("%s: no atlas lines in range %.1f-%.1f", label, wmin, wmax)
             return LineList()
 
-        # Step 1: linear wavelength assignment from the per-bundle guess
-        wlc = wave_range[0] + (wave_range[1] - wave_range[0]) * posm / npix
+        # Step 1: linear wavelength assignment from the per-bundle guess.
+        # Use (npix-1) so pixel npix-1 maps exactly to wave_range[1], matching
+        # the linspace grid the synthetic reference is built on below.
+        span = npix - 1
+        wlc = wave_range[0] + (wave_range[1] - wave_range[0]) * posm / span
 
         # Step 2: FFT cross-correlation for the global wavelength offset.
         # Cross-correlating the whole observed spectrum against a synthetic atlas
@@ -1935,11 +1954,11 @@ class WavelengthCalibrationInitialize(WavelengthCalibration):
         # that per-line offset-voting locks onto in a dense line forest.
         wave_linear = np.linspace(wave_range[0], wave_range[1], npix)
         reference = self.normalize(self._synthesize_reference(wave_linear, atlas))
-        dispersion = (wave_range[1] - wave_range[0]) / npix
-        pix_per_ang = npix / abs(wave_range[1] - wave_range[0])
+        dispersion = (wave_range[1] - wave_range[0]) / span
+        pix_per_ang = span / abs(wave_range[1] - wave_range[0])
         search_radius = int(self.wave_delta * pix_per_ang) + 1
         global_shift = self._measure_shift(spectrum, reference, search_radius)
-        wlc = wlc + global_shift * dispersion
+        wlc = wlc - global_shift * dispersion
 
         # Step 3: iterative match-fit-reject using corrected wavelengths.
         # After the FFT alignment the corrected wlc is accurate to ~1 px, so use
