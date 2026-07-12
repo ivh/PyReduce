@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import warnings
+from datetime import UTC, datetime
 from itertools import product
 from os.path import join
 
@@ -2748,6 +2749,9 @@ class ContinuumNormalization(Step):
                 plot_title=self.plot_title,
             )
 
+        for head in heads:
+            head["e_cont"] = (True, "CONT is a fitted continuum, orders spliced")
+
         self.save(heads, specs, sigmas, conts, columns)
         return heads, specs, sigmas, conts, columns
 
@@ -2804,6 +2808,8 @@ class ContinuumNormalization(Step):
             heads, specs, sigmas, columns = science
             norm, blaze, *_ = norm_flat
             conts = [blaze for _ in specs]
+            for head in heads:
+                head["e_cont"] = (False, "CONT is the blaze, not a fitted continuum")
             data = {
                 "heads": heads,
                 "specs": specs,
@@ -2915,6 +2921,10 @@ class Finalize(Step):
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
             head["HIERARCH PR_version"] = __version__
+            head["DATE"] = (
+                datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                "UTC timestamp of the reduction",
+            )
 
             head = self.save_config_to_header(head, config)
 

@@ -772,6 +772,77 @@ class TestWavecalQualityFile:
         assert data["all"]["rms_mps"] == 55.5
 
 
+class TestProvenanceHeaders:
+    """Final products record when they were reduced and whether the
+    continuum was actually normalized."""
+
+    @pytest.mark.unit
+    def test_continuum_load_fallback_flags_unnormalized(self, tmp_path):
+        from astropy.io import fits
+
+        instrument = load_instrument("UVES")
+        step = reduce.ContinuumNormalization(
+            instrument, "", "t", "n", str(tmp_path), None, plot=False
+        )
+
+        heads = [fits.Header()]
+        specs = [np.ones((2, 64))]
+        sigmas = [np.ones((2, 64))]
+        columns = [np.array([[0, 64], [0, 64]])]
+        science = (heads, specs, sigmas, columns)
+        norm_flat = (None, np.ones((2, 64)))
+
+        result_heads, *_ = step.load(norm_flat, science)
+
+        assert result_heads[0]["e_cont"] is False
+
+    @pytest.mark.unit
+    def test_finalize_writes_provenance(self, tmp_path):
+        from astropy.io import fits
+
+        from pyreduce.trace_model import Trace as TraceData
+
+        instrument = load_instrument("UVES")
+        step = reduce.Finalize(
+            instrument,
+            "",
+            "t",
+            "n",
+            str(tmp_path),
+            None,
+            plot=False,
+            filename="{input}.final.fits",
+        )
+
+        head = fits.Header()
+        head["e_input"] = "test.fits"
+        head["e_jd"] = 2450000.0
+        head["e_cont"] = (True, "CONT is a fitted continuum, orders spliced")
+        continuum = (
+            [head],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.array([[0, 64]])],
+        )
+        trace = [
+            TraceData(
+                m=90,
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(0, 64),
+                wave=np.array([0.1, 5000.0]),
+            )
+        ]
+
+        fnames = step.run(continuum, trace, config={"science": {"oversampling": 8}})
+
+        out_head = fits.getheader(fnames[0])
+        assert out_head["DATE"].startswith("20")  # ISO UTC timestamp
+        assert out_head["e_cont"] is True
+        assert out_head["HIERARCH PR_version"]
+        assert out_head["HIERARCH PR SCIENCE OVERSAMPLING"] == 8
+
+
 # Tests that require instrument data follow below
 
 

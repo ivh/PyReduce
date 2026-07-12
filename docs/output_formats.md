@@ -19,6 +19,11 @@ Files are identified by header keyword `E_FMTVER = 2`.
 | `E_LAMBDASP` | Spectrum smoothing parameter |
 | `E_SWATHW` | Swath width (if set) |
 | `barycorr` | Barycentric velocity correction (km/s) |
+| `E_INPUT` | Original input filename of the science frame |
+| `E_CONT` | `T`: CONT is a fitted continuum (orders spliced); `F`: CONT is the blaze. Absent in files reduced before v0.9b2 |
+| `DATE` | UTC timestamp of the reduction |
+| `HIERARCH PR_version` | PyReduce version used |
+| `HIERARCH PR *` | Reduction settings used (one keyword per setting) |
 
 ### Table Columns
 
