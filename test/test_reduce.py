@@ -631,6 +631,55 @@ class TestExtractionHeightFallback:
         assert per_trace_heights == [None]
 
 
+class TestCentersFileResolution:
+    """Configured but missing centers files must raise instead of silently
+    falling back to sequential order numbering."""
+
+    @pytest.fixture
+    def trace_step(self, tmp_path):
+        from pyreduce.configuration import load_config
+
+        instrument = load_instrument("UVES")
+        config = load_config(None, "UVES", 0)
+        return reduce.Trace(
+            instrument, "", "t", "n", str(tmp_path), None, **config["trace"]
+        )
+
+    @pytest.mark.unit
+    def test_missing_order_centers_file_raises(self, trace_step):
+        from pyreduce.instruments.models import FibersConfig
+
+        trace_step.instrument.config.fibers = FibersConfig(
+            order_centers_file="does_not_exist.yaml"
+        )
+        with pytest.raises(FileNotFoundError, match="order_centers_file"):
+            trace_step._load_order_centers()
+
+    @pytest.mark.unit
+    def test_missing_bundle_centers_file_raises(self, trace_step):
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        trace_step.instrument.config.fibers = FibersConfig(
+            bundles=FiberBundleConfig(size=7, bundle_centers_file="does_not_exist.yaml")
+        )
+        with pytest.raises(FileNotFoundError, match="bundle_centers_file"):
+            trace_step._load_bundle_centers()
+
+    @pytest.mark.unit
+    def test_order_centers_file_list_form(self, trace_step, tmp_path):
+        """Per-channel list form of order_centers_file loads correctly."""
+        from pyreduce.instruments.models import FibersConfig
+
+        centers = tmp_path / "centers.yaml"
+        centers.write_text("90: 1000.5\n91: 2000.0\n")
+        trace_step.instrument.config.fibers = FibersConfig(
+            order_centers_file=[str(centers)]
+        )
+
+        result = trace_step._load_order_centers()
+        assert result == {90: 1000.5, 91: 2000.0}
+
+
 class TestTraceWritebackErrors:
     """Steps that persist results into traces.fits must fail loudly when
     the write fails, instead of leaving stale traces on disk."""

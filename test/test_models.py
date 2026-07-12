@@ -111,14 +111,73 @@ class TestInstrumentConfigValidation:
 
     @pytest.mark.unit
     def test_extension_as_list(self):
-        """Test extension can be list."""
+        """Test extension can be list (one entry per channel)."""
         data = {
             "instrument": "INSTRUME",
             "id_instrument": "TEST",
+            "channels": ["BLUE", "RED"],
             "extension": [1, 2],
         }
         config = InstrumentConfig(**data)
         assert config.extension == [1, 2]
+
+    @pytest.mark.unit
+    def test_channel_list_length_mismatch_rejected(self):
+        """Per-channel lists must have one entry per channel."""
+        data = {
+            "instrument": "INSTRUME",
+            "id_instrument": "TEST",
+            "channels": ["BLUE", "MIDDLE", "RED"],
+            "extension": [1, 2],
+        }
+        with pytest.raises(ValidationError, match="'extension' has 2 entries"):
+            InstrumentConfig(**data)
+
+    @pytest.mark.unit
+    def test_channel_list_without_channels_rejected(self):
+        """Per-channel lists without a channels definition are an error."""
+        data = {
+            "instrument": "INSTRUME",
+            "id_instrument": "TEST",
+            "orientation": [1, 2],
+        }
+        with pytest.raises(ValidationError, match="'channels' is not defined"):
+            InstrumentConfig(**data)
+
+    @pytest.mark.unit
+    def test_id_pattern_invalid_regex_rejected(self):
+        """id_* values are used as regex; broken patterns fail at load."""
+        data = {
+            "instrument": "INSTRUME",
+            "id_instrument": "TEST",
+            "id_bias": "BIAS(",
+        }
+        with pytest.raises(ValidationError, match="id_bias: invalid regex"):
+            InstrumentConfig(**data)
+
+    @pytest.mark.unit
+    def test_id_channel_invalid_regex_rejected(self):
+        """id_channel list entries are also validated as regex."""
+        data = {
+            "instrument": "INSTRUME",
+            "id_instrument": "TEST",
+            "channels": ["A", "B"],
+            "id_channel": ["ok", "broken["],
+        }
+        with pytest.raises(ValidationError, match="id_channel: invalid regex"):
+            InstrumentConfig(**data)
+
+    @pytest.mark.unit
+    def test_id_pattern_valid_regex_accepted(self):
+        """Real-world regex patterns pass validation."""
+        data = {
+            "instrument": "INSTRUME",
+            "id_instrument": "UVES(pol)?",
+            "id_flat": "FLAT.*",
+            "id_wave": "WAVE,THAR",
+        }
+        config = InstrumentConfig(**data)
+        assert config.id_flat == "FLAT.*"
 
     @pytest.mark.unit
     def test_extension_as_string(self):

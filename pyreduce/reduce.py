@@ -945,6 +945,37 @@ class Trace(CalibrationStep):
 
         return self.trace_objects
 
+    def _resolve_centers_file(self, centers_file, config_key: str):
+        """Resolve a configured centers file to an existing path.
+
+        Supports per-channel lists and the {channel} filename template,
+        relative to the instrument directory. A configured file that does
+        not exist is a config error and raises, because falling back to
+        sequential order numbering would silently mis-assign traces.
+        """
+        from pathlib import Path
+
+        if isinstance(centers_file, list):
+            channels = self.instrument.config.channels or []
+            ch_idx = channels.index(self.channel) if self.channel in channels else 0
+            centers_file = (
+                centers_file[ch_idx] if ch_idx < len(centers_file) else centers_file[0]
+            )
+
+        if self.channel and "{channel}" in centers_file:
+            centers_file = centers_file.format(channel=self.channel.lower())
+
+        inst_dir = getattr(self.instrument, "_inst_dir", None)
+        path = Path(centers_file)
+        if not path.is_absolute() and inst_dir:
+            path = Path(inst_dir) / centers_file
+
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{config_key} is configured but the file does not exist: {path}"
+            )
+        return path
+
     def _load_order_centers(self) -> dict[int, float] | None:
         """Load order_centers from instrument config if available.
 
@@ -965,23 +996,11 @@ class Trace(CalibrationStep):
         if fibers_config.order_centers_file is None:
             return None
 
-        from pathlib import Path
-
         import yaml
 
-        centers_file = fibers_config.order_centers_file
-        # Substitute {channel} template
-        if self.channel and "{channel}" in centers_file:
-            centers_file = centers_file.format(channel=self.channel.lower())
-
-        inst_dir = getattr(self.instrument, "_inst_dir", None)
-        path = Path(centers_file)
-        if not path.is_absolute() and inst_dir:
-            path = Path(inst_dir) / centers_file
-
-        if not path.exists():
-            logger.info("Order centers file not found: %s", path)
-            return None
+        path = self._resolve_centers_file(
+            fibers_config.order_centers_file, "fibers.order_centers_file"
+        )
 
         with open(path) as f:
             data = yaml.safe_load(f)
@@ -1014,29 +1033,11 @@ class Trace(CalibrationStep):
         if bundles.bundle_centers_file is None:
             return None
 
-        from pathlib import Path
-
         import yaml
 
-        centers_file = bundles.bundle_centers_file
-        if isinstance(centers_file, list):
-            channels = self.instrument.config.channels or []
-            ch_idx = channels.index(self.channel) if self.channel in channels else 0
-            centers_file = (
-                centers_file[ch_idx] if ch_idx < len(centers_file) else centers_file[0]
-            )
-
-        if self.channel and "{channel}" in centers_file:
-            centers_file = centers_file.format(channel=self.channel.lower())
-
-        inst_dir = getattr(self.instrument, "_inst_dir", None)
-        path = Path(centers_file)
-        if not path.is_absolute() and inst_dir:
-            path = Path(inst_dir) / centers_file
-
-        if not path.exists():
-            logger.info("Bundle centers file not found: %s", path)
-            return None
+        path = self._resolve_centers_file(
+            bundles.bundle_centers_file, "fibers.bundles.bundle_centers_file"
+        )
 
         with open(path) as f:
             data = yaml.safe_load(f)
