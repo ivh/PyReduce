@@ -736,6 +736,42 @@ class TestTraceWritebackErrors:
             step.save([sample_trace])
 
 
+class TestWavecalQualityFile:
+    """The wavecal step persists quality metrics as a JSON sidecar."""
+
+    @pytest.mark.unit
+    def test_save_writes_quality_json(self, tmp_path):
+        import json
+
+        from pyreduce.configuration import load_config
+        from pyreduce.trace_model import Trace as TraceData
+
+        instrument = load_instrument("UVES")
+        config = load_config(None, "UVES", 0)
+        step = reduce.WavelengthCalibrationFinalize(
+            instrument, "", "t", "n", str(tmp_path), None, **config["wavecal"]
+        )
+        step.quality = {
+            "all": {
+                "nlines_used": 42,
+                "nlines_rejected": 3,
+                "rms_mps": 55.5,
+                "median_abs_mps": 30.1,
+                "aic": -1234.5,
+                "orders": {"90": {"nlines": 42, "rms_mps": 55.5}},
+            }
+        }
+        tr = TraceData(m=90, pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990))
+
+        step.save({}, [tr])
+
+        quality_file = tmp_path / "uves.wavecal_quality.json"
+        assert quality_file.exists()
+        data = json.loads(quality_file.read_text())
+        assert data["all"]["nlines_used"] == 42
+        assert data["all"]["rms_mps"] == 55.5
+
+
 # Tests that require instrument data follow below
 
 

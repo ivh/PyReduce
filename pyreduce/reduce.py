@@ -18,6 +18,7 @@ License
 
 """
 
+import json
 import logging
 import os
 import warnings
@@ -1842,6 +1843,7 @@ class WavelengthCalibrationFinalize(Step):
         """
         results_for_save = {}
         results = {}
+        self.quality = {}
 
         for group in wavecal_master.keys():
             if group not in wavecal_init:
@@ -1870,6 +1872,17 @@ class WavelengthCalibrationFinalize(Step):
             wlen, wave, linelist = module.execute(wavecal_spec, linelist)
             results_for_save[group] = (wave, linelist)
             results[group] = linelist
+
+            metrics = module.quality_metrics(wave, linelist)
+            self.quality[group] = metrics
+            logger.info(
+                "Wavecal quality for group '%s': rms=%.1f m/s, "
+                "%d lines used, %d rejected",
+                group,
+                metrics["rms_mps"] if metrics["rms_mps"] is not None else float("nan"),
+                metrics["nlines_used"],
+                metrics["nlines_rejected"],
+            )
 
         # Update trace objects in-place
         self._update_traces(trace, results_for_save)
@@ -1973,6 +1986,12 @@ class WavelengthCalibrationFinalize(Step):
                     linelist["order"] -= min_order
             linelist.save(savefile)
             logger.info("Updated linelist with refined positions: %s", savefile)
+
+        if getattr(self, "quality", None):
+            quality_file = join(self.output_dir, self.prefix + ".wavecal_quality.json")
+            with open(quality_file, "w") as f:
+                json.dump(self.quality, f, indent=2)
+            logger.info("Saved wavecal quality metrics: %s", quality_file)
 
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
         # Read existing header to preserve metadata

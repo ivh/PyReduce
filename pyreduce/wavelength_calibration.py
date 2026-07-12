@@ -1430,6 +1430,58 @@ class WavelengthCalibration:
         self.aic = aic
         return aic
 
+    def quality_metrics(self, wave_solution, lines):
+        """Machine-readable quality summary of a wavelength fit.
+
+        Parameters
+        ----------
+        wave_solution : array
+            polynomial coefficients of the wavelength solution
+        lines : LineList or recarray
+            line data with fitted positions and flags
+
+        Returns
+        -------
+        dict
+            Global and per-order statistics over the used (non-rejected)
+            lines: rms and median absolute residual in m/s, line counts,
+            and the AIC of the fit. Per-order keys are physical order
+            numbers when the linelist has an obase, else 0-based indices.
+        """
+        residual = self.calculate_residual(wave_solution, lines)
+        used = np.asarray(lines["flag"], dtype=bool)
+
+        def stats(res):
+            res = res.compressed() if np.ma.isMaskedArray(res) else np.asarray(res)
+            if res.size == 0:
+                return {"nlines": 0, "rms_mps": None, "median_abs_mps": None}
+            return {
+                "nlines": int(res.size),
+                "rms_mps": float(np.sqrt(np.mean(res**2))),
+                "median_abs_mps": float(np.median(np.abs(res))),
+            }
+
+        overall = stats(residual)
+        obase = getattr(lines, "obase", None) or 0
+        orders = {
+            int(obase + order): stats(residual[lines["order"] == order])
+            for order in np.unique(lines["order"])
+        }
+        if overall["nlines"] > 0:
+            aic = float(self.calculate_AIC(lines, wave_solution))
+            if not np.isfinite(aic):
+                aic = None
+        else:
+            aic = None
+        return {
+            "nlines_used": overall["nlines"],
+            "nlines_rejected": int(np.count_nonzero(~used)),
+            "rms_mps": overall["rms_mps"],
+            "median_abs_mps": overall["median_abs_mps"],
+            "aic": aic,
+            "orders": orders,
+        }
+
     def execute(self, obs, lines):
         """
         Perform the whole wavelength calibration procedure with the current settings
