@@ -23,7 +23,12 @@ Files are identified by header keyword `E_FMTVER = 2`.
 | `E_CONT` | `T`: CONT is a fitted continuum (orders spliced); `F`: CONT is the blaze. Absent in files reduced before v0.9b2 |
 | `DATE` | UTC timestamp of the reduction |
 | `HIERARCH PR_version` | PyReduce version used |
+| `HIERARCH PR_githash` | Git revision of the PyReduce checkout (`git describe`, `-dirty` marks uncommitted changes). Absent for installed releases |
 | `HIERARCH PR *` | Reduction settings used (one keyword per setting) |
+
+`PR_version` and `PR_githash` are stamped into all FITS products (master
+bias/flat, traces, wavecal spectra, science, final), not just the final
+spectra.
 
 ### Table Columns
 

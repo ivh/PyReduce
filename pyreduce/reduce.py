@@ -40,7 +40,7 @@ warnings.simplefilter("ignore", category=AstropyUserWarning, append=True)
 from tqdm import tqdm
 
 # PyReduce subpackages
-from . import __version__, instruments, util
+from . import instruments, util
 from .combine_frames import (
     combine_bias,
     combine_calibrate,
@@ -50,6 +50,7 @@ from .configuration import load_config
 from .continuum_normalization import continuum_normalize, splice_orders
 from .estimate_background_scatter import estimate_background_scatter
 from .extract import extract, extract_normalize
+from .provenance import add_provenance
 from .rectify import merge_images, rectify_image
 from .slit_curve import Curvature as CurvatureModule
 from .spectra import ExtractionParams, Spectra, Spectrum
@@ -549,6 +550,7 @@ class FitsIOStep(Step):
         if dtype is not None:
             data = np.asarray(data, dtype=np.float32)
 
+        head = add_provenance(head)
         fits.writeto(
             self.savefile,
             data=data,
@@ -701,6 +703,7 @@ class Bias(Step):
             bias header
         """
         bias = np.asarray(bias, dtype=np.float32)
+        bhead = add_provenance(bhead)
 
         if self.degree == 0:
             hdus = [fits.PrimaryHDU(data=bias, header=bhead, scale_back=False)]
@@ -775,6 +778,7 @@ class Flat(CalibrationStep):
             master flat header
         """
         flat = np.asarray(flat, dtype=np.float32)
+        fhead = add_provenance(fhead)
         fits.writeto(
             self.savefile,
             data=flat,
@@ -1573,6 +1577,7 @@ class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
         for group, (wavecal_spec, thead) in results.items():
             wavecal_spec = np.asarray(wavecal_spec, dtype=np.float64)
             savefile = self.savefile_for_group(group)
+            thead = add_provenance(thead)
             fits.writeto(
                 savefile,
                 data=wavecal_spec,
@@ -2125,6 +2130,7 @@ class LaserFrequencyCombMaster(CalibrationStep, ExtractionStep):
             master comb header
         """
         comb = np.asarray(comb, dtype=np.float64)
+        chead = add_provenance(chead)
         fits.writeto(
             self.savefile,
             data=comb,
@@ -2419,7 +2425,7 @@ class RectifyImage(Step):
         # Change filename
         fname = self.filename(fname)
         # Create HDU List, one extension per order
-        primary = fits.PrimaryHDU(header=header)
+        primary = fits.PrimaryHDU(header=add_provenance(header))
         secondary = fits.ImageHDU(data=image)
         column = fits.Column(name="wavelength", array=wavelength, format="D")
         tertiary = fits.BinTableHDU.from_columns([column])
@@ -2920,7 +2926,6 @@ class Finalize(Step):
 
             head["barycorr"] = rv_corr
             head["e_jd"] = bjd
-            head["HIERARCH PR_version"] = __version__
             head["DATE"] = (
                 datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
                 "UTC timestamp of the reduction",
