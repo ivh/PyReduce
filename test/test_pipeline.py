@@ -46,6 +46,60 @@ class TestOrganize:
         assert len(raw_kept) == 2
 
 
+class TestUseFibers:
+    """Tests for fiber group selection via the Pipeline API."""
+
+    @pytest.fixture
+    def fiber_pipe(self, tmp_path):
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        pipe = Pipeline("UVES", str(tmp_path))
+        pipe.instrument.config.fibers = FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 3), merge="average"),
+                "B": FiberGroupConfig(range=(3, 5), merge="average"),
+            },
+            use={"science": ["A"]},
+        )
+        return pipe
+
+    @pytest.mark.unit
+    def test_use_fibers_default_overrides_config(self, fiber_pipe):
+        """Pipeline-wide selection replaces per-step config selections."""
+        fiber_pipe.use_fibers(["B"])
+        assert fiber_pipe.instrument.config.fibers.use == {"default": ["B"]}
+
+    @pytest.mark.unit
+    def test_use_fibers_per_step(self, fiber_pipe):
+        """Step-scoped selection only touches that step."""
+        fiber_pipe.use_fibers("per_fiber", step="wavecal")
+        use = fiber_pipe.instrument.config.fibers.use
+        assert use["wavecal"] == "per_fiber"
+        assert use["science"] == ["A"]
+
+    @pytest.mark.unit
+    def test_use_fibers_comma_string_and_int(self, fiber_pipe):
+        """CLI-style comma strings and bare fiber indices are normalized."""
+        fiber_pipe.use_fibers("A, B")
+        assert fiber_pipe.instrument.config.fibers.use == {"default": ["A", "B"]}
+        fiber_pipe.use_fibers(38, step="science")
+        assert fiber_pipe.instrument.config.fibers.use["science"] == [38]
+
+    @pytest.mark.unit
+    def test_extract_with_use(self, fiber_pipe):
+        """extract(use=...) sets the science-step selection."""
+        fiber_pipe.extract(["sci.fits"], use=["B"])
+        assert fiber_pipe.instrument.config.fibers.use["science"] == ["B"]
+        assert ("science", ["sci.fits"]) in fiber_pipe._steps
+
+    @pytest.mark.unit
+    def test_use_fibers_without_fiber_config_raises(self, tmp_path):
+        pipe = Pipeline("UVES", str(tmp_path))
+        pipe.instrument.config.fibers = None
+        with pytest.raises(ValueError, match="no fiber configuration"):
+            pipe.use_fibers(["A"])
+
+
 class TestPipelineConstruction:
     """Test Pipeline construction and fluent API."""
 

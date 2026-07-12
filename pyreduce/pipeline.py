@@ -373,8 +373,64 @@ class Pipeline:
         """Finalize frequency comb calibration."""
         return self._add_step("freq_comb")
 
-    def extract(self, files: list[str]) -> Pipeline:
-        """Extract science spectra."""
+    def use_fibers(
+        self, selection: str | int | list, step: str | None = None
+    ) -> Pipeline:
+        """Select which fiber groups or individual fibers steps operate on.
+
+        Replaces the need to mutate ``instrument.config.fibers.use`` by hand.
+
+        Parameters
+        ----------
+        selection : str, int, or list
+            "groups" (all merged group traces), "per_fiber" (process each
+            fiber separately), a single group name / fiber index, a list of
+            group names and/or fiber indices, or a comma-separated string
+            of group names (CLI --use syntax).
+        step : str, optional
+            Apply the selection to one step only (e.g. "science").
+            By default the selection applies pipeline-wide, overriding any
+            per-step selection from the instrument config.
+
+        Returns
+        -------
+        Pipeline
+            Self for method chaining
+        """
+        fibers = getattr(self.instrument.config, "fibers", None)
+        if fibers is None:
+            raise ValueError(
+                f"Instrument {self.instrument.name} has no fiber configuration, "
+                "cannot select fiber groups"
+            )
+
+        if isinstance(selection, str) and selection not in ("groups", "per_fiber"):
+            selection = [s.strip() for s in selection.split(",")]
+        elif isinstance(selection, int):
+            selection = [selection]
+
+        if step is None:
+            fibers.use = {"default": selection}
+        else:
+            if fibers.use is None:
+                fibers.use = {}
+            fibers.use[step] = selection
+        return self
+
+    def extract(
+        self, files: list[str], use: str | int | list | None = None
+    ) -> Pipeline:
+        """Extract science spectra.
+
+        Parameters
+        ----------
+        files : list[str]
+            Science files to extract
+        use : str, int, or list, optional
+            Fiber group / fiber selection for this step, see use_fibers()
+        """
+        if use is not None:
+            self.use_fibers(use, step="science")
         return self._add_step("science", files)
 
     def continuum(self) -> Pipeline:
@@ -642,6 +698,7 @@ class Pipeline:
         output_dir: str | None = None,
         configuration: dict | None = None,
         trace_range: tuple[int, int] | None = None,
+        use: str | int | list | None = None,
         plot: int = 0,
         plot_dir: str | None = None,
     ) -> Pipeline:
@@ -674,6 +731,9 @@ class Pipeline:
             Configuration overrides. Default: instrument defaults
         trace_range : tuple, optional
             (first, last+1) orders to process
+        use : str, int, or list, optional
+            Fiber group / fiber selection for all steps (like the CLI --use
+            flag), see use_fibers()
         plot : int
             Plot level (0=off, 1=basic, 2=detailed)
         plot_dir : str, optional
@@ -781,5 +841,8 @@ class Pipeline:
             plot=plot,
             plot_dir=plot_dir,
         )
+
+        if use is not None:
+            pipe.use_fibers(use)
 
         return pipe

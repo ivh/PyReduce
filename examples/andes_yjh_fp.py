@@ -48,7 +48,7 @@ pipe = Pipeline(
 )
 
 # Extract only the FP calibration fiber.
-pipe.instrument.config.fibers.use["science"] = [fp_fiber]
+pipe.use_fibers([fp_fiber], step="science")
 
 # --- Load traces (with stored curvature) from a previous run ---
 print("Loading traces from previous run...")
