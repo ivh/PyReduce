@@ -117,6 +117,12 @@ class TestPipelineConstruction:
         assert pipe.instrument is instr
 
     @pytest.mark.unit
+    def test_create_pipeline_invalid_channel_raises(self, tmp_path):
+        """An unknown channel fails at construction with a clear message."""
+        with pytest.raises(ValueError, match="Unknown channel 'GREEN'"):
+            Pipeline("UVES", str(tmp_path), channel="GREEN")
+
+    @pytest.mark.unit
     def test_fluent_api_returns_self(self, tmp_path):
         """Test that fluent methods return self for chaining."""
         pipe = Pipeline("UVES", str(tmp_path))

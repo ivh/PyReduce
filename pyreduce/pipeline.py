@@ -148,6 +148,7 @@ class Pipeline:
         """
         if isinstance(instrument, str):
             instrument = load_instrument(instrument)
+        instrument.validate_channel(channel)
 
         self.instrument = instrument
         self.output_dir = output_dir.format(
@@ -767,6 +768,8 @@ class Pipeline:
 
         # Load instrument (before config, so we can get settings fallbacks)
         inst = load_instrument(instrument)
+        for c in [channel] if isinstance(channel, str) else channel or []:
+            inst.validate_channel(c)
 
         # Load configuration (channel-specific if settings_{channel}.json exists)
         channel_fallbacks = inst.get_settings_fallbacks(channel) if channel else None

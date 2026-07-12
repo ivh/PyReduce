@@ -45,6 +45,7 @@ uv run reduce run INSTRUMENT [OPTIONS]
 | `--trace-range` | | Trace range to process (e.g., "1,21") |
 | `--settings` | | JSON file with settings overrides |
 | `--use` | | Fiber group(s) to reduce (e.g., "upper" or "upper,lower") |
+| `--skip-existing` | | Skip steps whose output files already exist |
 
 **Examples:**
 
@@ -157,6 +158,22 @@ uv run reduce combine *.final.fits --output combined.fits
 
 # Combine specific files
 uv run reduce combine night1.fits night2.fits night3.fits -o combined.fits
+```
+
+### list-channels
+
+List the available channels of an instrument:
+
+```bash
+uv run reduce list-channels UVES
+```
+
+Output:
+```
+Channels of UVES:
+  - BLUE
+  - MIDDLE
+  - RED
 ```
 
 ### list-steps

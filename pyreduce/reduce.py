@@ -201,6 +201,8 @@ def main(
         channels = info.get("channels") or instrument.discover_channels(input_dir)
     if np.isscalar(channels):
         channels = [channels]
+    for c in channels:
+        instrument.validate_channel(c)
 
     for t, n, c in product(target, night, channels):
         log_file = join(

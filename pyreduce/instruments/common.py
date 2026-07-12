@@ -896,6 +896,22 @@ class Instrument:
         # iterate once with channel=None.
         return self.channels or [None]
 
+    def validate_channel(self, channel):
+        """Raise a clear error when a requested channel does not exist.
+
+        Matching is case-insensitive, like the header filters. Instruments
+        without a channels list accept anything (some subclasses build
+        their channels dynamically).
+        """
+        if not channel or not self.channels:
+            return
+        if any(str(c).casefold() == str(channel).casefold() for c in self.channels):
+            return
+        raise ValueError(
+            f"Unknown channel '{channel}' for instrument {self.name}. "
+            f"Available channels: {', '.join(str(c) for c in self.channels)}"
+        )
+
     def get_settings_fallbacks(self, channel):
         """Return channel names to try when looking up settings files.
 

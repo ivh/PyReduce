@@ -87,6 +87,12 @@ def cli():
     default=None,
     help="Fiber group(s) to reduce (e.g., 'upper' or 'upper,lower')",
 )
+@click.option(
+    "--skip-existing",
+    is_flag=True,
+    default=False,
+    help="Skip steps whose output files already exist",
+)
 def run(
     instrument,
     target,
@@ -102,6 +108,7 @@ def run(
     trace_range,
     settings,
     use,
+    skip_existing,
 ):
     """Run the reduction pipeline.
 
@@ -110,7 +117,18 @@ def run(
     import os
 
     from .configuration import get_configuration_for_instrument, load_settings_override
+    from .instruments.instrument_info import load_instrument
     from .reduce import main as reduce_main
+
+    # Validate instrument and channel before doing any work
+    try:
+        inst = load_instrument(instrument)
+    except ModuleNotFoundError:
+        raise click.ClickException(f"Unknown instrument: {instrument}") from None
+    try:
+        inst.validate_channel(channel)
+    except ValueError as e:
+        raise click.ClickException(str(e)) from None
 
     # CLI args override env vars for plot settings
     if plot_show is not None:
@@ -151,6 +169,7 @@ def run(
             plot=plot,
             plot_dir=plot_dir,
             use_groups=use_groups,
+            skip_existing=skip_existing,
         )
     except FileNotFoundError as e:
         raise click.ClickException(str(e)) from None
@@ -311,6 +330,26 @@ def list_steps():
     click.echo("Available reduction steps:")
     for step in ALL_STEPS:
         click.echo(f"  - {step}")
+
+
+@cli.command("list-channels")
+@click.argument("instrument")
+def list_channels(instrument):
+    """List the available channels of INSTRUMENT."""
+    from .instruments.instrument_info import load_instrument
+
+    try:
+        inst = load_instrument(instrument)
+    except ModuleNotFoundError:
+        raise click.ClickException(f"Unknown instrument: {instrument}") from None
+
+    channels = inst.config.channels
+    if not channels:
+        click.echo(f"{inst.name.upper()} has a single channel (no --channel needed)")
+        return
+    click.echo(f"Channels of {inst.name.upper()}:")
+    for c in channels:
+        click.echo(f"  - {c}")
 
 
 def make_step_command(step_name):

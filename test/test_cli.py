@@ -80,6 +80,26 @@ class TestListStepsCommand:
         )
 
 
+class TestListChannelsCommand:
+    """Test the list-channels command."""
+
+    def test_list_channels_multi(self, runner):
+        result = runner.invoke(cli, ["list-channels", "UVES"])
+        assert result.exit_code == 0
+        for channel in ("BLUE", "MIDDLE", "RED"):
+            assert channel in result.output
+
+    def test_list_channels_single(self, runner):
+        result = runner.invoke(cli, ["list-channels", "HERMES"])
+        assert result.exit_code == 0
+        assert "single channel" in result.output
+
+    def test_list_channels_unknown_instrument(self, runner):
+        result = runner.invoke(cli, ["list-channels", "NOSUCHSPECTROGRAPH"])
+        assert result.exit_code != 0
+        assert "Unknown instrument" in result.output
+
+
 class TestDownloadCommand:
     """Test the download command."""
 
@@ -220,6 +240,37 @@ class TestRunCommand:
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         assert call_kwargs["channels"] == "MIDDLE"
+
+    @patch("pyreduce.reduce.main")
+    def test_run_with_skip_existing(self, mock_main, runner):
+        """Test that --skip-existing is forwarded to reduce.main."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--skip-existing"]
+        )
+        assert result.exit_code == 0
+        assert mock_main.call_args[1]["skip_existing"] is True
+
+    def test_run_invalid_channel(self, runner):
+        """An unknown channel fails fast with the available channels listed."""
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205", "-c", "GREEN"])
+        assert result.exit_code != 0
+        assert "Unknown channel 'GREEN'" in result.output
+        assert "BLUE" in result.output
+
+    def test_run_channel_case_insensitive(self, runner):
+        """Channel matching ignores case (as the header filters do)."""
+        with patch("pyreduce.reduce.main") as mock_main:
+            mock_main.return_value = None
+            result = runner.invoke(
+                cli, ["run", "UVES", "-t", "HD132205", "-c", "middle"]
+            )
+        assert result.exit_code == 0
+
+    def test_run_unknown_instrument(self, runner):
+        result = runner.invoke(cli, ["run", "NOSUCHSPECTROGRAPH"])
+        assert result.exit_code != 0
+        assert "Unknown instrument" in result.output
 
     @patch("pyreduce.reduce.main")
     def test_run_with_steps(self, mock_main, runner):
