@@ -317,7 +317,10 @@ class Pipeline:
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
             logger.info("Grouping %d traces into fiber groups", len(all_traces))
-            trace_objects = group_fibers(all_traces, fibers_config, degree=degree)
+            # Keep raw fiber traces alongside the grouped ones, matching
+            # Trace.run(), so per-fiber selection still works downstream
+            grouped = group_fibers(all_traces, fibers_config, degree=degree)
+            trace_objects = grouped + all_traces
         else:
             trace_objects = all_traces
 

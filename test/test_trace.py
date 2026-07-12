@@ -1010,6 +1010,60 @@ class TestGroupFibers:
             assert t.fiber_idx is None
 
     @pytest.mark.unit
+    def test_group_fibers_incomplete_order_does_not_truncate_later_orders(self):
+        """A missing fiber in one order must not shrink the group range
+        for subsequent (complete) orders."""
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        # Order 90 (processed first) has only 2 of 3 fibers detected;
+        # order 91 has all 3.
+        traces = [
+            TraceData(
+                m=90,
+                fiber_idx=1,
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=90,
+                fiber_idx=2,
+                pos=np.array([0.0, 0.0, 120.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=91,
+                fiber_idx=1,
+                pos=np.array([0.0, 0.0, 200.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=91,
+                fiber_idx=2,
+                pos=np.array([0.0, 0.0, 220.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=91,
+                fiber_idx=3,
+                pos=np.array([0.0, 0.0, 240.0]),
+                column_range=(10, 990),
+            ),
+        ]
+
+        config = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 4), merge="average")}
+        )
+        result = trace.group_fibers(traces, config)
+
+        assert len(result) == 2
+        by_m = {t.m: t for t in result}
+        # Order 90: average of the 2 detected fibers
+        assert by_m[90].y_at_x(500) == pytest.approx(110.0, abs=1.0)
+        # Order 91: average of all 3 fibers, not truncated to the first 2
+        assert by_m[91].y_at_x(500) == pytest.approx(220.0, abs=1.0)
+
+    @pytest.mark.unit
     def test_group_fibers_bundles_within_order(self):
         """Bundles inside a single echelle order m=90.
 

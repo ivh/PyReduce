@@ -631,6 +631,62 @@ class TestExtractionHeightFallback:
         assert per_trace_heights == [None]
 
 
+class TestTraceWritebackErrors:
+    """Steps that persist results into traces.fits must fail loudly when
+    the write fails, instead of leaving stale traces on disk."""
+
+    @pytest.fixture
+    def mock_instrument(self):
+        return load_instrument("UVES")
+
+    @pytest.fixture
+    def sample_trace(self):
+        from pyreduce.trace_model import Trace as TraceData
+
+        return TraceData(m=90, pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990))
+
+    @pytest.mark.unit
+    def test_wavecal_finalize_save_propagates_write_error(
+        self, mock_instrument, tmp_path, monkeypatch, sample_trace
+    ):
+        from pyreduce.configuration import load_config
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.WavelengthCalibrationFinalize(
+            mock_instrument, "", "t", "n", str(tmp_path), None, **config["wavecal"]
+        )
+
+        def boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(reduce, "save_traces", boom)
+        with pytest.raises(OSError, match="disk full"):
+            step.save({}, [sample_trace])
+
+    @pytest.mark.unit
+    def test_curvature_save_propagates_write_error(
+        self, mock_instrument, tmp_path, monkeypatch, sample_trace
+    ):
+        from pyreduce.configuration import load_config
+        from pyreduce.trace_model import save_traces
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.SlitCurvatureDetermination(
+            mock_instrument, "", "t", "n", str(tmp_path), None, **config["curvature"]
+        )
+
+        # Existing traces.fits so save() takes the update path
+        trace_file = tmp_path / (step.prefix + ".traces.fits")
+        save_traces(str(trace_file), [sample_trace], steps=["trace"])
+
+        def boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(reduce, "save_traces", boom)
+        with pytest.raises(OSError, match="disk full"):
+            step.save([sample_trace])
+
+
 # Tests that require instrument data follow below
 
 

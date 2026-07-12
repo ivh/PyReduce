@@ -1974,21 +1974,18 @@ class WavelengthCalibrationFinalize(Step):
             logger.info("Updated linelist with refined positions: %s", savefile)
 
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
-        try:
-            # Read existing header to preserve metadata
-            header = None
-            if os.path.exists(trace_file):
-                with fits.open(trace_file, memmap=False) as hdu:
-                    header = hdu[0].header
-            if header is None:
-                header = fits.Header()
-            steps = header.get("E_STEPS", "trace").split(",")
-            if "wavecal" not in steps:
-                steps.append("wavecal")
-            save_traces(trace_file, trace, header, steps=steps)
-            logger.info("Updated traces with wavelength data: %s", trace_file)
-        except Exception as e:
-            logger.warning("Could not update traces.fits with wavelength: %s", e)
+        # Read existing header to preserve metadata
+        header = None
+        if os.path.exists(trace_file):
+            with fits.open(trace_file, memmap=False) as hdu:
+                header = hdu[0].header
+        if header is None:
+            header = fits.Header()
+        steps = header.get("E_STEPS", "trace").split(",")
+        if "wavecal" not in steps:
+            steps.append("wavecal")
+        save_traces(trace_file, trace, header, steps=steps)
+        logger.info("Updated traces with wavelength data: %s", trace_file)
 
     def load(self):
         """Load wavelength calibration linelists.
@@ -2212,20 +2209,17 @@ class LaserFrequencyCombFinalize(Step):
             Already-updated trace objects
         """
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
-        try:
-            header = None
-            if os.path.exists(trace_file):
-                with fits.open(trace_file, memmap=False) as hdu:
-                    header = hdu[0].header
-            if header is None:
-                header = fits.Header()
-            steps = header.get("E_STEPS", "trace").split(",")
-            if "freq_comb" not in steps:
-                steps.append("freq_comb")
-            save_traces(trace_file, trace, header, steps=steps)
-            logger.info("Updated traces with freq_comb wavelength: %s", trace_file)
-        except Exception as e:
-            logger.warning("Could not update traces.fits with freq_comb: %s", e)
+        header = None
+        if os.path.exists(trace_file):
+            with fits.open(trace_file, memmap=False) as hdu:
+                header = hdu[0].header
+        if header is None:
+            header = fits.Header()
+        steps = header.get("E_STEPS", "trace").split(",")
+        if "freq_comb" not in steps:
+            steps.append("freq_comb")
+        save_traces(trace_file, trace, header, steps=steps)
+        logger.info("Updated traces with freq_comb wavelength: %s", trace_file)
 
     def load(self):
         """Load is a no-op - wavelengths are in traces.fits."""
@@ -2329,26 +2323,23 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         """
         trace_file = join(self.output_dir, self.prefix + ".traces.fits")
         if os.path.exists(trace_file):
-            try:
-                trace_objects, header = load_traces(trace_file)
+            trace_objects, header = load_traces(trace_file)
 
-                # Update each trace with slit data from fitted traces
-                # Match by (m, group) since traces may be a filtered subset
-                fitted = {(t.m, t.group): t for t in traces}
-                for t in trace_objects:
-                    match = fitted.get((t.m, t.group))
-                    if match is not None:
-                        t.slit = match.slit
-                        t.slitdelta = match.slitdelta
+            # Update each trace with slit data from fitted traces
+            # Match by (m, group) since traces may be a filtered subset
+            fitted = {(t.m, t.group): t for t in traces}
+            for t in trace_objects:
+                match = fitted.get((t.m, t.group))
+                if match is not None:
+                    t.slit = match.slit
+                    t.slitdelta = match.slitdelta
 
-                # Save updated traces
-                steps = header.get("E_STEPS", "trace").split(",")
-                if "curvature" not in steps:
-                    steps.append("curvature")
-                save_traces(trace_file, trace_objects, header, steps=steps)
-                logger.info("Updated traces with curvature data: %s", trace_file)
-            except Exception as e:
-                logger.warning("Could not update traces.fits with curvature: %s", e)
+            # Save updated traces
+            steps = header.get("E_STEPS", "trace").split(",")
+            if "curvature" not in steps:
+                steps.append("curvature")
+            save_traces(trace_file, trace_objects, header, steps=steps)
+            logger.info("Updated traces with curvature data: %s", trace_file)
 
     def load(self):
         """Curvature is now stored in traces, not separate files."""

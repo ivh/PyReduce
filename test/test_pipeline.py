@@ -6,6 +6,46 @@ import pytest
 from pyreduce.pipeline import Pipeline
 
 
+class TestOrganize:
+    """Tests for Pipeline.organize() fiber grouping."""
+
+    @pytest.mark.unit
+    def test_organize_keeps_raw_fiber_traces(self, tmp_path):
+        """organize() must retain per-fiber traces alongside the grouped
+        ones (matching Trace.run), so per-fiber selection works later."""
+        from pyreduce.configuration import load_config
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        config = load_config(None, "UVES", 0)
+        pipe = Pipeline("UVES", str(tmp_path), config=config)
+        pipe.instrument.config.fibers = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 3), merge="average")}
+        )
+
+        raw = [
+            TraceData(
+                m=90,
+                fiber_idx=1,
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=90,
+                fiber_idx=2,
+                pos=np.array([0.0, 0.0, 120.0]),
+                column_range=(10, 990),
+            ),
+        ]
+        pipe.organize(raw)
+
+        result = pipe._data["trace"]
+        grouped = [t for t in result if t.group is not None]
+        raw_kept = [t for t in result if t.fiber_idx is not None]
+        assert len(grouped) == 1
+        assert len(raw_kept) == 2
+
+
 class TestPipelineConstruction:
     """Test Pipeline construction and fluent API."""
 
