@@ -4,7 +4,6 @@ import logging
 import warnings
 
 import numpy as np
-from astropy.io import fits
 from astropy.io.fits.verify import VerifyWarning
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -13,7 +12,6 @@ from ..combine_frames import (
     combine_calibrate,
 )
 from ..extract import extract
-from ..provenance import add_provenance
 from ..trace import (
     select_traces_for_step,
 )
@@ -291,63 +289,3 @@ class ExtractionStep(Step):
         )
 
         return data, unc, slitfu, cr
-
-
-class FitsIOStep(Step):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._loadDependsOn += ["mask"]
-        self.allow_failure = True
-
-    def save(self, data, head, dtype=None):
-        """
-        Save the data to a FITS file
-
-        Parameters
-        ----------
-        data : array of shape (nrow, ncol)
-            bias data
-        head : FITS header
-            bias header
-        """
-        if dtype is not None:
-            data = np.asarray(data, dtype=np.float32)
-
-        head = add_provenance(head)
-        fits.writeto(
-            self.savefile,
-            data=data,
-            header=head,
-            overwrite=True,
-            output_verify="silentfix+ignore",
-        )
-        logger.info("Created data file: %s", self.savefile)
-
-    def load(self, mask):
-        """
-        Load the master bias from a previous run
-
-        Parameters
-        ----------
-        mask : array of shape (nrow, ncol)
-            Bad pixel mask
-
-        Returns
-        -------
-        data : masked array of shape (nrow, ncol)
-            master bias data, with the bad pixel mask applied
-        head : FITS header
-            header of the master bias
-        """
-        try:
-            with fits.open(self.savefile, memmap=False) as hdu:
-                data, head = hdu[0].data, hdu[0].head
-            data = np.ma.masked_array(data, mask=mask)
-            logger.info("Data file: %s", self.savefile)
-        except FileNotFoundError as ex:
-            if self.allow_failure:
-                logger.warning("No data file found")
-                data, head = None, None
-            else:
-                raise ex
-        return data, head

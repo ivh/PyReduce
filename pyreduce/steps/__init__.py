@@ -7,7 +7,6 @@ The Pipeline class in :mod:`pyreduce.pipeline` wires these together;
 from .base import (
     CalibrationStep,
     ExtractionStep,
-    FitsIOStep,
     Step,
     wavelengths_from_traces,
 )
@@ -45,7 +44,6 @@ __all__ = [
     "ContinuumNormalization",
     "ExtractionStep",
     "Finalize",
-    "FitsIOStep",
     "Flat",
     "LaserFrequencyCombFinalize",
     "LaserFrequencyCombMaster",
