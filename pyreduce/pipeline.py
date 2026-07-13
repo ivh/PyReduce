@@ -45,7 +45,7 @@ import numpy as np
 from . import util
 from .configuration import load_config
 from .instruments.instrument_info import load_instrument
-from .reduce import (
+from .steps import (
     BackgroundScatter,
     Bias,
     ContinuumNormalization,
@@ -647,35 +647,37 @@ class Pipeline:
         # Map step names to pipeline methods
         # Use len() for truth checks since files can be numpy arrays
         step_map = {
-            "bias": lambda: pipe.bias(files.get("bias", []))
-            if len(files.get("bias", []))
-            else pipe,
-            "flat": lambda: pipe.flat(files.get("flat", []))
-            if len(files.get("flat", []))
-            else pipe,
+            "bias": lambda: (
+                pipe.bias(files.get("bias", [])) if len(files.get("bias", [])) else pipe
+            ),
+            "flat": lambda: (
+                pipe.flat(files.get("flat", [])) if len(files.get("flat", [])) else pipe
+            ),
             "trace": lambda: pipe.trace(files.get("trace", files.get("flat"))),
             "curvature": lambda: pipe.curvature(
                 files.get("curvature", files.get("flat"))
             ),
             "scatter": lambda: pipe.scatter(files.get("scatter", files.get("flat"))),
             "norm_flat": lambda: pipe.normalize_flat(),
-            "wavecal_master": lambda: pipe.wavecal_master(
-                files.get("wavecal_master", [])
-            )
-            if len(files.get("wavecal_master", []))
-            else pipe,
+            "wavecal_master": lambda: (
+                pipe.wavecal_master(files.get("wavecal_master", []))
+                if len(files.get("wavecal_master", []))
+                else pipe
+            ),
             "wavecal_init": lambda: pipe.wavecal_init(),
             "wavecal": lambda: pipe.wavecal(),
-            "freq_comb_master": lambda: pipe.freq_comb_master(
-                files.get("freq_comb_master", [])
-            )
-            if len(files.get("freq_comb_master", []))
-            else pipe,
+            "freq_comb_master": lambda: (
+                pipe.freq_comb_master(files.get("freq_comb_master", []))
+                if len(files.get("freq_comb_master", []))
+                else pipe
+            ),
             "freq_comb": lambda: pipe.freq_comb(),
             "rectify": lambda: pipe.rectify(),
-            "science": lambda: pipe.extract(files.get("science", []))
-            if len(files.get("science", []))
-            else pipe,
+            "science": lambda: (
+                pipe.extract(files.get("science", []))
+                if len(files.get("science", []))
+                else pipe
+            ),
             "continuum": lambda: pipe.continuum(),
             "finalize": lambda: pipe.finalize(),
         }

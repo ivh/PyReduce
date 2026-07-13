@@ -708,7 +708,7 @@ class TestTraceWritebackErrors:
         def boom(*args, **kwargs):
             raise OSError("disk full")
 
-        monkeypatch.setattr(reduce, "save_traces", boom)
+        monkeypatch.setattr("pyreduce.steps.wavecal.save_traces", boom)
         with pytest.raises(OSError, match="disk full"):
             step.save({}, [sample_trace])
 
@@ -731,7 +731,7 @@ class TestTraceWritebackErrors:
         def boom(*args, **kwargs):
             raise OSError("disk full")
 
-        monkeypatch.setattr(reduce, "save_traces", boom)
+        monkeypatch.setattr("pyreduce.steps.trace.save_traces", boom)
         with pytest.raises(OSError, match="disk full"):
             step.save([sample_trace])
 

@@ -28,7 +28,14 @@ uv run reduce run UVES -t HD132205 --steps bias,flat,trace,science
 pyreduce/
 ├── __main__.py          # Click CLI entry point
 ├── pipeline.py          # Pipeline API (recommended entry point)
-├── reduce.py            # Step class implementations
+├── reduce.py            # Legacy main() entry, re-exports step classes
+├── steps/               # Step class implementations
+│   ├── base.py          # Step, CalibrationStep, ExtractionStep base classes
+│   ├── calibration.py   # Mask, Bias, Flat, BackgroundScatter, NormalizeFlatField
+│   ├── trace.py         # Trace, SlitCurvatureDetermination
+│   ├── wavecal.py       # WavelengthCalibration*, LaserFrequencyComb*
+│   ├── extraction.py    # ScienceExtraction, RectifyImage
+│   └── output.py        # ContinuumNormalization, Finalize
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction algorithm
 ├── trace_model.py       # Trace dataclass (geometry, curvature, wavelength)
@@ -389,7 +396,7 @@ If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run 
 |------|---------|
 | `pyreduce/__main__.py` | Click CLI entry point |
 | `pyreduce/pipeline.py` | Fluent Pipeline API, `from_instrument()` |
-| `pyreduce/reduce.py` | Step class implementations |
+| `pyreduce/steps/` | Step class implementations (one module per step family) |
 | `pyreduce/extract.py` | Optimal extraction algorithm |
 | `pyreduce/trace_model.py` | Trace dataclass (pos, slit, wave, column_range) |
 | `pyreduce/spectra.py` | Spectrum/Spectra classes for FITS I/O |
