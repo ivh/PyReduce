@@ -166,6 +166,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | `swath_width` | Width of extraction swaths | 300 |
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
 | `maxiter` | Maximum extraction iterations | 30 |
+| `n_jobs` | Files to extract in parallel (joblib semantics, -1 = all cores). Disables plots when not 1 | 1 |
 
 #### extraction_height
 

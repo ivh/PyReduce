@@ -141,6 +141,23 @@ class TestExtractionStepValidation:
         assert step.extraction_kwargs["osample"] == 4
         assert step.extraction_kwargs["swath_width"] == 300
 
+    @pytest.mark.unit
+    def test_science_n_jobs_from_config(self, mock_instrument, tmp_path):
+        """ScienceExtraction should read n_jobs from settings, defaulting to 1."""
+        from pyreduce.configuration import load_config
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.ScienceExtraction(
+            mock_instrument, "", "", "", str(tmp_path), None, **config["science"]
+        )
+        assert step.n_jobs == 1
+
+        config["science"]["n_jobs"] = -1
+        step = reduce.ScienceExtraction(
+            mock_instrument, "", "", "", str(tmp_path), None, **config["science"]
+        )
+        assert step.n_jobs == -1
+
 
 class TestNormalizeFlatFieldValidation:
     """Unit tests for NormalizeFlatField validation."""

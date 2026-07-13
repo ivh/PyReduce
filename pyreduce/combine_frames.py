@@ -487,7 +487,12 @@ def combine_frames(
         logger.debug("total cosmic ray hits identified and removed: %i", n_fixed)
 
         result = clipnflip(result, head)
-        result = np.ma.masked_array(result, mask=kwargs.get("mask"))
+        # copy the mask: in-place arithmetic on the result ORs other masks into
+        # it, which must not leak into (possibly read-only) shared bad pixel mask
+        mask = kwargs.get("mask")
+        if mask is not None:
+            mask = np.array(mask, dtype=bool)
+        result = np.ma.masked_array(result, mask=mask)
 
         for d in data:
             d._file.close()  # Close open FITS files

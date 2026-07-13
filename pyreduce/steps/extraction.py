@@ -2,6 +2,7 @@
 
 import logging
 
+import joblib
 import numpy as np
 from astropy.io import fits
 from tqdm import tqdm
@@ -103,6 +104,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
         self._dependsOn += ["norm_flat", "scatter"]
+        #:int: number of files to extract in parallel (joblib semantics, -1 = all cores)
+        self.n_jobs = config.get("n_jobs", 1)
 
     def science_file(self, name):
         """Name of the science file in disk, based on the input file
@@ -168,41 +171,75 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         extraction_kwargs = dict(self.extraction_kwargs)
         default_height = extraction_kwargs.pop("extraction_height", 0.5)
 
-        heads, all_spectra = [], []
-        for fname in tqdm(files, desc="Files"):
-            logger.info("Science file: %s", fname)
-
-            # Calibrate the input image
-            im, head = self.calibrate(
-                [fname],
-                mask,
-                bias,
-                norm_flat,
-                traces=trace_list,
-                extraction_height=default_height,
+        if self.n_jobs != 1 and self.plot:
+            # matplotlib does not survive worker processes
+            logger.warning(
+                "Disabling plots for parallel science extraction (n_jobs=%s)",
+                self.n_jobs,
             )
+            self.plot = False
 
-            # Extract science spectrum - returns list[Spectrum]
-            spectra = extract(
-                im,
-                trace_list,
-                extraction_height=default_height,
-                extraction_type=self.extraction_method,
-                gain=head["e_gain"],
-                readnoise=head["e_readn"],
-                dark=head["e_drk"],
-                scatter=scatter,
-                plot=self.plot,
-                plot_title=self.plot_title,
-                **extraction_kwargs,
+        args = (trace_list, default_height, extraction_kwargs)
+        calib = (bias, norm_flat, scatter, mask)
+        if self.n_jobs == 1:
+            results = [
+                self._extract_file(fname, *args, *calib)
+                for fname in tqdm(files, desc="Files")
+            ]
+        else:
+            parallel = joblib.Parallel(n_jobs=self.n_jobs, return_as="generator")
+            jobs = (
+                joblib.delayed(self._extract_file)(fname, *args, *calib)
+                for fname in files
             )
+            results = list(tqdm(parallel(jobs), total=len(files), desc="Files"))
 
-            # Save spectrum to disk
-            self.save(fname, head, spectra)
-            heads.append(head)
-            all_spectra.append(spectra)
-
+        heads = [head for head, _ in results]
+        all_spectra = [spectra for _, spectra in results]
         return heads, all_spectra
+
+    def _extract_file(
+        self,
+        fname,
+        trace_list,
+        default_height,
+        extraction_kwargs,
+        bias,
+        norm_flat,
+        scatter,
+        mask,
+    ):
+        """Calibrate, extract, and save a single observation."""
+        logger.info("Science file: %s", fname)
+
+        # Calibrate the input image
+        im, head = self.calibrate(
+            [fname],
+            mask,
+            bias,
+            norm_flat,
+            traces=trace_list,
+            extraction_height=default_height,
+        )
+
+        # Extract science spectrum - returns list[Spectrum]
+        spectra = extract(
+            im,
+            trace_list,
+            extraction_height=default_height,
+            extraction_type=self.extraction_method,
+            gain=head["e_gain"],
+            readnoise=head["e_readn"],
+            dark=head["e_drk"],
+            scatter=scatter,
+            plot=self.plot,
+            plot_title=self.plot_title,
+            **extraction_kwargs,
+        )
+
+        # Save spectrum to disk
+        self.save(fname, head, spectra)
+        return head, spectra
 
     def save(self, fname, head, spectra: list[Spectrum]):
         """Save extracted spectra using Spectra format.

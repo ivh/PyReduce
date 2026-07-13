@@ -487,6 +487,11 @@ class Instrument:
         if dtype is not None:
             data = data.astype(dtype)
 
+        # copy the mask: in-place arithmetic on the returned array ORs other
+        # masks into it, which must not leak into (possibly read-only) shared
+        # bad pixel mask
+        if mask is not None:
+            mask = np.array(mask, dtype=bool)
         data = np.ma.masked_array(data, mask=mask)
 
         hdu.close()

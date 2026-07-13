@@ -600,7 +600,13 @@
                 {
                     "$ref": "#/definitions/extraction"
                 }
-            ]
+            ],
+            "properties": {
+                "n_jobs": {
+                    "description": "Number of files to extract in parallel (joblib semantics, -1 = all cores). Plots are disabled when not 1.",
+                    "type": "integer"
+                }
+            }
         },
         "continuum": {
             "$ref": "#/definitions/step"
