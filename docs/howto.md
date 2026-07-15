@@ -87,6 +87,21 @@ pipe.extract(science_files)
 result = pipe.run()
 ```
 
+### Parallel Extraction
+
+For nights with many science frames, the science step can extract files in
+parallel worker processes. Set `n_jobs` in the `science` settings section
+(default 1, -1 uses all cores); plots are disabled when parallel:
+
+```python
+from pyreduce.configuration import get_configuration_for_instrument
+
+config = get_configuration_for_instrument("UVES")
+config["science"]["n_jobs"] = 4
+
+Pipeline.from_instrument("UVES", ..., configuration=config).run()
+```
+
 ## Environment Variables
 
 | Variable | Description |
