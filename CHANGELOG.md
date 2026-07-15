@@ -1,6 +1,33 @@
 # Changelog
 
 
+## [0.9b2] - 2026-07-15
+
+### Added
+- Parallel science extraction via new `n_jobs` science setting (joblib semantics, -1 = all cores)
+- CLI: `--skip-existing` flag, `list-channels` command; bad channel/instrument names fail fast listing the valid options
+- Fiber selection in the Pipeline API: `use_fibers()`, `extract(use=)`, `from_instrument(use=)`, mirroring CLI `--use`
+- Wavecal quality metrics: per-group log summary and `.wavecal_quality.json` export (RMS/median residuals in m/s, line counts, AIC)
+- Trace: `max_error` setting rejects fused double-order clusters (port of IDL REDUCE `MAX_ERR`)
+- Provenance: `PR_version`/`PR_githash` stamped into all FITS products; `DATE` and `e_cont` recorded in final headers
+- Atlas: full KPNO ThAr line list; UNe NIR line list
+- MOSAIC: per-bundle wavelength range guess for single-order multi-bundle wavecal initialization
+- Example `examples/andes_yjh_fp.py`: extract and measure FP lines in an IFU frame
+
+### Changed
+- `reduce.py` split into `pyreduce/steps/` package; `reduce.py` keeps `main()` and re-exports step classes. `mark_orders` alias renamed to `detect_traces`; unused `FitsIOStep` removed
+- MOSAIC channels renamed to the ESO INS MODE scheme (NIR: `J_LR`/`H_LR`/`H_HR`; VIS: arm+resolution x detector quadrant)
+- wavecal_init: FFT cross-correlation against the synthesized atlas for the global offset; new `wave_delta` search-radius parameter
+- Config errors fail early: `id_*` regex validation, per-channel list length checks, missing centers files raise instead of falling back silently
+
+### Fixed
+- Corrupted `thar.fits` atlas replaced with the clean KPNO spectrum; corrupt `une.fits` dropped
+- Shared bad pixel mask was attached by reference and mutated in-place by `load_fits`/`combine_frames`
+- `group_fibers`: per-order range clamp no longer truncates later orders
+- Traces file write errors in wavecal/freq_comb/curvature now propagate instead of being swallowed
+- Wavelength solutions are written to the correct traces when wavecal results are group-keyed (MOSAIC)
+- Legacy linelist `.npz` files migrated to the current dtype on load
+
 ## [0.9b1] - 2026-06-17
 
 ### Added

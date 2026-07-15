@@ -151,6 +151,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 | `filter_x` | Median filter size in x | 0 |
 | `filter_type` | Filter type ("boxcar" or "median") | "boxcar" |
 | `border_width` | Pixels to ignore at edges. Int or `[top, bottom, left, right]` | null |
+| `max_error` | Reject clusters whose polynomial fit RMS (pixels) exceeds this; catches fused double-order clusters | null |
 
 Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% of image maximum) for trace detection.
 

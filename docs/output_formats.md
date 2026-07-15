@@ -135,3 +135,12 @@ spectra = Spectra.read("old_file.fits")
 for s in spectra.data:
     print(f"Order {s.m}: {len(s.spec)} pixels")
 ```
+
+## Wavecal Quality Metrics
+
+The `wavecal` step writes `<prefix>.wavecal_quality.json` next to the
+linelists with a machine-readable summary of the wavelength fit: global and
+per-order RMS and median absolute residuals (m/s), line counts, and the AIC
+of the fit. Per-order keys are physical order numbers when the linelist has
+an `obase`, otherwise 0-based indices. The same summary is logged per group
+during the reduction.
