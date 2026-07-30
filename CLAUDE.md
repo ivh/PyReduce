@@ -300,11 +300,30 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 - `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_USE_NUMBA` - Use the pure-Python numba extraction backend instead of CFFI (default: 0)
 - `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
 The charslit backend supports higher-degree curvature polynomials (up to degree 5) and per-row slitdelta corrections. It requires the optional `charslit` dependency.
+
+## Extraction Backends
+
+`extract._get_backend()` selects the slit-decomposition implementation, all three
+exposing the same `slitdec(...)` signature and result dict:
+
+| Backend | Module | Selected by |
+|---------|--------|-------------|
+| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — |
+| External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` |
+| Pure Python | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` |
+
+`numba_slitdec.py` is a transliteration of the current `clib/slitdec.c` (pixel-centric
+SLE fills, dense merge windows from the per-pixel zeta ranges, zeta only — no xi
+tensor). It needs no compiler at install time, costs ~1.4x the C runtime, and agrees
+with the C to ~1e-15 relative. `clib/slitdec.c` stays the reference: when it changes,
+port the change and re-run `test/test_numba_slitdec.py`, which diffs the two backends
+directly. Requires the optional `numba` extra (`uv sync --extra numba`).
 
 ## ANDES Instruments
 
@@ -360,6 +379,7 @@ HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf`
 ```bash
 uv sync                              # Install dependencies
 uv sync --extra charslit             # Include charslit backend (from GitHub)
+uv sync --extra numba                # Include pure-Python numba backend
 uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions
