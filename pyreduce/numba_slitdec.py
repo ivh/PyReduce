@@ -7,7 +7,7 @@ SLE fills, dense merge windows keyed on the per-pixel zeta ranges, zeta only
 extension; ``cwrappers.slitdec`` remains the reference implementation and this
 module is expected to stay somewhat slower.
 
-Set ``PYREDUCE_USE_NUMBA=1`` to select it as the extraction backend.
+Set ``PYREDUCE_EXTRACTION=numba`` to select it as the extraction backend.
 
 The zeta tensor is stored as three parallel arrays (x, iy, w) rather than the
 C struct-of-three, which lets Numba/LLVM vectorize the contiguous walks.

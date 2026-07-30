@@ -299,26 +299,26 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
-- `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
-- `PYREDUCE_USE_NUMBA` - Use the pure-Python numba extraction backend instead of CFFI (default: 0)
-- `PYREDUCE_USE_NUMPY` - Use the pure numpy/scipy extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `charslit`, `numba`, `numpy` (CLI: `--extraction`)
 - `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
-The charslit backend supports higher-degree curvature polynomials (up to degree 5) and per-row slitdelta corrections. It requires the optional `charslit` dependency.
+All backends support curvature polynomials up to degree 5 and per-row slitdelta corrections (`PYREDUCE_USE_DELTAS`, on by default, is backend-independent). Only `PYREDUCE_EXTRACTION=charslit` needs the optional `charslit` dependency.
 
 ## Extraction Backends
 
-`extract._get_backend()` selects the slit-decomposition implementation, all four
-exposing the same `slitdec(...)` signature and result dict:
+`extract._get_backend()` selects the slit-decomposition implementation from the
+`PYREDUCE_EXTRACTION` environment variable (registry: `extract.EXTRACTION_BACKENDS`,
+default `c`; an unknown name raises). All four expose the same `slitdec(...)`
+signature and result dict:
 
-| Backend | Module | Selected by | vs C |
+| Backend | Module | `PYREDUCE_EXTRACTION` | vs C |
 |---------|--------|-------------|------|
-| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — | 1.0x |
-| External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` | — |
-| Numba | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` | ~1.3x |
-| NumPy/SciPy | `numpy_slitdec` | `PYREDUCE_USE_NUMPY=1` | ~1.4-2x |
+| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | `c` (default) | 1.0x |
+| External charslit | `charslit` package | `charslit` | — |
+| Numba | `numba_slitdec` | `numba` | ~1.3x |
+| NumPy/SciPy | `numpy_slitdec` | `numpy` | ~1.4-2x |
 
 Both pure-Python backends implement the same algorithm as the current
 `clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
@@ -336,6 +336,15 @@ compiled C extension:
   core dependencies — and no JIT warmup. Per iteration it is slightly faster than the
   C; the whole remaining gap is one-off setup, dominated by building the zeta candidate
   lists. Written for pipelines whose dependency policy excludes numba.
+
+`PYREDUCE_USE_CHARSLIT` (plus the short-lived `PYREDUCE_USE_NUMBA`/`PYREDUCE_USE_NUMPY`)
+was replaced by `PYREDUCE_EXTRACTION` with no alias; the old names are read nowhere.
+If one turns up in a script, `PYREDUCE_USE_CHARSLIT=1` becomes `PYREDUCE_EXTRACTION=charslit`.
+
+Selection is process-wide, not a reduction setting: `--extraction` on `reduce run`
+and the per-step commands just sets `PYREDUCE_EXTRACTION` before the pipeline is
+built, the same way `--plot-show` works. The backend is deliberately not threaded
+through the settings cascade and not recorded in output headers.
 
 `clib/slitdec.c` stays the reference: when it changes, port the change to both and
 re-run `test/test_numba_slitdec.py` and `test/test_numpy_slitdec.py`, which diff each

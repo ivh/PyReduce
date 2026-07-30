@@ -12,9 +12,9 @@ No extra to install: numpy and scipy are already core PyReduce dependencies.
 ## Where things live
 
 - **Reference**: `pyreduce/clib/slitdec.c`, wrapped by `cwrappers.slitdec`.
-- **This port**: `pyreduce/numpy_slitdec.py`, selected with `PYREDUCE_USE_NUMPY=1`,
+- **This port**: `pyreduce/numpy_slitdec.py`, selected with `PYREDUCE_EXTRACTION=numpy`,
   tested by `test/test_numpy_slitdec.py` (9 cases diffed against the C oracle).
-- **Numba port**: `pyreduce/numba_slitdec.py`, `PYREDUCE_USE_NUMBA=1`. The
+- **Numba port**: `pyreduce/numba_slitdec.py`, `PYREDUCE_EXTRACTION=numba`. The
   structural template for this one.
 - `numba_old` branch holds the superseded pre-slitdec numba code. Do not consult it.
 
@@ -189,7 +189,7 @@ The geometry was checked separately and harder: the COO tensor is **bit-exact**
 against the numba transliteration of `zeta_tensors` — same entry set, zero weight
 deviation — which is what pins down the `dy` accumulation and the collapsed branches.
 
-Full unit suite (742 tests) passes with `PYREDUCE_USE_NUMPY=1`.
+Full unit suite (742 tests) passes with `PYREDUCE_EXTRACTION=numpy`.
 
 Two places where the numpy version could in principle diverge from the C, neither
 observed: `np.sum` is pairwise where the C accumulates sequentially, so `dev` differs

@@ -28,6 +28,10 @@ ALL_STEPS = (
     "finalize",
 )
 
+# Kept in sync with extract.EXTRACTION_BACKENDS by test_cli; spelled out here so
+# --help does not have to import the extraction machinery
+EXTRACTION_BACKENDS = ("c", "charslit", "numba", "numpy")
+
 
 @click.group()
 @click.version_option(package_name="pyreduce-astro")
@@ -93,6 +97,12 @@ def cli():
     default=False,
     help="Skip steps whose output files already exist",
 )
+@click.option(
+    "--extraction",
+    type=click.Choice(EXTRACTION_BACKENDS),
+    default=None,
+    help="Slit decomposition backend (default: c)",
+)
 def run(
     instrument,
     target,
@@ -109,6 +119,7 @@ def run(
     settings,
     use,
     skip_existing,
+    extraction,
 ):
     """Run the reduction pipeline.
 
@@ -133,6 +144,8 @@ def run(
     # CLI args override env vars for plot settings
     if plot_show is not None:
         os.environ["PYREDUCE_PLOT_SHOW"] = plot_show
+    if extraction is not None:
+        os.environ["PYREDUCE_EXTRACTION"] = extraction
 
     # Parse steps
     if steps:
@@ -383,6 +396,12 @@ def make_step_command(step_name):
         default=None,
         help="Fiber group(s) to reduce (e.g., 'upper' or 'upper,lower')",
     )
+    @click.option(
+        "--extraction",
+        type=click.Choice(EXTRACTION_BACKENDS),
+        default=None,
+        help="Slit decomposition backend (default: c)",
+    )
     def cmd(
         instrument,
         target,
@@ -395,17 +414,21 @@ def make_step_command(step_name):
         file,
         settings,
         use,
+        extraction,
     ):
+        import os
+
         from .configuration import (
             get_configuration_for_instrument,
             load_settings_override,
         )
         from .reduce import main as reduce_main
 
+        if extraction is not None:
+            os.environ["PYREDUCE_EXTRACTION"] = extraction
+
         if file:
             # Direct file mode: run step on specific file
-            import os
-
             import numpy as np
 
             from . import reduce as reduce_module

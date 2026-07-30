@@ -29,27 +29,45 @@ logger = logging.getLogger(__name__)
 
 from . import cwrappers
 
-# The default backend is the CFFI slitdec extension (pyreduce.clib, wrapped by
-# cwrappers.slitdec), whose C source is copied from charslit. Set
-# PYREDUCE_USE_CHARSLIT=1 to instead import the external charslit package, for
-# trying out upstream charslit development before copying it over, or
-# PYREDUCE_USE_NUMBA=1 / PYREDUCE_USE_NUMPY=1 for the pure-Python ports.
-# Checked at call time so env var changes within a process take effect.
-_charslit_mod = None
-_numba_mod = None
-_numpy_mod = None
+# PYREDUCE_EXTRACTION selects the slit decomposition implementation. All four
+# expose the same slitdec() signature and result dict; "c" is the reference the
+# others are tested against. "charslit" imports the external package, for trying
+# out upstream development before copying it into clib.
+DEFAULT_EXTRACTION = "c"
 
 
-def _use_charslit():
-    return os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
+def _load_c():
+    return cwrappers
 
 
-def _use_numba():
-    return os.environ.get("PYREDUCE_USE_NUMBA", "0") == "1"
+def _load_charslit():
+    import charslit
+
+    return charslit
 
 
-def _use_numpy():
-    return os.environ.get("PYREDUCE_USE_NUMPY", "0") == "1"
+def _load_numba():
+    from . import numba_slitdec
+
+    return numba_slitdec
+
+
+def _load_numpy():
+    from . import numpy_slitdec
+
+    return numpy_slitdec
+
+
+# Loaders are lazy: charslit and numba are optional dependencies, and importing
+# numba costs real startup time even when unused.
+EXTRACTION_BACKENDS = {
+    "c": _load_c,
+    "charslit": _load_charslit,
+    "numba": _load_numba,
+    "numpy": _load_numpy,
+}
+
+_backend_cache = {}
 
 
 def _use_deltas():
@@ -57,32 +75,22 @@ def _use_deltas():
 
 
 def _get_backend():
-    """Return the slitdec backend module, selected by environment variable:
-    the external charslit package for PYREDUCE_USE_CHARSLIT=1, the numba port
-    for PYREDUCE_USE_NUMBA=1, the numpy port for PYREDUCE_USE_NUMPY=1,
-    otherwise the vendored cwrappers CFFI code."""
-    if _use_charslit():
-        global _charslit_mod
-        if _charslit_mod is None:
-            import charslit
+    """Return the slitdec backend module named by PYREDUCE_EXTRACTION.
 
-            _charslit_mod = charslit
-        return _charslit_mod
-    if _use_numba():
-        global _numba_mod
-        if _numba_mod is None:
-            from . import numba_slitdec
-
-            _numba_mod = numba_slitdec
-        return _numba_mod
-    if _use_numpy():
-        global _numpy_mod
-        if _numpy_mod is None:
-            from . import numpy_slitdec
-
-            _numpy_mod = numpy_slitdec
-        return _numpy_mod
-    return cwrappers
+    One of ``c`` (default, the vendored CFFI extension), ``charslit`` (the
+    external package), ``numba`` or ``numpy`` (the pure-Python ports). Read at
+    call time so changes within a process take effect.
+    """
+    name = os.environ.get("PYREDUCE_EXTRACTION", DEFAULT_EXTRACTION).strip().lower()
+    if name not in EXTRACTION_BACKENDS:
+        raise ValueError(
+            f"Unknown extraction backend {name!r} in PYREDUCE_EXTRACTION; "
+            f"expected one of {', '.join(EXTRACTION_BACKENDS)}"
+        )
+    if name not in _backend_cache:
+        _backend_cache[name] = EXTRACTION_BACKENDS[name]()
+        logger.debug("Using %r extraction backend", name)
+    return _backend_cache[name]
 
 
 def _slitdec_charslit(
@@ -1246,7 +1254,7 @@ def extract_spectrum(
             swath_curv = curvature[ibeg:iend] if curvature is not None else None
             input_mask = np.ma.getmaskarray(swath_img).copy()
 
-            # Prepare curvature for both backends and visualization
+            # Prepare curvature for the backends and visualization
             slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
             if _use_deltas() and slitdeltas is not None and len(slitdeltas) > 0:
                 # Interpolate slitdeltas to match swath nrows if needed

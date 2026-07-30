@@ -46,6 +46,7 @@ uv run reduce run INSTRUMENT [OPTIONS]
 | `--settings` | | JSON file with settings overrides |
 | `--use` | | Fiber group(s) to reduce (e.g., "upper" or "upper,lower") |
 | `--skip-existing` | | Skip steps whose output files already exist |
+| `--extraction` | | Slit decomposition backend: `c` (default), `charslit`, `numba`, `numpy` |
 
 **Examples:**
 
@@ -67,6 +68,9 @@ uv run reduce run XSHOOTER -t target --plot 1 --plot-dir /tmp/plots --plot-show 
 
 # With plotting - show all at end (useful with webagg backend)
 uv run reduce run UVES -t target --plot 1 --plot-show defer
+
+# Extract with the pure-Python numpy backend instead of the C extension
+uv run reduce run UVES -t HD132205 --extraction numpy
 ```
 
 ### Individual Step Commands
@@ -96,6 +100,7 @@ These accept the same options as `run` (including `-t/--target`) except `--steps
 |--------|-------|-------------|
 | `--file` | `-f` | Specific input file (bypasses file discovery) |
 | `--settings` | | JSON file with settings overrides |
+| `--extraction` | | Slit decomposition backend: `c` (default), `charslit`, `numba`, `numpy` |
 
 **Example with --file:**
 

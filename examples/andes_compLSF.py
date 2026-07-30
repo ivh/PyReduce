@@ -58,8 +58,8 @@ MID_ORDER = {
 MODES = [
     ("fibers", {}),
     ("standard", {}),
-    ("charslit", {"PYREDUCE_USE_CHARSLIT": "1", "PYREDUCE_USE_DELTAS": "0"}),
-    ("charslit+d", {"PYREDUCE_USE_CHARSLIT": "1", "PYREDUCE_USE_DELTAS": "1"}),
+    ("charslit", {"PYREDUCE_EXTRACTION": "charslit", "PYREDUCE_USE_DELTAS": "0"}),
+    ("charslit+d", {"PYREDUCE_EXTRACTION": "charslit", "PYREDUCE_USE_DELTAS": "1"}),
 ]
 
 parser = argparse.ArgumentParser(description="ANDES LSF comparison")

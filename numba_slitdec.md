@@ -15,7 +15,7 @@ with it to 1.3e-14.** Details below.
   "use slitdec (copied from charslit) as the sole CFFI backend"), wrapper
   `cwrappers.slitdec`. This is the fast version and the reference.
 - **`numba` branch**: `pyreduce/numba_slitdec.py`, the new port. Selected with
-  `PYREDUCE_USE_NUMBA=1`, tested by `test/test_numba_slitdec.py`.
+  `PYREDUCE_EXTRACTION=numba`, tested by `test/test_numba_slitdec.py`.
 - **`numba_old` branch** (was `numba`, base `4db3619`, pre-`steps/`-refactor):
   `pyreduce/numba_extract.py` (~919 lines) + the *old* CFFI
   `pyreduce/clib/slit_func_2d_xi_zeta_bd.c`. Superseded; kept for reference only.

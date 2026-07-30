@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from pyreduce.__main__ import ALL_STEPS, cli
+from pyreduce.__main__ import ALL_STEPS, EXTRACTION_BACKENDS, cli
 
 pytestmark = pytest.mark.unit
 
@@ -807,3 +807,27 @@ class TestCLIIntegration:
         # All steps from list-steps should be in help
         for step in ALL_STEPS[:5]:  # Sample check
             assert step in list_result.output
+
+
+class TestExtractionBackendOption:
+    def test_choices_match_extract_registry(self):
+        """The CLI spells out the backend names to keep --help import-free."""
+        from pyreduce.extract import EXTRACTION_BACKENDS as registry
+
+        assert set(EXTRACTION_BACKENDS) == set(registry)
+
+    def test_rejects_unknown_backend(self, runner):
+        result = runner.invoke(cli, ["run", "UVES", "--extraction", "cffi"])
+        assert result.exit_code != 0
+        assert "cffi" in result.output
+
+    @pytest.mark.parametrize("command", ["run", "science"])
+    def test_sets_env_var(self, runner, command):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PYREDUCE_EXTRACTION", None)
+            with patch("pyreduce.reduce.main", side_effect=RuntimeError("stop")) as m:
+                runner.invoke(
+                    cli, [command, "UVES", "-t", "HD132205", "--extraction", "numpy"]
+                )
+            assert m.called
+            assert os.environ["PYREDUCE_EXTRACTION"] == "numpy"

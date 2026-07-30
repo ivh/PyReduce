@@ -6,7 +6,7 @@ SLE fills, dense merge windows keyed on the per-pixel zeta ranges, zeta only
 (no xi tensor). Here the pixel loops are replaced by dense array algebra, so
 the module needs neither a C compiler nor Numba -- only numpy and scipy.
 
-Set ``PYREDUCE_USE_NUMPY=1`` to select it as the extraction backend.
+Set ``PYREDUCE_EXTRACTION=numpy`` to select it as the extraction backend.
 
 Everything geometric is built once per call and collapsed into a single dense
 weight tensor ``T[m, j, p]``: the total zeta weight reaching detector pixel
