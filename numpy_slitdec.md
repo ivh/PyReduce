@@ -5,8 +5,8 @@ numpy/scipy variant as an open experiment. Motivation for doing it: colleagues w
 PyReduce extraction inside a new ESO pipeline whose dependency policy may exclude
 numba. Target was to stay within 5x of the C.
 
-**Outcome: shipped. `pyreduce/numpy_slitdec.py` runs at 3.0–4.2x the C (~3.5x
-typical), agreeing with it to 1.4e-14, with identical masks and iteration counts.**
+**Outcome: shipped. `pyreduce/numpy_slitdec.py` runs at 1.6–2.5x the C (~2x
+typical), agreeing with it to 1.7e-14, with identical masks and iteration counts.**
 No extra to install: numpy and scipy are already core PyReduce dependencies.
 
 ## Where things live
@@ -20,29 +20,46 @@ No extra to install: numpy and scipy are already core PyReduce dependencies.
 
 ## Design
 
-Everything geometric is fixed across iterations and built **once per call**. The zeta
-tensor is held in flat COO form — `pix`, `src_x`, `src_iy`, `w` — with
-`pix = xx * nrows + yy`, i.e. images are transposed internally so the flat pixel index
-runs along the slit first, matching the C's zeta layout. Consecutive COO entries then
-hit consecutive pixels and the per-iteration scatters stay cache friendly.
+Everything geometric is fixed across iterations and built **once per call**, then
+collapsed into one dense tensor
+
+```
+T[m, j, p] = total zeta weight reaching detector pixel p
+             from slit position k0_iy[p] + m and source column k0_x[p] + j
+```
+
+with `K = max_p` window width in slit position and `Kx` in source column (8 and 3
+on CRIRES-like geometry at osample=6). **Both merge windows are contractions of
+`T`**, so nothing per-iteration ever touches the five million individual zeta
+entries again:
+
+```
+W_sL[m, p] = sum_j T[m, j, p] * sP[k0_x[p] + j]      einsum mjp,jp->mp
+W_sP[j, p] = sum_m T[m, j, p] * sL[k0_iy[p] + m]     einsum mjp,mp->jp
+```
+
+Pixels are held **permuted into runs of equal `k0`**, which turns the two normal
+equation fills from indexed scatters (`np.bincount` on the window base) into
+`np.add.reduceat` segment sums — 3.8x faster, and the reason the per-iteration
+cost now lands within 10% of the C.
 
 | C construct | numpy equivalent |
 |---|---|
 | `zeta_tensors` triple loop | vectorised over `(x, y, k)`: `osample+1` subpixels per `(x, y)`, since `iy1`/`iy2` depend on `x` only and both step by `osample` per row |
 | three `zeta_add` branches | one uniform pair, `A = (x+ix1, w - frac*w)` and `B = (x+ix2, frac*w)`; `B` is dropped by the `w > 0` test when `delta == 0` |
 | per-pixel `z_rng` scan | `np.minimum.at` for the window base `k0`, width from the shifted keys |
-| dense merge window `zw[iy - k0]` | one `np.bincount` into a `(K, npix)` array |
-| pair fill `arow[n] += um * uv[n]` | per `(m, d)`: one multiply plus `np.bincount(k0, ...)`, shifted into the band |
+| dense merge window `zw[iy - k0]` | one `np.einsum` contraction of `T` |
+| pair fill `arow[n] += um * uv[n]` | per `(m, d)`: one multiply plus `np.add.reduceat` over the `k0` runs |
 | `bandsol` | `scipy.linalg.solveh_banded` on the upper bands |
-| model triple loop | contract the sP window: `model[p] = sum_m W[m,p] * sP[k0_x[p]+m]` |
+| model triple loop | contract the sP window: `model[p] = sum_j W_sP[j,p] * sP[k0_x[p]+j]` |
 | `quick_select_percentile/median` | `np.partition(arr, k)[k]` — same, no interpolation |
 
 Only the upper bands are ever built, since the matrix is symmetric and that is exactly
-what `solveh_banded` consumes: the C's mirroring step disappears. `Aup[i, d]` holds
+what `solveh_banded` consumes: the C's mirroring step disappears. `Aup[d, i]` holds
 `A[i, i+d]`, so the smoothing penalty and the diagonal floor become two-line slice
 operations.
 
-Three details that took measurement rather than reasoning:
+Details that took measurement rather than reasoning:
 
 - **`dy` must be accumulated, not evaluated in closed form.** The closed form
   `dy0 + y + k*step` drifts up to 6.8e-13 from the C's sequential `+=`/`-=`, enough to
@@ -52,10 +69,20 @@ Three details that took measurement rather than reasoning:
   and add exactly `0.0`, which is what lets a single uniform `K` replace the C's
   per-pixel `rng`. Rows `k0[p] + m` past the last one can then only receive zero
   slots, so the band slices simply truncate — no padding needed.
-- **Uniform `(d, m)` column bincounts beat the flat per-`d` form 2:1** (14.9 vs
-  29.2 ms for 36 pairs), because the output stays in L1 and the index array is a
-  single reused `k0`. The original plan proposed the flat form with precomputed
-  row-index arrays; that also wanted ~100 MB of index memory.
+- **Every `T[m, j, p]` cell holds at most one zeta entry.** `j` fixes the source
+  column and `(p, m)` then fix the source row and subpixel, so the squared weights
+  the closing uncertainty pass needs are `sum_m T**2` rather than a second
+  five-million-entry scatter.
+- **Boolean indexing beats `flatnonzero` + `take` 4:1** when compacting the geometry
+  candidates (80 vs 352 µs per chunk array): one sequential scan instead of an index
+  array plus four gathers.
+- **numpy counting-sorts 16-bit integers.** Grouping the pixels costs 1.3 ms when
+  `k0` is cast to `int16` and 12 ms at `int32` or wider, so `_group` narrows when the
+  values fit.
+- **Uniform `(d, m)` column bincounts beat the flat per-`d` form 2:1**, and sorted
+  runs plus `reduceat` beat both by another 3.8x — a `bincount` whose indices repeat
+  consecutively serialises on the accumulator, which is why the fill had to be
+  grouped rather than merely re-indexed.
 
 Masked pixels are multiplied out (`W *= maskf`) rather than skipped, so a heavily
 masked frame costs the same as a clean one. The sP window is kept **unmasked** because
@@ -63,48 +90,47 @@ the model needs every pixel; the mask is applied to a copy for the fill.
 
 ## Speed
 
-CRIRES-like swath 2048x176, osample=6 (npix=360k, ny=1183, 5.02M zeta entries, K=8,
-Kx=3, 14.0 entries per pixel), 4 iterations, timed by fitting 2- and 4-iteration runs:
+CRIRES-like swath 2048x176, osample=6 (npix=360k, ny=1063, 5.02M zeta entries, K=8,
+Kx=3, 13.9 entries per pixel), 4 iterations, timed by fitting 2- and 3-iteration runs:
 
 | | per iteration | once per call | total |
 |---|---|---|---|
-| `slitdec` (C, CFFI) | **22.9 ms** | 36.2 ms | 128 ms (1.0x) |
-| `numba_slitdec` | 25.6 ms (1.1x) | 67.3 ms (1.9x) | 170 ms (**1.33x**) |
-| `numpy_slitdec` | 55.1 ms (2.4x) | 168.7 ms (4.7x) | 389 ms (**3.04x**) |
+| `slitdec` (C, CFFI) | **22.2 ms** | 36.2 ms | 125 ms (1.0x) |
+| `numba_slitdec` | 24.9 ms (1.1x) | 67.1 ms (1.9x) | 167 ms (**1.33x**) |
+| `numpy_slitdec` | 24.4 ms (1.1x) | 113.8 ms (3.1x) | 211 ms (**1.69x**) |
 
-**The plan's ~2.2x projection was right about the iteration and silent about the
-rest.** Per-iteration comes in at 2.4x; the once-per-call work — geometry, window
-bases, the closing uncertainty pass — is 4.7x the C's and is 43% of the numpy total.
-Per iteration, ~26 ms goes to the two SLE fills, ~22 ms to the two 5M-entry merge
-scatters, and ~7 ms to the gathers, model contraction and rejection.
+**Per iteration the numpy backend is now within 10% of the C**, down from 2.4x: the
+tensor contraction removed both merge scatters and the run sums removed the fill
+scatters. What is left is entirely setup, 3.1x the C's, and 54% of the numpy total.
+Of that ~114 ms: ~42 ms building the zeta candidate lists, ~19 ms in the two
+`np.minimum.at` window-base scans, ~15 ms scattering the lists into `T`, ~8 ms in the
+closing uncertainty pass, the rest in relative keys, grouping and gathers.
 
 Across swath shapes:
 
-| Swath | osample | C | numba | numpy |
-|---|---|---|---|---|
-| 400x40 | 6 | 3.7 ms | 1.36x | **4.17x** |
-| 800x40 | 6 | 7.8 ms | 1.26x | 3.83x |
-| 400x100 | 6 | 11.7 ms | 1.37x | 3.61x |
-| 2048x40 | 6 | 19.8 ms | 1.33x | 3.89x |
-| 2048x176 | 6 | 130.7 ms | 1.31x | **3.00x** |
-| 1000x25 | 10 | 10.3 ms | 1.41x | 4.13x |
-| 4096x25 | 10 | 51.4 ms | 1.28x | 3.54x |
+| Swath | osample | C | numba | numpy (before) | numpy (now) |
+|---|---|---|---|---|---|
+| 400x40 | 6 | 3.7 ms | 1.33x | 4.17x | **2.36x** |
+| 2048x40 | 6 | 20.0 ms | 1.33x | 3.89x | 2.36x |
+| 400x100 | 6 | 11.8 ms | 1.33x | 3.61x | **2.01x** |
+| 1000x25 | 10 | 8.4 ms | 1.44x | 4.13x | 2.30x |
+| 2048x176 | 6 | 135.7 ms | 1.28x | 3.00x | **1.62x** |
 
-Small swaths are the worst case: with ~50 numpy calls per iteration, per-call overhead
-stops being negligible. PyReduce's default `swath_width` is 400, so expect the 4x end
-in practice. Through `extract_spectrum` (6 orders x 7 swaths of 400 columns): C 0.21 s,
-numba 0.35 s, numpy 0.70 s.
+Small swaths remain the worst case: with ~50 numpy calls per iteration, per-call
+overhead stops being negligible, and setup is a larger share of a short call.
+PyReduce's default `swath_width` is 400, so expect the 2.4x end in practice.
 
-**Known headroom, not taken:** the pair-fill bincounts are 3.7x faster as
-`np.add.reduceat` segment sums (4.1 vs 15.4 ms for 36 pairs), but that requires the
-pixel axis sorted by `k0` — two different permutations, threaded through every
-per-pixel array. Worth ~10% overall, at the cost of the module's auditability. The
-same applies to skipping the COO compaction in `_geometry` (~34 ms of the setup) by
-routing dropped candidates to a dummy pixel with zero weight.
+**Known headroom, not taken:** reducing runs of equal consecutive `pix` before the
+`np.minimum.at` window scan (`np.minimum.reduceat` collapses 5.0M entries to 0.98M)
+saves ~4 ms of the 19 ms, at the cost of a second index structure. Building `T` in
+`(npix, K, Kx)` layout, where consecutive zeta entries land in one cache line, is
+*slower* (17.9 vs 15.4 ms) and would need a 20 ms transpose to feed the contraction.
+Geometry chunk size is irrelevant on this machine — 60k to 2M candidates per chunk
+are within 3%.
 
 ## Correctness
 
-Worst relative deviation vs the C oracle: **1.4e-14** (numba: 1.3e-14). Identical
+Worst relative deviation vs the C oracle: **1.7e-14** (numba: 1.3e-14). Identical
 masks, identical iteration counts, identical `delta_x` and status codes. Verified on
 straight and curved geometry, `lambda_sP > 0`, `kappa = 0`, preset slit function, the
 `nx > ncols` bail-out, tilt up to 1.3, negative tilt, and nonzero `slitdeltas`.
@@ -118,7 +144,8 @@ Full unit suite (742 tests) passes with `PYREDUCE_USE_NUMPY=1`.
 Two places where the numpy version could in principle diverge from the C, neither
 observed: `np.sum` is pairwise where the C accumulates sequentially, so `dev` differs
 at ~1e-16 relative and a residual sitting that close to `kappa*dev` would flip a mask
-pixel; and `solveh_banded` is Cholesky where `bandsol` is unpivoted Gaussian
+pixel; the zeta weights reaching one pixel are summed into `T` before they are scaled
+by `sP`/`sL` rather than after, which moves rounding by the same order; and `solveh_banded` is Cholesky where `bandsol` is unpivoted Gaussian
 elimination. `test/test_numpy_slitdec.py` therefore keeps exact assertions on the mask
 and iteration count deliberately — if either ever starts failing, this is why.
 
@@ -137,11 +164,12 @@ and iteration count deliberately — if either ever starts failing, this is why.
 
 ## Memory
 
-~50 bytes per zeta entry, i.e. ~700 bytes per detector pixel at 14 entries each:
-`pix`, `src_x`, `src_iy` and the two merge-bin index arrays as int64 plus `w` as
-float64. For 2048x176 at osample=6 that is ~240 MB, against ~120 MB for the C's zeta
-tensor. The geometry is built in chunks of ~2M candidates so intermediates stay small,
-but the COO arrays themselves are allocated whole. Relevant because extraction is
+What survives setup is `T` at `K * Kx` doubles per detector pixel — 24 on CRIRES-like
+geometry at osample=6, i.e. 69 MB for 2048x176, against ~120 MB for the C's zeta
+tensor. Peak is higher: the zeta candidate lists (`pix`, `src_x`, `src_iy` as int64
+plus `w`, ~32 bytes per entry at 13.9 entries per pixel, ~160 MB here) are live while
+`T` is being filled, and are dropped immediately after. The geometry is built in
+chunks of ~2M candidates so intermediates stay small. Relevant because extraction is
 parallelised over orders (`n_jobs`): peak memory scales with worker count.
 
 ## Standalone use (outside PyReduce)

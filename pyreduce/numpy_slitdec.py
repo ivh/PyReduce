@@ -3,24 +3,30 @@ Pure NumPy/SciPy port of the slitdec extraction algorithm.
 
 Same algorithm as ``clib/slitdec.c`` and ``numba_slitdec.py``: pixel-centric
 SLE fills, dense merge windows keyed on the per-pixel zeta ranges, zeta only
-(no xi tensor). Here the pixel loops are replaced by scatter/gather over the
-zeta tensor in flat COO form (``pix``, ``src_x``, ``src_iy``, ``w``), so the
-module needs neither a C compiler nor Numba -- only numpy and scipy.
+(no xi tensor). Here the pixel loops are replaced by dense array algebra, so
+the module needs neither a C compiler nor Numba -- only numpy and scipy.
 
 Set ``PYREDUCE_USE_NUMPY=1`` to select it as the extraction backend.
 
-Everything geometric is built once per call; per iteration only the
-sP/sL-weighted values change. The two SLE fills merge each pixel's zeta list
-into a dense window of uniform width K (window slots between actual keys are
-zero and contribute exactly nothing, as in the C), then accumulate the pairs
-of one band offset at a time with a bincount over the per-pixel window base.
+Everything geometric is built once per call and collapsed into a single dense
+weight tensor ``T[m, j, p]``: the total zeta weight reaching detector pixel
+``p`` from slit position ``k0_iy[p] + m`` and source column ``k0_x[p] + j``.
+Both merge windows are then contractions of ``T`` -- no per-iteration scatter
+over the millions of individual zeta entries::
+
+    W_sL[m, p] = sum_j T[m, j, p] * sP[k0_x[p] + j]
+    W_sP[j, p] = sum_m T[m, j, p] * sL[k0_iy[p] + m]
+
+Pixels are held permuted into runs of equal ``k0``, which turns the normal
+equation fills from indexed scatters into ``np.add.reduceat`` segment sums.
 
 Mask convention matches ``cwrappers``: 0 = bad pixel, 1 = good pixel. Masked
 pixels are multiplied out rather than skipped, so a heavily masked frame costs
 the same as a clean one.
 
-Memory scales as ~50 bytes per zeta entry (~14 per detector pixel), i.e. of
-the same order as the C's zeta tensor for the same swath.
+Memory is dominated by ``T`` at ``K * Kx`` doubles per detector pixel (~24 for
+CRIRES-like geometry at osample=6), plus the transient zeta lists it is built
+from.
 """
 
 import numpy as np
@@ -39,8 +45,7 @@ def _geometry(
 
     ``pix = xx * nrows + yy`` indexes the detector pixel in column-major
     ("transposed") order, matching the C's zeta layout, so that consecutive
-    COO entries hit consecutive pixels and the per-iteration scatters stay
-    cache friendly.
+    COO entries hit consecutive pixels.
 
     Emits the same (column, weight) pairs as the C's three-branch ``zeta_add``
     sequence: A = (x + ix1, w - frac*w) and B = (x + ix2, frac*w), with B
@@ -110,6 +115,7 @@ def _geometry(
 
         w_b = frac * wgt
         w_a = wgt - w_b
+        xsb = np.broadcast_to(xs, (nc, nrows, nk))
         for ix, ww in ((ix1, w_a), (ix2, w_b)):
             xx = xs + ix
             np.clip(xx, 0, ncols - 1, out=xx)
@@ -117,28 +123,28 @@ def _geometry(
             # y + ycen_offset[x] == yy + ycen_offset[xx]
             yy = yrow[None, :, None] + off - ycen_offset[xx]
             keep = inb & (ww > 0) & (yy >= 0) & (yy < nrows)
-            idx = np.flatnonzero(keep)
-            n = idx.size
-            sl = slice(total, total + n)
             xx *= nrows
             xx += yy
-            np.take(xx.reshape(-1), idx, out=pix[sl])
-            np.take(iy.reshape(-1), idx, out=src_iy[sl])
-            np.take(ww.reshape(-1), idx, out=zw[sl])
-            np.floor_divide(idx, nrows * nk, out=src_x[sl])
-            src_x[sl] += x0
+            # boolean indexing, not flatnonzero + take: one sequential scan
+            # instead of an index array plus four gathers, ~4x faster here
+            n = int(np.count_nonzero(keep))
+            sl = slice(total, total + n)
+            pix[sl] = xx[keep]
+            src_iy[sl] = iy[keep]
+            src_x[sl] = xsb[keep]
+            zw[sl] = ww[keep]
             total += n
 
     return pix[:total], src_x[:total], src_iy[:total], zw[:total]
 
 
 def _window(pix, key, npix):
-    """Per-pixel window base k0, uniform width K, and merge bin indices.
+    """Per-pixel window base k0, uniform width, and the relative keys.
 
     Replaces the C's per-pixel ``z_rng`` scan. A window wider than a pixel's
     own key range costs nothing numerically: the extra slots stay zero. The
     width comes off the shifted keys rather than a second scatter-max, since
-    the shift has to be computed for the bin indices anyway.
+    the shift has to be computed for the tensor index anyway.
     """
     k0 = np.full(npix, _INT64_MAX, dtype=np.int64)
     np.minimum.at(k0, pix, key)
@@ -147,54 +153,66 @@ def _window(pix, key, npix):
 
     rel = key - k0[pix]
     width = int(rel.max()) + 1 if rel.size else 1
-    rel *= npix
-    rel += pix
     return k0, width, rel
 
 
-def _merge(bin_idx, vals, width, npix):
-    """Merged window W[k, pix]: entries sharing a key add into one slot."""
-    W = np.bincount(bin_idx, weights=vals, minlength=width * npix)
-    return W.reshape(width, npix)
+def _group(k0):
+    """Permute pixels into ascending runs of equal k0.
+
+    Returns the permutation, the distinct k0 values and the run starts, i.e.
+    exactly what ``np.add.reduceat`` consumes. Grouping is what lets the
+    normal-equation fills be segment sums instead of indexed scatters.
+
+    Sorted narrow, on purpose: numpy counting-sorts 16-bit integers, which is
+    an order of magnitude faster than the radix sort it uses on wider ones.
+    """
+    narrow = np.int16 if k0.max() < 0x8000 else np.int32
+    order = np.argsort(k0.astype(narrow, copy=False), kind="stable")
+    ks = k0[order]
+    starts = np.flatnonzero(np.concatenate(([True], ks[1:] != ks[:-1])))
+    return order, ks[starts], starts
 
 
-def _fill_system(W, k0, n, imv, nband):
+def _fill_system(W, imv, starts, uk, n, nband):
     """Accumulate the normal equations of one merged window into upper bands.
 
-    ``Aup[i, d]`` holds ``A[i, i + d]``; the matrix is symmetric, so only the
-    upper bands are built -- which is exactly what scipy consumes. Rows
-    ``k0[p] + m`` past ``n - 1`` can only receive zero-weight window slots, so
-    the slices simply truncate.
+    ``Aup[d, i]`` holds ``A[i, i + d]``; the matrix is symmetric, so only the
+    upper bands are built -- which is exactly what scipy consumes. ``W`` and
+    ``imv`` are in grouped-pixel order, so each band entry is a run sum over
+    the pixels sharing a window base. Rows ``uk + m`` past ``n - 1`` can only
+    receive zero-weight window slots and are dropped.
     """
     width, npix = W.shape
-    Aup = np.zeros((n, nband))
+    Aup = np.zeros((nband, n))
     bj = np.zeros(n)
     buf = np.empty(npix)
     for m in range(width):
+        cut = int(np.searchsorted(uk, n - m))
+        if cut == 0:
+            break
+        rows = uk[:cut] + m
         np.multiply(imv, W[m], out=buf)
-        cnt = np.bincount(k0, weights=buf, minlength=n)
-        bj[m:n] += cnt[: n - m]
+        bj[rows] += np.add.reduceat(buf, starts)[:cut]
         for d in range(width - m):
             np.multiply(W[m], W[m + d], out=buf)
-            cnt = np.bincount(k0, weights=buf, minlength=n)
-            Aup[m:n, d] += cnt[: n - m]
+            Aup[d, rows] += np.add.reduceat(buf, starts)[:cut]
     return Aup, bj
 
 
 def _regularize_smooth(Aup, lam):
     """First-derivative smoothing penalty, upper-band form of the C's fill."""
-    n = Aup.shape[0]
+    n = Aup.shape[1]
     Aup[0, 0] += lam
-    Aup[1 : n - 1, 0] += lam * 2.0
-    Aup[n - 1, 0] += lam
-    Aup[: n - 1, 1] -= lam
+    Aup[0, 1 : n - 1] += lam * 2.0
+    Aup[0, n - 1] += lam
+    Aup[1, : n - 1] -= lam
 
 
 def _regularize_diagonal(Aup):
     """Floor the diagonal so fully masked rows/columns do not go singular."""
-    max_diag = Aup[:, 0].max()
+    max_diag = Aup[0].max()
     if max_diag > 0.0:
-        np.maximum(Aup[:, 0], max_diag * 1.0e-10, out=Aup[:, 0])
+        np.maximum(Aup[0], max_diag * 1.0e-10, out=Aup[0])
 
 
 def _solve(Aup, b, u):
@@ -207,18 +225,18 @@ def _solve(Aup, b, u):
     n = b.size
     if u == 0:
         with np.errstate(divide="ignore", invalid="ignore"):
-            return b / Aup[:, 0]
+            return b / Aup[0]
 
     ab = np.zeros((u + 1, n))
     for d in range(u + 1):
-        ab[u - d, d:] = Aup[: n - d, d]
+        ab[u - d, d:] = Aup[d, : n - d]
     try:
         return solveh_banded(ab, b, lower=False, check_finite=False)
     except np.linalg.LinAlgError:
         full = np.zeros((2 * u + 1, n))
         full[: u + 1] = ab
         for d in range(1, u + 1):
-            full[u + d, : n - d] = Aup[: n - d, d]
+            full[u + d, : n - d] = Aup[d, : n - d]
         return solve_banded((u, u), full, b, check_finite=False)
 
 
@@ -250,7 +268,8 @@ def _slitdec_core(
     """Iterate sL/sP to convergence.
 
     Images are transposed (ncols, nrows) here so that the flat pixel index
-    runs along the slit first, as the C's zeta layout does.
+    runs along the slit first, as the C's zeta layout does, and are then
+    permuted into runs of equal sL window base.
     """
     sP_stop = 5e-5  # 99th percentile spectrum change relative to median
     sP_change = np.inf
@@ -294,16 +313,47 @@ def _slitdec_core(
         ncols, nrows, ycen, ycen_offset, y_lower_lim, osample, slitcurve, slitdeltas
     )
 
-    imv = imT.reshape(-1)
-    maskv = maskT.reshape(-1)
-
-    k0_iy, K, bin_iy = _window(pix, src_iy, npix)
-    k0_x, Kx, bin_x = _window(pix, src_x, npix)
+    k0_iy, K, rel_iy = _window(pix, src_iy, npix)
+    k0_x, Kx, rel_x = _window(pix, src_x, npix)
     # The C's band layout assumes K <= 2*osample+1 and Kx <= 2*delta_x+1 and
     # falls back to a key search beyond that; here the band simply widens.
     # Band 1 must exist for the smoothing penalty.
     nband_l = max(K, 2)
     nband_p = max(Kx, 2) if lambda_sP > 0.0 else max(Kx, 1)
+
+    # Pixels are grouped by their sL window base for the rest of the call, so
+    # the sL fill can use run sums. The sP system is grouped a second time on
+    # top of that, since its bases run the other way.
+    order, uk_l, starts_l = _group(k0_iy)
+    rank = np.empty(npix, dtype=np.int64)
+    rank[order] = np.arange(npix)
+    # Group for the sP system in the original pixel order, where k0_x is
+    # nearly sorted already, then compose: sorting the permuted copy costs
+    # several times as much.
+    order_x, uk_p, starts_p = _group(k0_x)
+    order_p = rank[order_x]
+    imv_p = imT.reshape(-1)[order_x]
+
+    k0_iy = k0_iy[order]
+    k0_x = k0_x[order]
+    imv = imT.reshape(-1)[order]
+
+    # T[m, j, p]: total zeta weight reaching pixel p from slit position
+    # k0_iy[p] + m and source column k0_x[p] + j. Both merge windows are
+    # contractions of it, so the per-entry lists are needed only to build it.
+    np.take(rank, pix, out=pix)
+    rel_x *= npix
+    rel_x += pix
+    rel_iy *= Kx * npix
+    rel_iy += rel_x
+    T = np.bincount(rel_iy, weights=zw, minlength=K * Kx * npix)
+    T = T.reshape(K, Kx, npix)
+    del pix, src_x, src_iy, zw, rel_iy, rel_x, rank
+    Tsum = T.sum(axis=0)
+    # A cell (m, j, p) can hold at most one zeta entry: j fixes the source
+    # column and (p, m) then fix the source row and subpixel. So the squared
+    # weights the uncertainty needs come straight off T, no second scatter.
+    Tsq = np.einsum("mjp,mjp->jp", T, T)
 
     if use_preset:
         sL /= sL.sum() / osample
@@ -312,25 +362,38 @@ def _slitdec_core(
     kmed = (ncols - 1) // 2
 
     sP_pad = np.zeros(ncols + Kx)
+    sL_pad = np.zeros(ny + K)
+    sPg = np.empty((Kx, npix))
+    sLg = np.empty((K, npix))
+    model = np.empty(npix)
     it = 0
     while True:
-        maskf = maskv.astype(np.float64)
+        maskf = maskT.reshape(-1)[order].astype(np.float64)
+
+        sP_pad[:ncols] = sP
+        for j in range(Kx):
+            np.take(sP_pad, k0_x + j, out=sPg[j])
 
         if not use_preset:
-            W = _merge(bin_iy, sP[src_x] * zw, K, npix)
+            W = np.einsum("mjp,jp->mp", T, sPg)
             W *= maskf
-            l_Aij, l_bj = _fill_system(W, k0_iy, ny, imv, nband_l)
+            l_Aij, l_bj = _fill_system(W, imv, starts_l, uk_l, ny, nband_l)
 
-            diag_tot = l_Aij[:, 0].sum()
+            diag_tot = l_Aij[0].sum()
             _regularize_smooth(l_Aij, lambda_sL * diag_tot / ny)
             _regularize_diagonal(l_Aij)
 
             sL[:] = _solve(l_Aij, l_bj, nband_l - 1)
             sL /= sL.sum() / osample
 
+        sL_pad[:ny] = sL
+        for m in range(K):
+            np.take(sL_pad, k0_iy + m, out=sLg[m])
         # kept unmasked, because the model needs every pixel
-        W = _merge(bin_x, sL[src_iy] * zw, Kx, npix)
-        p_Aij, p_bj = _fill_system(W * maskf, k0_x, ncols, imv, nband_p)
+        W = np.einsum("mjp,mp->jp", T, sLg)
+        Wm = W[:, order_p]
+        Wm *= maskf[order_p]
+        p_Aij, p_bj = _fill_system(Wm, imv_p, starts_p, uk_p, ncols, nband_p)
 
         if lambda_sP > 0.0:
             _regularize_smooth(p_Aij, lambda_sP)
@@ -343,13 +406,16 @@ def _slitdec_core(
         sP_med = abs(_select(sP, kmed))
 
         # The model is the same window contracted with the new spectrum:
-        # model[p] = sum_m W[m, p] * sP[k0_x[p] + m]. Padding sP absorbs the
+        # model[p] = sum_j W[j, p] * sP[k0_x[p] + j]. Padding sP absorbs the
         # bases that run past the last column, where W is zero anyway.
         sP_pad[:ncols] = sP
-        model = modelT.reshape(-1)
-        np.multiply(W[0], sP_pad[k0_x], out=model)
-        for m in range(1, Kx):
-            model += W[m] * sP_pad[k0_x + m]
+        np.take(sP_pad, k0_x, out=sPg[0])
+        np.multiply(W[0], sPg[0], out=model)
+        for j in range(1, Kx):
+            np.take(sP_pad, k0_x + j, out=sPg[j])
+            np.multiply(W[j], sPg[j], out=W[j])
+            model += W[j]
+        modelT.reshape(-1)[order] = model
 
         core = slice(delta_x, ncols - delta_x)
         resid = modelT[core] - imT[core]
@@ -371,15 +437,24 @@ def _slitdec_core(
     else:
         success, status = 1.0, 1.0
 
-    maskf = maskv.astype(np.float64)
-    t2 = (imv - modelT.reshape(-1)) ** 2
+    # Grouped by source column via T's second axis: pixel p feeds column
+    # k0_x[p] + j with total weight Tsum[j, p] (Tsq for the squared weights).
+    maskf = maskT.reshape(-1)[order].astype(np.float64)
+    t2 = (imv - model) ** 2
     t2 *= maskf
-    wm = zw * maskf[pix]
-    unc[:] = np.bincount(src_x, weights=t2[pix] * zw, minlength=ncols)
-    norm = np.bincount(src_x, weights=wm, minlength=ncols)
-    norm_sq = np.bincount(src_x, weights=wm * zw, minlength=ncols)
+    acc = np.zeros((3, ncols + Kx))
+    tmp = np.empty(npix)
+    for j in range(Kx):
+        col = k0_x + j
+        np.multiply(t2, Tsum[j], out=tmp)
+        acc[0] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
+        np.multiply(maskf, Tsum[j], out=tmp)
+        acc[1] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
+        np.multiply(maskf, Tsq[j], out=tmp)
+        acc[2] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
+    norm, norm_sq = acc[1, :ncols], acc[2, :ncols]
     with np.errstate(divide="ignore", invalid="ignore"):
-        unc[:] = np.sqrt(unc / (norm - norm_sq / norm) * nrows)
+        unc[:] = np.sqrt(acc[0, :ncols] / (norm - norm_sq / norm) * nrows)
 
     # Columns within delta_x of the edge have incomplete support
     if delta_x > 0:

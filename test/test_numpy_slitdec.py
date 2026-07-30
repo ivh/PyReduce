@@ -111,11 +111,11 @@ def test_curvature_too_large_returns_error():
 
 
 def _dense_from_upper(Aup, n):
-    """Symmetric dense matrix from the upper-band storage Aup[i, d] = A[i, i+d]."""
+    """Symmetric dense matrix from the upper-band storage Aup[d, i] = A[i, i+d]."""
     A = np.zeros((n, n))
-    for d in range(Aup.shape[1]):
+    for d in range(Aup.shape[0]):
         for i in range(n - d):
-            A[i, i + d] = A[i + d, i] = Aup[i, d]
+            A[i, i + d] = A[i + d, i] = Aup[d, i]
     return A
 
 
@@ -124,8 +124,8 @@ def test_solve_matches_dense(u):
     """The band solve reproduces a dense solve of the same system."""
     rng = np.random.default_rng(4)
     n = 40
-    Aup = rng.normal(0, 0.1, (n, u + 1))
-    Aup[:, 0] += 5.0  # diagonally dominant, so positive definite
+    Aup = rng.normal(0, 0.1, (u + 1, n))
+    Aup[0] += 5.0  # diagonally dominant, so positive definite
     b = rng.normal(0, 1, n)
 
     got = numpy_slitdec._solve(Aup.copy(), b.copy(), u)
@@ -138,8 +138,8 @@ def test_solve_falls_back_when_not_positive_definite():
     rng = np.random.default_rng(5)
     n = 30
     u = 2
-    Aup = rng.normal(0, 1.0, (n, u + 1))
-    Aup[:, 0] -= 3.0  # negative diagonal: symmetric but indefinite
+    Aup = rng.normal(0, 1.0, (u + 1, n))
+    Aup[0] -= 3.0  # negative diagonal: symmetric but indefinite
     b = rng.normal(0, 1, n)
     dense = _dense_from_upper(Aup, n)
     assert np.any(np.linalg.eigvalsh(dense) < 0)
