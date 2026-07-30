@@ -300,11 +300,47 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 - `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_USE_NUMBA` - Use the pure-Python numba extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_USE_NUMPY` - Use the pure numpy/scipy extraction backend instead of CFFI (default: 0)
 - `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
 The charslit backend supports higher-degree curvature polynomials (up to degree 5) and per-row slitdelta corrections. It requires the optional `charslit` dependency.
+
+## Extraction Backends
+
+`extract._get_backend()` selects the slit-decomposition implementation, all four
+exposing the same `slitdec(...)` signature and result dict:
+
+| Backend | Module | Selected by | vs C |
+|---------|--------|-------------|------|
+| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — | 1.0x |
+| External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` | — |
+| Numba | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` | ~1.3x |
+| NumPy/SciPy | `numpy_slitdec` | `PYREDUCE_USE_NUMPY=1` | ~1.4-2x |
+
+Both pure-Python backends implement the same algorithm as the current
+`clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
+zeta ranges, zeta only — no xi tensor) and agree with it to ~1e-14 relative, with
+identical masks and iteration counts. They exist so PyReduce can extract without a
+compiled C extension:
+
+- `numba_slitdec.py` is a line-by-line transliteration; it needs the optional
+  `numba` extra (`uv sync --extra numba`), which pins numpy down a minor version.
+- `numpy_slitdec.py` collapses the geometry into one dense per-pixel weight tensor
+  `T[m, j, p]`, so both merge windows become `np.einsum` contractions and only the
+  setup ever touches the individual zeta entries; the normal-equation fills are
+  `np.add.reduceat` run sums over pixels grouped by window base, and `bandsol` is
+  `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
+  core dependencies — and no JIT warmup. Per iteration it is slightly faster than the
+  C; the whole remaining gap is one-off setup, dominated by building the zeta candidate
+  lists. Written for pipelines whose dependency policy excludes numba.
+
+`clib/slitdec.c` stays the reference: when it changes, port the change to both and
+re-run `test/test_numba_slitdec.py` and `test/test_numpy_slitdec.py`, which diff each
+backend against the C directly. See `numba_slitdec.md` and `numpy_slitdec.md` for the
+algorithm history and standalone (outside-PyReduce) use.
 
 ## ANDES Instruments
 
@@ -360,6 +396,7 @@ HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf`
 ```bash
 uv sync                              # Install dependencies
 uv sync --extra charslit             # Include charslit backend (from GitHub)
+uv sync --extra numba                # Include pure-Python numba backend
 uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions

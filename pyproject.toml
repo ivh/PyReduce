@@ -46,6 +46,7 @@ dependencies = [
 
 [project.optional-dependencies]
 charslit = ["charslit>=0.1.0"]
+numba = ["numba>=0.61.0"]
 
 [tool.uv.sources]
 charslit = { git = "https://github.com/ivh/CharSlit" }
