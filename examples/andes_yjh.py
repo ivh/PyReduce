@@ -48,7 +48,7 @@ curvature_file = os.path.join(
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
 # --- Create Pipeline ---
-config = load_config(None, instrument_name)
+config = load_config(None, instrument_name, channel=channel)
 # config["science"]["extraction_height"] = 4
 config["science"]["extraction_reject"] = 20
 _tr = os.environ.get("ANDES_TRACE_RANGE")
