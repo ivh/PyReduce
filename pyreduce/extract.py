@@ -758,10 +758,11 @@ def fix_extraction_height(xwd, traces, cr, ncol):
                     left = max(cr[[i, k], 0])
                     right = min(cr[[i, k], 1])
 
-                    if right < left:
-                        raise ValueError(
-                            f"Check your column ranges. Traces {i} and {k} are weird"
-                        )
+                    # Partial traces at the detector edge can have a column
+                    # range disjoint from their neighbour's; measure the
+                    # spacing at the image centre instead of giving up
+                    if right <= left:
+                        left, right = ncol // 2, ncol // 2 + 1
 
                     current = np.polyval(traces[i], x[left:right])
                     neighbor = np.polyval(traces[k], x[left:right])
@@ -775,6 +776,17 @@ def fix_extraction_height(xwd, traces, cr, ncol):
     xwd = np.ceil(xwd).astype(int)
 
     return xwd
+
+
+def resolve_extraction_heights(heights, traces, cr, nrow, ncol):
+    """Extraction heights in pixels, resolving fractions of trace spacing.
+
+    Same padding as ``fix_parameters``: the first and last trace need a
+    neighbour on the outside to measure their spacing against.
+    """
+    xwd = np.array([heights[0], *heights, heights[-1]], dtype=float)
+    crp = np.array([cr[0], *cr, cr[-1]])
+    return fix_extraction_height(xwd, extend_traces(traces, nrow), crp, ncol)[1:-1]
 
 
 def validate_traces_for_extraction(
@@ -801,16 +813,30 @@ def validate_traces_for_extraction(
     """
     ix = np.arange(ncol)
 
+    # Resolve fractional heights to pixels first. Checking the aperture against
+    # the image bounds is meaningless for a fraction: 0.9 would always "fit"
+    # while the 0.9 * trace spacing it stands for may not.
+    if isinstance(extraction_height, np.ndarray):
+        heights = np.asarray(extraction_height, dtype=float)
+    elif extraction_height is not None:
+        heights = np.full(len(traces), float(extraction_height))
+    else:
+        heights = np.array(
+            [t.height if t.height is not None else 0.5 for t in traces], dtype=float
+        )
+    heights = resolve_extraction_heights(
+        heights,
+        np.array([t.pos for t in traces]),
+        np.array([list(t.column_range) for t in traces], dtype=np.int32),
+        nrow,
+        ncol,
+    )
+
     for i, trace in enumerate(traces):
         if trace.invalid:
             continue
 
-        if isinstance(extraction_height, np.ndarray):
-            height = extraction_height[i]
-        elif extraction_height is not None:
-            height = extraction_height
-        else:
-            height = trace.height if trace.height is not None else 0.5
+        height = heights[i]
         half = height / 2
 
         # Check if extraction aperture stays within image
@@ -1911,6 +1937,14 @@ def extract_normalize(
         raise ValueError("No traces provided")
 
     nrow, ncol = img.shape
+
+    # Drop traces whose aperture does not fit in the image, as extract() does:
+    # a partial order at the detector edge otherwise ends up with an empty
+    # column range and fails deep inside the extraction
+    validate_traces_for_extraction(traces, extraction_height, nrow, ncol)
+    traces = [t for t in traces if not t.invalid]
+    if not traces:
+        raise ValueError("No valid traces remaining after validation")
     ntrace = len(traces)
 
     # Convert Trace objects to arrays

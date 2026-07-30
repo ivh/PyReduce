@@ -918,7 +918,9 @@ def trace(
     if min_width == 0:
         pass
     elif isinstance(min_width, (float, np.floating)):
-        min_width = int(min_width * im.shape[0])
+        # A fraction of the dispersion length: min_width is compared against a
+        # cluster's extent in x, so it scales with ncol, not nrow
+        min_width = int(min_width * im.shape[1])
 
     # Validate filter_type
     valid_filters = ("boxcar", "gaussian", "whittaker")
