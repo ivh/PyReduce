@@ -1,10 +1,8 @@
-/* Copied from CharSlit (github.com/ivh/CharSlit), commit 7540af6.
+/* Copied from CharSlit (github.com/ivh/CharSlit), commit 28b5c72.
    Plain-C slit-decomposition algorithm, compiled here via CFFI.
    To update, re-copy slitdec/slitdec.{c,h} from CharSlit and bump this note.
-   NOTE: slitdec.c has since diverged -- the sP band width is measured from the
-   zeta key ranges instead of derived from delta_x, and the uncertainty pass was
-   reordered. Both are pure speed changes (outputs are bit-identical), but a
-   blind re-copy would drop them.
+   Only divergence: line 1099 of slitdec.c has its trailing whitespace
+   stripped by our pre-commit hook.
    Set PYREDUCE_USE_CHARSLIT=1 to run the external charslit package instead. */
 
 typedef struct
