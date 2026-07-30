@@ -30,9 +30,11 @@ from.
 """
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from scipy.linalg import solve_banded, solveh_banded
 
 _INT64_MAX = np.iinfo(np.int64).max
+_INT64_MIN = np.iinfo(np.int64).min
 
 # Target number of subpixel candidates held live while building the geometry.
 _CHUNK_ELEMENTS = 2_000_000
@@ -139,7 +141,8 @@ def _geometry(
 
 
 def _window(pix, key, npix):
-    """Per-pixel window base k0, uniform width, and the relative keys.
+    """Per-pixel window base k0, uniform width, the relative keys, and which
+    pixels received no entry at all.
 
     Replaces the C's per-pixel ``z_rng`` scan. A window wider than a pixel's
     own key range costs nothing numerically: the extra slots stay zero. The
@@ -149,11 +152,12 @@ def _window(pix, key, npix):
     k0 = np.full(npix, _INT64_MAX, dtype=np.int64)
     np.minimum.at(k0, pix, key)
     # pixels with no zeta entries never contribute; keep their base in range
-    np.copyto(k0, 0, where=k0 == _INT64_MAX)
+    empty = k0 == _INT64_MAX
+    np.copyto(k0, 0, where=empty)
 
     rel = key - k0[pix]
     width = int(rel.max()) + 1 if rel.size else 1
-    return k0, width, rel
+    return k0, empty, width, rel
 
 
 def _group(k0):
@@ -313,8 +317,26 @@ def _slitdec_core(
         ncols, nrows, ycen, ycen_offset, y_lower_lim, osample, slitcurve, slitdeltas
     )
 
-    k0_iy, K, rel_iy = _window(pix, src_iy, npix)
-    k0_x, Kx, rel_x = _window(pix, src_x, npix)
+    k0_x, empty, Kx, rel_x = _window(pix, src_x, npix)
+
+    # The sL window base follows from the sP one, so only one scatter-min is
+    # needed. Every zeta entry satisfies, exactly in integer arithmetic,
+    #     src_iy = (yy + ycen_offset[xx] + 1) * osample + k - q[src_x]
+    # with k in [0, osample] and q[x] = floor(ycen[x] * osample) on absolute
+    # ycen, so a pixel's smallest src_iy is that first term minus the largest
+    # q over its source columns -- and those all lie in the sP window
+    # [k0_x, k0_x + Kx). Maximising q over the whole window instead of over
+    # the contributing subset can only lower the base, which is free, and in
+    # practice measures the same K.
+    q = ycen_offset * osample + np.floor(ycen * osample).astype(np.int64)
+    qpad = np.concatenate((q, np.full(Kx - 1, _INT64_MIN // 2)))
+    qmax = sliding_window_view(qpad, Kx).max(axis=1)
+    k0_iy = ((ycen_offset[:, None] + np.arange(1, nrows + 1)) * osample).reshape(-1)
+    k0_iy -= qmax[k0_x]
+    np.copyto(k0_iy, 0, where=empty)  # no entries: any in-range base will do
+    np.maximum(k0_iy, 0, out=k0_iy)  # src_iy >= 0, so this keeps k0_iy <= min
+    rel_iy = src_iy - k0_iy[pix]
+    K = int(rel_iy.max()) + 1
     # The C's band layout assumes K <= 2*osample+1 and Kx <= 2*delta_x+1 and
     # falls back to a key search beyond that; here the band simply widens.
     # Band 1 must exist for the smoothing penalty.
@@ -341,12 +363,16 @@ def _slitdec_core(
     # T[m, j, p]: total zeta weight reaching pixel p from slit position
     # k0_iy[p] + m and source column k0_x[p] + j. Both merge windows are
     # contractions of it, so the per-entry lists are needed only to build it.
-    np.take(rank, pix, out=pix)
+    # Fancy indexing, not np.take(..., out=): the take loop is 4x slower here.
+    pix = rank[pix]
     rel_x *= npix
     rel_x += pix
     rel_iy *= Kx * npix
     rel_iy += rel_x
-    T = np.bincount(rel_iy, weights=zw, minlength=K * Kx * npix)
+    # Assignment, not a scatter-add: a cell holds at most one zeta entry (see
+    # Tsq below), so there is nothing to accumulate.
+    T = np.zeros(K * Kx * npix)
+    T[rel_iy] = zw
     T = T.reshape(K, Kx, npix)
     del pix, src_x, src_iy, zw, rel_iy, rel_x, rank
     Tsum = T.sum(axis=0)
@@ -372,7 +398,7 @@ def _slitdec_core(
 
         sP_pad[:ncols] = sP
         for j in range(Kx):
-            np.take(sP_pad, k0_x + j, out=sPg[j])
+            sPg[j] = sP_pad[k0_x + j]
 
         if not use_preset:
             W = np.einsum("mjp,jp->mp", T, sPg)
@@ -388,7 +414,7 @@ def _slitdec_core(
 
         sL_pad[:ny] = sL
         for m in range(K):
-            np.take(sL_pad, k0_iy + m, out=sLg[m])
+            sLg[m] = sL_pad[k0_iy + m]
         # kept unmasked, because the model needs every pixel
         W = np.einsum("mjp,mp->jp", T, sLg)
         Wm = W[:, order_p]
@@ -409,10 +435,10 @@ def _slitdec_core(
         # model[p] = sum_j W[j, p] * sP[k0_x[p] + j]. Padding sP absorbs the
         # bases that run past the last column, where W is zero anyway.
         sP_pad[:ncols] = sP
-        np.take(sP_pad, k0_x, out=sPg[0])
+        sPg[0] = sP_pad[k0_x]
         np.multiply(W[0], sPg[0], out=model)
         for j in range(1, Kx):
-            np.take(sP_pad, k0_x + j, out=sPg[j])
+            sPg[j] = sP_pad[k0_x + j]
             np.multiply(W[j], sPg[j], out=W[j])
             model += W[j]
         modelT.reshape(-1)[order] = model
@@ -442,16 +468,20 @@ def _slitdec_core(
     maskf = maskT.reshape(-1)[order].astype(np.float64)
     t2 = (imv - model) ** 2
     t2 *= maskf
+    # Regrouped by source column, so these become run sums like the fills
+    t2 = t2[order_p]
+    maskf = maskf[order_p]
+    Tsum = Tsum[:, order_p]
+    Tsq = Tsq[:, order_p]
     acc = np.zeros((3, ncols + Kx))
     tmp = np.empty(npix)
     for j in range(Kx):
-        col = k0_x + j
-        np.multiply(t2, Tsum[j], out=tmp)
-        acc[0] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
-        np.multiply(maskf, Tsum[j], out=tmp)
-        acc[1] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
+        rows = uk_p + j
+        for dst, w in ((0, t2), (1, maskf)):
+            np.multiply(w, Tsum[j], out=tmp)
+            acc[dst, rows] += np.add.reduceat(tmp, starts_p)
         np.multiply(maskf, Tsq[j], out=tmp)
-        acc[2] += np.bincount(col, weights=tmp, minlength=ncols + Kx)
+        acc[2, rows] += np.add.reduceat(tmp, starts_p)
     norm, norm_sq = acc[1, :ncols], acc[2, :ncols]
     with np.errstate(divide="ignore", invalid="ignore"):
         unc[:] = np.sqrt(acc[0, :ncols] / (norm - norm_sq / norm) * nrows)

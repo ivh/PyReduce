@@ -25,10 +25,10 @@ pytestmark = pytest.mark.unit
 RTOL = 1e-10
 
 
-def _make_swath(ncols, nrows, osample, curved=True, hotpix=0, seed=1):
+def _make_swath(ncols, nrows, osample, curved=True, hotpix=0, seed=1, slope=0.0):
     rng = np.random.default_rng(seed)
     x = np.arange(ncols)
-    ycen = nrows / 2 + 0.3 * np.sin(2 * np.pi * x / ncols) + 0.17
+    ycen = nrows / 2 + 0.3 * np.sin(2 * np.pi * x / ncols) + 0.17 + slope * x
     spec = 1000 * (1 + 0.5 * np.sin(2 * np.pi * x / 37)) + 200
     yy = np.arange(nrows) - nrows / 2
     img = spec[None, :] * np.exp(-0.5 * (yy / (nrows / 5.0)) ** 2)[:, None]
@@ -76,6 +76,10 @@ def _assert_equivalent(swath, **kwargs):
         {"ncols": 300, "nrows": 21, "osample": 6, "hotpix": 40},
         # tall slit: delta_x ~ 15, so the sP system is genuinely wide-banded
         {"ncols": 400, "nrows": 60, "osample": 6, "hotpix": 40},
+        # sloped trace: ycen_offset varies across the swath, which the derived
+        # sL window base (k0_iy from k0_x) has to track
+        {"ncols": 400, "nrows": 40, "osample": 6, "slope": 0.01},
+        {"ncols": 400, "nrows": 40, "osample": 6, "slope": -0.02},
     ],
 )
 def test_matches_c_backend(case):

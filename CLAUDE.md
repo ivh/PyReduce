@@ -318,7 +318,7 @@ exposing the same `slitdec(...)` signature and result dict:
 | CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — | 1.0x |
 | External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` | — |
 | Numba | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` | ~1.3x |
-| NumPy/SciPy | `numpy_slitdec` | `PYREDUCE_USE_NUMPY=1` | ~2x |
+| NumPy/SciPy | `numpy_slitdec` | `PYREDUCE_USE_NUMPY=1` | ~1.4-2x |
 
 Both pure-Python backends implement the same algorithm as the current
 `clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
@@ -333,9 +333,9 @@ compiled C extension:
   setup ever touches the individual zeta entries; the normal-equation fills are
   `np.add.reduceat` run sums over pixels grouped by window base, and `bandsol` is
   `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
-  core dependencies — and no JIT warmup. Per iteration it is within 10% of the C;
-  the remaining gap is one-off setup. Written for pipelines whose dependency policy
-  excludes numba.
+  core dependencies — and no JIT warmup. Per iteration it is slightly faster than the
+  C; the whole remaining gap is one-off setup, dominated by building the zeta candidate
+  lists. Written for pipelines whose dependency policy excludes numba.
 
 `clib/slitdec.c` stays the reference: when it changes, port the change to both and
 re-run `test/test_numba_slitdec.py` and `test/test_numpy_slitdec.py`, which diff each
