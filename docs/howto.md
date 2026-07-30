@@ -113,6 +113,7 @@ Pipeline.from_instrument("UVES", ..., configuration=config).run()
 | `PYREDUCE_PLOT_ANIMATION_SPEED` | Frame delay in seconds for extraction animation (default: 0.3) |
 | `PYREDUCE_USE_CHARSLIT` | Use charslit extraction backend (default: 0) |
 | `PYREDUCE_USE_NUMBA` | Use the pure-Python numba extraction backend (default: 0) |
+| `PYREDUCE_USE_NUMPY` | Use the pure numpy/scipy extraction backend (default: 0) |
 | `PYREDUCE_USE_DELTAS` | Enable slitdelta correction with charslit backend (default: 1) |
 
 ## Plot Modes

@@ -301,6 +301,7 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 - `PYREDUCE_USE_CHARSLIT` - Use charslit extraction backend instead of CFFI (default: 0)
 - `PYREDUCE_USE_NUMBA` - Use the pure-Python numba extraction backend instead of CFFI (default: 0)
+- `PYREDUCE_USE_NUMPY` - Use the pure numpy/scipy extraction backend instead of CFFI (default: 0)
 - `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
@@ -309,21 +310,34 @@ The charslit backend supports higher-degree curvature polynomials (up to degree 
 
 ## Extraction Backends
 
-`extract._get_backend()` selects the slit-decomposition implementation, all three
+`extract._get_backend()` selects the slit-decomposition implementation, all four
 exposing the same `slitdec(...)` signature and result dict:
 
-| Backend | Module | Selected by |
-|---------|--------|-------------|
-| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — |
-| External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` |
-| Pure Python | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` |
+| Backend | Module | Selected by | vs C |
+|---------|--------|-------------|------|
+| CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | — | 1.0x |
+| External charslit | `charslit` package | `PYREDUCE_USE_CHARSLIT=1` | — |
+| Numba | `numba_slitdec` | `PYREDUCE_USE_NUMBA=1` | ~1.3x |
+| NumPy/SciPy | `numpy_slitdec` | `PYREDUCE_USE_NUMPY=1` | ~3.5x |
 
-`numba_slitdec.py` is a transliteration of the current `clib/slitdec.c` (pixel-centric
-SLE fills, dense merge windows from the per-pixel zeta ranges, zeta only — no xi
-tensor). It needs no compiler at install time, costs ~1.4x the C runtime, and agrees
-with the C to ~1e-15 relative. `clib/slitdec.c` stays the reference: when it changes,
-port the change and re-run `test/test_numba_slitdec.py`, which diffs the two backends
-directly. Requires the optional `numba` extra (`uv sync --extra numba`).
+Both pure-Python backends implement the same algorithm as the current
+`clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
+zeta ranges, zeta only — no xi tensor) and agree with it to ~1e-14 relative, with
+identical masks and iteration counts. They exist so PyReduce can extract without a
+compiled C extension:
+
+- `numba_slitdec.py` is a line-by-line transliteration; it needs the optional
+  `numba` extra (`uv sync --extra numba`), which pins numpy down a minor version.
+- `numpy_slitdec.py` replaces the pixel loops with scatter/gather (`np.bincount`,
+  `np.minimum.at`) over the zeta tensor in flat COO form, and `bandsol` with
+  `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
+  core dependencies — and no JIT warmup, at the cost of ~2.6x the numba runtime and
+  ~1.5x its memory. Written for pipelines whose dependency policy excludes numba.
+
+`clib/slitdec.c` stays the reference: when it changes, port the change to both and
+re-run `test/test_numba_slitdec.py` and `test/test_numpy_slitdec.py`, which diff each
+backend against the C directly. See `numba_slitdec.md` and `numpy_slitdec.md` for the
+algorithm history and standalone (outside-PyReduce) use.
 
 ## ANDES Instruments
 

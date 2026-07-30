@@ -33,10 +33,11 @@ from . import cwrappers
 # cwrappers.slitdec), whose C source is copied from charslit. Set
 # PYREDUCE_USE_CHARSLIT=1 to instead import the external charslit package, for
 # trying out upstream charslit development before copying it over, or
-# PYREDUCE_USE_NUMBA=1 for the pure-Python numba_slitdec port.
+# PYREDUCE_USE_NUMBA=1 / PYREDUCE_USE_NUMPY=1 for the pure-Python ports.
 # Checked at call time so env var changes within a process take effect.
 _charslit_mod = None
 _numba_mod = None
+_numpy_mod = None
 
 
 def _use_charslit():
@@ -47,6 +48,10 @@ def _use_numba():
     return os.environ.get("PYREDUCE_USE_NUMBA", "0") == "1"
 
 
+def _use_numpy():
+    return os.environ.get("PYREDUCE_USE_NUMPY", "0") == "1"
+
+
 def _use_deltas():
     return os.environ.get("PYREDUCE_USE_DELTAS", "1") == "1"
 
@@ -54,7 +59,8 @@ def _use_deltas():
 def _get_backend():
     """Return the slitdec backend module, selected by environment variable:
     the external charslit package for PYREDUCE_USE_CHARSLIT=1, the numba port
-    for PYREDUCE_USE_NUMBA=1, otherwise the vendored cwrappers CFFI code."""
+    for PYREDUCE_USE_NUMBA=1, the numpy port for PYREDUCE_USE_NUMPY=1,
+    otherwise the vendored cwrappers CFFI code."""
     if _use_charslit():
         global _charslit_mod
         if _charslit_mod is None:
@@ -69,6 +75,13 @@ def _get_backend():
 
             _numba_mod = numba_slitdec
         return _numba_mod
+    if _use_numpy():
+        global _numpy_mod
+        if _numpy_mod is None:
+            from . import numpy_slitdec
+
+            _numpy_mod = numpy_slitdec
+        return _numpy_mod
     return cwrappers
 
 

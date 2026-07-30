@@ -91,6 +91,11 @@ remains a cheap follow-up experiment if the numba dependency ever becomes a
 problem: the geometry construction is shared, and the two fill kernels sit
 behind a clean seam.
 
+**That experiment has since been done** — the numba dependency did become a
+problem for a new ESO pipeline. See `numpy_slitdec.md`: it lands at 3.0-4.2x,
+i.e. the pessimistic end of the estimate above, and the decision to go numba
+first still reads as the right one.
+
 The old numba branch was **not** used as a base. Its hot code was exactly what
 had to be replaced, and it sat on a pre-`steps/` base — rebasing a year of
 pipeline churn to reuse code slated for deletion. It was branched aside as
