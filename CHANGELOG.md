@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Extraction is 1.1-1.4x faster (most on tall slits): the sP band width is now measured from the zeta key ranges rather than sized from `delta_x`, shrinking `bandsol` from a 185-wide elimination to a 5-wide one on a 176-row swath, and the uncertainty pass reads the zeta tensor sequentially. Spectra, slit functions, models and masks are bit-identical; uncertainties move by <2e-15 relative from the changed summation order
 
 ## [0.9b2] - 2026-07-15
 
