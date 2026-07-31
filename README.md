@@ -4,7 +4,7 @@
 
 # What's new?
 
-Version 0.9b3 adds two pure-Python extraction backends, so PyReduce can run without a compiled C extension, and replaces `PYREDUCE_USE_CHARSLIT` with `PYREDUCE_EXTRACTION` (`c`, `charslit`, `numba`, `numpy`). See [CHANGELOG.md](CHANGELOG.md) for all changes.
+Version 0.9 adds two pure-Python extraction backends, so PyReduce can run without a compiled C extension, and replaces `PYREDUCE_USE_CHARSLIT` with `PYREDUCE_EXTRACTION` (`c`, `charslit`, `numba`, `numpy`). See [CHANGELOG.md](CHANGELOG.md) for all changes.
 
 # PyReduce
 

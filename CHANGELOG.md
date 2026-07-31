@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9] - 2026-07-31
+
+No code changes from 0.9b3; stable release of the 0.9 series.
+
 ## [0.9b3] - 2026-07-31
 
 ### Added
