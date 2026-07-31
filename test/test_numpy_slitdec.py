@@ -15,6 +15,10 @@ means a real divergence has appeared, not just noise.
 import numpy as np
 import pytest
 
+# The compiled extension is the oracle here; skip when PyReduce is installed
+# without it (see the pure-Python CI job)
+pytest.importorskip("pyreduce.clib._slitdec")
+
 from pyreduce.cwrappers import slitdec as slitdec_c
 
 numpy_slitdec = pytest.importorskip("pyreduce.numpy_slitdec")

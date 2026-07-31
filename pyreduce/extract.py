@@ -27,8 +27,6 @@ from .util import make_index
 
 logger = logging.getLogger(__name__)
 
-from . import cwrappers
-
 # PYREDUCE_EXTRACTION selects the slit decomposition implementation. All four
 # expose the same slitdec() signature and result dict; "c" is the reference the
 # others are tested against. "charslit" imports the external package, for trying
@@ -37,6 +35,10 @@ DEFAULT_EXTRACTION = "c"
 
 
 def _load_c():
+    # Imported here rather than at module scope so the compiled extension is
+    # only needed by installations that actually extract with it
+    from . import cwrappers
+
     return cwrappers
 
 
@@ -89,7 +91,7 @@ def _get_backend():
         )
     if name not in _backend_cache:
         _backend_cache[name] = EXTRACTION_BACKENDS[name]()
-        logger.debug("Using %r extraction backend", name)
+        logger.info("Extraction backend: %s", name)
     return _backend_cache[name]
 
 

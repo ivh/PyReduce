@@ -1,13 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [0.9b3] - 2026-07-31
 
 ### Added
-- Two pure-Python extraction backends implementing the same algorithm as `clib/slitdec.c`, for pipelines that cannot build a C extension: `numba_slitdec` (optional `numba` extra, ~1.3x the C) and `numpy_slitdec` (numpy/scipy only, no extra to install). Both agree with the C to ~1e-14 relative with identical masks and iteration counts, checked by `test/test_{numba,numpy}_slitdec.py`
+- Two pure-Python extraction backends implementing the same algorithm as `clib/slitdec.c`, for pipelines that cannot build a C extension: `numba_slitdec` (optional `numba` extra, 1.5-1.8x the C) and `numpy_slitdec` (numpy/scipy only, no extra to install, 1.8-2.1x). Both agree with the C to ~1e-14 relative with identical masks and iteration counts, checked by `test/test_{numba,numpy}_slitdec.py`
 - CLI `--extraction` on `reduce run` and the per-step commands, equivalent to setting `PYREDUCE_EXTRACTION`
+- CI job running the unit suite with the compiled extension removed and `PYREDUCE_EXTRACTION=numpy`, so the pure-Python path stays working
 
 ### Changed
 - **Breaking**: extraction backend selection moved from `PYREDUCE_USE_CHARSLIT` to `PYREDUCE_EXTRACTION`, one of `c` (default), `charslit`, `numba`, `numpy`. The old flag is no longer read; an unknown name raises instead of falling back. `PYREDUCE_USE_DELTAS` is unchanged
+- The compiled extension is imported only when the `c` backend is selected, so `import pyreduce.extract` works without it; the resolved backend is logged once at INFO
 - Extraction is 1.1-1.4x faster (most on tall slits): the sP band width is now measured from the zeta key ranges rather than sized from `delta_x`, shrinking `bandsol` from a 185-wide elimination to a 5-wide one on a 176-row swath, and the uncertainty pass reads the zeta tensor sequentially. Spectra, slit functions, models and masks are bit-identical; uncertainties move by <2e-15 relative from the changed summation order
 
 ## [0.9b2] - 2026-07-15

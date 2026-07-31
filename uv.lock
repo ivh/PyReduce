@@ -1646,7 +1646,7 @@ wheels = [
 
 [[package]]
 name = "pyreduce-astro"
-version = "0.9b2"
+version = "0.9b3"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },

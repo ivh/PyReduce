@@ -316,15 +316,29 @@ signature and result dict:
 | Backend | Module | `PYREDUCE_EXTRACTION` | vs C |
 |---------|--------|-------------|------|
 | CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | `c` (default) | 1.0x |
-| External charslit | `charslit` package | `charslit` | — |
-| Numba | `numba_slitdec` | `numba` | ~1.3x |
-| NumPy/SciPy | `numpy_slitdec` | `numpy` | ~1.4-2x |
+| External charslit | `charslit` package | `charslit` | 1.0-1.2x |
+| Numba | `numba_slitdec` | `numba` | 1.5-1.8x |
+| NumPy/SciPy | `numpy_slitdec` | `numpy` | 1.8-2.1x |
+
+Ratios are warm `slitdec` calls (JIT excluded), measured 2026-07-30 on
+32x400/os10, 151x500/os8 and 200x500/os10 swaths — the C at 4.3, 24.1 and 39.0 ms.
+They are *slower* than the ratios in `numba_slitdec.md` / `numpy_slitdec.md`, which
+predate the post-0.9b2 C speedup; re-measure after touching `slitdec.c`. End-to-end a
+whole science step lands anywhere from 1.1x (ANDES H, tall slits) to 3.4x (UVES,
+where a ~1 s run cannot amortize import and JIT-cache load).
 
 Both pure-Python backends implement the same algorithm as the current
 `clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
-zeta ranges, zeta only — no xi tensor) and agree with it to ~1e-14 relative, with
-identical masks and iteration counts. They exist so PyReduce can extract without a
-compiled C extension:
+zeta ranges, zeta only — no xi tensor) and agree with it to ~1e-14 relative on
+synthetic swaths, with identical masks and iteration counts. On real frames the
+float64 spread grows with conditioning: ~6e-14 worst pixel on UVES middle, ~4e-13
+on ANDES H with degree-5 curvature and slitdeltas. **The written products are
+bit-identical regardless** — flux, uncertainty and wavelength all match exactly in
+the float32 FITS, on both instruments, because float32 rounds at 6e-8. Note
+`charslit` is bit-identical to the vendored C on flat-slit data but diverges at
+~2.5e-13 once curvature is on: same source, different compiler and flags.
+
+They exist so PyReduce can extract without a compiled C extension:
 
 - `numba_slitdec.py` is a line-by-line transliteration; it needs the optional
   `numba` extra (`uv sync --extra numba`), which pins numpy down a minor version.
@@ -333,13 +347,20 @@ compiled C extension:
   setup ever touches the individual zeta entries; the normal-equation fills are
   `np.add.reduceat` run sums over pixels grouped by window base, and `bandsol` is
   `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
-  core dependencies — and no JIT warmup. Per iteration it is slightly faster than the
-  C; the whole remaining gap is one-off setup, dominated by building the zeta candidate
-  lists. Written for pipelines whose dependency policy excludes numba.
+  core dependencies — and no JIT warmup. Most of the remaining gap is one-off setup,
+  dominated by building the zeta candidate lists, so it closes as swaths get bigger.
+  Written for pipelines whose dependency policy excludes numba.
 
 `PYREDUCE_USE_CHARSLIT` (plus the short-lived `PYREDUCE_USE_NUMBA`/`PYREDUCE_USE_NUMPY`)
 was replaced by `PYREDUCE_EXTRACTION` with no alias; the old names are read nowhere.
 If one turns up in a script, `PYREDUCE_USE_CHARSLIT=1` becomes `PYREDUCE_EXTRACTION=charslit`.
+
+`_load_c` imports `cwrappers` (and through it the compiled `clib._slitdec`) only
+when the C backend is actually selected, so `import pyreduce.extract` works in an
+installation with no compiled extension — a prerequisite for ever shipping a
+pure-Python wheel. There is no fallback: `PYREDUCE_EXTRACTION=c` without the
+extension raises `ModuleNotFoundError`, now at first extraction rather than at
+import. The resolved backend is logged once per run at INFO.
 
 Selection is process-wide, not a reduction setting: `--extraction` on `reduce run`
 and the per-step commands just sets `PYREDUCE_EXTRACTION` before the pipeline is

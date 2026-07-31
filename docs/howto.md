@@ -114,6 +114,23 @@ Pipeline.from_instrument("UVES", ..., configuration=config).run()
 | `PYREDUCE_EXTRACTION` | Extraction backend: `c` (default), `charslit`, `numba`, `numpy` (or `--extraction`) |
 | `PYREDUCE_USE_DELTAS` | Enable slitdelta correction, any backend (default: 1) |
 
+## Extraction Backends
+
+The slit decomposition can run through any of four interchangeable implementations,
+selected with `PYREDUCE_EXTRACTION` or the `--extraction` CLI option:
+
+| Value | What it is | Speed | Needs |
+|-------|-----------|-------|-------|
+| `c` (default) | the compiled CFFI extension, and the reference the others are tested against | 1.0x | a C compiler at install time |
+| `numpy` | pure numpy/scipy port | ~1.8-2.1x | nothing extra |
+| `numba` | pure-Python port, JIT compiled | ~1.5-1.8x | `uv sync --extra numba` |
+| `charslit` | the external `charslit` package | ~1.0-1.2x | `uv sync --extra charslit` |
+
+The pure-Python backends exist so PyReduce can extract on a platform with no prebuilt
+wheel or no working compiler — see
+[Running Without the C Extension](installation.md#running-without-the-c-extension).
+All four produce bit-identical output files; the choice only affects runtime.
+
 ## Plot Modes
 
 PyReduce supports three plot display modes via `PYREDUCE_PLOT_SHOW`:

@@ -8,6 +8,10 @@ differs only through FMA contraction and vectorized accumulation order.
 import numpy as np
 import pytest
 
+# The compiled extension is the oracle here; skip when PyReduce is installed
+# without it (see the pure-Python CI job)
+pytest.importorskip("pyreduce.clib._slitdec")
+
 from pyreduce.cwrappers import slitdec as slitdec_c
 
 numba_slitdec = pytest.importorskip("pyreduce.numba_slitdec")

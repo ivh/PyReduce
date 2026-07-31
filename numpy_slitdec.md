@@ -5,6 +5,11 @@ numpy/scipy variant as an open experiment. Motivation for doing it: colleagues w
 PyReduce extraction inside a new ESO pipeline whose dependency policy may exclude
 numba. Target was to stay within 5x of the C.
 
+
+> **Re-measured 2026-07-30:** the ratios below were taken against the C as it
+> stood when this port was written. `clib/slitdec.c` has since gained 1.1-1.4x
+> (post-0.9b2), so the current figures are 1.8-2.1x the C. The analysis is kept as written.
+
 **Outcome: shipped. `pyreduce/numpy_slitdec.py` runs at 1.4–2.2x the C on realistic
 swaths, agreeing with it to 2e-14, with identical masks and iteration counts.**
 No extra to install: numpy and scipy are already core PyReduce dependencies.

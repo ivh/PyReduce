@@ -6,6 +6,11 @@ the old `numba` branch has a pure-Python reimplementation benchmarked against
 the *previous* C code. How far behind is it, could the speedups be ported, and
 is a numpy-only version viable instead?
 
+
+> **Re-measured 2026-07-30:** the ratios below were taken against the C as it
+> stood when this port was written. `clib/slitdec.c` has since gained 1.1-1.4x
+> (post-0.9b2), so the current figures are 1.5-1.8x the C. The analysis is kept as written.
+
 **Outcome: ported. `pyreduce/numba_slitdec.py` runs at 1.38x the C, agreeing
 with it to 1.3e-14.** Details below.
 
