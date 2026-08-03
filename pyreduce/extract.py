@@ -27,35 +27,72 @@ from .util import make_index
 
 logger = logging.getLogger(__name__)
 
-from . import cwrappers
-
-# The default backend is the CFFI slitdec extension (pyreduce.clib, wrapped by
-# cwrappers.slitdec), whose C source is copied from charslit. Set
-# PYREDUCE_USE_CHARSLIT=1 to instead import the external charslit package, for
-# trying out upstream charslit development before copying it over.
-# Checked at call time so env var changes within a process take effect.
-_charslit_mod = None
+# PYREDUCE_EXTRACTION selects the slit decomposition implementation. All four
+# expose the same slitdec() signature and result dict; "c" is the reference the
+# others are tested against. "charslit" imports the external package, for trying
+# out upstream development before copying it into clib.
+DEFAULT_EXTRACTION = "c"
 
 
-def _use_charslit():
-    return os.environ.get("PYREDUCE_USE_CHARSLIT", "0") == "1"
+def _load_c():
+    # Imported here rather than at module scope so the compiled extension is
+    # only needed by installations that actually extract with it
+    from . import cwrappers
+
+    return cwrappers
+
+
+def _load_charslit():
+    import charslit
+
+    return charslit
+
+
+def _load_numba():
+    from . import numba_slitdec
+
+    return numba_slitdec
+
+
+def _load_numpy():
+    from . import numpy_slitdec
+
+    return numpy_slitdec
+
+
+# Loaders are lazy: charslit and numba are optional dependencies, and importing
+# numba costs real startup time even when unused.
+EXTRACTION_BACKENDS = {
+    "c": _load_c,
+    "charslit": _load_charslit,
+    "numba": _load_numba,
+    "numpy": _load_numpy,
+}
+
+_backend_cache = {}
 
 
 def _use_deltas():
     return os.environ.get("PYREDUCE_USE_DELTAS", "1") == "1"
 
 
-def _get_charslit():
-    """Return the slitdec backend: the external charslit package when
-    PYREDUCE_USE_CHARSLIT=1, otherwise the vendored cwrappers implementation."""
-    if _use_charslit():
-        global _charslit_mod
-        if _charslit_mod is None:
-            import charslit
+def _get_backend():
+    """Return the slitdec backend module named by PYREDUCE_EXTRACTION.
 
-            _charslit_mod = charslit
-        return _charslit_mod
-    return cwrappers
+    One of ``c`` (default, the vendored CFFI extension), ``charslit`` (the
+    external package), ``numba`` or ``numpy`` (the pure-Python ports). Read at
+    call time so changes within a process take effect.
+    """
+    name = os.environ.get("PYREDUCE_EXTRACTION", DEFAULT_EXTRACTION).strip().lower()
+    if name not in EXTRACTION_BACKENDS:
+        raise ValueError(
+            f"Unknown extraction backend {name!r} in PYREDUCE_EXTRACTION; "
+            f"expected one of {', '.join(EXTRACTION_BACKENDS)}"
+        )
+    if name not in _backend_cache:
+        _backend_cache[name] = EXTRACTION_BACKENDS[name]()
+        logger.info("Extraction backend: %s", name)
+    return _backend_cache[name]
 
 
 def _slitdec_charslit(
@@ -154,8 +191,7 @@ def _slitdec_charslit(
             np.asarray(preset_slitfunc, dtype=np.float64)
         )
 
-    # Call charslit
-    result = _get_charslit().slitdec(
+    result = _get_backend().slitdec(
         data,
         pix_unc,
         mask_c,
@@ -758,10 +794,11 @@ def fix_extraction_height(xwd, traces, cr, ncol):
                     left = max(cr[[i, k], 0])
                     right = min(cr[[i, k], 1])
 
-                    if right < left:
-                        raise ValueError(
-                            f"Check your column ranges. Traces {i} and {k} are weird"
-                        )
+                    # Partial traces at the detector edge can have a column
+                    # range disjoint from their neighbour's; measure the
+                    # spacing at the image centre instead of giving up
+                    if right <= left:
+                        left, right = ncol // 2, ncol // 2 + 1
 
                     current = np.polyval(traces[i], x[left:right])
                     neighbor = np.polyval(traces[k], x[left:right])
@@ -775,6 +812,17 @@ def fix_extraction_height(xwd, traces, cr, ncol):
     xwd = np.ceil(xwd).astype(int)
 
     return xwd
+
+
+def resolve_extraction_heights(heights, traces, cr, nrow, ncol):
+    """Extraction heights in pixels, resolving fractions of trace spacing.
+
+    Same padding as ``fix_parameters``: the first and last trace need a
+    neighbour on the outside to measure their spacing against.
+    """
+    xwd = np.array([heights[0], *heights, heights[-1]], dtype=float)
+    crp = np.array([cr[0], *cr, cr[-1]])
+    return fix_extraction_height(xwd, extend_traces(traces, nrow), crp, ncol)[1:-1]
 
 
 def validate_traces_for_extraction(
@@ -801,16 +849,30 @@ def validate_traces_for_extraction(
     """
     ix = np.arange(ncol)
 
+    # Resolve fractional heights to pixels first. Checking the aperture against
+    # the image bounds is meaningless for a fraction: 0.9 would always "fit"
+    # while the 0.9 * trace spacing it stands for may not.
+    if isinstance(extraction_height, np.ndarray):
+        heights = np.asarray(extraction_height, dtype=float)
+    elif extraction_height is not None:
+        heights = np.full(len(traces), float(extraction_height))
+    else:
+        heights = np.array(
+            [t.height if t.height is not None else 0.5 for t in traces], dtype=float
+        )
+    heights = resolve_extraction_heights(
+        heights,
+        np.array([t.pos for t in traces]),
+        np.array([list(t.column_range) for t in traces], dtype=np.int32),
+        nrow,
+        ncol,
+    )
+
     for i, trace in enumerate(traces):
         if trace.invalid:
             continue
 
-        if isinstance(extraction_height, np.ndarray):
-            height = extraction_height[i]
-        elif extraction_height is not None:
-            height = extraction_height
-        else:
-            height = trace.height if trace.height is not None else 0.5
+        height = heights[i]
         half = height / 2
 
         # Check if extraction aperture stays within image
@@ -1194,7 +1256,7 @@ def extract_spectrum(
             swath_curv = curvature[ibeg:iend] if curvature is not None else None
             input_mask = np.ma.getmaskarray(swath_img).copy()
 
-            # Prepare curvature for both backends and visualization
+            # Prepare curvature for the backends and visualization
             slitcurve = _ensure_slitcurve(swath_curv, swath_ncols)
             if _use_deltas() and slitdeltas is not None and len(slitdeltas) > 0:
                 # Interpolate slitdeltas to match swath nrows if needed
@@ -1911,6 +1973,14 @@ def extract_normalize(
         raise ValueError("No traces provided")
 
     nrow, ncol = img.shape
+
+    # Drop traces whose aperture does not fit in the image, as extract() does:
+    # a partial order at the detector edge otherwise ends up with an empty
+    # column range and fails deep inside the extraction
+    validate_traces_for_extraction(traces, extraction_height, nrow, ncol)
+    traces = [t for t in traces if not t.invalid]
+    if not traces:
+        raise ValueError("No valid traces remaining after validation")
     ntrace = len(traces)
 
     # Convert Trace objects to arrays

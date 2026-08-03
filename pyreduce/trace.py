@@ -918,7 +918,9 @@ def trace(
     if min_width == 0:
         pass
     elif isinstance(min_width, (float, np.floating)):
-        min_width = int(min_width * im.shape[0])
+        # A fraction of the dispersion length: min_width is compared against a
+        # cluster's extent in x, so it scales with ncol, not nrow
+        min_width = int(min_width * im.shape[1])
 
     # Validate filter_type
     valid_filters = ("boxcar", "gaussian", "whittaker")
@@ -1423,12 +1425,14 @@ def group_fibers(
         # Named groups with explicit ranges
         for group_name, group_cfg in fibers_config.groups.items():
             start, end = group_cfg.range
-            start_idx = start - 1  # Convert to 0-based
+            start_idx = max(start - 1, 0)  # Convert to 0-based
             end_idx = end - 1  # Half-open, end is exclusive
 
             for m, order_traces in sorted(traces_by_m.items()):
-                # Select fibers in range for this order
-                if end_idx > len(order_traces):
+                # Clamp per order: an incomplete order must not truncate
+                # the range for subsequent (complete) orders
+                order_end = end_idx
+                if order_end > len(order_traces):
                     logger.warning(
                         "Group %s range [%d, %d) exceeds fiber count %d in order %s",
                         group_name,
@@ -1437,13 +1441,12 @@ def group_fibers(
                         len(order_traces),
                         m,
                     )
-                    end_idx = min(end_idx, len(order_traces))
-                start_idx = max(start_idx, 0)
+                    order_end = len(order_traces)
 
-                if start_idx >= end_idx:
+                if start_idx >= order_end:
                     continue
 
-                selected = order_traces[start_idx:end_idx]
+                selected = order_traces[start_idx:order_end]
                 merged = _merge_trace_objects(selected, group_cfg.merge, degree)
 
                 if merged is not None:

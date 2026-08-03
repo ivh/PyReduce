@@ -4,7 +4,7 @@
 
 # What's new?
 
-Version 0.8.1 fixes `create_custom_instrument` and adds a student-friendly example for reducing data from unsupported spectrographs. See [CHANGELOG.md](CHANGELOG.md) for all changes since 0.8.
+Version 0.9 adds two pure-Python extraction backends, so PyReduce can run without a compiled C extension, and replaces `PYREDUCE_USE_CHARSLIT` with `PYREDUCE_EXTRACTION` (`c`, `charslit`, `numba`, `numpy`). See [CHANGELOG.md](CHANGELOG.md) for all changes.
 
 # PyReduce
 
@@ -31,6 +31,20 @@ cd PyReduce
 uv sync
 uv run reduce-build
 ```
+
+### No wheel for your platform, or the C extension won't build?
+
+Extraction also runs in pure Python. Set `PYREDUCE_EXTRACTION=numpy` (or pass
+`--extraction numpy`) and nothing needs compiling — numpy and scipy are already
+core dependencies:
+
+```bash
+PYREDUCE_EXTRACTION=numpy uv run reduce run UVES -t HD132205
+```
+
+It is ~2x slower than the C extension and produces bit-identical output files.
+`PYREDUCE_EXTRACTION=numba` is ~1.5-1.8x with `uv sync --extra numba` installed.
+See [Extraction Backends](https://pyreduce-astro.readthedocs.io/en/latest/howto.html#extraction-backends).
 
 ## Quick Start
 

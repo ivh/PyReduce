@@ -487,6 +487,11 @@ class Instrument:
         if dtype is not None:
             data = data.astype(dtype)
 
+        # copy the mask: in-place arithmetic on the returned array ORs other
+        # masks into it, which must not leak into (possibly read-only) shared
+        # bad pixel mask
+        if mask is not None:
+            mask = np.array(mask, dtype=bool)
         data = np.ma.masked_array(data, mask=mask)
 
         hdu.close()
@@ -895,6 +900,22 @@ class Instrument:
         # Single-channel instruments with no `channels:` in config.yaml
         # iterate once with channel=None.
         return self.channels or [None]
+
+    def validate_channel(self, channel):
+        """Raise a clear error when a requested channel does not exist.
+
+        Matching is case-insensitive, like the header filters. Instruments
+        without a channels list accept anything (some subclasses build
+        their channels dynamically).
+        """
+        if not channel or not self.channels:
+            return
+        if any(str(c).casefold() == str(channel).casefold() for c in self.channels):
+            return
+        raise ValueError(
+            f"Unknown channel '{channel}' for instrument {self.name}. "
+            f"Available channels: {', '.join(str(c) for c in self.channels)}"
+        )
 
     def get_settings_fallbacks(self, channel):
         """Return channel names to try when looking up settings files.

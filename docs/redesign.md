@@ -120,10 +120,12 @@ See [configuration_file.md](configuration_file.md) for details.
 
 ## Extraction Backends
 
-Two extraction backends are available:
+Four extraction backends are available, all with the same `slitdec()` interface:
 
-- **CFFI** (default) — the original C slit function decomposition, supports curvature degree 1-2
-- **Charslit** (optional) — a newer backend supporting curvature up to degree 5 and per-row slitdelta corrections. Install with `uv sync --extra charslit` and enable with `PYREDUCE_USE_CHARSLIT=1`.
+- **CFFI** (`PYREDUCE_EXTRACTION=c`, the default and the reference) — `clib/slitdec.c`, the slit function decomposition copied from charslit. Curvature up to degree 5 and per-row slitdelta corrections.
+- **Charslit** (optional) — the external `charslit` package, for trying upstream development before copying it over. Install with `uv sync --extra charslit` and enable with `PYREDUCE_EXTRACTION=charslit`.
+- **Numba** (optional) — `numba_slitdec.py`, a pure-Python transliteration of the CFFI backend that needs no compiler at install time, at ~1.5-1.8x the runtime. Install with `uv sync --extra numba` and enable with `PYREDUCE_EXTRACTION=numba`.
+- **NumPy** — `numpy_slitdec.py`, the same algorithm expressed as scatter/gather over the zeta tensor plus `scipy.linalg.solveh_banded`, at ~1.8-2.1x the runtime. Needs nothing beyond the core dependencies; enable with `PYREDUCE_EXTRACTION=numpy`. For environments where numba is not an allowed dependency.
 
 ---
 

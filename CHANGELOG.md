@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.9] - 2026-07-31
+
+No code changes from 0.9b3; stable release of the 0.9 series.
+
+## [0.9b3] - 2026-07-31
+
+### Added
+- Two pure-Python extraction backends implementing the same algorithm as `clib/slitdec.c`, for pipelines that cannot build a C extension: `numba_slitdec` (optional `numba` extra, 1.5-1.8x the C) and `numpy_slitdec` (numpy/scipy only, no extra to install, 1.8-2.1x). Both agree with the C to ~1e-14 relative with identical masks and iteration counts, checked by `test/test_{numba,numpy}_slitdec.py`
+- CLI `--extraction` on `reduce run` and the per-step commands, equivalent to setting `PYREDUCE_EXTRACTION`
+- CI job running the unit suite with the compiled extension removed and `PYREDUCE_EXTRACTION=numpy`, so the pure-Python path stays working
+
+### Changed
+- **Breaking**: extraction backend selection moved from `PYREDUCE_USE_CHARSLIT` to `PYREDUCE_EXTRACTION`, one of `c` (default), `charslit`, `numba`, `numpy`. The old flag is no longer read; an unknown name raises instead of falling back. `PYREDUCE_USE_DELTAS` is unchanged
+- The compiled extension is imported only when the `c` backend is selected, so `import pyreduce.extract` works without it; the resolved backend is logged once at INFO
+- Extraction is 1.1-1.4x faster (most on tall slits): the sP band width is now measured from the zeta key ranges rather than sized from `delta_x`, shrinking `bandsol` from a 185-wide elimination to a 5-wide one on a 176-row swath, and the uncertainty pass reads the zeta tensor sequentially. Spectra, slit functions, models and masks are bit-identical; uncertainties move by <2e-15 relative from the changed summation order
+
+## [0.9b2] - 2026-07-15
+
+### Added
+- Parallel science extraction via new `n_jobs` science setting (joblib semantics, -1 = all cores)
+- CLI: `--skip-existing` flag, `list-channels` command; bad channel/instrument names fail fast listing the valid options
+- Fiber selection in the Pipeline API: `use_fibers()`, `extract(use=)`, `from_instrument(use=)`, mirroring CLI `--use`
+- Wavecal quality metrics: per-group log summary and `.wavecal_quality.json` export (RMS/median residuals in m/s, line counts, AIC)
+- Trace: `max_error` setting rejects fused double-order clusters (port of IDL REDUCE `MAX_ERR`)
+- Provenance: `PR_version`/`PR_githash` stamped into all FITS products; `DATE` and `e_cont` recorded in final headers
+- Atlas: full KPNO ThAr line list; UNe NIR line list
+- MOSAIC: per-bundle wavelength range guess for single-order multi-bundle wavecal initialization
+- Example `examples/andes_yjh_fp.py`: extract and measure FP lines in an IFU frame
+
+### Changed
+- `reduce.py` split into `pyreduce/steps/` package; `reduce.py` keeps `main()` and re-exports step classes. `mark_orders` alias renamed to `detect_traces`; unused `FitsIOStep` removed
+- MOSAIC channels renamed to the ESO INS MODE scheme (NIR: `J_LR`/`H_LR`/`H_HR`; VIS: arm+resolution x detector quadrant)
+- wavecal_init: FFT cross-correlation against the synthesized atlas for the global offset; new `wave_delta` search-radius parameter
+- Config errors fail early: `id_*` regex validation, per-channel list length checks, missing centers files raise instead of falling back silently
+
+### Fixed
+- Corrupted `thar.fits` atlas replaced with the clean KPNO spectrum; corrupt `une.fits` dropped
+- Shared bad pixel mask was attached by reference and mutated in-place by `load_fits`/`combine_frames`
+- `group_fibers`: per-order range clamp no longer truncates later orders
+- Traces file write errors in wavecal/freq_comb/curvature now propagate instead of being swallowed
+- Wavelength solutions are written to the correct traces when wavecal results are group-keyed (MOSAIC)
+- Legacy linelist `.npz` files migrated to the current dtype on load
 
 ## [0.9b1] - 2026-06-17
 

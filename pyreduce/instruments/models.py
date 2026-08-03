@@ -8,6 +8,7 @@ structure described in REDESIGN.md.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
@@ -335,6 +336,58 @@ class InstrumentConfig(BaseModel):
     def normalize_list_or_scalar(cls, v):
         """Keep as-is, validation handles both forms."""
         return v
+
+    @field_validator(
+        "id_instrument",
+        "id_bias",
+        "id_flat",
+        "id_curvature",
+        "id_scatter",
+        "id_orders",
+        "id_wave",
+        "id_comb",
+        "id_spec",
+        "id_channel",
+    )
+    @classmethod
+    def validate_id_pattern(cls, v, info):
+        """id_* values are compiled as regex by the file classification
+        filters, so a broken pattern must fail at config load, not mid-run."""
+        patterns = v if isinstance(v, list) else [v]
+        for pattern in patterns:
+            if pattern is None:
+                continue
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(
+                    f"{info.field_name}: invalid regex pattern {pattern!r} ({e})"
+                ) from e
+        return v
+
+    @model_validator(mode="after")
+    def validate_channel_indexed_lists(self):
+        """List-valued per-channel fields must line up with `channels`,
+        otherwise the getter silently indexes the wrong entry."""
+        list_fields = {}
+        for name in ("id_channel", "channels_id", "extension", "orientation"):
+            value = getattr(self, name)
+            if isinstance(value, list):
+                list_fields[name] = value
+        if not list_fields:
+            return self
+        if self.channels is None:
+            raise ValueError(
+                f"{sorted(list_fields)} are per-channel lists, "
+                "but 'channels' is not defined"
+            )
+        for name, value in list_fields.items():
+            if len(value) != len(self.channels):
+                raise ValueError(
+                    f"'{name}' has {len(value)} entries but 'channels' "
+                    f"has {len(self.channels)}: {self.channels}"
+                )
+        return self
 
 
 # Future models for the nested structure (REDESIGN.md)

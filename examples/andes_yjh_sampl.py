@@ -160,7 +160,7 @@ def process_channel(channel: str) -> bool:
         print(f"  Warning: HDF file not found ({hdf_file}), no R map")
 
     # --- Create Pipeline ---
-    config = load_config(None, INSTRUMENT_NAME)
+    config = load_config(None, INSTRUMENT_NAME, channel=channel)
     # Narrow aperture so we don't bleed over unlit neighbours (~2.2 px spacing).
     config["science"]["extraction_height"] = 3
     # Disable outlier rejection: the LFC peaks are sharp and bright, the rejector

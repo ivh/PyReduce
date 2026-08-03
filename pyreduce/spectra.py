@@ -21,6 +21,8 @@ import astropy.io.fits as fits
 import numpy as np
 import scipy.constants
 
+from .provenance import add_provenance
+
 if TYPE_CHECKING:
     from pyreduce.trace_model import Trace
 
@@ -351,6 +353,7 @@ class Spectra:
         header["E_FMTVER"] = (FORMAT_VERSION, "PyReduce format version")
         if steps:
             header["E_STEPS"] = (",".join(steps), "Pipeline steps run")
+        add_provenance(header)
 
         # Add extraction parameters
         if self.params:

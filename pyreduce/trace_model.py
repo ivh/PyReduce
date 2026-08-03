@@ -18,6 +18,8 @@ from pathlib import Path
 import astropy.io.fits as fits
 import numpy as np
 
+from .provenance import add_provenance
+
 logger = logging.getLogger(__name__)
 
 # Format version for backwards compatibility detection
@@ -320,6 +322,7 @@ def save_traces(
     header["E_FMTVER"] = (FORMAT_VERSION, "PyReduce format version")
     if steps:
         header["E_STEPS"] = (",".join(steps), "Pipeline steps run")
+    add_provenance(header)
 
     # Determine array sizes
     max_pos_deg = max(len(t.pos) for t in traces)

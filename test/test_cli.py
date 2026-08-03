@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from pyreduce.__main__ import ALL_STEPS, cli
+from pyreduce.__main__ import ALL_STEPS, EXTRACTION_BACKENDS, cli
 
 pytestmark = pytest.mark.unit
 
@@ -78,6 +78,26 @@ class TestListStepsCommand:
             "Available reduction steps" in result.output
             or "list-steps" in result.output
         )
+
+
+class TestListChannelsCommand:
+    """Test the list-channels command."""
+
+    def test_list_channels_multi(self, runner):
+        result = runner.invoke(cli, ["list-channels", "UVES"])
+        assert result.exit_code == 0
+        for channel in ("BLUE", "MIDDLE", "RED"):
+            assert channel in result.output
+
+    def test_list_channels_single(self, runner):
+        result = runner.invoke(cli, ["list-channels", "HERMES"])
+        assert result.exit_code == 0
+        assert "single channel" in result.output
+
+    def test_list_channels_unknown_instrument(self, runner):
+        result = runner.invoke(cli, ["list-channels", "NOSUCHSPECTROGRAPH"])
+        assert result.exit_code != 0
+        assert "Unknown instrument" in result.output
 
 
 class TestDownloadCommand:
@@ -220,6 +240,37 @@ class TestRunCommand:
         assert result.exit_code == 0
         call_kwargs = mock_main.call_args[1]
         assert call_kwargs["channels"] == "MIDDLE"
+
+    @patch("pyreduce.reduce.main")
+    def test_run_with_skip_existing(self, mock_main, runner):
+        """Test that --skip-existing is forwarded to reduce.main."""
+        mock_main.return_value = None
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--skip-existing"]
+        )
+        assert result.exit_code == 0
+        assert mock_main.call_args[1]["skip_existing"] is True
+
+    def test_run_invalid_channel(self, runner):
+        """An unknown channel fails fast with the available channels listed."""
+        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205", "-c", "GREEN"])
+        assert result.exit_code != 0
+        assert "Unknown channel 'GREEN'" in result.output
+        assert "BLUE" in result.output
+
+    def test_run_channel_case_insensitive(self, runner):
+        """Channel matching ignores case (as the header filters do)."""
+        with patch("pyreduce.reduce.main") as mock_main:
+            mock_main.return_value = None
+            result = runner.invoke(
+                cli, ["run", "UVES", "-t", "HD132205", "-c", "middle"]
+            )
+        assert result.exit_code == 0
+
+    def test_run_unknown_instrument(self, runner):
+        result = runner.invoke(cli, ["run", "NOSUCHSPECTROGRAPH"])
+        assert result.exit_code != 0
+        assert "Unknown instrument" in result.output
 
     @patch("pyreduce.reduce.main")
     def test_run_with_steps(self, mock_main, runner):
@@ -756,3 +807,27 @@ class TestCLIIntegration:
         # All steps from list-steps should be in help
         for step in ALL_STEPS[:5]:  # Sample check
             assert step in list_result.output
+
+
+class TestExtractionBackendOption:
+    def test_choices_match_extract_registry(self):
+        """The CLI spells out the backend names to keep --help import-free."""
+        from pyreduce.extract import EXTRACTION_BACKENDS as registry
+
+        assert set(EXTRACTION_BACKENDS) == set(registry)
+
+    def test_rejects_unknown_backend(self, runner):
+        result = runner.invoke(cli, ["run", "UVES", "--extraction", "cffi"])
+        assert result.exit_code != 0
+        assert "cffi" in result.output
+
+    @pytest.mark.parametrize("command", ["run", "science"])
+    def test_sets_env_var(self, runner, command):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PYREDUCE_EXTRACTION", None)
+            with patch("pyreduce.reduce.main", side_effect=RuntimeError("stop")) as m:
+                runner.invoke(
+                    cli, [command, "UVES", "-t", "HD132205", "--extraction", "numpy"]
+                )
+            assert m.called
+            assert os.environ["PYREDUCE_EXTRACTION"] == "numpy"

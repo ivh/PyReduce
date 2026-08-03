@@ -87,6 +87,21 @@ pipe.extract(science_files)
 result = pipe.run()
 ```
 
+### Parallel Extraction
+
+For nights with many science frames, the science step can extract files in
+parallel worker processes. Set `n_jobs` in the `science` settings section
+(default 1, -1 uses all cores); plots are disabled when parallel:
+
+```python
+from pyreduce.configuration import get_configuration_for_instrument
+
+config = get_configuration_for_instrument("UVES")
+config["science"]["n_jobs"] = 4
+
+Pipeline.from_instrument("UVES", ..., configuration=config).run()
+```
+
 ## Environment Variables
 
 | Variable | Description |
@@ -96,8 +111,25 @@ result = pipe.run()
 | `PYREDUCE_PLOT_DIR` | Save plots to directory as PNG files |
 | `PYREDUCE_PLOT_SHOW` | Display mode: `block` (default), `defer`, or `off` |
 | `PYREDUCE_PLOT_ANIMATION_SPEED` | Frame delay in seconds for extraction animation (default: 0.3) |
-| `PYREDUCE_USE_CHARSLIT` | Use charslit extraction backend (default: 0) |
-| `PYREDUCE_USE_DELTAS` | Enable slitdelta correction with charslit backend (default: 1) |
+| `PYREDUCE_EXTRACTION` | Extraction backend: `c` (default), `charslit`, `numba`, `numpy` (or `--extraction`) |
+| `PYREDUCE_USE_DELTAS` | Enable slitdelta correction, any backend (default: 1) |
+
+## Extraction Backends
+
+The slit decomposition can run through any of four interchangeable implementations,
+selected with `PYREDUCE_EXTRACTION` or the `--extraction` CLI option:
+
+| Value | What it is | Speed | Needs |
+|-------|-----------|-------|-------|
+| `c` (default) | the compiled CFFI extension, and the reference the others are tested against | 1.0x | a C compiler at install time |
+| `numpy` | pure numpy/scipy port | ~1.8-2.1x | nothing extra |
+| `numba` | pure-Python port, JIT compiled | ~1.5-1.8x | `uv sync --extra numba` |
+| `charslit` | the external `charslit` package | ~1.0-1.2x | `uv sync --extra charslit` |
+
+The pure-Python backends exist so PyReduce can extract on a platform with no prebuilt
+wheel or no working compiler — see
+[Running Without the C Extension](installation.md#running-without-the-c-extension).
+All four produce bit-identical output files; the choice only affects runtime.
 
 ## Plot Modes
 

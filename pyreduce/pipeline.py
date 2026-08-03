@@ -45,7 +45,7 @@ import numpy as np
 from . import util
 from .configuration import load_config
 from .instruments.instrument_info import load_instrument
-from .reduce import (
+from .steps import (
     BackgroundScatter,
     Bias,
     ContinuumNormalization,
@@ -148,6 +148,7 @@ class Pipeline:
         """
         if isinstance(instrument, str):
             instrument = load_instrument(instrument)
+        instrument.validate_channel(channel)
 
         self.instrument = instrument
         self.output_dir = output_dir.format(
@@ -317,7 +318,10 @@ class Pipeline:
             fibers_config.groups is not None or fibers_config.bundles is not None
         ):
             logger.info("Grouping %d traces into fiber groups", len(all_traces))
-            trace_objects = group_fibers(all_traces, fibers_config, degree=degree)
+            # Keep raw fiber traces alongside the grouped ones, matching
+            # Trace.run(), so per-fiber selection still works downstream
+            grouped = group_fibers(all_traces, fibers_config, degree=degree)
+            trace_objects = grouped + all_traces
         else:
             trace_objects = all_traces
 
@@ -370,8 +374,64 @@ class Pipeline:
         """Finalize frequency comb calibration."""
         return self._add_step("freq_comb")
 
-    def extract(self, files: list[str]) -> Pipeline:
-        """Extract science spectra."""
+    def use_fibers(
+        self, selection: str | int | list, step: str | None = None
+    ) -> Pipeline:
+        """Select which fiber groups or individual fibers steps operate on.
+
+        Replaces the need to mutate ``instrument.config.fibers.use`` by hand.
+
+        Parameters
+        ----------
+        selection : str, int, or list
+            "groups" (all merged group traces), "per_fiber" (process each
+            fiber separately), a single group name / fiber index, a list of
+            group names and/or fiber indices, or a comma-separated string
+            of group names (CLI --use syntax).
+        step : str, optional
+            Apply the selection to one step only (e.g. "science").
+            By default the selection applies pipeline-wide, overriding any
+            per-step selection from the instrument config.
+
+        Returns
+        -------
+        Pipeline
+            Self for method chaining
+        """
+        fibers = getattr(self.instrument.config, "fibers", None)
+        if fibers is None:
+            raise ValueError(
+                f"Instrument {self.instrument.name} has no fiber configuration, "
+                "cannot select fiber groups"
+            )
+
+        if isinstance(selection, str) and selection not in ("groups", "per_fiber"):
+            selection = [s.strip() for s in selection.split(",")]
+        elif isinstance(selection, int):
+            selection = [selection]
+
+        if step is None:
+            fibers.use = {"default": selection}
+        else:
+            if fibers.use is None:
+                fibers.use = {}
+            fibers.use[step] = selection
+        return self
+
+    def extract(
+        self, files: list[str], use: str | int | list | None = None
+    ) -> Pipeline:
+        """Extract science spectra.
+
+        Parameters
+        ----------
+        files : list[str]
+            Science files to extract
+        use : str, int, or list, optional
+            Fiber group / fiber selection for this step, see use_fibers()
+        """
+        if use is not None:
+            self.use_fibers(use, step="science")
         return self._add_step("science", files)
 
     def continuum(self) -> Pipeline:
@@ -587,35 +647,37 @@ class Pipeline:
         # Map step names to pipeline methods
         # Use len() for truth checks since files can be numpy arrays
         step_map = {
-            "bias": lambda: pipe.bias(files.get("bias", []))
-            if len(files.get("bias", []))
-            else pipe,
-            "flat": lambda: pipe.flat(files.get("flat", []))
-            if len(files.get("flat", []))
-            else pipe,
+            "bias": lambda: (
+                pipe.bias(files.get("bias", [])) if len(files.get("bias", [])) else pipe
+            ),
+            "flat": lambda: (
+                pipe.flat(files.get("flat", [])) if len(files.get("flat", [])) else pipe
+            ),
             "trace": lambda: pipe.trace(files.get("trace", files.get("flat"))),
             "curvature": lambda: pipe.curvature(
                 files.get("curvature", files.get("flat"))
             ),
             "scatter": lambda: pipe.scatter(files.get("scatter", files.get("flat"))),
             "norm_flat": lambda: pipe.normalize_flat(),
-            "wavecal_master": lambda: pipe.wavecal_master(
-                files.get("wavecal_master", [])
-            )
-            if len(files.get("wavecal_master", []))
-            else pipe,
+            "wavecal_master": lambda: (
+                pipe.wavecal_master(files.get("wavecal_master", []))
+                if len(files.get("wavecal_master", []))
+                else pipe
+            ),
             "wavecal_init": lambda: pipe.wavecal_init(),
             "wavecal": lambda: pipe.wavecal(),
-            "freq_comb_master": lambda: pipe.freq_comb_master(
-                files.get("freq_comb_master", [])
-            )
-            if len(files.get("freq_comb_master", []))
-            else pipe,
+            "freq_comb_master": lambda: (
+                pipe.freq_comb_master(files.get("freq_comb_master", []))
+                if len(files.get("freq_comb_master", []))
+                else pipe
+            ),
             "freq_comb": lambda: pipe.freq_comb(),
             "rectify": lambda: pipe.rectify(),
-            "science": lambda: pipe.extract(files.get("science", []))
-            if len(files.get("science", []))
-            else pipe,
+            "science": lambda: (
+                pipe.extract(files.get("science", []))
+                if len(files.get("science", []))
+                else pipe
+            ),
             "continuum": lambda: pipe.continuum(),
             "finalize": lambda: pipe.finalize(),
         }
@@ -639,6 +701,7 @@ class Pipeline:
         output_dir: str | None = None,
         configuration: dict | None = None,
         trace_range: tuple[int, int] | None = None,
+        use: str | int | list | None = None,
         plot: int = 0,
         plot_dir: str | None = None,
     ) -> Pipeline:
@@ -671,6 +734,9 @@ class Pipeline:
             Configuration overrides. Default: instrument defaults
         trace_range : tuple, optional
             (first, last+1) orders to process
+        use : str, int, or list, optional
+            Fiber group / fiber selection for all steps (like the CLI --use
+            flag), see use_fibers()
         plot : int
             Plot level (0=off, 1=basic, 2=detailed)
         plot_dir : str, optional
@@ -704,6 +770,8 @@ class Pipeline:
 
         # Load instrument (before config, so we can get settings fallbacks)
         inst = load_instrument(instrument)
+        for c in [channel] if isinstance(channel, str) else channel or []:
+            inst.validate_channel(c)
 
         # Load configuration (channel-specific if settings_{channel}.json exists)
         channel_fallbacks = inst.get_settings_fallbacks(channel) if channel else None
@@ -778,5 +846,8 @@ class Pipeline:
             plot=plot,
             plot_dir=plot_dir,
         )
+
+        if use is not None:
+            pipe.use_fibers(use)
 
         return pipe

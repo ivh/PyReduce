@@ -188,3 +188,29 @@ def test_discover_channels_empty_directory():
     with tempfile.TemporaryDirectory() as tmpdir:
         channels = instr.discover_channels(tmpdir)
         assert channels == [None]
+
+
+@pytest.mark.unit
+def test_validate_channel_accepts_known_and_none():
+    instr = instrument_info.load_instrument("UVES")
+
+    instr.validate_channel("MIDDLE")
+    instr.validate_channel("middle")  # case-insensitive
+    instr.validate_channel(None)
+    instr.validate_channel("")
+
+
+@pytest.mark.unit
+def test_validate_channel_rejects_unknown():
+    instr = instrument_info.load_instrument("UVES")
+
+    with pytest.raises(ValueError, match="Unknown channel 'GREEN'"):
+        instr.validate_channel("GREEN")
+
+
+@pytest.mark.unit
+def test_validate_channel_no_channel_list_accepts_all():
+    """Instruments without a channels list accept any channel name."""
+    instr = instrument_info.load_instrument("HERMES")
+
+    instr.validate_channel("anything")

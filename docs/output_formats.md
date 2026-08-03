@@ -19,6 +19,16 @@ Files are identified by header keyword `E_FMTVER = 2`.
 | `E_LAMBDASP` | Spectrum smoothing parameter |
 | `E_SWATHW` | Swath width (if set) |
 | `barycorr` | Barycentric velocity correction (km/s) |
+| `E_INPUT` | Original input filename of the science frame |
+| `E_CONT` | `T`: CONT is a fitted continuum (orders spliced); `F`: CONT is the blaze. Absent in files reduced before v0.9b2 |
+| `DATE` | UTC timestamp of the reduction |
+| `HIERARCH PR_version` | PyReduce version used |
+| `HIERARCH PR_githash` | Git revision of the PyReduce checkout (`git describe`, `-dirty` marks uncommitted changes). Absent for installed releases |
+| `HIERARCH PR *` | Reduction settings used (one keyword per setting) |
+
+`PR_version` and `PR_githash` are stamped into all FITS products (master
+bias/flat, traces, wavecal spectra, science, final), not just the final
+spectra.
 
 ### Table Columns
 
@@ -125,3 +135,12 @@ spectra = Spectra.read("old_file.fits")
 for s in spectra.data:
     print(f"Order {s.m}: {len(s.spec)} pixels")
 ```
+
+## Wavecal Quality Metrics
+
+The `wavecal` step writes `<prefix>.wavecal_quality.json` next to the
+linelists with a machine-readable summary of the wavelength fit: global and
+per-order RMS and median absolute residuals (m/s), line counts, and the AIC
+of the fit. Per-order keys are physical order numbers when the linelist has
+an `obase`, otherwise 0-based indices. The same summary is logged per group
+during the reduction.

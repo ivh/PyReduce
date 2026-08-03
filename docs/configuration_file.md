@@ -151,6 +151,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 | `filter_x` | Median filter size in x | 0 |
 | `filter_type` | Filter type ("boxcar" or "median") | "boxcar" |
 | `border_width` | Pixels to ignore at edges. Int or `[top, bottom, left, right]` | null |
+| `max_error` | Reject clusters whose polynomial fit RMS (pixels) exceeds this; catches fused double-order clusters | null |
 
 Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% of image maximum) for trace detection.
 
@@ -166,6 +167,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | `swath_width` | Width of extraction swaths | 300 |
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
 | `maxiter` | Maximum extraction iterations | 30 |
+| `n_jobs` | Files to extract in parallel (joblib semantics, -1 = all cores). Disables plots when not 1 | 1 |
 
 #### extraction_height
 

@@ -249,6 +249,67 @@ class TestWavelengthCalibrationResidual:
         assert np.abs(residual[0]) > 100000  # Large residual
 
 
+class TestWavelengthCalibrationQualityMetrics:
+    """Unit tests for WavelengthCalibration.quality_metrics."""
+
+    @pytest.fixture
+    def wc_and_lines(self):
+        from scipy.constants import speed_of_light
+
+        wc = WavelengthCalibration(dimensionality="1D", degree=1, plot=False)
+        # Solution: wavelength = 5000 + 0.1*x
+        solution = np.array([[0.1, 5000.0]])
+
+        lines = np.zeros(5, dtype=LineList.dtype)
+        lines["posm"] = [100, 200, 300, 400, 500]
+        lines["order"] = [0, 0, 0, 0, 0]
+        lines["wll"] = 5000.0 + 0.1 * lines["posm"]
+        lines["flag"] = [True, True, True, True, False]
+        # One used line offset by ~100 m/s
+        lines["wll"][2] *= 1 - 100 / speed_of_light
+        return wc, solution, LineList(lines)
+
+    @pytest.mark.unit
+    def test_quality_metrics_counts_and_rms(self, wc_and_lines):
+        wc, solution, lines = wc_and_lines
+
+        metrics = wc.quality_metrics(solution, lines)
+
+        assert metrics["nlines_used"] == 4
+        assert metrics["nlines_rejected"] == 1
+        # Used residuals are [0, 0, ~100, 0] m/s -> rms = 50
+        assert metrics["rms_mps"] == pytest.approx(50.0, rel=1e-3)
+        assert metrics["median_abs_mps"] == pytest.approx(0.0, abs=1e-3)
+        assert np.isfinite(metrics["aic"])
+
+    @pytest.mark.unit
+    def test_quality_metrics_per_order_with_obase(self, wc_and_lines):
+        wc, solution, lines = wc_and_lines
+        lines.obase = 90
+
+        metrics = wc.quality_metrics(solution, lines)
+
+        # Per-order keys use physical order numbers when obase is set
+        assert list(metrics["orders"].keys()) == [90]
+        assert metrics["orders"][90]["nlines"] == 4
+        assert metrics["orders"][90]["rms_mps"] == pytest.approx(50.0, rel=1e-3)
+
+    @pytest.mark.unit
+    def test_quality_metrics_all_rejected(self):
+        wc = WavelengthCalibration(dimensionality="1D", degree=1, plot=False)
+        solution = np.array([[0.1, 5000.0]])
+        lines = np.zeros(2, dtype=LineList.dtype)
+        lines["posm"] = [100, 200]
+        lines["order"] = [0, 0]
+        lines["wll"] = 5000.0 + 0.1 * lines["posm"]
+        lines["flag"] = [False, False]
+
+        metrics = wc.quality_metrics(solution, LineList(lines))
+
+        assert metrics["nlines_used"] == 0
+        assert metrics["rms_mps"] is None
+
+
 class TestWavelengthCalibrationNormalize:
     """Unit tests for WavelengthCalibration.normalize."""
 
@@ -1332,3 +1393,9 @@ def test_wavecal(
     assert wave.shape[0] == trace_range[1] - trace_range[0]
     assert wave.shape[1] == orig.shape[1]
     assert np.issubdtype(wave.dtype, np.floating)
+
+    metrics = module.quality_metrics(solution, lines)
+    assert metrics["nlines_used"] > 0
+    # A sane ThAr solution should be well below the rejection threshold
+    assert 0 < metrics["rms_mps"] < settings[name]["threshold"]
+    assert len(metrics["orders"]) > 0

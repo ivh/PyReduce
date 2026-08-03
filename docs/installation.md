@@ -60,3 +60,25 @@ This is useful after modifying the C source files in `pyreduce/clib/`.
 
 PyReduce uses CFFI to link to C code. On non-Linux platforms you may need to install libffi.
 See https://cffi.readthedocs.io/en/latest/installation.html#platform-specific-instructions for details.
+
+## Running Without the C Extension
+
+The extraction algorithm also exists as two pure-Python ports, so a failed build or a
+platform with no prebuilt wheel is not a dead end. Select one with
+`PYREDUCE_EXTRACTION` (or the `--extraction` CLI option):
+
+```bash
+PYREDUCE_EXTRACTION=numpy uv run reduce run UVES -t HD132205
+```
+
+- `numpy` needs nothing beyond the core dependencies (numpy and scipy) and runs at
+  ~1.8-2.1x the C extension.
+- `numba` needs `uv sync --extra numba` and runs at ~1.5-1.8x, after a one-off JIT
+  compile on first use.
+
+Both implement the same algorithm as the C and are tested against it directly: they
+agree to a few 1e-13 in float64, and the written FITS products are bit-identical.
+
+There is no automatic fallback — with the extension missing, the default
+`PYREDUCE_EXTRACTION=c` raises `ModuleNotFoundError` at the first extraction, so set
+the variable explicitly. The backend in use is logged once per run at INFO level.

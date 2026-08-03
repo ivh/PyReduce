@@ -65,7 +65,7 @@ int _nd = 0;
 #if DEBUG
 static long zeta_index(long x, long y, long z)
 {
-    long i = z + y * MAX_ZETA_Z + x * MAX_ZETA_Z * _nrows;
+    long i = z + x * MAX_ZETA_Z + y * MAX_ZETA_Z * _ncols;
     if ((i < 0) | (i >= MAX_ZETA))
     {
         printf("INDEX OUT OF BOUNDS. Zeta[%li, %li, %li]\n", x, y, z);
@@ -76,7 +76,7 @@ static long zeta_index(long x, long y, long z)
 
 static long mzeta_index(long x, long y)
 {
-    long i = y + x * _nrows;
+    long i = x + y * _ncols;
     if ((i < 0) | (i >= MAX_MZETA))
     {
         printf("INDEX OUT OF BOUNDS. Mzeta[%li, %li]\n", x, y);
@@ -190,8 +190,12 @@ static long sl_index(long i)
     return i;
 }
 #else
-#define zeta_index(x, y, z) ((z) + (y)*MAX_ZETA_Z + (x)*MAX_ZETA_Z * _nrows)
-#define mzeta_index(x, y) ((y) + (x)*_nrows)
+/* zeta is y-major: one detector row's lists are contiguous, so the fills,
+   the model and the uncertainty pass can iterate rows outermost (which keeps
+   their band-matrix windows cache-resident) while still reading zeta
+   sequentially. */
+#define zeta_index(x, y, z) ((z) + (x)*MAX_ZETA_Z + (y)*MAX_ZETA_Z * _ncols)
+#define mzeta_index(x, y) ((x) + (y)*_ncols)
 #define curve_index(x, y) ((x)*6 + (y))
 // Band matrices are stored row-major (band entries for one row are
 // contiguous): this matches the access pattern of both the SLE fill
@@ -427,6 +431,11 @@ static inline void zeta_add(zeta_ref *zeta, int *m_zeta, zeta_rng *z_rng,
     if (xx >= 0 && xx < ncols && yy >= 0 && yy < nrows && w > 0)
     {
         const int m = m_zeta[mzeta_index(xx, yy)];
+        /* Extreme geometry can feed one pixel from more subpixels than the
+           fixed per-pixel list holds; drop the entry rather than overflow
+           into the next pixel's list. Real data reaches ~18 of 21 slots. */
+        if (m >= MAX_ZETA_Z)
+            return;
         zeta_rng *zr = &z_rng[mzeta_index(xx, yy)];
         zeta[zeta_index(xx, yy, m)].x = x;
         zeta[zeta_index(xx, yy, m)].iy = iy;
@@ -522,6 +531,19 @@ int zeta_tensors(
     Note that zeta is used in the equations for sL, sP and for the model but it
     does not involve the data, only the geometry. Thus it can be pre-computed once.
     */
+    /* The loop is row-outer so that zeta (y-major) is written near-
+       sequentially. The per-column recurrences (iy1, iy2, dy) live in
+       small state arrays and execute exactly the same operation sequence
+       per column as the historic column-outer loop, so all inserted
+       values are bit-identical; only the order of entries within one
+       pixel's list changes (sums over them reorder at the rounding
+       level). */
+    int *iy1c = malloc(ncols * sizeof(int));
+    int *iy2c = malloc(ncols * sizeof(int));
+    double *d1c = malloc(ncols * sizeof(double));
+    double *d2c = malloc(ncols * sizeof(double));
+    double *dyc = malloc(ncols * sizeof(double));
+
     for (x = 0; x < ncols; x++)
     {
         /*
@@ -541,9 +563,8 @@ int zeta_tensors(
         the same pattern repeates for all rows: we only need to initialize iy1 and iy2 and keep
         incrementing them by osample.
         */
-
-        iy2 = osample - floor(ycen[x] * osample);
-        iy1 = iy2 - osample;
+        iy2c[x] = osample - floor(ycen[x] * osample);
+        iy1c[x] = iy2c[x] - osample;
 
         /*
         Handling partial subpixels cut by detector pixel rows is again tricky. Here we have three
@@ -561,35 +582,38 @@ int zeta_tensors(
 
         dy=(iy-(y_lower_lim+ycen[x])*osample)*step-0.5*step
         */
-
-        d1 = fmod(ycen[x], step);
-        if (d1 == 0)
-            d1 = step;
-        d2 = step - d1;
+        d1c[x] = fmod(ycen[x], step);
+        if (d1c[x] == 0)
+            d1c[x] = step;
+        d2c[x] = step - d1c[x];
 
         /* Define initial distance from ycen       */
         /* It is given by the center of the first  */
         /* subpixel falling into pixel y_lower_lim */
-        dy = ycen[x] - floor((y_lower_lim + ycen[x]) / step) * step - step;
+        dyc[x] = ycen[x] - floor((y_lower_lim + ycen[x]) / step) * step - step;
+    }
 
-        /*
-        Now we go detector pixels x and y incrementing subpixels looking for their contributions
-        to the current and adjacent pixels. Note that the curvature/tilt of the projected slit
-        image could be so large that subpixel iy may not contribute to column x at all. On the
-        other hand, subpixels around ycen by definition must contribute to pixel x,y.
+    /*
+    Now we go detector pixels x and y incrementing subpixels looking for their contributions
+    to the current and adjacent pixels. Note that the curvature/tilt of the projected slit
+    image could be so large that subpixel iy may not contribute to column x at all. On the
+    other hand, subpixels around ycen by definition must contribute to pixel x,y.
 
-        Each subpixel is assumed to be exactly 1 detector pixel wide; a horizontal shift delta
-        divides its weight w between columns ix1=int(delta) and ix2=ix1+signum(delta) as
-        (1-|delta-ix1|)*w and |delta-ix1|*w. The yy offset is required because the iy subpixel
-        contributes to the yy row in the xx column of detector pixels where yy and y are in the
-        same row. In the packed array this is not necessarily true. Instead, what we know is:
-        y+ycen_offset[x] == yy+ycen_offset[xx]
-        */
-
-        for (y = 0; y < nrows; y++)
+    Each subpixel is assumed to be exactly 1 detector pixel wide; a horizontal shift delta
+    divides its weight w between columns ix1=int(delta) and ix2=ix1+signum(delta) as
+    (1-|delta-ix1|)*w and |delta-ix1|*w. The yy offset is required because the iy subpixel
+    contributes to the yy row in the xx column of detector pixels where yy and y are in the
+    same row. In the packed array this is not necessarily true. Instead, what we know is:
+    y+ycen_offset[x] == yy+ycen_offset[xx]
+    */
+    for (y = 0; y < nrows; y++)
+    {
+        for (x = 0; x < ncols; x++)
         {
-            iy1 += osample; // Bottom subpixel falling in row y
-            iy2 += osample; // Top subpixel falling in row y
+            const double d1 = d1c[x], d2 = d2c[x];
+            double dy = dyc[x];
+            iy1 = iy1c[x] += osample; // Bottom subpixel falling in row y
+            iy2 = iy2c[x] += osample; // Top subpixel falling in row y
             dy -= step;
             for (iy = iy1; iy <= iy2; iy++)
             {
@@ -645,10 +669,211 @@ int zeta_tensors(
                     zeta_add(zeta, m_zeta, z_rng, ncols, nrows, osample, x, iy, xx, yy, w);
                 }
             }
+            dyc[x] = dy;
         }
     }
+
+    free(iy1c);
+    free(iy2c);
+    free(d1c);
+    free(d2c);
+    free(dyc);
     return 0;
 }
+
+
+
+/* ---------- Fast path for exactly flat geometry ----------
+   When every horizontal shift is exactly zero (all curvature coefficients
+   and all slitdeltas are 0.0), pixel (x,y) receives exactly the subpixels
+   iy = k0col[x] + y*osample .. + osample of its own column, with weights
+   (d1, step, ..., step, step-d1) where d1 = d1col[x]. The zeta tensor is
+   then fully determined by ycen, so the SLE fills, the model and the
+   uncertainty pass are computed directly, without building or streaming
+   zeta (by far the largest array). All sums are algebraically identical
+   to the general path; accumulation order differs only at the rounding
+   level (same class of reordering as the Round 1/2 optimizations). */
+
+static void flat_setup(int ncols, int osample, const double *ycen,
+                       int *k0col, double *d1col)
+{
+    const double step = 1.e0 / osample;
+    for (int x = 0; x < ncols; x++)
+    {
+        /* same expressions as in zeta_tensors: k0col[x] is the first
+           subpixel of row y=0, i.e. iy1 after the first `iy1 += osample` */
+        k0col[x] = osample - floor(ycen[x] * osample);
+        double d1 = fmod(ycen[x], step);
+        if (d1 == 0)
+            d1 = step;
+        d1col[x] = d1;
+    }
+}
+
+/* sL system: one pixel contributes the outer product of
+   sP[x] * (d1, s, ..., s, s-d1) at band rows k0..k0+osample. Per detector
+   row y and per k0-class c the weight products are polynomials in d1 of
+   degree <= 2, so all contributions of one row collapse into 5 moments
+   per class: M{0,1,2} = sum mask*sP^2*d1^{0,1,2}, R{0,1} = sum mask*im*sP*d1^{0,1}. */
+/* Fills rows y0..y1-1; band-row indices are offset by lo so the target can
+   be a partial slice (lo = 0 with the full matrices for the sequential
+   call). */
+static void flat_fill_sL(int ncols, int y0, int y1, int osample,
+                         const double *im, const unsigned char *mask,
+                         const double *sP, const int *k0col, const double *d1col,
+                         double *scratch, int lo, double *l_Aij, double *l_bj)
+{
+    const double s = 1.e0 / osample;
+    const int bw = 4 * osample + 1;
+    const int nc = osample + 1; /* classes c = 1..osample, indexed directly */
+    /* Four interleaved accumulator sets (combined per row) break the
+       serial dependency chains through the per-class sums; this only
+       reorders the additions at the rounding level. */
+    double *M0 = scratch, *M1 = M0 + 4 * nc, *M2 = M1 + 4 * nc,
+           *R0 = M2 + 4 * nc, *R1 = R0 + 4 * nc;
+
+    for (int y = y0; y < y1; y++)
+    {
+        for (int c = 0; c < 4 * nc; c++)
+            M0[c] = M1[c] = M2[c] = R0[c] = R1[c] = 0.e0;
+        const double *imrow = im + (size_t)y * ncols;
+        const unsigned char *mrow = mask + (size_t)y * ncols;
+        for (int x = 0; x < ncols; x++)
+        {
+            if (!mrow[x])
+                continue;
+            const int c = k0col[x] + nc * (x & 3);
+            const double d = d1col[x];
+            const double a = sP[x] * sP[x];
+            const double b = imrow[x] * sP[x];
+            M0[c] += a;
+            M1[c] += a * d;
+            M2[c] += a * d * d;
+            R0[c] += b;
+            R1[c] += b * d;
+        }
+        for (int c = 1; c <= osample; c++)
+        {
+            M0[c] = ((M0[c] + M0[c + nc]) + M0[c + 2 * nc]) + M0[c + 3 * nc];
+            M1[c] = ((M1[c] + M1[c + nc]) + M1[c + 2 * nc]) + M1[c + 3 * nc];
+            M2[c] = ((M2[c] + M2[c + nc]) + M2[c + 2 * nc]) + M2[c + 3 * nc];
+            R0[c] = ((R0[c] + R0[c + nc]) + R0[c + 2 * nc]) + R0[c + 3 * nc];
+            R1[c] = ((R1[c] + R1[c + nc]) + R1[c + 2 * nc]) + R1[c + 3 * nc];
+        }
+        for (int c = 1; c <= osample; c++)
+        {
+            if (M0[c] == 0.e0 && R0[c] == 0.e0)
+                continue;
+            const int k0 = y * osample + c - lo;
+            const double m0ss = M0[c] * s * s;
+            const double m1s = M1[c] * s;
+            const double r0s = R0[c] * s;
+            /* band row k0 (first subpixel, weight d1): pairs with all */
+            double *arow = &l_Aij[(size_t)k0 * bw + 2 * osample];
+            arow[0] += M2[c];                    /* d1*d1        */
+            for (int d = 1; d < osample; d++)
+                arow[d] += m1s;                  /* d1*s         */
+            arow[osample] += m1s - M2[c];        /* d1*(s-d1)    */
+            l_bj[k0] += R1[c];
+            /* band rows k0+i (interior, weight s) */
+            for (int i = 1; i < osample; i++)
+            {
+                arow = &l_Aij[(size_t)(k0 + i) * bw + 2 * osample];
+                for (int d = 0; d < osample - i; d++)
+                    arow[d] += m0ss;             /* s*s          */
+                arow[osample - i] += m0ss - m1s; /* s*(s-d1)     */
+                l_bj[k0 + i] += r0s;
+            }
+            /* band row k0+osample (last subpixel, weight s-d1) */
+            l_Aij[(size_t)(k0 + osample) * bw + 2 * osample]
+                += m0ss - 2 * m1s + M2[c];       /* (s-d1)^2     */
+            l_bj[k0 + osample] += r0s - R1[c];
+        }
+    }
+}
+
+/* Per-row, per-class pieces of the merged slit-function value
+   v(x,y) = sum_i w_i(x) * sL[k0+i] = A(y,c) + d1col[x] * B(y,c) */
+static void flat_row_AB(int y, int osample, const double *sL,
+                        double *A, double *B)
+{
+    const double s = 1.e0 / osample;
+    for (int c = 1; c <= osample; c++)
+    {
+        const int k0 = y * osample + c;
+        double mid = 0.e0;
+        for (int i = 1; i < osample; i++)
+            mid += sL[k0 + i];
+        A[c] = s * (mid + sL[k0 + osample]);
+        B[c] = sL[k0] - sL[k0 + osample];
+    }
+}
+
+/* sP system: with all shifts zero every pixel maps to its own column, so
+   the matrix is purely diagonal (band offset bx, which is 0 unless
+   lambda_sP > 0 forces a minimum band of 1). */
+static void flat_fill_sP(int ncols, int nrows, int osample, int bx, int nx,
+                         const double *im, const unsigned char *mask,
+                         const double *sL, const int *k0col, const double *d1col,
+                         double *scratch, double *p_Aij, double *p_bj)
+{
+    double *A = scratch, *B = A + osample + 1;
+    for (int y = 0; y < nrows; y++)
+    {
+        flat_row_AB(y, osample, sL, A, B);
+        const double *imrow = im + (size_t)y * ncols;
+        const unsigned char *mrow = mask + (size_t)y * ncols;
+        for (int x = 0; x < ncols; x++)
+        {
+            if (!mrow[x])
+                continue;
+            const double v = A[k0col[x]] + d1col[x] * B[k0col[x]];
+            p_Aij[(size_t)x * nx + bx] += v * v;
+            p_bj[x] += imrow[x] * v;
+        }
+    }
+}
+
+static void flat_model(int ncols, int y0, int y1, int osample,
+                       const double *sP, const double *sL,
+                       const int *k0col, const double *d1col,
+                       double *scratch, double *model)
+{
+    double *A = scratch, *B = A + osample + 1;
+    for (int y = y0; y < y1; y++)
+    {
+        flat_row_AB(y, osample, sL, A, B);
+        double *mdrow = model + (size_t)y * ncols;
+        for (int x = 0; x < ncols; x++)
+            mdrow[x] = sP[x] * (A[k0col[x]] + d1col[x] * B[k0col[x]]);
+    }
+}
+
+/* Uncertainty pass: per pixel the summed weight and summed squared weight
+   of its (fixed) subpixel list, precomputed per column into swcol/sw2col. */
+static void flat_unc(int ncols, int nrows,
+                     const double *im, const double *model,
+                     const unsigned char *mask,
+                     const double *swcol, const double *sw2col,
+                     double *unc, double *p_bj, double *norm_sq)
+{
+    for (int y = 0; y < nrows; y++)
+    {
+        const double *imrow = im + (size_t)y * ncols;
+        const double *mdrow = model + (size_t)y * ncols;
+        const unsigned char *mrow = mask + (size_t)y * ncols;
+        for (int x = 0; x < ncols; x++)
+        {
+            if (!mrow[x])
+                continue;
+            const double tmp = imrow[x] - mdrow[x];
+            unc[x] += tmp * tmp * swcol[x];
+            p_bj[x] += swcol[x];
+            norm_sq[x] += sw2col[x];
+        }
+    }
+}
+
 
 int slitdec(        int ncols,
                     int nrows,
@@ -686,16 +911,17 @@ int slitdec(        int ncols,
     im : double array of shape (nrows, ncols)
         Image to be decomposed
     pix_unc : double array of shape (nrows, ncols)
-        Individual pixel uncertainties. Set to zero if unknown.
+        Individual pixel uncertainties. Currently unused: the output
+        uncertainties are estimated from the data - model residuals.
     mask : byte array of shape (nrows, ncols)
         Initial and final mask for the swath, both in and output
     ycen : double array of shape (ncols,)
         Order centre line offset from pixel row boundary.
         Should only contain values between 0 and 1.
-    slitcurve : double array of shape (ncols, 3)
-        Slit curvature parameters for each point along the spectrum
-    slitdeltas : double array of shape (nrows, ncols)
-        Slit deltas for each point along the slit
+    slitcurve : double array of shape (ncols, 6)
+        Slit curvature polynomial coefficients c0..c5 for each column
+    slitdeltas : double array of shape (ny,)
+        Additional per-subpixel horizontal offsets
     osample : int
         Subpixel ovsersampling factor
     lambda_sP : double
@@ -718,6 +944,7 @@ int slitdec(        int ncols,
         0 on success, -1 on failure (see also bandsol)
     */
     int x, xx, y, yy, iy, n, m, nx, ny;
+    int nx_alloc, bx;
     double norm, dev, lambda, diag_tot, ww, tmp;
     double sP_change, sP_stop, sP_med;
     int iter, delta_x;
@@ -727,15 +954,21 @@ int slitdec(        int ncols,
 
     // For the solving of the equation system
     double *l_Aij, *l_bj, *p_Aij, *p_bj;
-    double *sP_old, *sP_diff;
+    double *sP_old, *sP_diff, *norm_sq;
     // Scratch buffers for per-pixel merged zeta weights (mz <= 3 * (osample + 1))
     double *zw;
     int *zk;
 
     // For the geometry
-    zeta_ref *zeta;
-    int *m_zeta;
-    zeta_rng *z_rng;
+    zeta_ref *zeta = NULL;
+    int *m_zeta = NULL;
+    zeta_rng *z_rng = NULL;
+
+    // Flat-geometry fast path (see the flat_* helpers above)
+    int fast_flat;
+    int *k0col = NULL;
+    double *d1col = NULL, *flat_scratch = NULL, *swcol = NULL, *sw2col = NULL;
+
 
     // The Optimization results
     double success, status;
@@ -761,6 +994,13 @@ int slitdec(        int ncols,
     delta_x = lambda_sP == 0 ? 0 : 1;
     for (x = 0; x < ncols; x++)
     {
+        /* all-zero polynomial contributes ceil(0) = 0: skip the row scan */
+        if (slitcurve[curve_index(x, 1)] == 0.e0 &&
+            slitcurve[curve_index(x, 2)] == 0.e0 &&
+            slitcurve[curve_index(x, 3)] == 0.e0 &&
+            slitcurve[curve_index(x, 4)] == 0.e0 &&
+            slitcurve[curve_index(x, 5)] == 0.e0)
+            continue;
         for (y = -y_lower_lim; y < nrows - y_lower_lim + 1; y++)
         {
             double y2 = y * y;
@@ -783,15 +1023,15 @@ int slitdec(        int ncols,
         delta_x = max(delta_x, tmp);
     }
 
-    nx = 4 * delta_x + 1; /* Maximum horizontal shift in detector pixels due to slit image curvature         */
-
-#if DEBUG
-    _nx = nx;
-#endif
+    /* Upper bound on the width of the sP band: a subpixel shifts by at most
+       delta_x columns either way, so two subpixels of one detector pixel span
+       at most 2*delta_x. Only used for allocation -- the band actually needed
+       is measured after the geometry build (nx below) and is much narrower. */
+    nx_alloc = 4 * delta_x + 1;
 
     // The curvature is larger than the number of columns
     // Usually that means that the curvature is messed up
-    if (nx > ncols)
+    if (nx_alloc > ncols)
     {
         info[0] = 0;        //failed
         info[1] = sP_change; //INFINITY
@@ -801,22 +1041,54 @@ int slitdec(        int ncols,
         return -1;
     }
 
+    /* The fast path applies when the geometry is exactly flat: all
+       curvature coefficients and all slitdeltas are 0.0, so every
+       subpixel shift is exactly zero. (delta_x can still be 1 when
+       lambda_sP > 0 forces a minimum band width.) */
+    fast_flat = 1;
+    for (x = 0; x < ncols && fast_flat; x++)
+        for (m = 1; m < 6; m++)
+            if (slitcurve[curve_index(x, m)] != 0.e0)
+            {
+                fast_flat = 0;
+                break;
+            }
+    if (fast_flat)
+        for (iy = 0; iy < ny; iy++)
+            if (slitdeltas[iy] != 0.e0)
+            {
+                fast_flat = 0;
+                break;
+            }
+
     l_Aij = malloc(MAX_LAIJ * sizeof(double));
-    p_Aij = malloc(MAX_PAIJ * sizeof(double));
+    p_Aij = malloc((size_t)ncols * nx_alloc * sizeof(double));
     l_bj = malloc(MAX_LBJ * sizeof(double));
     p_bj = malloc(MAX_PBJ * sizeof(double));
     /* Scratch buffers for per-pixel merged zeta weights: large enough for
        both the slit-function window (2*osample+1 <= MAX_ZETA_Z) and the
-       spectrum window (2*delta_x+1 <= nx) */
-    int zbuf = max(MAX_ZETA_Z, nx);
+       spectrum window (2*delta_x+1 <= nx_alloc) */
+    int zbuf = max(MAX_ZETA_Z, nx_alloc);
     zw = malloc(zbuf * sizeof(double));
     zk = malloc(zbuf * sizeof(int));
-    zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
-    m_zeta = malloc(MAX_MZETA * sizeof(int));
-    z_rng = malloc(MAX_MZETA * sizeof(zeta_rng));
+    if (fast_flat)
+    {
+        k0col = malloc(ncols * sizeof(int));
+        d1col = malloc(ncols * sizeof(double));
+        swcol = malloc(ncols * sizeof(double));
+        sw2col = malloc(ncols * sizeof(double));
+        flat_scratch = malloc(20 * (osample + 1) * sizeof(double));
+    }
+    else
+    {
+        zeta = malloc(MAX_ZETA * sizeof(zeta_ref));
+        m_zeta = malloc(MAX_MZETA * sizeof(int));
+        z_rng = malloc(MAX_MZETA * sizeof(zeta_rng));
+    }
     ycen_offset = malloc(ncols * sizeof(int));
     sP_old = malloc(ncols * sizeof(double));
     sP_diff = malloc(ncols * sizeof(double));
+    norm_sq = malloc(ncols * sizeof(double));
 
         // remove integer values from ycen, put into ycen_offset
     for (x = 0; x < ncols; x++)
@@ -825,7 +1097,39 @@ int slitdec(        int ncols,
         ycen[x] = ycen[x] - ycen_offset[x];
     }
 
-    zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, slitcurve, slitdeltas, zeta, m_zeta, z_rng);
+    if (fast_flat)
+        flat_setup(ncols, osample, ycen, k0col, d1col);
+    else
+        zeta_tensors(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, slitcurve, slitdeltas, zeta, m_zeta, z_rng);
+
+    /* Width of the sP band. p_Aij[x, x'] is nonzero only where some detector
+       pixel draws from both columns, so the band is set by the widest source
+       column span of a single pixel -- i.e. by how much the shift varies across
+       one pixel row -- and not by delta_x, the largest shift anywhere in the
+       swath. The two differ a lot on a tall slit: span 2 against 2*delta_x = 92
+       on a 176-row swath, and bandsol costs O(ncols * nx^2). Measuring the span
+       also makes the fill's key-search fallback unreachable by construction.
+       The flat path maps every pixel to its own column, so its span is 0. */
+    {
+        int span = 0;
+        if (!fast_flat)
+            for (x = 0; x < ncols; x++)
+                for (y = 0; y < nrows; y++)
+                {
+                    if (m_zeta[mzeta_index(x, y)] <= 0)
+                        continue;
+                    const zeta_rng *zr = &z_rng[mzeta_index(x, y)];
+                    if (zr->max_x - zr->min_x > span)
+                        span = zr->max_x - zr->min_x;
+                }
+        /* The smoothing penalty writes the first off-diagonal, so it needs one */
+        bx = (lambda_sP > 0.e0 && span < 1) ? 1 : span;
+        nx = 2 * bx + 1;
+    }
+
+#if DEBUG
+    _nx = nx;
+#endif
 
     /* Preset slit function: the caller supplies sL and we skip solving for
        it. Normalize the preset once here (to sum osample) so callers do not
@@ -861,9 +1165,19 @@ int slitdec(        int ncols,
            sequentially and skips masked pixels entirely. Accumulation order
            differs from the historic xi-centric loop only at the rounding
            level. */
-        for (xx = 0; xx < ncols; xx++)
+        if (fast_flat)
+            flat_fill_sL(ncols, 0, nrows, osample, im, mask, sP, k0col, d1col,
+                         flat_scratch, 0, l_Aij, l_bj);
+        else
+        /* Row-outer fill: the band rows touched by one detector row span
+           only ~2*osample rows of l_Aij, which then stay L1-resident for
+           the whole row sweep; iterated column-outer the walk swept the
+           entire band matrix once per column (measured ~6x slower on the
+           pair loop). zeta is y-major, so this order also reads it
+           sequentially. */
+        for (yy = 0; yy < nrows; yy++)
         {
-            for (yy = 0; yy < nrows; yy++)
+            for (xx = 0; xx < ncols; xx++)
             {
                 const int mz = m_zeta[mzeta_index(xx, yy)];
                 if (mz <= 0 || !mask[im_index(xx, yy)])
@@ -932,6 +1246,11 @@ int slitdec(        int ncols,
                         const int iyn = zk[n];
                         const int lo = min(iy, iyn);
                         const int d = abs(iyn - iy);
+                        /* Pairs beyond the band cannot be represented by the
+                           band matrix; storing them would write into the next
+                           row's band (or past the array). Drop them. */
+                        if (d > 2 * osample)
+                            continue;
                         l_Aij[laij_index(lo, d + 2 * osample)] += zw[n] * um;
                     }
                     l_bj[lbj_index(iy)] += imv * um;
@@ -1005,13 +1324,20 @@ int slitdec(        int ncols,
         /* Compute spectrum sP */
         for (x = 0; x < MAX_PBJ; x++)
             p_bj[pbj_index(x)] = 0;
-        for (x = 0; x < MAX_PAIJ; x++)
+        for (x = 0; x < ncols * nx; x++)
             p_Aij[x] = 0;
 
         /* Pixel-centric fill, see comment at the slit function SLE above */
-        for (xx = 0; xx < ncols; xx++)
+        if (fast_flat)
+            flat_fill_sP(ncols, nrows, osample, bx, nx, im, mask, sL,
+                         k0col, d1col, flat_scratch, p_Aij, p_bj);
+        else
+        /* Row-outer fill, see the sL fill above. For this system the band
+           rows are keyed by source column (near xx), so the row sweep also
+           walks p_Aij near-sequentially. */
+        for (yy = 0; yy < nrows; yy++)
         {
-            for (yy = 0; yy < nrows; yy++)
+            for (xx = 0; xx < ncols; xx++)
             {
                 const int mz = m_zeta[mzeta_index(xx, yy)];
                 if (mz <= 0 || !mask[im_index(xx, yy)])
@@ -1020,87 +1346,51 @@ int slitdec(        int ncols,
                 const double imv = im[im_index(xx, yy)];
                 /* Merge entries sharing the same source column x; with small
                    curvature this collapses the list to just a few entries.
-                   Sources span at most 2*delta_x+1 columns (the band width of
-                   the matrix), so merge into a dense window zw[x - k0]. */
+                   Sources span at most bx+1 columns -- that is how the band
+                   width was measured -- so merge into a dense window
+                   zw[x - k0]. */
                 const zeta_rng *zr = &z_rng[mzeta_index(xx, yy)];
                 const int k0 = zr->min_x;
                 const int rng = zr->max_x - k0;
-                if (rng <= 2 * delta_x)
-                {
-                    for (n = 0; n <= rng; n++)
-                        zw[n] = 0.e0;
-                    for (m = 0; m < mz; m++)
-                        zw[zrow[m].x - k0] += sL[sl_index(zrow[m].iy)] * zrow[m].w;
-                    /* Symmetric matrix: upper bands only, mirrored after the
-                       fill. Window entries between keys are zero. */
-                    for (m = 0; m <= rng; m++)
-                    {
-                        const double um = zw[m];
-                        const double *restrict uv = zw + m;
-                        double *restrict arow = &p_Aij[paij_index(k0 + m, 2 * delta_x)];
-                        const int dmax = rng - m;
-                        for (n = 0; n <= dmax; n++)
-                            arow[n] += um * uv[n];
-                        p_bj[pbj_index(k0 + m)] += imv * um;
-                    }
-                    continue;
-                }
-                /* Over-wide list: merge by searching unique keys */
-                int nk = 0;
+                for (n = 0; n <= rng; n++)
+                    zw[n] = 0.e0;
                 for (m = 0; m < mz; m++)
+                    zw[zrow[m].x - k0] += sL[sl_index(zrow[m].iy)] * zrow[m].w;
+                /* Symmetric matrix: upper bands only, mirrored after the fill.
+                   Window entries between keys are zero. rng <= bx holds for
+                   every pixel by construction, so no fallback is needed. */
+                for (m = 0; m <= rng; m++)
                 {
-                    const int key = zrow[m].x;
-                    const double v = sL[sl_index(zrow[m].iy)] * zrow[m].w;
-                    for (n = 0; n < nk; n++)
-                    {
-                        if (zk[n] == key)
-                        {
-                            zw[n] += v;
-                            break;
-                        }
-                    }
-                    if (n == nk)
-                    {
-                        zk[nk] = key;
-                        zw[nk++] = v;
-                    }
-                }
-                for (m = 0; m < nk; m++)
-                {
-                    x = zk[m];
                     const double um = zw[m];
-                    p_Aij[paij_index(x, 2 * delta_x)] += um * um;
-                    for (n = m + 1; n < nk; n++)
-                    {
-                        const int xn = zk[n];
-                        const int lo = min(x, xn);
-                        const int d = abs(xn - x);
-                        p_Aij[paij_index(lo, d + 2 * delta_x)] += zw[n] * um;
-                    }
-                    p_bj[pbj_index(x)] += imv * um;
+                    const double *restrict uv = zw + m;
+                    double *restrict arow = &p_Aij[paij_index(k0 + m, bx)];
+                    const int dmax = rng - m;
+                    for (n = 0; n <= dmax; n++)
+                        arow[n] += um * uv[n];
+                    p_bj[pbj_index(k0 + m)] += imv * um;
                 }
             }
         }
 
         /* Mirror the upper bands into the lower bands */
-        for (m = 1; m <= 2 * delta_x; m++)
+        for (m = 1; m <= bx; m++)
             for (x = 0; x < ncols - m; x++)
-                p_Aij[paij_index(x + m, 2 * delta_x - m)] = p_Aij[paij_index(x, 2 * delta_x + m)];
+                p_Aij[paij_index(x + m, bx - m)] = p_Aij[paij_index(x, bx + m)];
 
         if (lambda_sP > 0.e0)
         {
             lambda = lambda_sP;
 
-            p_Aij[paij_index(0, 2 * delta_x)] += lambda;     /* Main diagonal  */
-            p_Aij[paij_index(0, 2 * delta_x + 1)] -= lambda; /* Upper diagonal */
+            p_Aij[paij_index(0, bx)] += lambda;     /* Main diagonal  */
+            p_Aij[paij_index(0, bx + 1)] -= lambda; /* Upper diagonal */
             for (x = 1; x < ncols - 1; x++)
             {
-                p_Aij[paij_index(x, 2 * delta_x - 1)] -= lambda;    /* Lower diagonal */
-                p_Aij[paij_index(x, 2 * delta_x)] += lambda * 2.e0; /* Main diagonal  */
-                p_Aij[paij_index(x, 2 * delta_x + 1)] -= lambda;    /* Upper diagonal */
+                p_Aij[paij_index(x, bx - 1)] -= lambda;    /* Lower diagonal */
+                p_Aij[paij_index(x, bx)] += lambda * 2.e0; /* Main diagonal  */
+                p_Aij[paij_index(x, bx + 1)] -= lambda;    /* Upper diagonal */
             }
-            p_Aij[paij_index(ncols - 1, 2 * delta_x - 1)] -= lambda; /* Lower diagonal */
-            p_Aij[paij_index(ncols - 1, 2 * delta_x)] += lambda;     /* Main diagonal  */
+            p_Aij[paij_index(ncols - 1, bx - 1)] -= lambda; /* Lower diagonal */
+            p_Aij[paij_index(ncols - 1, bx)] += lambda;     /* Main diagonal  */
         }
 
 #if REGULARIZE_DIAGONAL
@@ -1113,16 +1403,16 @@ int slitdec(        int ncols,
             double max_diag = 0.0;
             for (x = 0; x < ncols; x++)
             {
-                if (p_Aij[paij_index(x, 2 * delta_x)] > max_diag)
-                    max_diag = p_Aij[paij_index(x, 2 * delta_x)];
+                if (p_Aij[paij_index(x, bx)] > max_diag)
+                    max_diag = p_Aij[paij_index(x, bx)];
             }
             if (max_diag > 0.0)
             {
                 double min_diag = max_diag * 1.0e-10;
                 for (x = 0; x < ncols; x++)
                 {
-                    if (p_Aij[paij_index(x, 2 * delta_x)] < min_diag)
-                        p_Aij[paij_index(x, 2 * delta_x)] = min_diag;
+                    if (p_Aij[paij_index(x, bx)] < min_diag)
+                        p_Aij[paij_index(x, bx)] = min_diag;
                 }
             }
         }
@@ -1146,11 +1436,16 @@ int slitdec(        int ncols,
         sP_med = fabs(quick_select_median(sP_diff, ncols));
 
         /* Compute the model.
-           x is the outer loop so that the zeta tensor, by far the largest
-           array, is read sequentially instead of with a large stride */
-        for (x = 0; x < ncols; x++)
+           y is the outer loop so that the zeta tensor (y-major, by far the
+           largest array) is read sequentially, and model is written
+           sequentially */
+        if (fast_flat)
+            flat_model(ncols, 0, nrows, osample, sP, sL, k0col, d1col,
+                       flat_scratch, model);
+        else
+        for (y = 0; y < nrows; y++)
         {
-            for (y = 0; y < nrows; y++)
+            for (x = 0; x < ncols; x++)
             {
                 const zeta_ref *zrow = &zeta[zeta_index(x, y, 0)];
                 const int mz = m_zeta[mzeta_index(x, y)];
@@ -1166,6 +1461,17 @@ int slitdec(        int ncols,
             }
         }
 
+        /* With a preset sL and no outlier rejection the sP solve does not
+           depend on the previous iteration: one pass is exact. sP_change
+           still holds the jump from the initial guess, which says nothing
+           about convergence here, so report 0. */
+        if (use_preset && kappa <= 0)
+        {
+            sP_change = 0;
+            iter = 1;
+            break;
+        }
+
         /* Compare model and data */
         // We use the Median absolute derivation to estimate the distribution
         // The MAD is more robust than the usual STD as it uses the median
@@ -1178,17 +1484,19 @@ int slitdec(        int ncols,
         // the range that covers 99% of the data.
         // Since that is much more complicated we just use the MAD.
         /* Compute sigma for outlier rejection (RMS of residuals) */
-        tmp = 0;
-        isum = 0;
-        for (y = 0; y < nrows; y++)
         {
-            for (x = delta_x; x < ncols - delta_x; x++)
+            tmp = 0;
+            isum = 0;
+            for (y = 0; y < nrows; y++)
             {
-                if (mask[im_index(x, y)])
+                for (x = delta_x; x < ncols - delta_x; x++)
                 {
-                    double resid = model[im_index(x, y)] - im[im_index(x, y)];
-                    tmp += resid * resid;
-                    isum++;
+                    if (mask[im_index(x, y)])
+                    {
+                        double resid = model[im_index(x, y)] - im[im_index(x, y)];
+                        tmp += resid * resid;
+                        isum++;
+                    }
                 }
             }
         }
@@ -1218,7 +1526,9 @@ int slitdec(        int ncols,
            maxiter is an unconditional upper bound. */
     } while ((iter++ == 0) || ((iter <= maxiter) && (sP_change > sP_stop * sP_med)));
 
-    if (iter >= maxiter)
+    /* The loop exits with iter == maxiter + 1 only when the convergence test
+       never passed; converging exactly at iter == maxiter is a success. */
+    if (iter > maxiter)
     {
         status = -1; // ran out of iterations
         success = 0;
@@ -1226,39 +1536,72 @@ int slitdec(        int ncols,
     else
         status = 1; // converged
 
+    /* A non-finite spectrum (e.g. unmasked NaN pixels with kappa == 0) must
+       not be reported as success. The convergence test cannot catch it: NaN
+       compares false and exits the loop as if converged. */
+    if (!isfinite(sP_change))
+    {
+        status = -3; // non-finite result
+        success = 0;
+    }
+
     /* Uncertainty estimate */
 
     for (x = 0; x < ncols; x++)
     {
         unc[sp_index(x)] = 0.;
         p_bj[pbj_index(x)] = 0.;
-        p_Aij[paij_index(x, 0)] = 0;
+        norm_sq[x] = 0.;
     }
 
+    if (fast_flat)
+    {
+        /* Summed (and summed squared) subpixel weights per column:
+           accumulated in the same subpixel order as the zeta list */
+        const double s = 1.e0 / osample;
+        for (x = 0; x < ncols; x++)
+        {
+            double sw = d1col[x], sw2 = d1col[x] * d1col[x];
+            for (m = 1; m < osample; m++)
+            {
+                sw += s;
+                sw2 += s * s;
+            }
+            sw += s - d1col[x];
+            sw2 += (s - d1col[x]) * (s - d1col[x]);
+            swcol[x] = sw;
+            sw2col[x] = sw2;
+        }
+        flat_unc(ncols, nrows, im, model, mask, swcol, sw2col,
+                 unc, p_bj, norm_sq);
+    }
+    else
+    /* y is the outer loop so zeta (y-major) is read sequentially */
     for (y = 0; y < nrows; y++)
     {
         for (x = 0; x < ncols; x++)
         {
-            for (m = 0; m < m_zeta[mzeta_index(x, y)]; m++) // Loop through all pixels contributing to x,y
+            if (!mask[im_index(x, y)])
+                continue;
+            const zeta_ref *zrow = &zeta[zeta_index(x, y, 0)];
+            const int mz = m_zeta[mzeta_index(x, y)];
+            // Should pix_unc contribute here?
+            tmp = im[im_index(x, y)] - model[im_index(x, y)];
+            const double t2 = tmp * tmp;
+            for (m = 0; m < mz; m++)
             {
-                if (mask[im_index(x, y)])
-                {
-                    // Should pix_unc contribute here?
-                    xx = zeta[zeta_index(x, y, m)].x;
-                    iy = zeta[zeta_index(x, y, m)].iy;
-                    ww = zeta[zeta_index(x, y, m)].w;
-                    tmp = im[im_index(x, y)] - model[im_index(x, y)];
-                    unc[sp_index(xx)] += tmp * tmp * ww;
-                    p_bj[pbj_index(xx)] += ww;           // Norm
-                    p_Aij[paij_index(xx, 0)] += ww * ww; // Norm squared
-                }
+                xx = zrow[m].x;
+                ww = zrow[m].w;
+                unc[sp_index(xx)] += t2 * ww;
+                p_bj[pbj_index(xx)] += ww; // Norm
+                norm_sq[xx] += ww * ww;    // Norm squared
             }
         }
     }
 
     for (x = 0; x < ncols; x++)
     {
-        norm = p_bj[pbj_index(x)] - p_Aij[paij_index(x, 0)] / p_bj[pbj_index(x)];
+        norm = p_bj[pbj_index(x)] - norm_sq[x] / p_bj[pbj_index(x)];
         unc[sp_index(x)] = sqrt(unc[sp_index(x)] / norm * nrows);
     }
 
@@ -1271,8 +1614,20 @@ int slitdec(        int ncols,
         sP[sp_index(x)] = unc[sp_index(x)] = 0;
     }
 
+    /* Scanned after the edge zeroing so the flag reflects the returned data */
+    for (x = 0; x < ncols; x++)
+    {
+        if (!isfinite(sP[sp_index(x)]))
+        {
+            status = -3; // non-finite result
+            success = 0;
+            break;
+        }
+    }
+
     free(sP_old);
     free(sP_diff);
+    free(norm_sq);
     free(l_Aij);
     free(p_Aij);
     free(p_bj);
@@ -1283,6 +1638,12 @@ int slitdec(        int ncols,
     free(zeta);
     free(m_zeta);
     free(z_rng);
+    free(ycen_offset);
+    free(k0col);
+    free(d1col);
+    free(swcol);
+    free(sw2col);
+    free(flat_scratch);
 
     info[0] = success;
     info[1] = sP_change;

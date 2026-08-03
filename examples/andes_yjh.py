@@ -48,7 +48,7 @@ curvature_file = os.path.join(
 plot = int(os.environ.get("PYREDUCE_PLOT", "1"))
 
 # --- Create Pipeline ---
-config = load_config(None, instrument_name)
+config = load_config(None, instrument_name, channel=channel)
 # config["science"]["extraction_height"] = 4
 config["science"]["extraction_reject"] = 20
 _tr = os.environ.get("ANDES_TRACE_RANGE")
@@ -122,10 +122,9 @@ print(f"  Saved combined flat: {combined_file}")
 
 # --- Extract using the science step ---
 print("\nExtracting spectra (group A from fiber config)...")
-# pipe.instrument.config.fibers.use["science"] = ["1", "75"]
-pipe.instrument.config.fibers.use["science"] = ["ring4"]
+# pipe.use_fibers(["1", "75"], step="science")
 science_file = os.environ.get(
     "ANDES_SCIENCE_FILE",
     os.path.join(raw_dir, "H_ifu_HR1544_skyabs_skyemi_fp_20260314.fits"),
 )
-pipe.extract([science_file]).run()
+pipe.extract([science_file], use=["ring4"]).run()

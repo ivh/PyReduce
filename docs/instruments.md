@@ -193,4 +193,20 @@ fibers:
     norm_flat: all
 ```
 
+The configured selection can be overridden at runtime without editing
+`config.yaml`: pass `--use` on the CLI, `use=` to `Pipeline.from_instrument()`
+or `pipe.extract()`, or call `pipe.use_fibers()`:
+
+```python
+Pipeline.from_instrument("ANDES_YJH", ..., use="A").run()
+# or on an existing pipeline
+pipe.use_fibers("A,B")               # pipeline-wide
+pipe.use_fibers("cal", step="wavecal")  # one step only
+pipe.extract(files, use="A")         # shorthand for the science step
+```
+
+The selection is a group name, fiber index, list of either, or a
+comma-separated string (the CLI `--use` syntax); `"groups"` selects all
+merged group traces and `"per_fiber"` processes each fiber separately.
+
 See [Fiber Bundle Tracing](fiber_bundle_tracing.md) for the full configuration reference.

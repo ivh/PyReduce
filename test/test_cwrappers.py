@@ -1,6 +1,10 @@
 import numpy as np
 import pytest
 
+# The compiled extension is the oracle here; skip when PyReduce is installed
+# without it (see the pure-Python CI job)
+pytest.importorskip("pyreduce.clib._slitdec")
+
 from pyreduce.cwrappers import slitdec
 
 pytestmark = pytest.mark.unit

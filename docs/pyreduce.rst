@@ -8,6 +8,7 @@ Subpackages
 
     pyreduce.clib
     pyreduce.instruments
+    pyreduce.steps
 
 Submodules
 ----------
@@ -23,10 +24,10 @@ pyreduce.pipeline module
 pyreduce.reduce module
 ----------------------
 
+Deprecated entry point; step classes are documented under :doc:`pyreduce.steps`.
+
 .. automodule:: pyreduce.reduce
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :members: main
 
 pyreduce.configuration module
 -----------------------------

@@ -6,6 +6,100 @@ import pytest
 from pyreduce.pipeline import Pipeline
 
 
+class TestOrganize:
+    """Tests for Pipeline.organize() fiber grouping."""
+
+    @pytest.mark.unit
+    def test_organize_keeps_raw_fiber_traces(self, tmp_path):
+        """organize() must retain per-fiber traces alongside the grouped
+        ones (matching Trace.run), so per-fiber selection works later."""
+        from pyreduce.configuration import load_config
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+        from pyreduce.trace_model import Trace as TraceData
+
+        config = load_config(None, "UVES", 0)
+        pipe = Pipeline("UVES", str(tmp_path), config=config)
+        pipe.instrument.config.fibers = FibersConfig(
+            groups={"A": FiberGroupConfig(range=(1, 3), merge="average")}
+        )
+
+        raw = [
+            TraceData(
+                m=90,
+                fiber_idx=1,
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(10, 990),
+            ),
+            TraceData(
+                m=90,
+                fiber_idx=2,
+                pos=np.array([0.0, 0.0, 120.0]),
+                column_range=(10, 990),
+            ),
+        ]
+        pipe.organize(raw)
+
+        result = pipe._data["trace"]
+        grouped = [t for t in result if t.group is not None]
+        raw_kept = [t for t in result if t.fiber_idx is not None]
+        assert len(grouped) == 1
+        assert len(raw_kept) == 2
+
+
+class TestUseFibers:
+    """Tests for fiber group selection via the Pipeline API."""
+
+    @pytest.fixture
+    def fiber_pipe(self, tmp_path):
+        from pyreduce.instruments.models import FiberGroupConfig, FibersConfig
+
+        pipe = Pipeline("UVES", str(tmp_path))
+        pipe.instrument.config.fibers = FibersConfig(
+            groups={
+                "A": FiberGroupConfig(range=(1, 3), merge="average"),
+                "B": FiberGroupConfig(range=(3, 5), merge="average"),
+            },
+            use={"science": ["A"]},
+        )
+        return pipe
+
+    @pytest.mark.unit
+    def test_use_fibers_default_overrides_config(self, fiber_pipe):
+        """Pipeline-wide selection replaces per-step config selections."""
+        fiber_pipe.use_fibers(["B"])
+        assert fiber_pipe.instrument.config.fibers.use == {"default": ["B"]}
+
+    @pytest.mark.unit
+    def test_use_fibers_per_step(self, fiber_pipe):
+        """Step-scoped selection only touches that step."""
+        fiber_pipe.use_fibers("per_fiber", step="wavecal")
+        use = fiber_pipe.instrument.config.fibers.use
+        assert use["wavecal"] == "per_fiber"
+        assert use["science"] == ["A"]
+
+    @pytest.mark.unit
+    def test_use_fibers_comma_string_and_int(self, fiber_pipe):
+        """CLI-style comma strings and bare fiber indices are normalized."""
+        fiber_pipe.use_fibers("A, B")
+        assert fiber_pipe.instrument.config.fibers.use == {"default": ["A", "B"]}
+        fiber_pipe.use_fibers(38, step="science")
+        assert fiber_pipe.instrument.config.fibers.use["science"] == [38]
+
+    @pytest.mark.unit
+    def test_extract_with_use(self, fiber_pipe):
+        """extract(use=...) sets the science-step selection."""
+        fiber_pipe.extract(["sci.fits"], use=["B"])
+        assert fiber_pipe.instrument.config.fibers.use["science"] == ["B"]
+        assert ("science", ["sci.fits"]) in fiber_pipe._steps
+
+    @pytest.mark.unit
+    def test_use_fibers_without_fiber_config_raises(self, tmp_path):
+        pipe = Pipeline("UVES", str(tmp_path))
+        pipe.instrument.config.fibers = None
+        with pytest.raises(ValueError, match="no fiber configuration"):
+            pipe.use_fibers(["A"])
+
+
 class TestPipelineConstruction:
     """Test Pipeline construction and fluent API."""
 
@@ -21,6 +115,12 @@ class TestPipelineConstruction:
         """Test creating pipeline with instrument object."""
         pipe = Pipeline(instr, str(tmp_path))
         assert pipe.instrument is instr
+
+    @pytest.mark.unit
+    def test_create_pipeline_invalid_channel_raises(self, tmp_path):
+        """An unknown channel fails at construction with a clear message."""
+        with pytest.raises(ValueError, match="Unknown channel 'GREEN'"):
+            Pipeline("UVES", str(tmp_path), channel="GREEN")
 
     @pytest.mark.unit
     def test_fluent_api_returns_self(self, tmp_path):

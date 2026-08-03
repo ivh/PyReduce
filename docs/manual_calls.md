@@ -11,12 +11,13 @@ sometimes you need more control over the process. The manual approach lets you:
 
 ## Overview
 
-Each reduction step is implemented as a class in `pyreduce.reduce`. You can
+Each reduction step is implemented as a class in the `pyreduce.steps` package
+(also importable from `pyreduce.reduce` for backwards compatibility). You can
 instantiate these classes directly and call their `run()` method with the
 required inputs.
 
 ```python
-from pyreduce.reduce import Bias, Flat, Trace, ...
+from pyreduce.steps import Bias, Flat, Trace, ...
 
 # Create step instance
 bias_step = Bias(instrument, channel, target, night, output_dir, trace_range, **config)
@@ -40,7 +41,7 @@ from os.path import join
 from pyreduce import datasets, util
 from pyreduce.configuration import load_config
 from pyreduce.instruments.instrument_info import load_instrument
-from pyreduce.reduce import (
+from pyreduce.steps import (
     Bias,
     ContinuumNormalization,
     Finalize,

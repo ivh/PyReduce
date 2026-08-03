@@ -141,6 +141,23 @@ class TestExtractionStepValidation:
         assert step.extraction_kwargs["osample"] == 4
         assert step.extraction_kwargs["swath_width"] == 300
 
+    @pytest.mark.unit
+    def test_science_n_jobs_from_config(self, mock_instrument, tmp_path):
+        """ScienceExtraction should read n_jobs from settings, defaulting to 1."""
+        from pyreduce.configuration import load_config
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.ScienceExtraction(
+            mock_instrument, "", "", "", str(tmp_path), None, **config["science"]
+        )
+        assert step.n_jobs == 1
+
+        config["science"]["n_jobs"] = -1
+        step = reduce.ScienceExtraction(
+            mock_instrument, "", "", "", str(tmp_path), None, **config["science"]
+        )
+        assert step.n_jobs == -1
+
 
 class TestNormalizeFlatFieldValidation:
     """Unit tests for NormalizeFlatField validation."""
@@ -629,6 +646,218 @@ class TestExtractionHeightFallback:
                 per_trace_heights.extend([None] * n_traces)
 
         assert per_trace_heights == [None]
+
+
+class TestCentersFileResolution:
+    """Configured but missing centers files must raise instead of silently
+    falling back to sequential order numbering."""
+
+    @pytest.fixture
+    def trace_step(self, tmp_path):
+        from pyreduce.configuration import load_config
+
+        instrument = load_instrument("UVES")
+        config = load_config(None, "UVES", 0)
+        return reduce.Trace(
+            instrument, "", "t", "n", str(tmp_path), None, **config["trace"]
+        )
+
+    @pytest.mark.unit
+    def test_missing_order_centers_file_raises(self, trace_step):
+        from pyreduce.instruments.models import FibersConfig
+
+        trace_step.instrument.config.fibers = FibersConfig(
+            order_centers_file="does_not_exist.yaml"
+        )
+        with pytest.raises(FileNotFoundError, match="order_centers_file"):
+            trace_step._load_order_centers()
+
+    @pytest.mark.unit
+    def test_missing_bundle_centers_file_raises(self, trace_step):
+        from pyreduce.instruments.models import FiberBundleConfig, FibersConfig
+
+        trace_step.instrument.config.fibers = FibersConfig(
+            bundles=FiberBundleConfig(size=7, bundle_centers_file="does_not_exist.yaml")
+        )
+        with pytest.raises(FileNotFoundError, match="bundle_centers_file"):
+            trace_step._load_bundle_centers()
+
+    @pytest.mark.unit
+    def test_order_centers_file_list_form(self, trace_step, tmp_path):
+        """Per-channel list form of order_centers_file loads correctly."""
+        from pyreduce.instruments.models import FibersConfig
+
+        centers = tmp_path / "centers.yaml"
+        centers.write_text("90: 1000.5\n91: 2000.0\n")
+        trace_step.instrument.config.fibers = FibersConfig(
+            order_centers_file=[str(centers)]
+        )
+
+        result = trace_step._load_order_centers()
+        assert result == {90: 1000.5, 91: 2000.0}
+
+
+class TestTraceWritebackErrors:
+    """Steps that persist results into traces.fits must fail loudly when
+    the write fails, instead of leaving stale traces on disk."""
+
+    @pytest.fixture
+    def mock_instrument(self):
+        return load_instrument("UVES")
+
+    @pytest.fixture
+    def sample_trace(self):
+        from pyreduce.trace_model import Trace as TraceData
+
+        return TraceData(m=90, pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990))
+
+    @pytest.mark.unit
+    def test_wavecal_finalize_save_propagates_write_error(
+        self, mock_instrument, tmp_path, monkeypatch, sample_trace
+    ):
+        from pyreduce.configuration import load_config
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.WavelengthCalibrationFinalize(
+            mock_instrument, "", "t", "n", str(tmp_path), None, **config["wavecal"]
+        )
+
+        def boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("pyreduce.steps.wavecal.save_traces", boom)
+        with pytest.raises(OSError, match="disk full"):
+            step.save({}, [sample_trace])
+
+    @pytest.mark.unit
+    def test_curvature_save_propagates_write_error(
+        self, mock_instrument, tmp_path, monkeypatch, sample_trace
+    ):
+        from pyreduce.configuration import load_config
+        from pyreduce.trace_model import save_traces
+
+        config = load_config(None, "UVES", 0)
+        step = reduce.SlitCurvatureDetermination(
+            mock_instrument, "", "t", "n", str(tmp_path), None, **config["curvature"]
+        )
+
+        # Existing traces.fits so save() takes the update path
+        trace_file = tmp_path / (step.prefix + ".traces.fits")
+        save_traces(str(trace_file), [sample_trace], steps=["trace"])
+
+        def boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("pyreduce.steps.trace.save_traces", boom)
+        with pytest.raises(OSError, match="disk full"):
+            step.save([sample_trace])
+
+
+class TestWavecalQualityFile:
+    """The wavecal step persists quality metrics as a JSON sidecar."""
+
+    @pytest.mark.unit
+    def test_save_writes_quality_json(self, tmp_path):
+        import json
+
+        from pyreduce.configuration import load_config
+        from pyreduce.trace_model import Trace as TraceData
+
+        instrument = load_instrument("UVES")
+        config = load_config(None, "UVES", 0)
+        step = reduce.WavelengthCalibrationFinalize(
+            instrument, "", "t", "n", str(tmp_path), None, **config["wavecal"]
+        )
+        step.quality = {
+            "all": {
+                "nlines_used": 42,
+                "nlines_rejected": 3,
+                "rms_mps": 55.5,
+                "median_abs_mps": 30.1,
+                "aic": -1234.5,
+                "orders": {"90": {"nlines": 42, "rms_mps": 55.5}},
+            }
+        }
+        tr = TraceData(m=90, pos=np.array([0.0, 0.0, 100.0]), column_range=(10, 990))
+
+        step.save({}, [tr])
+
+        quality_file = tmp_path / "uves.wavecal_quality.json"
+        assert quality_file.exists()
+        data = json.loads(quality_file.read_text())
+        assert data["all"]["nlines_used"] == 42
+        assert data["all"]["rms_mps"] == 55.5
+
+
+class TestProvenanceHeaders:
+    """Final products record when they were reduced and whether the
+    continuum was actually normalized."""
+
+    @pytest.mark.unit
+    def test_continuum_load_fallback_flags_unnormalized(self, tmp_path):
+        from astropy.io import fits
+
+        instrument = load_instrument("UVES")
+        step = reduce.ContinuumNormalization(
+            instrument, "", "t", "n", str(tmp_path), None, plot=False
+        )
+
+        heads = [fits.Header()]
+        specs = [np.ones((2, 64))]
+        sigmas = [np.ones((2, 64))]
+        columns = [np.array([[0, 64], [0, 64]])]
+        science = (heads, specs, sigmas, columns)
+        norm_flat = (None, np.ones((2, 64)))
+
+        result_heads, *_ = step.load(norm_flat, science)
+
+        assert result_heads[0]["e_cont"] is False
+
+    @pytest.mark.unit
+    def test_finalize_writes_provenance(self, tmp_path):
+        from astropy.io import fits
+
+        from pyreduce.trace_model import Trace as TraceData
+
+        instrument = load_instrument("UVES")
+        step = reduce.Finalize(
+            instrument,
+            "",
+            "t",
+            "n",
+            str(tmp_path),
+            None,
+            plot=False,
+            filename="{input}.final.fits",
+        )
+
+        head = fits.Header()
+        head["e_input"] = "test.fits"
+        head["e_jd"] = 2450000.0
+        head["e_cont"] = (True, "CONT is a fitted continuum, orders spliced")
+        continuum = (
+            [head],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.ones((1, 64), dtype=np.float32)],
+            [np.array([[0, 64]])],
+        )
+        trace = [
+            TraceData(
+                m=90,
+                pos=np.array([0.0, 0.0, 100.0]),
+                column_range=(0, 64),
+                wave=np.array([0.1, 5000.0]),
+            )
+        ]
+
+        fnames = step.run(continuum, trace, config={"science": {"oversampling": 8}})
+
+        out_head = fits.getheader(fnames[0])
+        assert out_head["DATE"].startswith("20")  # ISO UTC timestamp
+        assert out_head["e_cont"] is True
+        assert out_head["HIERARCH PR_version"]
+        assert out_head["HIERARCH PR SCIENCE OVERSAMPLING"] == 8
 
 
 # Tests that require instrument data follow below

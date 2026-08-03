@@ -46,11 +46,48 @@ jobs:
         file: ./coverage.xml
         fail_ci_if_error: false
 
+  # Guards the documented promise that PyReduce runs with no compiled extension
+  test_pure_python:
+    name: Test without the C extension (numpy backend)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.13
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Remove the compiled extension
+      run: uv run reduce-clean
+
+    - name: Verify it is really gone
+      run: |
+        uv run --no-sync python - <<'EOF'
+        import importlib.util, sys
+        if importlib.util.find_spec("pyreduce.clib._slitdec") is not None:
+            sys.exit("the compiled extension is still importable; this job proves nothing")
+        import pyreduce.extract  # must import without it
+        EOF
+
+    - name: Run unit tests on the numpy backend
+      env:
+        PYREDUCE_EXTRACTION: numpy
+      run: uv run --no-sync pytest -m unit
+
   # Build platform-specific wheels using cibuildwheel
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    needs: [test]
+    needs: [test, test_pure_python]
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -74,7 +111,7 @@ jobs:
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [test, test_pure_python]
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4

@@ -1,6 +1,6 @@
 [project]
 name = "pyreduce-astro"
-version = "0.9b1"
+version = "0.9"
 requires-python = ">=3.12"
 description = "A data reduction package for echelle spectrographs"
 readme = "README.md"
@@ -46,6 +46,7 @@ dependencies = [
 
 [project.optional-dependencies]
 charslit = ["charslit>=0.1.0"]
+numba = ["numba>=0.61.0"]
 
 [tool.uv.sources]
 charslit = { git = "https://github.com/ivh/CharSlit" }
