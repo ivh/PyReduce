@@ -59,11 +59,6 @@ class HARPSPOL(Instrument):
                 "night": night,
                 "type": r"(LAMP,LAMP),TUN",
             },
-            "scatter": {
-                "instrument": "HARPS",
-                "night": night,
-                "type": r"(LAMP,LAMP),TUN",
-            },
             "curvature": {
                 "instrument": "HARPS",
                 "night": night,
@@ -146,7 +141,8 @@ class HARPSPOL(Instrument):
 
         Uses the HARPS non-pol NPZ files, since both beams see the same
         spectral orders and the non-pol linelist has N orders matching
-        per-group trace counts.
+        per-group trace counts. Order 0 is the bluest, matching the
+        blue-first trace numbering used since the 0.9 trace rewrite.
         """
         harps_dir = join(dirname(dirname(__file__)), "HARPS")
         fname = f"wavecal_{channel.lower()}_2D.npz"
@@ -162,6 +158,8 @@ class HARPSPOL(Instrument):
 
     def get_wavelength_range(self, header, channel, **kwargs):
         wave_range = super().get_wavelength_range(header, channel, **kwargs)
-        # Reverse order (same as HARPS)
+        # Config lists red→blue (5245→3779 A). Since the 0.9 trace rewrite,
+        # traces are numbered bottom-up = blue-first, so the guess must be
+        # reversed to blue→red to line up with spectrum rows.
         wave_range = wave_range[::-1]
         return wave_range
