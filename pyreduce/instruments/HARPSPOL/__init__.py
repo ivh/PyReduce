@@ -59,11 +59,6 @@ class HARPSPOL(Instrument):
                 "night": night,
                 "type": r"(LAMP,LAMP),TUN",
             },
-            "scatter": {
-                "instrument": "HARPS",
-                "night": night,
-                "type": r"(LAMP,LAMP),TUN",
-            },
             "curvature": {
                 "instrument": "HARPS",
                 "night": night,
@@ -144,12 +139,14 @@ class HARPSPOL(Instrument):
     def get_wavecal_filename(self, header, channel, **kwargs):
         """Get the filename of the wavelength calibration config file.
 
-        Uses HARPSPOL-specific NPZ files with order numbering reversed
-        to match the top-to-bottom trace ordering (order 0 = reddest).
+        Uses the HARPS non-pol NPZ files, since both beams see the same
+        spectral orders and the non-pol linelist has N orders matching
+        per-group trace counts. Order 0 is the bluest, matching the
+        blue-first trace numbering used since the 0.9 trace rewrite.
         """
-        harpspol_dir = dirname(__file__)
+        harps_dir = join(dirname(dirname(__file__)), "HARPS")
         fname = f"wavecal_{channel.lower()}_2D.npz"
-        fname = join(harpspol_dir, fname)
+        fname = join(harps_dir, fname)
         return fname
 
     def get_mask_filename(self, channel, **kwargs):
