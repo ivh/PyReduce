@@ -10,6 +10,9 @@
 ### Changed
 - The `scatter` step returns a `ScatterModel` (coefficients plus the fit parameters) rather than a bare coefficient array; `.scatter.npz` on disk is unchanged and older files still load. A bare array passed to a consumer is still honoured, with a warning that its flux scale is unknown and it cannot be re-estimated
 
+### Removed
+- HARPS `wavecal_{blue,red}_pol_2D.npz` and the `polarimetry` branch of `HARPS.get_wavecal_filename`. The `_pol` files held every order twice (90 and 52 orders against 45 and 26 real ones), interleaved, with `cs_lines` otherwise identical to the non-pol files and `obase`/`bad_order` not adjusted — an artifact of the era before fiber groups, when the two beams were extracted as 2N separate orders. Duplicated orders are incompatible with the 2D solution HARPS configures, which fits wavelength = P(x, order): refitting the shipped lines at degree [3, 6] gives a residual RMS of 0.0005 A from the non-pol lists against 8.4 A (blue) and 14.8 A (red) from the `_pol` ones, roughly half an order spacing, or ~600 km/s. Setting `instrument.polarimetry: true` selected them silently. HARPSPOL was already using the non-pol lists, which is correct: both beams see the same spectral orders, and its per-group trace count matches their order count
+
 ## [0.9] - 2026-07-31
 
 No code changes from 0.9b3; stable release of the 0.9 series.

@@ -300,11 +300,19 @@ class HARPS(Instrument):
 
         return header
 
-    def get_wavecal_filename(self, header, channel, polarimetry, **kwargs):
-        """Get the filename of the wavelength calibration config file"""
+    def get_wavecal_filename(self, header, channel, **kwargs):
+        """Get the filename of the wavelength calibration config file
+
+        The same linelist serves polarimetric data: both beams see the same
+        spectral orders, so a solution with one entry per order is what a
+        per-beam extraction needs. (There used to be ``_pol`` variants holding
+        each order twice, for the pre-fiber-group era when the two beams were
+        extracted as 2N separate orders. They broke the 2D fit, which solves
+        wavelength = P(x, order): duplicated orders pushed the residual RMS
+        from 0.0005 A to 8.4 A, about half an order spacing.)
+        """
         cwd = dirname(__file__)
-        pol = "_pol" if polarimetry else ""
-        fname = f"wavecal_{channel.lower()}{pol}_2D.npz"
+        fname = f"wavecal_{channel.lower()}_2D.npz"
         fname = join(cwd, fname)
         return fname
 
