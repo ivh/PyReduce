@@ -110,7 +110,7 @@ class HARPS(Instrument):
         Any parameter may be None, to indicate that all values are allowed
 
         This covers HARPS proper. Polarimetric data belongs to the HARPSPOL
-        instrument, which understands the two Wollaston beams as fiber groups;
+        instrument, which understands the two split beams as fiber groups;
         the `mode` expectation here pins `ESO INS MODE` to HARPS and so keeps
         HARPSpol frames out.
 

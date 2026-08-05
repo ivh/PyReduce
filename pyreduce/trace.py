@@ -844,8 +844,8 @@ def trace(
     fibers_per_order : int, optional
         Number of fiber traces per spectral order. When set and order_centers is None,
         consecutive traces (sorted by y) are grouped into orders of this size.
-        Used for instruments like HARPSpol where a Wollaston prism splits each
-        order into multiple beams.
+        Used for instruments like HARPSpol where a beam splitter puts multiple
+        beams per order on the detector.
     top_down : bool, optional
         If True, fiber_idx 1 is the highest-y trace within each order/group
         (default False = lowest-y). Set from ``fibers.numbering``.

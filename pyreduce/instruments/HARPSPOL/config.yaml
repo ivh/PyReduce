@@ -1,5 +1,5 @@
 # HARPSpol instrument configuration
-# HARPSpol uses a Wollaston prism that splits each echelle order into two beams.
+# A beam splitter puts two beams per echelle order on the detector.
 # The two beams are treated as fiber groups "upper" and "lower".
 
 __instrument__: HARPSPOL
@@ -41,7 +41,7 @@ target: OBJECT
 instrument_mode: "ESO INS MODE"
 observation_type: "ESO DPR TYPE"
 
-# Fiber configuration: two beams per order from Wollaston prism
+# Fiber configuration: two beams per order from the beam splitter
 fibers:
   fibers_per_order: 2
   groups:

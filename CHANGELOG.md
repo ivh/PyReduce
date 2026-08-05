@@ -123,7 +123,7 @@ No code changes from 0.8a5; docs update and stable release.
 ## [0.8a4] - 2026-02-14
 
 ### Added
-- HARPSPOL instrument with dual-beam (Wollaston prism) support
+- HARPSPOL instrument with dual-beam (beam splitter) support
 - Otsu+DP beam-pair detection for multi-fiber trace pairing
 - `--use` CLI flag to select fiber groups (e.g., `--use upper,lower`)
 - Wavelength propagation from trace into extracted Spectrum

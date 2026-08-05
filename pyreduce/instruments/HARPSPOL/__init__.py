@@ -1,9 +1,9 @@
 """
 Handles instrument specific info for the HARPSpol (HARPS polarimeter) spectrograph.
 
-HARPSpol uses a Wollaston prism that splits each echelle order into two beams
-on the detector. The two beams are treated as fiber groups "upper" and "lower"
-using PyReduce's fibers_per_order auto-pairing mode.
+A beam splitter puts two beams per echelle order on the detector. The two beams
+are treated as fiber groups "upper" and "lower" using PyReduce's
+fibers_per_order auto-pairing mode.
 """
 
 import logging
