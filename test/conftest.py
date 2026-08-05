@@ -85,6 +85,9 @@ def dataset(request):
         # Map instrument to default target if not specified
         target_defaults = {
             "UVES": "HD[ -]?132205",
+            # HARPS.get_expected_values expands a literal space itself, so a
+            # bracket expression here would end up nested inside a character class
+            "HARPS": "HD109200",
             "XSHOOTER": "UX-Ori",
             "NIRSPEC": "GJ1214",
             "JWST_NIRISS": "",
@@ -256,6 +259,8 @@ def data(dataset, settings, target, night, channel):
     folder = join(dirname(__file__), "datasets")
     if instrument == "UVES":
         folder = datasets.UVES(folder)
+    elif instrument == "HARPS":
+        folder = datasets.HARPS(folder)
     elif instrument == "XSHOOTER":
         folder = datasets.XSHOOTER(folder)
     elif instrument == "JWST_NIRISS":
