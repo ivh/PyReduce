@@ -3,7 +3,7 @@
 # i.e. share the same mode identifier, but have different extensions
 
 __instrument__: HARPS
-id_instrument: "HARPS(pol)?"
+id_instrument: "HARPS"
 instrument: INSTRUME
 telescope: TELESCOP
 

@@ -48,7 +48,7 @@ class TypeFilter(Filter):
 class FiberFilter(Filter):
     def __init__(self, keyword="ESO DPR TYPE"):
         super().__init__(keyword, regex=True)
-        self.lamp_values = ["LAMP", "STAR", "CIRPOL", "LINPOL"]
+        self.lamp_values = ["LAMP", "STAR"]
 
     def collect(self, header):
         value = header.get(self.keyword)
@@ -69,25 +69,6 @@ class FiberFilter(Filter):
         return value
 
 
-class PolarizationFilter(Filter):
-    def __init__(self, keyword="ESO INS RET?? POS"):
-        super().__init__(keyword, regex=True)
-
-    def collect(self, header):
-        dpr_type = header.get("ESO DPR TYPE", "")
-        match = re.match(r"^.*,(CIR|LIN)POL,.*$", dpr_type)
-        if match is None:
-            value = "none"
-        elif match.group(1) == "CIR":
-            value = "circular"
-        elif match.group(1) == "LIN":
-            value = "linear"
-        else:
-            raise ValueError("Polarization not recognised")
-        self.data.append(value)
-        return value
-
-
 class HARPS(Instrument):
     def __init__(self):
         super().__init__()
@@ -99,13 +80,12 @@ class HARPS(Instrument):
                 self.config.instrument_mode, regex=True, flags=re.IGNORECASE
             ),
             "type": TypeFilter(self.config.observation_type),
-            "polarization": PolarizationFilter(),
             "target": ObjectFilter(self.config.target, regex=True),
             "fiber": FiberFilter(),
         }
         self.night = "night"
         self.science = "science"
-        self.shared = ["instrument", "night", "mode", "polarization", "fiber"]
+        self.shared = ["instrument", "night", "mode", "fiber"]
         self.find_closest = [
             "bias",
             "flat",
@@ -123,12 +103,16 @@ class HARPS(Instrument):
         channel=None,
         mode=None,
         fiber=None,
-        polarimetry=None,
         **kwargs,
     ):
         """Determine the default expected values in the headers for a given observation configuration
 
         Any parameter may be None, to indicate that all values are allowed
+
+        This covers HARPS proper. Polarimetric data belongs to the HARPSPOL
+        instrument, which understands the two Wollaston beams as fiber groups;
+        the `mode` expectation here pins `ESO INS MODE` to HARPS and so keeps
+        HARPSpol frames out.
 
         Parameters
         ----------
@@ -138,10 +122,6 @@ class HARPS(Instrument):
             Observation night/nights
         fiber : "A", "B", "AB"
             Which of the fibers should carry observation signal
-        polarimetry : "none", "linear", "circular", bool
-            Whether the instrument is used in HARPS or HARPSpol mode
-            and which polarization is observed. Set to true for both kinds
-            of polarisation.
 
         Returns
         -------
@@ -173,31 +153,13 @@ class HARPS(Instrument):
                 "fiber keyword not understood, possible values are 'AB', 'A', 'B'"
             )
 
-        if polarimetry == "none" or not polarimetry:
-            mode = "HARPS"
-            if template is not None:
-                id_orddef = template.format(a="LAMP", b="DARK", c=".*?")
-                id_spec = template.format(a="STAR", b="(?!STAR).*?", c=".*?")
-            else:
-                id_spec = (
-                    r"^(STAR,(?!STAR).*),.*$|^((?!STAR).*?,STAR),.*$|^(STAR,STAR),.*$"
-                )
-                id_orddef = r"^(LAMP,DARK),.*$|^(DARK,LAMP),.*$|^(LAMP,LAMP),.*$"
-            polarimetry = "none"
+        mode = "HARPS"
+        if template is not None:
+            id_orddef = template.format(a="LAMP", b="DARK", c=".*?")
+            id_spec = template.format(a="STAR", b="(?!STAR).*?", c=".*?")
         else:
-            mode = "HARPSpol"
-            id_orddef = r"(LAMP,LAMP),.*"
-            if polarimetry == r"linear":
-                id_spec = r"(STAR,LINPOL),.*"
-            elif polarimetry == "circular":
-                id_spec = r"(STAR,CIRPOL),.*"
-            elif polarimetry:
-                id_spec = r"(STAR,(?:LIN|CIR)POL),.*"
-                polarimetry = r"(circular|linear)"
-            else:
-                raise ValueError(
-                    f"polarization parameter not recognized. Expected one of 'none', 'linear', 'circular', but got {polarimetry}"
-                )
+            id_spec = r"^(STAR,(?!STAR).*),.*$|^((?!STAR).*?,STAR),.*$|^(STAR,STAR),.*$"
+            id_orddef = r"^(LAMP,DARK),.*$|^(DARK,LAMP),.*$|^(LAMP,LAMP),.*$"
 
         expectations = {
             "bias": {"instrument": "HARPS", "night": night, "type": r"BIAS,BIAS"},
@@ -234,7 +196,6 @@ class HARPS(Instrument):
                 "mode": mode,
                 "type": id_spec,
                 "fiber": fiber,
-                "polarization": polarimetry,
                 "target": target,
             },
         }
@@ -264,18 +225,6 @@ class HARPS(Instrument):
         try:
             header["e_ra"] /= 15
             header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
-
-            pol_angle = header.get("eso ins ret25 pos")
-            if pol_angle is None:
-                pol_angle = header.get("eso ins ret50 pos")
-                if pol_angle is None:
-                    pol_angle = "no polarimeter"
-                else:
-                    pol_angle = "lin %i" % pol_angle
-            else:
-                pol_angle = "cir %i" % pol_angle
-
-            header["e_pol"] = (pol_angle, "polarization angle")
         except:
             pass
 
