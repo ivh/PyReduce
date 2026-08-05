@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from . import util
-from .util import make_index, polyfit2d
+from .util import polyfit2d
 
 logger = logging.getLogger(__name__)
 
@@ -150,21 +150,17 @@ def estimate_background_scatter(
         y_below = y_center - half
         y_above = y_below + height - 1  # ensures constant height
 
-        # Find columns where full aperture fits within image
+        # Find columns where full aperture fits within image. These need not be
+        # contiguous: a trace that bows out of the frame in the middle is in
+        # bounds at both edges, so index the valid columns directly rather than
+        # spanning first to last.
         valid = (y_below >= 0) & (y_above < nrow)
         if not np.any(valid):
             continue
 
-        valid_idx = np.where(valid)[0]
-        new_left = left + valid_idx[0]
-        new_right = left + valid_idx[-1] + 1
-
-        y_below = y_below[valid]
-        y_above = y_above[valid]
-
-        index = make_index(y_below, y_above, new_left, new_right, zero=True)
-
-        mask[index] = False
+        x_valid = x_trace[valid]
+        yy = y_below[valid][None, :] + np.arange(height)[:, None]
+        mask[yy, np.broadcast_to(x_valid, yy.shape)] = False
 
     mask &= ~np.ma.getmask(img)
 

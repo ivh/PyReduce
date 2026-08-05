@@ -123,3 +123,28 @@ def test_as_scatter_coeff_refits_a_model_and_passes_arrays_through():
     assert np.allclose(as_scatter_coeff(model.coeff, science, traces)[0, 0], 4000.0)
     # ... and None stays None.
     assert as_scatter_coeff(None, science, traces) is None
+
+
+@pytest.mark.unit
+def test_masks_traces_whose_valid_columns_are_not_contiguous():
+    """A trace bowing out of the frame mid-detector is in bounds at both edges.
+
+    The aperture then fits for two disjoint runs of columns, which used to be
+    indexed as one span from the first to the last valid column and raised an
+    IndexError.
+    """
+    nrow, ncol = 100, 400
+    img = np.full((nrow, ncol), 10.0)
+    # parabola peaking above the top edge in the middle, inside it at both ends
+    x = np.array([0, ncol // 2, ncol - 1], dtype=float)
+    y = np.array([50.0, 130.0, 50.0])
+    pos = np.polyfit(x, y, 2)
+    traces = [
+        Trace(m=0, group=0, pos=pos, column_range=(0, ncol)),
+        Trace(m=1, group=0, pos=np.array([20.0, 0.0]), column_range=(0, ncol)),
+    ]
+
+    coeff = estimate_background_scatter(
+        img, traces, extraction_height=20, scatter_degree=0, border_width=0
+    )
+    assert np.allclose(coeff[0, 0], 10.0)
