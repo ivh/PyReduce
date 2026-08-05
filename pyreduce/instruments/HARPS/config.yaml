@@ -12,7 +12,6 @@ date_format: fits
 
 channels: [BLUE, RED]
 channels_id: [HARPS, HARPS]
-modes_id_polarimetry: [HARPSpol, HARPSpol]
 extension: [1, 2]
 id: [[1, 1], [1, 2]]
 orientation: 1
@@ -25,8 +24,6 @@ overscan_y: 0
 naxis_x: NAXIS1
 naxis_y: NAXIS2
 
-polarization_linear: "eso ins ret50 pos"
-polarization_circular: "eso ins ret25 pos"
 gain: "HIERARCH ESO DET OUT{id[0]} CONAD"
 readnoise: "HIERARCH ESO DET OUT{id[0]} RON"
 dark: "HIERARCH ESO INS DET{id[1]} OFFDRK"
@@ -42,11 +39,7 @@ latitude: "HIERARCH ESO TEL GEOLAT"
 altitude: "HIERARCH ESO TEL GEOELEV"
 target: OBJECT
 instrument_mode: "ESO INS MODE"
-instrument_mode_alternative: "ESO TPL NAME"
 observation_type: "ESO DPR TYPE"
-
-id_fiber_a: "LAMP,DARK,TUN"
-id_fiber_b: "DARK,LAMP,TUN"
 
 # File classification keywords and patterns
 kw_bias: "ESO DPR TYPE"

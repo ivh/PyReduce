@@ -39,11 +39,7 @@ latitude: GEOLAT
 altitude: GEOELEV
 target: OBJECT
 instrument_mode: "HIERARCH TNG INS MODE"
-instrument_mode_alternative: "TNG TPL NAME"
 observation_type: "TNG DPR TYPE"
-
-id_fiber_a: "LAMP,DARK,TUN"
-id_fiber_b: "DARK,LAMP,TUN"
 
 # File classification keywords and patterns
 kw_bias: "HIERARCH TNG DPR TYPE"
