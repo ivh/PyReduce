@@ -120,13 +120,26 @@ def estimate_background_scatter(
     # Compute extraction height in pixels if fractional
     xwd = extraction_height
     if xwd is not None and xwd < 3:
-        # Fraction of order spacing - estimate from trace separation
+        # Fraction of order spacing - estimate from trace separation.
+        # Trace.run stores `grouped + raw_traces`, so on an instrument with a
+        # fibers block every trace is present twice; where a group holds a single
+        # fiber the two copies have identical polynomials. Coincident traces
+        # contribute zero separations, which would drag the median to 0 and
+        # silently collapse the aperture to zero height, masking nothing.
         x_mid = ncol // 2
         y_mids = np.array([np.polyval(t.pos, x_mid) for t in traces])
-        if len(y_mids) > 1:
-            spacing = np.median(np.abs(np.diff(np.sort(y_mids))))
+        separations = np.diff(np.sort(y_mids))
+        separations = separations[separations > 0]
+        if len(separations) > 0:
+            spacing = np.median(separations)
             xwd = xwd * spacing
         else:
+            logger.warning(
+                "Cannot measure order spacing from %d trace(s) with no distinct "
+                "positions; falling back to a %d px aperture for the scatter mask.",
+                len(traces),
+                10,
+            )
             xwd = 10  # fallback
 
     # Method 1: Select all pixels, but those known to be in traces

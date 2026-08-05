@@ -148,3 +148,45 @@ def test_masks_traces_whose_valid_columns_are_not_contiguous():
         img, traces, extraction_height=20, scatter_degree=0, border_width=0
     )
     assert np.allclose(coeff[0, 0], 10.0)
+
+
+@pytest.mark.unit
+def test_fractional_height_with_traces_stored_twice():
+    """Coincident traces must not collapse the fractional-height aperture.
+
+    Trace.run stores ``grouped + raw_traces``, so on an instrument with a fibers
+    block every trace is present twice, and where a group holds a single fiber the
+    two copies carry identical polynomials. The zero separations between those
+    copies used to drag the median order spacing to 0, so a fractional
+    extraction_height became a zero-height aperture, nothing was masked, and the
+    polynomial was fitted to the order flux itself.
+    """
+    nrow, ncol = 100, 200
+    background, order_flux = 10.0, 40.0
+    img = np.full((nrow, ncol), background)
+    rows = [25, 50, 75]  # spacing 25, so a 0.8 fraction is a 20 px aperture
+    for r in rows:
+        img[r - 10 : r + 10] = order_flux
+
+    # Order flux this close to the background survives the sigma clip, so an
+    # unmasked fit lands on the area-weighted mean (28.0) rather than the floor.
+    unique = [
+        Trace(m=i, group="upper", pos=np.array([0.0, float(r)]), column_range=(0, ncol))
+        for i, r in enumerate(rows)
+    ]
+    # the same three traces again, as the raw per-fiber copies
+    duplicated = unique + [
+        Trace(m=t.m, group=None, pos=t.pos.copy(), column_range=t.column_range)
+        for t in unique
+    ]
+
+    coeff = estimate_background_scatter(
+        img, duplicated, extraction_height=0.8, scatter_degree=0, border_width=0
+    )
+    assert np.allclose(coeff[0, 0], background)
+
+    # and it agrees with the same fit on the de-duplicated list
+    expected = estimate_background_scatter(
+        img, unique, extraction_height=0.8, scatter_degree=0, border_width=0
+    )
+    assert np.allclose(coeff[0, 0], expected[0, 0])
