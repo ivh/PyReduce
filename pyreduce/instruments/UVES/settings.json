@@ -11,7 +11,7 @@
         "split_sigma": 5
     },
     "scatter": {
-        "extraction_height": 0.9,
+        "extraction_height": 1.0,
         "border_width": 20
     },
     "norm_flat": {

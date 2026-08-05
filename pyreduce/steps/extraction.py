@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 # PyReduce subpackages
 from .. import util
+from ..estimate_background_scatter import as_scatter_coeff
 from ..extract import extract
 from ..provenance import add_provenance
 from ..rectify import merge_images, rectify_image
@@ -147,8 +148,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             results from master bias step
         norm_flat : tuple, optional
             results from flat normalization
-        scatter : array, optional
-            background scatter model
+        scatter : ScatterModel, optional
+            background scatter model; re-estimated on each science frame
         mask : array of shape (nrow, ncol), optional
             bad pixel map
 
@@ -179,7 +180,9 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             )
             self.plot = False
 
-        args = (trace_list, default_height, extraction_kwargs)
+        # All traces, not just the selected ones: the scatter fit must mask every
+        # order on the detector, or it fits the flux of the ones it left out.
+        args = (trace_list, trace, default_height, extraction_kwargs)
         calib = (bias, norm_flat, scatter, mask)
         if self.n_jobs == 1:
             results = [
@@ -202,6 +205,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         self,
         fname,
         trace_list,
+        all_traces,
         default_height,
         extraction_kwargs,
         bias,
@@ -222,6 +226,10 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             extraction_height=default_height,
         )
 
+        # Scattered light scales with the illumination of this exposure, so it is
+        # measured on this calibrated frame rather than inherited from the flat.
+        scatter_coeff = as_scatter_coeff(scatter, im, all_traces, context=fname)
+
         # Extract science spectrum - returns list[Spectrum]
         spectra = extract(
             im,
@@ -231,7 +239,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             gain=head["e_gain"],
             readnoise=head["e_readn"],
             dark=head["e_drk"],
-            scatter=scatter,
+            scatter=scatter_coeff,
             plot=self.plot,
             plot_title=self.plot_title,
             **extraction_kwargs,

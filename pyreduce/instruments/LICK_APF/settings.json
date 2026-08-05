@@ -20,7 +20,8 @@
         "manual": false
     },
     "scatter": {
-        "extraction_height": 18
+        "extraction_height": 0.6,
+        "scatter_degree": 2
     },
     "norm_flat": {
         "smooth_slitfunction": 2,

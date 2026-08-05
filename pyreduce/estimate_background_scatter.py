@@ -3,6 +3,7 @@ Module that estimates the background scatter
 """
 
 import logging
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +12,73 @@ from . import util
 from .util import make_index, polyfit2d
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScatterModel:
+    """Background scatter model, together with the recipe that produced it.
+
+    Scattered light scales with the illumination of the frame it was measured on,
+    so ``coeff`` is only valid for ``reference``. A consumer that wants to correct a
+    *different* frame must call :meth:`refit` on that frame rather than reuse
+    ``coeff`` -- a master flat is typically hundreds of times brighter than a single
+    science exposure, and nothing in the stored coefficients records that.
+    """
+
+    #:array: 2D polynomial coefficients, in the flux units of ``reference``
+    coeff: np.ndarray
+    #:dict: fit parameters, so any consumer can reproduce the estimate on its own frame
+    params: dict = field(default_factory=dict)
+    #:str: description of the frame ``coeff`` was measured on, for logging
+    reference: str = "unknown"
+
+    def refit(self, img, traces, **kwargs):
+        """Re-estimate the background on ``img`` using the same fit parameters.
+
+        Parameters
+        ----------
+        img : array[nrow, ncol]
+            the frame to be corrected, after the same calibration it will be
+            extracted with (so that the model is in its flux units)
+        traces : list[Trace]
+            all traces on the detector, so order flux is masked out of the fit
+
+        Returns
+        -------
+        coeff : array
+            2D polynomial coefficients valid for ``img``
+        """
+        params = {**self.params, **kwargs}
+        return estimate_background_scatter(img, traces, **params)
+
+
+def as_scatter_coeff(scatter, img, traces, context=""):
+    """Coefficients valid for ``img``, from whatever the scatter dependency holds.
+
+    A :class:`ScatterModel` is refitted on ``img``; a bare coefficient array cannot be
+    (its flux scale is unknown) and is used unchanged, with a warning.
+
+    Returns
+    -------
+    coeff : array or None
+    """
+    if scatter is None:
+        return None
+    if isinstance(scatter, ScatterModel):
+        coeff = scatter.refit(img, traces)
+        logger.info(
+            "Re-estimated background scatter on %s (model measured on %s)",
+            context or "this frame",
+            scatter.reference,
+        )
+        return coeff
+    logger.warning(
+        "Background scatter given as bare coefficients; cannot re-estimate for %s. "
+        "These were fitted on another frame and are applied without rescaling, which "
+        "over- or under-subtracts by the ratio of the two exposure levels.",
+        context or "this frame",
+    )
+    return scatter
 
 
 def estimate_background_scatter(

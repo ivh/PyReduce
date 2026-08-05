@@ -14,7 +14,7 @@
         "manual": false
     },
     "scatter": {
-        "extraction_height": 20
+        "extraction_height": 0.9
     },
     "norm_flat": {
         "smooth_slitfunction": 2,

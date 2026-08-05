@@ -11,7 +11,11 @@ from ..combine_frames import (
     combine_bias,
     combine_polynomial,
 )
-from ..estimate_background_scatter import estimate_background_scatter
+from ..estimate_background_scatter import (
+    ScatterModel,
+    as_scatter_coeff,
+    estimate_background_scatter,
+)
 from ..extract import extract_normalize
 from ..provenance import add_provenance
 from ..trace_model import (
@@ -278,7 +282,13 @@ class Flat(CalibrationStep):
 
 
 class BackgroundScatter(CalibrationStep):
-    """Determine the background scatter"""
+    """Determine the background scatter
+
+    The fit is performed on this step's own frames (usually the flat lamp), which
+    makes the result valid for those frames only. Consumers that correct a different
+    frame re-estimate on it via :meth:`ScatterModel.refit`; the stored coefficients
+    exist for the frame they were measured on, and to carry the fit parameters.
+    """
 
     def __init__(self, *args, **config):
         super().__init__(*args, **config)
@@ -295,6 +305,16 @@ class BackgroundScatter(CalibrationStep):
         """str: Name of the scatter file"""
         return join(self.output_dir, self.prefix + ".scatter.npz")
 
+    @property
+    def fit_params(self):
+        """dict: parameters a consumer needs to reproduce this fit on its own frame"""
+        return {
+            "extraction_height": self.extraction_height,
+            "scatter_degree": self.scatter_degree,
+            "sigma_cutoff": self.sigma_cutoff,
+            "border_width": self.border_width,
+        }
+
     def run(self, files, trace: list[TraceData], mask=None, bias=None):
         logger.info("Background scatter files: %s", files)
 
@@ -305,18 +325,18 @@ class BackgroundScatter(CalibrationStep):
         # Flatten all selected groups
         trace_list = [t for traces in selected.values() for t in traces]
 
-        scatter = estimate_background_scatter(
+        coeff = estimate_background_scatter(
             scatter_img,
             trace_list,
-            extraction_height=self.extraction_height,
-            scatter_degree=self.scatter_degree,
-            sigma_cutoff=self.sigma_cutoff,
-            border_width=self.border_width,
             plot=self.plot,
             plot_title=self.plot_title,
+            **self.fit_params,
+        )
+        scatter = ScatterModel(
+            coeff=coeff, params=self.fit_params, reference="scatter frames"
         )
 
-        self.save(scatter)
+        self.save(coeff)
         return scatter
 
     def save(self, scatter):
@@ -335,8 +355,8 @@ class BackgroundScatter(CalibrationStep):
 
         Returns
         -------
-        scatter : array
-            scatter coefficients
+        scatter : ScatterModel or None
+            scatter model, or None if no file was found
         """
         try:
             data = np.load(self.savefile, allow_pickle=True)
@@ -345,9 +365,13 @@ class BackgroundScatter(CalibrationStep):
             logger.warning(
                 "No intermediate files found for the scatter. Using scatter = 0 instead."
             )
-            data = {"scatter": None}
-        scatter = data["scatter"]
-        return scatter
+            return None
+        coeff = data["scatter"]
+        if coeff is None:
+            return None
+        return ScatterModel(
+            coeff=coeff, params=self.fit_params, reference="scatter frames"
+        )
 
 
 class NormalizeFlatField(Step):
@@ -392,8 +416,8 @@ class NormalizeFlatField(Step):
             Master flat, and its FITS header
         trace : list[TraceData]
             Trace objects from trace step
-        scatter : array, optional
-            Background scatter model
+        scatter : ScatterModel, optional
+            Background scatter model, re-estimated on the master flat
 
         Returns
         -------
@@ -411,6 +435,12 @@ class NormalizeFlatField(Step):
             return None
 
         flat, fhead = flat
+
+        # Fit the background on the flat being normalized, not on whatever frame the
+        # scatter step happened to use.
+        scatter_coeff = as_scatter_coeff(
+            scatter, flat, trace, context="the master flat"
+        )
 
         # Apply fiber selection based on instrument config
         selected = self._select_traces(trace, "norm_flat")
@@ -436,7 +466,7 @@ class NormalizeFlatField(Step):
             gain=fhead["e_gain"],
             readnoise=fhead["e_readn"],
             dark=fhead["e_drk"],
-            scatter=scatter,
+            scatter=scatter_coeff,
             threshold=threshold,
             threshold_lower=self.threshold_lower,
             plot=self.plot,

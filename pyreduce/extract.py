@@ -1051,6 +1051,22 @@ def calc_telluric_correction(telluric, img):  # pragma: no cover
     return sc
 
 
+def _resolve_scatter(scatter, img, traces):
+    """Coefficients valid for ``img`` from a scatter model, or pass an array through.
+
+    Steps normally resolve this themselves, so they can mask *every* trace on the
+    detector and not just the ones being extracted. This is the safety net for direct
+    callers: subtracting a model measured on another frame is never right, so a
+    :class:`ScatterModel` is re-estimated here rather than used as given.
+    """
+    from .estimate_background_scatter import ScatterModel
+
+    if not isinstance(scatter, ScatterModel):
+        return scatter
+    logger.debug("Re-estimating background scatter on the frame being extracted")
+    return scatter.refit(img, traces)
+
+
 def calc_scatter_correction(scatter, index):
     """Calculate scatter correction
     by interpolating between values?
@@ -1818,6 +1834,8 @@ def extract(
     if len(traces) == 0:
         return []
 
+    kwargs["scatter"] = _resolve_scatter(kwargs.get("scatter"), img, traces)
+
     nrow, ncol = img.shape
 
     # Validate traces and mark invalid ones
@@ -1971,6 +1989,8 @@ def extract_normalize(
     """
     if not traces:
         raise ValueError("No traces provided")
+
+    kwargs["scatter"] = _resolve_scatter(kwargs.get("scatter"), img, traces)
 
     nrow, ncol = img.shape
 

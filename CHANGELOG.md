@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Background scatter is now measured on the frame it corrects.** The `scatter` step fits its model on the flat lamp frames (every instrument's `id_scatter` points at a flat), and `ScienceExtraction` subtracted those coefficients from science frames unchanged. Since a master flat is a *sum* of lamp exposures, the model is in the flux units of that stack and generally has no relation to a single science exposure: measured on XSHOOTER nir (10x400 s flats vs a 5 s science frame) the subtraction was 67x the signal at the trace centres, driving 99.97% of in-order pixels negative; on HARPS red (5x40 s vs 600 s) it *under*-subtracted at 0.14x. `NormalizeFlatField` was unaffected, as it corrects the same flat the model was measured on. Consumers now re-estimate the background on the calibrated image they are about to extract, via the new `ScatterModel.refit`, so the model matches that frame's own inter-order level by construction (1.000 on the XSHOOTER frame above, against 67x before). No exposure-time bookkeeping is involved and no settings changed
+- HARPSPOL: the `scatter` step is no longer declared, having been measured to remove most of the stellar flux at every `extraction_height` tried (#38, #39)
+- Scatter `extraction_height` was narrower than the order footprint on two instruments, leaving order wings in the background fit and biasing it high: HARPS shipped 20 px against 77 px order spacing (now `0.9` of the spacing, model/truth 6.1x -> 1.3x) and LICK_APF 18 px with degree 4 (now `0.6` and `scatter_degree: 2`, 0.48x -> 1.2x, the degree drop because 22 px order spacing leaves too few inter-order pixels for a quartic). UVES moved 0.9 -> 1.0 (1.23x -> 1.04x). Measured against the median of pixels further than 0.4x the order spacing from any trace. See `scatter.md`
+
+### Changed
+- The `scatter` step returns a `ScatterModel` (coefficients plus the fit parameters) rather than a bare coefficient array; `.scatter.npz` on disk is unchanged and older files still load. A bare array passed to a consumer is still honoured, with a warning that its flux scale is unknown and it cannot be re-estimated
+
 ## [0.9] - 2026-07-31
 
 No code changes from 0.9b3; stable release of the 0.9 series.

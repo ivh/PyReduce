@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from pyreduce.estimate_background_scatter import estimate_background_scatter
+from pyreduce.estimate_background_scatter import (
+    ScatterModel,
+    as_scatter_coeff,
+    estimate_background_scatter,
+)
 from pyreduce.trace_model import Trace
 
 pytestmark = [pytest.mark.instrument, pytest.mark.downloads]
@@ -75,3 +79,47 @@ def test_scatter_degree():
 
     with pytest.raises(ValueError):
         estimate_background_scatter(img, traces, scatter_degree=(2, -1))
+
+
+def _traces():
+    return [
+        Trace(m=0, group=0, pos=np.array([25.0, 0.0]), column_range=(0, 100)),
+        Trace(m=1, group=0, pos=np.array([50.0, 0.0]), column_range=(0, 100)),
+        Trace(m=2, group=0, pos=np.array([75.0, 0.0]), column_range=(0, 100)),
+    ]
+
+
+@pytest.mark.unit
+def test_refit_uses_the_frame_it_is_given():
+    """A model measured on a bright frame must not be reused on a faint one."""
+    traces = _traces()
+    params = {"scatter_degree": 0, "extraction_height": 0.1, "border_width": 0}
+
+    flat = np.full((100, 100), 4000.0)  # e.g. 10 summed lamp exposures
+    science = np.full((100, 100), 50.0)  # a single short exposure
+
+    coeff = estimate_background_scatter(flat, traces, **params)
+    model = ScatterModel(coeff=coeff, params=params, reference="flat")
+
+    assert np.allclose(model.coeff[0, 0], 4000.0)
+    assert np.allclose(model.refit(science, traces)[0, 0], 50.0)
+
+
+@pytest.mark.unit
+def test_as_scatter_coeff_refits_a_model_and_passes_arrays_through():
+    traces = _traces()
+    params = {"scatter_degree": 0, "extraction_height": 0.1, "border_width": 0}
+    flat = np.full((100, 100), 4000.0)
+    science = np.full((100, 100), 50.0)
+
+    model = ScatterModel(
+        coeff=estimate_background_scatter(flat, traces, **params),
+        params=params,
+        reference="flat",
+    )
+    # a model is re-estimated on the frame being corrected ...
+    assert np.allclose(as_scatter_coeff(model, science, traces)[0, 0], 50.0)
+    # ... a bare coefficient array carries no scale, so it is used unchanged ...
+    assert np.allclose(as_scatter_coeff(model.coeff, science, traces)[0, 0], 4000.0)
+    # ... and None stays None.
+    assert as_scatter_coeff(None, science, traces) is None
