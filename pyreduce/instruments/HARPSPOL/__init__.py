@@ -59,6 +59,11 @@ class HARPSPOL(Instrument):
                 "night": night,
                 "type": r"(LAMP,LAMP),TUN",
             },
+            "scatter": {
+                "instrument": "HARPS",
+                "night": night,
+                "type": r"(LAMP,LAMP),TUN",
+            },
             "curvature": {
                 "instrument": "HARPS",
                 "night": night,

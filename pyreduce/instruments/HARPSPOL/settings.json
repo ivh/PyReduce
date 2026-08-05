@@ -10,6 +10,9 @@
         "manual": false,
         "border_width": [10, 10, 0, 0]
     },
+    "scatter": {
+        "extraction_height": 0.7
+    },
     "norm_flat": {
         "smooth_slitfunction": 2,
         "extraction_height": 20,
