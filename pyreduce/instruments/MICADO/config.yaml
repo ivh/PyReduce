@@ -8,9 +8,13 @@ telescope: ELT
 date: MJD-OBS
 date_format: mjd
 
-channels: [NIR]
-kw_channel: "ESO DET CHIP*NAME"
-id_channel: [Hawaii4RG]
+# Detectors - data in DET1.DATA through DET4.DATA extensions
+chips: [det1, det2, det3, det4, det5, det6, det7, det8, det9]
+extension: DET1.IMG
+
+# channels: [SPEC]  # janus: renamed from NIR
+# kw_channel: "HIERARCH ESO DPR TECH"
+# id_channel: [spec]
 extension: 0
 orientation: [1]
 

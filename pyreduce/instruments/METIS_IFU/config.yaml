@@ -53,11 +53,12 @@ kw_wave: "ESO DPR TYPE"
 kw_comb: null
 kw_spec: "ESO DPR TYPE"
 
-id_bias: DARK
-id_flat: RSRF
+# janus: updated patterns to match simulated data DPR TYPE values
+id_bias: null
+id_flat: "DARK,WCUOFF"
 id_orders: RSRF
-id_curvature: WAVE
+id_curvature: SKY
 id_scatter: RSRF
-id_wave: WAVE
+id_wave: SKY
 id_comb: null
 id_spec: OBJECT

@@ -47,9 +47,11 @@ class METIS_IFU(Instrument):
         """
         channels = set()
         files = glob(os.path.join(input_dir, "*.fits"))
+        print(f"Discovering channels from files in {input_dir}...")
         for f in files:
             try:
                 with fits.open(f) as hdul:
+                    print(f"Inspecting file: {f}")
                     wlen_cen = hdul[0].header.get("ESO INS WLEN CEN")
                     if wlen_cen is None:
                         continue
@@ -58,6 +60,7 @@ class METIS_IFU(Instrument):
                         if name.startswith("DET") and ".DATA" in name:
                             det_num = name[3]  # "DET1.DATA" -> "1"
                             channels.add(f"{wlen_cen}_det{det_num}")
+                            print(f"Discovered channel: {wlen_cen}_det{det_num} from file {f}")
             except Exception:
                 continue
         return sorted(channels) if channels else [None]

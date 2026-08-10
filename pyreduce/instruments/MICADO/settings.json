@@ -9,8 +9,8 @@
         "degree_before_merge": "best",
         "bias_scaling": "exposure_time",
         "filter_y": 300,
-        "min_cluster": 500,
-        "noise": 100,
+        "min_cluster": 2000,
+        "noise": 50,
         "border_width": 5,
         "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.01,
@@ -23,35 +23,44 @@
         "border_width": 20
     },
     "norm_flat": {
-        "smooth_slitfunction": 1000.0,
-        "extraction_height": 0.28,
-        "oversampling": 12,
-        "swath_width": 200,
-        "threshold": 1000
+        "smooth_slitfunction": 1.0,
+        "smooth_spectrum": 0.0,
+        "extraction_height": 3500,
+        "oversampling": 5,
+        "swath_width": 100,
+        "threshold": 1000,
+        "maxiter": 30
     },
     "curvature": {
-        "extraction_method": "simple",
-        "dimensionality": "2D",
+        "dimensionality": "1D",
+        "degree": 1,
         "curve_degree": 1,
-        "collapse_function": "mean",
+        "extraction_method": "simple",
+        "collapse_function": "median",
         "curve_height": 700,
-        "extraction_height": 233,
+        "extraction_height": 100,
         "curvature_cutoff": 10,
         "peak_threshold": 10,
-        "peak_width": 2,
-        "window_width": 5,
-        "peak_function": "lorentzian",
+        "peak_width": 1,
+        "window_width": 20,
+        "peak_function": "gaussian",
         "bias_scaling": "exposure_time",
-        "degree": [
-            1,
-            1
-        ]
+        "norm_scaling": "divide"
     },
     "wavecal_master": {
-        "extraction_method": "simple",
+        "extraction_method": "optimal",
         "collapse_function": "mean",
-        "extraction_height": 700,
-        "bias_scaling": "exposure_time"
+        "extraction_height": 700.0,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "oversampling": 10,
+        "swath_width": 300,
+        "maxiter": 30,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 1e-07,
+        "extraction_reject": 6,
+        "plot": true,
+        "plot_title": "Wavelength Calibration Spectrum"
     },
     "wavecal": {
         "extraction_method": "optimal",
@@ -68,10 +77,17 @@
         "shift_window": 0.1
     },
     "science": {
+        "extraction_method": "optimal",
+        "extraction_height": null,
         "oversampling": 10,
-        "extraction_height": 0.2847,
-        "swath_width": 400,
-        "smooth_slitfunction": 2,
-        "smooth_spectrum": 0.1
+        "swath_width": 300,
+        "maxiter": 30,
+        "smooth_slitfunction": 0.1,
+        "smooth_spectrum": 1e-07,
+        "extraction_reject": 6,
+        "bias_scaling": "number_of_files",
+        "norm_scaling": "divide",
+        "plot": true,
+        "plot_title": "Science Data"
     }
 }
