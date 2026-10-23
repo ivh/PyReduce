@@ -359,7 +359,7 @@ wheels = [
 [[package]]
 name = "charslit"
 version = "0.1.0"
-source = { git = "https://github.com/ivh/CharSlit#1f432623d92f139722797081a82992e80047a31d" }
+source = { git = "https://github.com/ivh/CharSlit#c878d00fbe061f121aa5e5ebbbac31df7008b1b3" }
 dependencies = [
     { name = "astropy" },
     { name = "matplotlib" },
