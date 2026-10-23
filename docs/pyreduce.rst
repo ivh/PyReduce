@@ -157,14 +157,6 @@ pyreduce.util module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.cli module
--------------------
-
-.. automodule:: pyreduce.cli
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Module contents
 ---------------
 
