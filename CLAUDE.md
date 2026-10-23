@@ -37,14 +37,19 @@ pyreduce/
 │   ├── extraction.py    # ScienceExtraction, RectifyImage
 │   └── output.py        # ContinuumNormalization, Finalize
 ├── configuration.py     # Config loading (settings JSON)
-├── extract.py           # Optimal extraction algorithm
+├── extract.py           # Optimal extraction (swaths, backend selection)
+├── numpy_slitdec.py     # Pure-NumPy slitdec backend
+├── numba_slitdec.py     # Pure-Python numba slitdec backend (optional extra)
+├── slit_curve.py        # Slit curvature fitting
 ├── trace_model.py       # Trace dataclass (geometry, curvature, wavelength)
 ├── spectra.py           # Spectrum/Spectra classes for I/O
 ├── trace.py             # Order detection and tracing
 ├── wavelength_calibration.py  # Wavelength solution fitting
 ├── combine_frames.py    # Frame combination/calibration
+├── clipnflip.py         # Rotate/flip raw frames to dispersion-along-x
 ├── util.py              # Utilities, plotting helpers
-├── cwrappers.py         # CFFI C extension wrappers
+├── cwrappers.py         # CFFI wrapper for the vendored slitdec C code
+├── provenance.py        # Provenance stamping of output headers
 │
 ├── instruments/         # Instrument definitions
 │   ├── common.py        # Base Instrument class
@@ -65,14 +70,17 @@ pyreduce/
 │       ├── wavecal_*.npz   # Pre-computed wavelength solutions
 │       └── mask_*.fits.gz  # Bad pixel masks
 │
-└── clib/                # C source for extraction
-    ├── slit_func_bd.c
-    └── slit_func_2d_xi_zeta_bd.c
+└── clib/                # C slit decomposition, vendored from CharSlit
+    ├── slitdec.c, slitdec.h  # do not edit here, see tools/sync_slitdec.py
+    └── build_extract.py      # CFFI build (reduce-build / reduce-clean)
+
+tools/
+└── sync_slitdec.py      # Re-vendor clib/slitdec.{c,h} from a CharSlit checkout
 ```
 
 ## Image Coordinate Convention
 
-PyReduce uses the convention that **dispersion runs horizontally (along x-axis)** and **cross-dispersion runs vertically (along y-axis)**. The `clipnflip()` function in `instruments/common.py` rotates and flips raw images to ensure this orientation.
+PyReduce uses the convention that **dispersion runs horizontally (along x-axis)** and **cross-dispersion runs vertically (along y-axis)**. The `clipnflip()` function in `clipnflip.py` rotates and flips raw images to ensure this orientation.
 
 This means:
 - **Columns (x)** = wavelength/dispersion direction
@@ -300,7 +308,7 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
 - `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `charslit`, `numba`, `numpy` (CLI: `--extraction`)
-- `PYREDUCE_USE_DELTAS` - Enable slitdelta correction with charslit backend (default: 1)
+- `PYREDUCE_USE_DELTAS` - Apply per-row slitdelta corrections, any backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
@@ -367,10 +375,20 @@ and the per-step commands just sets `PYREDUCE_EXTRACTION` before the pipeline is
 built, the same way `--plot-show` works. The backend is deliberately not threaded
 through the settings cascade and not recorded in output headers.
 
-`clib/slitdec.c` stays the reference: when it changes, port the change to both and
-re-run `test/test_numba_slitdec.py` and `test/test_numpy_slitdec.py`, which diff each
-backend against the C directly. See `numba_slitdec.md` and `numpy_slitdec.md` for the
-algorithm history and standalone (outside-PyReduce) use.
+`clib/slitdec.{c,h}` are vendored from CharSlit and not edited here: change CharSlit,
+commit, then `uv run python tools/sync_slitdec.py ../CharSlit.git`, which copies both,
+stamps the header with the CharSlit commit and prints any `slitdec()` signature change
+(the positional call in `cwrappers.py` must follow it). The C stays the reference: port
+each change to both Python backends and re-run `test/test_numba_slitdec.py` and
+`test/test_numpy_slitdec.py`, which diff each backend against the C directly. See
+`numba_slitdec.md` and `numpy_slitdec.md` for the algorithm history and standalone
+(outside-PyReduce) use.
+
+Pixel weights (`extraction_weights`: `none`/`unc`/`model`/`flux`, plus
+`extraction_noise_floor`) are a reduction setting, unlike the backend, and reach slitdec
+as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.
+`extract.py` builds `pix_unc` in ADU from gain and read noise; only the weighted modes
+read it. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
 
 ## ANDES Instruments
 
@@ -430,6 +448,7 @@ uv sync --extra numba                # Include pure-Python numba backend
 uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions
+uv run python tools/sync_slitdec.py ../CharSlit.git  # Re-vendor slitdec from CharSlit
 uv run pre-commit install            # Setup hooks (once)
 uv run pytest -m unit                # Fast unit tests
 uv run pytest --instrument=UVES      # Test single instrument
@@ -453,8 +472,8 @@ If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run 
 
 ### Test Organization
 
-- `@pytest.mark.unit` - Fast tests with synthetic data (~40 tests)
-- `@pytest.mark.instrument` - Integration tests with real data (~70 tests)
+- `@pytest.mark.unit` - Fast tests with synthetic data (~800 tests)
+- `@pytest.mark.instrument` - Integration tests with real data (~100 tests, run per `--instrument`)
 - `@pytest.mark.slow` - Long-running tests (wavecal, continuum)
 
 ## Key Files
@@ -472,7 +491,9 @@ If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run 
 | `pyreduce/trace.py` | Order detection and tracing |
 | `pyreduce/instruments/common.py` | Base Instrument class |
 | `pyreduce/instruments/models.py` | Pydantic config models |
-| `pyreduce/clib/*.c` | C code for slit function decomposition |
+| `pyreduce/clib/slitdec.{c,h}` | C slit decomposition, vendored from CharSlit |
+| `pyreduce/numpy_slitdec.py`, `numba_slitdec.py` | Pure-Python slitdec ports, tested against the C |
+| `tools/sync_slitdec.py` | Re-vendor `slitdec.{c,h}` from CharSlit |
 | `hatch_build.py` | CFFI extension build hook |
 
 ## Release Process
