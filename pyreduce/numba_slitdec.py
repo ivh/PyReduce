@@ -84,9 +84,8 @@ def _zeta_tensors(
         iy2 = osample - int(math.floor(yc * osample))
         iy1 = iy2 - osample
 
-        d1 = np.fmod(yc, step)  # numba has no math.fmod
-        if d1 == 0:
-            d1 = step
+        # d1 from the same floor as iy1, see subpixel_d1 in slitdec.c
+        d1 = min(max(yc - math.floor(yc * osample) * step, 0.0), step)
         d2 = step - d1
 
         dy = yc - math.floor((y_lower_lim + yc) / step) * step - step

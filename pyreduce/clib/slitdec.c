@@ -448,6 +448,21 @@ static inline void zeta_add(zeta_ref *zeta, int *m_zeta, zeta_rng *z_rng,
     }
 }
 
+/* d1 must come from the same floor(ycen * osample) that picks iy1/k0. With
+   fmod, an exact subpixel boundary (or one fmod rounds differently, e.g.
+   ycen=0.5 at osample=10) paired the index of one side with the weight of
+   the other, shifting that column's slit sampling by a whole subpixel. */
+static double subpixel_d1(double ycen, int osample)
+{
+    const double step = 1.e0 / osample;
+    double d1 = ycen - floor(ycen * osample) * step;
+    if (d1 < 0)
+        d1 = 0;
+    if (d1 > step)
+        d1 = step;
+    return d1;
+}
+
 int zeta_tensors(
     int ncols,
     int nrows,
@@ -582,9 +597,7 @@ int zeta_tensors(
 
         dy=(iy-(y_lower_lim+ycen[x])*osample)*step-0.5*step
         */
-        d1c[x] = fmod(ycen[x], step);
-        if (d1c[x] == 0)
-            d1c[x] = step;
+        d1c[x] = subpixel_d1(ycen[x], osample);
         d2c[x] = step - d1c[x];
 
         /* Define initial distance from ycen       */
@@ -697,16 +710,12 @@ int zeta_tensors(
 static void flat_setup(int ncols, int osample, const double *ycen,
                        int *k0col, double *d1col)
 {
-    const double step = 1.e0 / osample;
     for (int x = 0; x < ncols; x++)
     {
         /* same expressions as in zeta_tensors: k0col[x] is the first
            subpixel of row y=0, i.e. iy1 after the first `iy1 += osample` */
         k0col[x] = osample - floor(ycen[x] * osample);
-        double d1 = fmod(ycen[x], step);
-        if (d1 == 0)
-            d1 = step;
-        d1col[x] = d1;
+        d1col[x] = subpixel_d1(ycen[x], osample);
     }
 }
 

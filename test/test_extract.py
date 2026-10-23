@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from scipy.signal.windows import gaussian
+from scipy.special import erf
 
 from pyreduce import extract
 from pyreduce.trace_model import Trace
@@ -86,6 +87,24 @@ def sample_data(width, height, spec, slitf, oversample, ycen, p1=0):
         )
 
     return out, spec, slitf
+
+
+@pytest.fixture
+def noisy_frame(spec, width, height, ycen):
+    """Poisson frame with a Gaussian profile (sigma 2 px) centred on ycen.
+
+    The profile is integrated over each pixel, so every column holds exactly
+    `flux` before noise. Noise matters: on a noiseless frame the kappa-sigma
+    rejection compares round-off against round-off, and the result becomes
+    platform dependent.
+    """
+    flux = 1e4 * spec
+    edges = np.arange(height + 1) - 0.5
+    cdf = erf((edges[:, None] - ycen[None, :]) / (np.sqrt(2) * 2.0))
+    prof = 0.5 * np.diff(cdf, axis=0)
+    rng = np.random.default_rng(42)
+    img = rng.poisson(prof * flux[None, :]).astype(float)
+    return img, flux
 
 
 def test_class_swath():
@@ -244,29 +263,52 @@ def test_simple_extraction(sample_data, orders, width, oversample):
     assert np.abs(np.diff(unc_out / spec_out)).max() < oversample / 5 + 1e-1
 
 
-def test_vertical_extraction(sample_data, trace_objects, width, height, oversample):
-    img, spec, slitf = sample_data
+@pytest.mark.parametrize("osample", [4, 10])
+def test_vertical_extraction(noisy_frame, trace_objects, width, osample):
+    img, flux = noisy_frame
 
-    spectra = extract.extract(img, trace_objects)
+    spectra = extract.extract(img, trace_objects, extraction_height=20, osample=osample)
 
     assert isinstance(spectra, list)
     assert len(spectra) == len(trace_objects)
+    s = spectra[0]
+    assert s.spec.shape == (width,)
+    assert s.sig.shape == (width,)
 
-    for s in spectra:
-        assert hasattr(s, "spec")
-        assert hasattr(s, "sig")
-        assert s.spec.shape == (width,)
-        assert s.sig.shape == (width,)
+    valid = ~np.isnan(s.spec)
+    assert valid.sum() >= width - 2  # only the edge columns may be lost
 
-    spec_vert = spectra[0].spec
-    assert not np.all(np.isnan(spec_vert))
-    valid = ~np.isnan(spec_vert)
-    assert np.abs(np.diff(spec[valid] / spec_vert[valid])).max() <= 1e-1
+    # Compare against the Poisson expectation rather than s.sig, which runs
+    # ~15% below the actual scatter.
+    z = (s.spec[valid] - flux[valid]) / np.sqrt(flux[valid])
+    assert abs(z.mean()) < 0.5  # ~0.1 expected for ~98 columns
+    assert 0.8 < z.std() < 1.4
+    assert 0.7 < np.median(s.sig[valid] / np.sqrt(flux[valid])) < 1.3
 
 
-def test_curved_equal_vertical_extraction(sample_data, orders, width):
+def test_cosmic_ray_rejection(noisy_frame, trace_objects, ycen):
+    img, flux = noisy_frame
+    img = img.copy()
+    cols = [20, 45, 70]
+    rows = [int(ycen[0]), int(ycen[0]) + 1]  # the two core pixels
+    for c in cols:
+        for r in rows:
+            img[r, c] += 50 * np.sqrt(img[r, c])
+
+    kwargs = {"extraction_height": 20, "osample": 10}
+    rejected = extract.extract(img, trace_objects, **kwargs)[0]
+    kept = extract.extract(img, trace_objects, reject_threshold=0, **kwargs)[0]
+
+    z_rejected = (rejected.spec[cols] - flux[cols]) / np.sqrt(flux[cols])
+    z_kept = (kept.spec[cols] - flux[cols]) / np.sqrt(flux[cols])
+    assert np.all(np.abs(z_rejected) < 4)
+    # the hits must actually be large enough to matter without rejection
+    assert np.all(z_kept > 10)
+
+
+def test_curved_equal_vertical_extraction(noisy_frame, orders, width):
     # Curved extraction with zero curvature should match vertical extraction
-    img, spec, slitf = sample_data
+    img, flux = noisy_frame
 
     # Create traces with zero curvature
     traces_curved = [
@@ -284,8 +326,8 @@ def test_curved_equal_vertical_extraction(sample_data, orders, width):
         for i in range(len(orders))
     ]
 
-    spectra_curved = extract.extract(img, traces_curved)
-    spectra_vert = extract.extract(img, traces_vert)
+    spectra_curved = extract.extract(img, traces_curved, extraction_height=20)
+    spectra_vert = extract.extract(img, traces_vert, extraction_height=20)
 
     spec_curved = spectra_curved[0].spec
     spec_vert = spectra_vert[0].spec
@@ -293,8 +335,42 @@ def test_curved_equal_vertical_extraction(sample_data, orders, width):
     slitf_vert = spectra_vert[0].slitfu
 
     valid = ~np.isnan(spec_curved) & ~np.isnan(spec_vert)
-    assert np.allclose(spec_curved[valid], spec_vert[valid], rtol=1e-2)
-    assert np.allclose(slitf_curved, slitf_vert, rtol=1e-1)
+    np.testing.assert_allclose(spec_curved[valid], spec_vert[valid], rtol=1e-10)
+    np.testing.assert_allclose(slitf_curved, slitf_vert, rtol=1e-10, atol=1e-12)
+
+
+@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
+@pytest.mark.parametrize("osample", [1, 3, 4, 5, 10])
+@pytest.mark.parametrize("curved", [False, True], ids=["flat", "curved"])
+def test_ycen_on_subpixel_boundary(backend, osample, curved):
+    """A column whose ycen sits exactly on a subpixel boundary k/osample must
+    extract like its neighbours an epsilon above it. fmod-derived d1 used to
+    pair that column's subpixel index with the weight of the other side,
+    shifting its slit sampling by one subpixel (~5% flux error)."""
+    mod = pytest.importorskip(f"pyreduce.{backend}")
+    nrows, ncols, x0 = 20, 33, 14
+    y = np.arange(nrows)
+    prof = np.exp(-0.5 * ((y - 9.5) / 2.0) ** 2)
+    im = np.outer(prof / prof.sum(), np.full(ncols, 1e6))
+    pix_unc = np.sqrt(im).clip(1)
+    slitcurve = np.zeros((ncols, 6))
+    if curved:  # any nonzero coefficient leaves the flat fast path
+        slitcurve[:, 1] = 1e-12
+    for k in range(osample):
+        ycen = np.full(ncols, 9 + k / osample + 1e-12)
+        ycen[x0] = 9 + k / osample
+        result = mod.slitdec(
+            im.copy(),
+            pix_unc.copy(),
+            np.ones(im.shape, dtype=np.int32),
+            ycen,
+            slitcurve,
+            np.zeros(nrows),
+            osample=osample,
+            kappa=0.0,
+        )
+        sp = result["spectrum"]
+        assert abs(sp[x0] / np.median(sp) - 1) < 1e-9, f"k={k}"
 
 
 def test_optimal_extraction(sample_data, orders, height, width):

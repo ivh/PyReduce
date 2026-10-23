@@ -63,8 +63,8 @@ def _geometry(
     zw = np.empty(cap, dtype=np.float64)
 
     iy1_init = (osample - np.floor(ycen * osample) - osample).astype(np.int64)
-    d1 = np.fmod(ycen, step)
-    d1 = np.where(d1 == 0.0, step, d1)
+    # d1 from the same floor as iy1, see subpixel_d1 in slitdec.c
+    d1 = np.clip(ycen - np.floor(ycen * osample) * step, 0.0, step)
     d2 = step - d1
     dy_start = ycen - np.floor((y_lower_lim + ycen) / step) * step - step
 
