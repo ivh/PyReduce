@@ -1,22 +1,27 @@
 # Changelog
 
-## [Unreleased]
+## [0.10] - 2026-10-23
 
 ### Added
 - **`extraction_weights` setting** for optimal extraction (`science`, `norm_flat`): `"none"` (default, unchanged results), `"unc"`, `"model"` or `"flux"` pixel weights in the slit decomposition, plus `extraction_noise_floor` for `"model"`. Unweighted extraction counts each slit row's line profile with slit-function², which broadens the LSF when line width varies along the slit and costs 2/sqrt(3) in variance on a photon-limited Gaussian profile; see `docs/configuration_file.md`. Vendored from CharSlit, and ported to the numpy and numba backends
 - `tools/sync_slitdec.py` re-vendors `slitdec.{c,h}` from a CharSlit checkout
+- Python 3.15 wheels (Linux x86_64, macOS arm64)
 
 ### Fixed
 - **Slit decomposition at exact sub-pixel boundaries.** When a column's `ycen` sat exactly on k/osample, slitdec paired the sub-pixel index from one side of the boundary with the weight from the other, shifting that column's slit sampling by one sub-pixel: up to 5.5% flux error in that column, and on high-S/N or noiseless data the outlier rejection then discarded its core. Hit mostly by synthetic frames with traces at round positions, and platform-dependently by `test_vertical_extraction`. Fixed in C, numpy and numba
 - **Background scatter is now measured on the frame it corrects.** The `scatter` step fits its model on the flat lamp frames (every instrument's `id_scatter` points at a flat), and `ScienceExtraction` subtracted those coefficients from science frames unchanged. Since a master flat is a *sum* of lamp exposures, the model is in the flux units of that stack and generally has no relation to a single science exposure: measured on XSHOOTER nir (10x400 s flats vs a 5 s science frame) the subtraction was 67x the signal at the trace centres, driving 99.97% of in-order pixels negative; on HARPS red (5x40 s vs 600 s) it *under*-subtracted at 0.14x. `NormalizeFlatField` was unaffected, as it corrects the same flat the model was measured on. Consumers now re-estimate the background on the calibrated image they are about to extract, via the new `ScatterModel.refit`, so the model matches that frame's own inter-order level by construction (1.000 on the XSHOOTER frame above, against 67x before). No exposure-time bookkeeping is involved and no settings changed
+- Scatter masking no longer crashes when a trace leaves the frame mid-detector and re-enters, as the top HARPS blue orders do at a 0.9-spacing `extraction_height`
 - HARPSPOL: the `scatter` step is no longer declared, having been measured to remove most of the stellar flux at every `extraction_height` tried (#38, #39)
 - Scatter `extraction_height` was narrower than the order footprint on two instruments, leaving order wings in the background fit and biasing it high: HARPS shipped 20 px against 77 px order spacing (now `0.9` of the spacing, model/truth 6.1x -> 1.3x) and LICK_APF 18 px with degree 4 (now `0.6` and `scatter_degree: 2`, 0.48x -> 1.2x, the degree drop because 22 px order spacing leaves too few inter-order pixels for a quartic). UVES moved 0.9 -> 1.0 (1.23x -> 1.04x). Measured against the median of pixels further than 0.4x the order spacing from any trace. See `scatter.md`
 
 ### Changed
+- HARPS is non-polarimetric only; polarimetric frames go through `HARPSPOL`. The `polarimetry` setting, the `e_pol` keyword and `PolarizationFilter` are gone, and `polarization` no longer takes part in calibration matching for HARPS
+- The `scikit-image` dependency is dropped (unused since 2019)
 - The `scatter` step returns a `ScatterModel` (coefficients plus the fit parameters) rather than a bare coefficient array; `.scatter.npz` on disk is unchanged and older files still load. A bare array passed to a consumer is still honoured, with a warning that its flux scale is unknown and it cannot be re-estimated
 
 ### Removed
 - HARPS `wavecal_{blue,red}_pol_2D.npz` and the `polarimetry` branch of `HARPS.get_wavecal_filename`. The `_pol` files held every order twice (90 and 52 orders against 45 and 26 real ones), interleaved, with `cs_lines` otherwise identical to the non-pol files and `obase`/`bad_order` not adjusted — an artifact of the era before fiber groups, when the two beams were extracted as 2N separate orders. Duplicated orders are incompatible with the 2D solution HARPS configures, which fits wavelength = P(x, order): refitting the shipped lines at degree [3, 6] gives a residual RMS of 0.0005 A from the non-pol lists against 8.4 A (blue) and 14.8 A (red) from the `_pol` ones, roughly half an order spacing, or ~600 km/s. Setting `instrument.polarimetry: true` selected them silently. HARPSPOL was already using the non-pol lists, which is correct: both beams see the same spectral orders, and its per-group trace count matches their order count
+- `pyreduce/cli.py`, an unused stale copy of the CLI (`reduce` is `pyreduce.__main__`)
 
 ## [0.9] - 2026-07-31
 

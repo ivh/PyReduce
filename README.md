@@ -4,7 +4,7 @@
 
 # What's new?
 
-Version 0.9 adds two pure-Python extraction backends, so PyReduce can run without a compiled C extension, and replaces `PYREDUCE_USE_CHARSLIT` with `PYREDUCE_EXTRACTION` (`c`, `charslit`, `numba`, `numpy`). See [CHANGELOG.md](CHANGELOG.md) for all changes.
+Version 0.10 re-measures the background scatter on each frame it corrects (science spectra change for every instrument with a `scatter` step), adds the `extraction_weights` setting for pixel-weighted slit decomposition, fixes slit decomposition at exact sub-pixel boundaries, and ships Python 3.15 wheels. See [CHANGELOG.md](CHANGELOG.md) for all changes.
 
 # PyReduce
 
