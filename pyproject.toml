@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 
@@ -39,7 +40,6 @@ dependencies = [
     "pydantic>=2.5.0",
     "spectres>=2.2.0",
     "python-dateutil>=2.8.0",
-    "scikit-image>=0.22.0",
     "tqdm>=4.66.0",
     "Pillow>=10.0.0",
 ]
