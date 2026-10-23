@@ -250,6 +250,8 @@ class ExtractionStep(Step):
                 "swath_width": config["swath_width"],
                 "maxiter": config["maxiter"],
                 "reject_threshold": config.get("extraction_reject", 6),
+                "weights": config.get("extraction_weights", "none"),
+                "noise_floor": config.get("extraction_noise_floor"),
             }
         else:
             raise ValueError(

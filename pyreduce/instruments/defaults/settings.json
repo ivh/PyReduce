@@ -71,6 +71,8 @@
         "threshold": 0.6,
         "threshold_lower": 0,
         "extraction_reject": 6,
+        "extraction_weights": "none",
+        "extraction_noise_floor": null,
         "plot": true,
         "plot_title": "Normalized Flat"
     },
@@ -170,6 +172,8 @@
         "smooth_slitfunction": 0.1,
         "smooth_spectrum": 1e-07,
         "extraction_reject": 6,
+        "extraction_weights": "none",
+        "extraction_noise_floor": null,
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "n_jobs": 1,

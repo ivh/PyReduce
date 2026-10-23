@@ -106,6 +106,34 @@ def test_matches_c_backend_preset_slitfunc():
     _assert_equivalent(_make_swath(200, nrows, 4), preset_slitfunc=preset)
 
 
+_PRESET = np.exp(-0.5 * ((np.arange(15) - 7.5) / 3.0) ** 2)
+
+
+@pytest.mark.parametrize("weights", ["none", "unc", "model", "flux"])
+@pytest.mark.parametrize(
+    "swath,kwargs",
+    [
+        ({"ncols": 200, "nrows": 15, "osample": 4, "curved": False}, {}),
+        ({"ncols": 300, "nrows": 21, "osample": 6, "hotpix": 40}, {}),
+        ({"ncols": 200, "nrows": 15, "osample": 4}, {"lambda_sP": 0.5}),
+        # one pass is exact here, two with model/flux weights
+        (
+            {"ncols": 200, "nrows": 15, "osample": 4},
+            {"preset_slitfunc": _PRESET, "kappa": 0.0},
+        ),
+    ],
+    ids=["flat", "curved-hotpix", "smoothed", "preset-norejection"],
+)
+def test_matches_c_backend_weights(weights, swath, kwargs):
+    _assert_equivalent(_make_swath(**swath), weights=weights, **kwargs)
+
+
+def test_matches_c_backend_model_weights_noise_floor():
+    _assert_equivalent(
+        _make_swath(300, 21, 6, hotpix=40), weights="model", noise_floor=50.0
+    )
+
+
 def test_curvature_too_large_returns_error():
     """nx > ncols bails out with status -2, same as the C code."""
     swath = _make_swath(20, 15, 4)

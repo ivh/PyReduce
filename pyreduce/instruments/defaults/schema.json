@@ -702,6 +702,15 @@
                             "description": "Outlier rejection threshold during optimal extraction, in units of standard deviations. Pixels deviating more than this from the model are masked. Set to 0 to disable rejection.",
                             "type": "number",
                             "minimum": 0
+                        },
+                        "extraction_weights": {
+                            "description": "Pixel weights in the slit decomposition. 'none': unweighted, the historic solution. 'unc': 1/variance from gain and read noise. 'model': 1/(model + extraction_noise_floor), refreshed each iteration; noise-optimal, but the LSF moves with S/N. 'flux': 1/slit-function value; an S/N-independent, sharper LSF.",
+                            "enum": ["none", "unc", "model", "flux"]
+                        },
+                        "extraction_noise_floor": {
+                            "description": "Read-noise variance floor in ADU^2 for extraction_weights='model'. If null, the 5th percentile of the pixel variance.",
+                            "type": ["number", "null"],
+                            "minimum": 0
                         }
                     }
                 },

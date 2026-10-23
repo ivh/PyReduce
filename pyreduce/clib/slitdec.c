@@ -728,7 +728,7 @@ static void flat_setup(int ncols, int osample, const double *ycen,
    be a partial slice (lo = 0 with the full matrices for the sequential
    call). */
 static void flat_fill_sL(int ncols, int y0, int y1, int osample,
-                         const double *im, const unsigned char *mask,
+                         const double *im, const unsigned char *mask, const double *wpix,
                          const double *sP, const int *k0col, const double *d1col,
                          double *scratch, int lo, double *l_Aij, double *l_bj)
 {
@@ -753,8 +753,9 @@ static void flat_fill_sL(int ncols, int y0, int y1, int osample,
                 continue;
             const int c = k0col[x] + nc * (x & 3);
             const double d = d1col[x];
-            const double a = sP[x] * sP[x];
-            const double b = imrow[x] * sP[x];
+            const double wv = wpix ? wpix[(size_t)y * ncols + x] : 1.e0;
+            const double a = wv * sP[x] * sP[x];
+            const double b = wv * imrow[x] * sP[x];
             M0[c] += a;
             M1[c] += a * d;
             M2[c] += a * d * d;
@@ -822,7 +823,7 @@ static void flat_row_AB(int y, int osample, const double *sL,
    the matrix is purely diagonal (band offset bx, which is 0 unless
    lambda_sP > 0 forces a minimum band of 1). */
 static void flat_fill_sP(int ncols, int nrows, int osample, int bx, int nx,
-                         const double *im, const unsigned char *mask,
+                         const double *im, const unsigned char *mask, const double *wpix,
                          const double *sL, const int *k0col, const double *d1col,
                          double *scratch, double *p_Aij, double *p_bj)
 {
@@ -837,8 +838,9 @@ static void flat_fill_sP(int ncols, int nrows, int osample, int bx, int nx,
             if (!mrow[x])
                 continue;
             const double v = A[k0col[x]] + d1col[x] * B[k0col[x]];
-            p_Aij[(size_t)x * nx + bx] += v * v;
-            p_bj[x] += imrow[x] * v;
+            const double wv = wpix ? wpix[(size_t)y * ncols + x] : 1.e0;
+            p_Aij[(size_t)x * nx + bx] += wv * v * v;
+            p_bj[x] += wv * imrow[x] * v;
         }
     }
 }
@@ -884,6 +886,22 @@ static void flat_unc(int ncols, int nrows,
 }
 
 
+/* Scale positive weights to mean 1 */
+static void normalise_weights(double *w, long n)
+{
+    double wsum = 0.e0;
+    long nw = 0;
+    for (long i = 0; i < n; i++)
+        if (w[i] > 0.e0)
+        {
+            wsum += w[i];
+            nw++;
+        }
+    if (nw > 0 && wsum > 0.e0)
+        for (long i = 0; i < n; i++)
+            w[i] *= nw / wsum;
+}
+
 int slitdec(        int ncols,
                     int nrows,
                     double *im,
@@ -898,6 +916,8 @@ int slitdec(        int ncols,
                     int maxiter,
                     double kappa,
                     int use_preset,
+                    int weight_mode,
+                    double noise_floor,
                     double *sP,
                     double *sL,
                     double *model,
@@ -1106,6 +1126,52 @@ int slitdec(        int ncols,
         ycen[x] = ycen[x] - ycen_offset[x];
     }
 
+    /* Optional pixel weights, normalised to mean 1 over the usable pixels so that the relative
+       regularisation (lambda_sL scales with the matrix diagonal) keeps its meaning.
+         weight_mode 0: unweighted (wpix NULL); reproduces the historic solution bit for bit.
+         weight_mode 1: static 1/pix_unc^2.
+         weight_mode 2: 1/(max(model, 0) + noise_floor), refreshed from the model after every
+                        iteration; the first iteration is unweighted.
+         weight_mode 3: 1/v with v the slit-function value of the pixel (model / spectrum),
+                        floored at 1e-3 of its maximum, refreshed like mode 2. Rows then
+                        enter sP in proportion to their flux at any S/N: the photon-limited
+                        mixture without the S/N dependence of mode 2. No units involved. The model sets the shape
+                        of the variance (photon noise, any units: a gain is a global factor and
+                        drops out), noise_floor the read-noise level in the units of im. With
+                        noise_floor < 0 it is taken as the 5th percentile of pix_unc^2 over the
+                        usable pixels; only that one number is taken from pix_unc.
+       wpix is what the fills use; wbuf owns the memory. */
+    double *wbuf = NULL, *wpix = NULL;
+    const long npix = (long)nrows * ncols;
+    if (weight_mode == 1)
+    {
+        wbuf = malloc((size_t)npix * sizeof(double));
+        for (long i = 0; i < npix; i++)
+        {
+            const double u = pix_unc[i];
+            wbuf[i] = (mask[i] && isfinite(u) && u > 0.e0) ? 1.e0 / (u * u) : 0.e0;
+        }
+        normalise_weights(wbuf, npix);
+        wpix = wbuf;
+    }
+    else if (weight_mode == 3)
+        wbuf = malloc((size_t)npix * sizeof(double));
+    else if (weight_mode == 2)
+    {
+        wbuf = malloc((size_t)npix * sizeof(double));
+        if (!(noise_floor >= 0.e0))
+        {
+            long n = 0;
+            for (long i = 0; i < npix; i++)
+            {
+                const double u = pix_unc[i];
+                if (mask[i] && isfinite(u) && u > 0.e0)
+                    wbuf[n++] = u * u;
+            }
+            noise_floor = n > 0 ? quick_select_percentile(wbuf, n, 5.0) : 0.e0;
+        }
+    }
+
     if (fast_flat)
         flat_setup(ncols, osample, ycen, k0col, d1col);
     else
@@ -1175,7 +1241,7 @@ int slitdec(        int ncols,
            differs from the historic xi-centric loop only at the rounding
            level. */
         if (fast_flat)
-            flat_fill_sL(ncols, 0, nrows, osample, im, mask, sP, k0col, d1col,
+            flat_fill_sL(ncols, 0, nrows, osample, im, mask, wpix, sP, k0col, d1col,
                          flat_scratch, 0, l_Aij, l_bj);
         else
         /* Row-outer fill: the band rows touched by one detector row span
@@ -1193,6 +1259,7 @@ int slitdec(        int ncols,
                     continue;
                 const zeta_ref *zrow = &zeta[zeta_index(xx, yy, 0)];
                 const double imv = im[im_index(xx, yy)];
+                const double wv = wpix ? wpix[im_index(xx, yy)] : 1.e0;
                 /* Merge entries sharing the same subpixel index iy: only the
                    summed weight enters both the matrix and the RHS. The iy of
                    one pixel span at most 2*osample+1 indices (the band width
@@ -1214,7 +1281,7 @@ int slitdec(        int ncols,
                        actual keys are zero and add exactly nothing. */
                     for (m = 0; m <= rng; m++)
                     {
-                        const double um = zw[m];
+                        const double um = wv * zw[m];
                         const double *restrict uv = zw + m;
                         double *restrict arow = &l_Aij[laij_index(k0 + m, 2 * osample)];
                         const int dmax = rng - m;
@@ -1249,7 +1316,8 @@ int slitdec(        int ncols,
                 {
                     iy = zk[m];
                     const double um = zw[m];
-                    l_Aij[laij_index(iy, 2 * osample)] += um * um;
+                    const double wum = wv * um;
+                    l_Aij[laij_index(iy, 2 * osample)] += wum * um;
                     for (n = m + 1; n < nk; n++)
                     {
                         const int iyn = zk[n];
@@ -1260,9 +1328,9 @@ int slitdec(        int ncols,
                            row's band (or past the array). Drop them. */
                         if (d > 2 * osample)
                             continue;
-                        l_Aij[laij_index(lo, d + 2 * osample)] += zw[n] * um;
+                        l_Aij[laij_index(lo, d + 2 * osample)] += zw[n] * wum;
                     }
-                    l_bj[lbj_index(iy)] += imv * um;
+                    l_bj[lbj_index(iy)] += imv * wum;
                 }
             }
         }
@@ -1338,7 +1406,7 @@ int slitdec(        int ncols,
 
         /* Pixel-centric fill, see comment at the slit function SLE above */
         if (fast_flat)
-            flat_fill_sP(ncols, nrows, osample, bx, nx, im, mask, sL,
+            flat_fill_sP(ncols, nrows, osample, bx, nx, im, mask, wpix, sL,
                          k0col, d1col, flat_scratch, p_Aij, p_bj);
         else
         /* Row-outer fill, see the sL fill above. For this system the band
@@ -1353,6 +1421,7 @@ int slitdec(        int ncols,
                     continue;
                 const zeta_ref *zrow = &zeta[zeta_index(xx, yy, 0)];
                 const double imv = im[im_index(xx, yy)];
+                const double wv = wpix ? wpix[im_index(xx, yy)] : 1.e0;
                 /* Merge entries sharing the same source column x; with small
                    curvature this collapses the list to just a few entries.
                    Sources span at most bx+1 columns -- that is how the band
@@ -1370,7 +1439,7 @@ int slitdec(        int ncols,
                    every pixel by construction, so no fallback is needed. */
                 for (m = 0; m <= rng; m++)
                 {
-                    const double um = zw[m];
+                    const double um = wv * zw[m];
                     const double *restrict uv = zw + m;
                     double *restrict arow = &p_Aij[paij_index(k0 + m, bx)];
                     const int dmax = rng - m;
@@ -1470,14 +1539,58 @@ int slitdec(        int ncols,
             }
         }
 
+        /* Model-variance weights for the next iteration */
+        if (weight_mode == 2)
+        {
+            for (long i = 0; i < npix; i++)
+                wbuf[i] = mask[i] ? 1.e0 / (fmax(model[i], 0.e0) + noise_floor) : 0.e0;
+            normalise_weights(wbuf, npix);
+            wpix = wbuf;
+        }
+        else if (weight_mode == 3)
+        {
+            /* slit-function value v of each pixel from the current sL */
+            if (fast_flat)
+            {
+                double *A = flat_scratch, *B = A + osample + 1;
+                for (y = 0; y < nrows; y++)
+                {
+                    flat_row_AB(y, osample, sL, A, B);
+                    for (x = 0; x < ncols; x++)
+                        wbuf[im_index(x, y)] = A[k0col[x]] + d1col[x] * B[k0col[x]];
+                }
+            }
+            else
+                for (y = 0; y < nrows; y++)
+                    for (x = 0; x < ncols; x++)
+                    {
+                        const zeta_ref *zrow = &zeta[zeta_index(x, y, 0)];
+                        const int mz = m_zeta[mzeta_index(x, y)];
+                        double acc = 0.;
+                        for (m = 0; m < mz; m++)
+                            acc += sL[zrow[m].iy] * zrow[m].w;
+                        wbuf[im_index(x, y)] = acc;
+                    }
+            double vmax = 0.e0;
+            for (long i = 0; i < npix; i++)
+                if (mask[i] && wbuf[i] > vmax)
+                    vmax = wbuf[i];
+            const double vfloor = 1.e-3 * vmax;
+            for (long i = 0; i < npix; i++)
+                wbuf[i] = (mask[i] && vmax > 0.e0) ? 1.e0 / fmax(wbuf[i], vfloor) : 0.e0;
+            normalise_weights(wbuf, npix);
+            wpix = wbuf;
+        }
+
         /* With a preset sL and no outlier rejection the sP solve does not
            depend on the previous iteration: one pass is exact. sP_change
            still holds the jump from the initial guess, which says nothing
-           about convergence here, so report 0. */
-        if (use_preset && kappa <= 0)
+           about convergence here, so report 0. With model or flux weights the
+           first pass is unweighted and sets the weights: one more pass. */
+        if (use_preset && kappa <= 0 && (weight_mode < 2 || iter > 0))
         {
             sP_change = 0;
-            iter = 1;
+            iter = weight_mode < 2 ? 1 : 2;
             break;
         }
 
@@ -1635,6 +1748,7 @@ int slitdec(        int ncols,
     }
 
     free(sP_old);
+    free(wbuf);
     free(sP_diff);
     free(norm_sq);
     free(l_Aij);

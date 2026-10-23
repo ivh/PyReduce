@@ -36,6 +36,8 @@ from scipy.linalg import solve_banded, solveh_banded
 _INT64_MAX = np.iinfo(np.int64).max
 _INT64_MIN = np.iinfo(np.int64).min
 
+WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
+
 # Target number of subpixel candidates held live while building the geometry.
 _CHUNK_ELEMENTS = 2_000_000
 
@@ -177,30 +179,45 @@ def _group(k0):
     return order, ks[starts], starts
 
 
-def _fill_system(W, imv, starts, uk, n, nband):
+def _fill_system(W, imv, starts, uk, n, nband, wpix=None):
     """Accumulate the normal equations of one merged window into upper bands.
 
     ``Aup[d, i]`` holds ``A[i, i + d]``; the matrix is symmetric, so only the
     upper bands are built -- which is exactly what scipy consumes. ``W`` and
     ``imv`` are in grouped-pixel order, so each band entry is a run sum over
     the pixels sharing a window base. Rows ``uk + m`` past ``n - 1`` can only
-    receive zero-weight window slots and are dropped.
+    receive zero-weight window slots and are dropped. ``wpix``, in the same
+    order, weights each pixel's contribution.
     """
     width, npix = W.shape
     Aup = np.zeros((nband, n))
     bj = np.zeros(n)
     buf = np.empty(npix)
+    um = np.empty(npix)
     for m in range(width):
         cut = int(np.searchsorted(uk, n - m))
         if cut == 0:
             break
         rows = uk[:cut] + m
-        np.multiply(imv, W[m], out=buf)
+        if wpix is None:
+            um[:] = W[m]
+        else:
+            np.multiply(wpix, W[m], out=um)
+        np.multiply(imv, um, out=buf)
         bj[rows] += np.add.reduceat(buf, starts)[:cut]
         for d in range(width - m):
-            np.multiply(W[m], W[m + d], out=buf)
+            np.multiply(um, W[m + d], out=buf)
             Aup[d, rows] += np.add.reduceat(buf, starts)[:cut]
     return Aup, bj
+
+
+def _normalise_weights(w):
+    """Scale positive weights to mean 1, as the C's normalise_weights."""
+    pos = w > 0.0
+    nw = np.count_nonzero(pos)
+    wsum = w.sum(where=pos)
+    if nw > 0 and wsum > 0.0:
+        w *= nw / wsum
 
 
 def _regularize_smooth(Aup, lam):
@@ -263,6 +280,9 @@ def _slitdec_core(
     maxiter,
     kappa,
     use_preset,
+    weight_mode,
+    noise_floor,
+    pix_uncT,
     sP,
     sL,
     modelT,
@@ -387,6 +407,21 @@ def _slitdec_core(
     pct99 = int(0.99 * (ncols - 1))
     kmed = (ncols - 1) // 2
 
+    # Pixel weights, held in grouped order like imv; None means unweighted.
+    # See the C for the modes: 1 static 1/pix_unc^2, 2 model variance and
+    # 3 slit-function value, both refreshed each iteration.
+    wpix = None
+    if weight_mode in (1, 2):
+        u = pix_uncT.reshape(-1)[order]
+        usable = (maskT.reshape(-1)[order] != 0) & np.isfinite(u) & (u > 0.0)
+        if weight_mode == 1:
+            wpix = np.zeros(npix)
+            np.divide(1.0, u * u, out=wpix, where=usable)
+            _normalise_weights(wpix)
+        elif not noise_floor >= 0.0:
+            u2 = u[usable] ** 2
+            noise_floor = _select(u2, int(0.05 * (u2.size - 1))) if u2.size else 0.0
+
     sP_pad = np.zeros(ncols + Kx)
     sL_pad = np.zeros(ny + K)
     sPg = np.empty((Kx, npix))
@@ -403,7 +438,7 @@ def _slitdec_core(
         if not use_preset:
             W = np.einsum("mjp,jp->mp", T, sPg)
             W *= maskf
-            l_Aij, l_bj = _fill_system(W, imv, starts_l, uk_l, ny, nband_l)
+            l_Aij, l_bj = _fill_system(W, imv, starts_l, uk_l, ny, nband_l, wpix)
 
             diag_tot = l_Aij[0].sum()
             _regularize_smooth(l_Aij, lambda_sL * diag_tot / ny)
@@ -419,7 +454,15 @@ def _slitdec_core(
         W = np.einsum("mjp,mp->jp", T, sLg)
         Wm = W[:, order_p]
         Wm *= maskf[order_p]
-        p_Aij, p_bj = _fill_system(Wm, imv_p, starts_p, uk_p, ncols, nband_p)
+        p_Aij, p_bj = _fill_system(
+            Wm,
+            imv_p,
+            starts_p,
+            uk_p,
+            ncols,
+            nband_p,
+            None if wpix is None else wpix[order_p],
+        )
 
         if lambda_sP > 0.0:
             _regularize_smooth(p_Aij, lambda_sP)
@@ -434,6 +477,8 @@ def _slitdec_core(
         # The model is the same window contracted with the new spectrum:
         # model[p] = sum_j W[j, p] * sP[k0_x[p] + j]. Padding sP absorbs the
         # bases that run past the last column, where W is zero anyway.
+        if weight_mode == 3:
+            v = W.sum(axis=0)
         sP_pad[:ncols] = sP
         sPg[0] = sP_pad[k0_x]
         np.multiply(W[0], sPg[0], out=model)
@@ -442,6 +487,26 @@ def _slitdec_core(
             np.multiply(W[j], sPg[j], out=W[j])
             model += W[j]
         modelT.reshape(-1)[order] = model
+
+        if weight_mode in (2, 3):
+            good = maskf != 0
+            wpix = np.zeros(npix)
+            if weight_mode == 2:
+                np.divide(
+                    1.0, np.maximum(model, 0.0) + noise_floor, out=wpix, where=good
+                )
+            else:
+                vmax = max(v.max(where=good, initial=0.0), 0.0)
+                if vmax > 0.0:
+                    np.divide(1.0, np.maximum(v, 1e-3 * vmax), out=wpix, where=good)
+            _normalise_weights(wpix)
+
+        # With a preset sL and no rejection one pass is exact (two with model
+        # or flux weights, the first of which only sets the weights).
+        if use_preset and kappa <= 0 and (weight_mode < 2 or it > 0):
+            sP_change = 0.0
+            it = 1 if weight_mode < 2 else 2
+            break
 
         core = slice(delta_x, ncols - delta_x)
         resid = modelT[core] - imT[core]
@@ -512,6 +577,8 @@ def slitdec(
     maxiter=20,
     kappa=10.0,
     preset_slitfunc=None,
+    weights="none",
+    noise_floor=None,
 ):
     """Slit decomposition with slit characterization (NumPy backend).
 
@@ -523,6 +590,11 @@ def slitdec(
     dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
     return_code.
     """
+    weight_mode = WEIGHT_MODES.get(weights)
+    if weight_mode is None:
+        raise ValueError(
+            f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
     im = np.ascontiguousarray(im, dtype=np.float64)
     pix_unc = np.ascontiguousarray(pix_unc, dtype=np.float64)
 
@@ -599,6 +671,9 @@ def slitdec(
         int(maxiter),
         float(kappa),
         use_preset,
+        weight_mode,
+        -1.0 if noise_floor is None else float(noise_floor),
+        np.ascontiguousarray(pix_unc.T),
         sP,
         sL,
         modelT,

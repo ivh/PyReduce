@@ -108,6 +108,9 @@ def _slitdec_charslit(
     gain,
     reject_threshold,
     preset_slitfunc,
+    readnoise=0,
+    weights="none",
+    noise_floor=None,
 ):
     """Call charslit.slitdec and convert results to the expected format.
 
@@ -138,6 +141,13 @@ def _slitdec_charslit(
     preset_slitfunc : array or None
         Preset slit function (length ny or nrows). If given, the slit-function
         solve is skipped and only the spectrum is fit against it.
+    readnoise : float
+        Read noise in electrons, enters pix_unc
+    weights : {"none", "unc", "model", "flux"}
+        Pixel weights in the slit decomposition, see cwrappers.slitdec
+    noise_floor : float or None
+        Read-noise variance floor for weights="model", in ADU^2; None lets
+        slitdec take the 5th percentile of pix_unc^2
 
     Returns
     -------
@@ -162,11 +172,10 @@ def _slitdec_charslit(
     data[~np.isfinite(data)] = 0
     mask_in = mask_in | ~np.isfinite(data)
 
-    # Compute pixel uncertainties (shot noise)
-    pix_unc = np.abs(data) * gain
-    np.sqrt(pix_unc, out=pix_unc)
-    pix_unc[pix_unc < 1] = 1
-    pix_unc = pix_unc.astype(np.float64)
+    # Pixel uncertainties in ADU. Only the weighted modes read them, so
+    # weights="none" is unaffected by how they are built.
+    var = np.maximum(data, 0) / gain + (readnoise / gain) ** 2
+    pix_unc = np.sqrt(np.maximum(var, 1 / gain**2))
 
     # Convert mask: numpy (True=bad) -> charslit (0=bad, 1=good)
     mask_c = np.where(mask_in, 0, 1).astype(np.uint8)
@@ -204,6 +213,12 @@ def _slitdec_charslit(
         maxiter=maxiter,
         kappa=float(reject_threshold),
         preset_slitfunc=preset_slitfunc,
+        # only passed when used, so an external charslit predating weights works
+        **(
+            {"weights": weights, "noise_floor": noise_floor}
+            if weights != "none"
+            else {}
+        ),
     )
 
     sp = result["spectrum"]
@@ -1120,6 +1135,8 @@ def extract_spectrum(
     progress=None,
     ord_num=0,
     preset_slitfunc=None,
+    weights="none",
+    noise_floor=None,
     **kwargs,
 ):
     """
@@ -1182,6 +1199,11 @@ def extract_spectrum(
     slitdeltas : array[nrows_stored], optional
         Per-row residual offsets from polynomial curvature fit (default: None).
         Will be interpolated to match swath nrows if lengths differ.
+    weights : {"none", "unc", "model", "flux"}, optional
+        pixel weights in the slit decomposition, see cwrappers.slitdec (default: "none")
+    noise_floor : float, optional
+        read-noise variance floor in ADU^2 for weights="model" (default: None,
+        5th percentile of the pixel variance)
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional
@@ -1304,6 +1326,9 @@ def extract_spectrum(
                 gain=gain,
                 reject_threshold=reject_threshold,
                 preset_slitfunc=preset_slitfunc,
+                readnoise=readnoise,
+                weights=weights,
+                noise_floor=noise_floor,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 

@@ -1,9 +1,8 @@
-/* Copied from CharSlit (github.com/ivh/CharSlit), commit 28b5c72.
+/* Copied from CharSlit (github.com/ivh/CharSlit), commit c878d00.
    Plain-C slit-decomposition algorithm, compiled here via CFFI.
-   To update, re-copy slitdec/slitdec.{c,h} from CharSlit and bump this note.
-   Only divergence: line 1099 of slitdec.c has its trailing whitespace
-   stripped by our pre-commit hook.
-   Set PYREDUCE_USE_CHARSLIT=1 to run the external charslit package instead. */
+   Do not edit here: change CharSlit, then run tools/sync_slitdec.py.
+   Only divergence: trailing whitespace is stripped.
+   PYREDUCE_EXTRACTION=charslit runs the external charslit package instead. */
 
 typedef struct
 {
@@ -36,6 +35,8 @@ int slitdec(        int ncols,
                     int maxiter,
                     double kappa,
                     int use_preset,
+                    int weight_mode,
+                    double noise_floor,
                     double *sP,
                     double *sL,
                     double *model,

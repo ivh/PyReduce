@@ -23,6 +23,8 @@ c_double = ctypes.c_double
 c_int = ctypes.c_int
 c_mask = ctypes.c_ubyte
 
+WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
+
 
 def slitdec(
     im,
@@ -37,6 +39,8 @@ def slitdec(
     maxiter=20,
     kappa=10.0,
     preset_slitfunc=None,
+    weights="none",
+    noise_floor=None,
 ):
     """Slit decomposition with slit characterization (charslit algorithm).
 
@@ -51,11 +55,22 @@ def slitdec(
     fit against it (single-pass extraction); the preset is normalized to sum
     ``osample`` inside the C code.
 
+    ``weights`` selects the pixel weights in both solves: ``"none"``
+    (unweighted, the historic solution), ``"unc"`` (1/pix_unc^2), ``"model"``
+    (1/(model + noise_floor), refreshed each iteration) or ``"flux"`` (1/slit
+    function value). ``noise_floor`` is in the units of ``im``; None takes the
+    5th percentile of pix_unc^2. See CharSlit's CLAUDE.md for the trade-offs.
+
     Returns
     -------
     dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
     return_code.
     """
+    weight_mode = WEIGHT_MODES.get(weights)
+    if weight_mode is None:
+        raise ValueError(
+            f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
     requirements = ["C", "A", "W", "O"]
 
     im = np.require(im, dtype=c_double, requirements=requirements)
@@ -144,6 +159,8 @@ def slitdec(
         ffi_slitdec.cast("int", int(maxiter)),
         ffi_slitdec.cast("double", float(kappa)),
         ffi_slitdec.cast("int", use_preset),
+        ffi_slitdec.cast("int", weight_mode),
+        ffi_slitdec.cast("double", -1.0 if noise_floor is None else float(noise_floor)),
         ffi_slitdec.cast("double *", sP.ctypes.data),
         ffi_slitdec.cast("double *", sL.ctypes.data),
         ffi_slitdec.cast("double *", model.ctypes.data),

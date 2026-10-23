@@ -166,6 +166,8 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | `smooth_spectrum` | Spectrum smoothing factor | 1e-7 |
 | `swath_width` | Width of extraction swaths | 300 |
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
+| `extraction_weights` | Pixel weights: "none", "unc", "model" or "flux" (see below) | "none" |
+| `extraction_noise_floor` | Read-noise variance floor (ADU²) for `"model"` weights; null = 5th percentile of pixel variance | null |
 | `maxiter` | Maximum extraction iterations | 30 |
 | `n_jobs` | Files to extract in parallel (joblib semantics, -1 = all cores). Disables plots when not 1 | 1 |
 
@@ -178,6 +180,17 @@ The extraction aperture can be specified as:
 - **Fraction** (<2) - Fraction of order separation, e.g., `0.5` for half the distance to neighbors
 
 The automatic heights (null) are recommended for most cases. They adapt to varying trace spacing across the detector and between orders.
+
+#### extraction_weights
+
+By default the slit decomposition is unweighted least squares: each row enters the spectrum with weight ~ its slit-function value, so its line profile counts with ~ slit-function². When the line shape varies along the slit (fibre chords, image slicers) this favours the bright, wide rows and broadens the extracted LSF. The weighted modes (all normalised to mean 1, so `smooth_slitfunction` keeps its meaning):
+
+- **`"none"`** - unweighted; S/N-independent but broad LSF, ~8% variance penalty on bright data.
+- **`"unc"`** - static 1/variance from the detector gain and read noise. Because the variance is estimated from the noisy data itself, it is correlated with the noise and distorts line profiles; prefer `"model"`.
+- **`"model"`** - 1/(model + `extraction_noise_floor`), refreshed each iteration. Noise-optimal (Horne-like), but the LSF moves with S/N, ending at the unweighted one in the read-noise limit.
+- **`"flux"`** - 1/slit-function value. Rows enter in proportion to their flux at any S/N: the sharp, bright-source LSF, independent of S/N, at a variance cost that grows for faint data.
+
+`"model"` sees only the trace being extracted, so light from neighbours inside the aperture looks faint to it and gets large weights; for crowded apertures `"none"` or `"flux"` are safer.
 
 #### Using a Pre-computed Slit Function
 

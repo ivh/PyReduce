@@ -29,6 +29,8 @@ _INT32_MIN = -2147483648
 _KW = {"cache": True, "nogil": True, "fastmath": True}
 _KW_STRICT = {"cache": True, "nogil": True}
 
+WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
+
 
 @njit(inline="always")
 def _zeta_add(zx, ziy, zw, m_zeta, z_rng, ncols, nrows, x, iy, xx, yy, w):
@@ -248,6 +250,8 @@ def _fill_sl(
     l_bj,
     buf_w,
     buf_k,
+    wpix,
+    use_w,
 ):
     two_os = 2 * osample
     l_Aij[:, :] = 0.0
@@ -259,6 +263,7 @@ def _fill_sl(
             if mz <= 0 or mask[yy, xx] == 0:
                 continue
             imv = im[yy, xx]
+            wv = wpix[yy, xx] if use_w else 1.0
             k0 = z_rng[xx, yy, 0]
             rng = z_rng[xx, yy, 1] - k0
 
@@ -271,7 +276,7 @@ def _fill_sl(
                     buf_w[ziy[xx, yy, m] - k0] += sP[zx[xx, yy, m]] * zw[xx, yy, m]
                 # Symmetric matrix: upper bands only, mirrored after the fill.
                 for m in range(rng + 1):
-                    um = buf_w[m]
+                    um = wv * buf_w[m]
                     row = k0 + m
                     for n in range(rng - m + 1):
                         l_Aij[row, two_os + n] += um * buf_w[m + n]
@@ -296,13 +301,14 @@ def _fill_sl(
             for m in range(nk):
                 iy = buf_k[m]
                 um = buf_w[m]
-                l_Aij[iy, two_os] += um * um
+                wum = wv * um
+                l_Aij[iy, two_os] += wum * um
                 for n in range(m + 1, nk):
                     iyn = buf_k[n]
                     lo = min(iy, iyn)
                     d = abs(iyn - iy)
-                    l_Aij[lo, d + two_os] += buf_w[n] * um
-                l_bj[iy] += imv * um
+                    l_Aij[lo, d + two_os] += buf_w[n] * wum
+                l_bj[iy] += imv * wum
 
 
 @njit(**_KW)
@@ -322,6 +328,8 @@ def _fill_sp(
     p_bj,
     buf_w,
     buf_k,
+    wpix,
+    use_w,
 ):
     two_dx = 2 * delta_x
     p_Aij[:, :] = 0.0
@@ -333,6 +341,7 @@ def _fill_sp(
             if mz <= 0 or mask[yy, xx] == 0:
                 continue
             imv = im[yy, xx]
+            wv = wpix[yy, xx] if use_w else 1.0
             k0 = z_rng[xx, yy, 2]
             rng = z_rng[xx, yy, 3] - k0
 
@@ -342,7 +351,7 @@ def _fill_sp(
                 for m in range(mz):
                     buf_w[zx[xx, yy, m] - k0] += sL[ziy[xx, yy, m]] * zw[xx, yy, m]
                 for m in range(rng + 1):
-                    um = buf_w[m]
+                    um = wv * buf_w[m]
                     row = k0 + m
                     for n in range(rng - m + 1):
                         p_Aij[row, two_dx + n] += um * buf_w[m + n]
@@ -366,13 +375,14 @@ def _fill_sp(
             for m in range(nk):
                 x = buf_k[m]
                 um = buf_w[m]
-                p_Aij[x, two_dx] += um * um
+                wum = wv * um
+                p_Aij[x, two_dx] += wum * um
                 for n in range(m + 1, nk):
                     xn = buf_k[n]
                     lo = min(x, xn)
                     d = abs(xn - x)
-                    p_Aij[lo, d + two_dx] += buf_w[n] * um
-                p_bj[x] += imv * um
+                    p_Aij[lo, d + two_dx] += buf_w[n] * wum
+                p_bj[x] += imv * wum
 
 
 @njit(**_KW)
@@ -471,6 +481,55 @@ def _uncertainty(
         unc[x] = math.sqrt(unc[x] / d * nrows)
 
 
+@njit(**_KW)
+def _normalise_weights(w):
+    """Scale positive weights to mean 1, as the C's normalise_weights."""
+    wsum = 0.0
+    nw = 0
+    for y in range(w.shape[0]):
+        for x in range(w.shape[1]):
+            if w[y, x] > 0.0:
+                wsum += w[y, x]
+                nw += 1
+    if nw > 0 and wsum > 0.0:
+        f = nw / wsum
+        for y in range(w.shape[0]):
+            for x in range(w.shape[1]):
+                w[y, x] *= f
+
+
+@njit(**_KW)
+def _refresh_weights(
+    ncols, nrows, weight_mode, noise_floor, model, mask, sL, ziy, zw, m_zeta, wpix
+):
+    """Weights for the next iteration: model variance (2) or slit function (3)."""
+    if weight_mode == 2:
+        for y in range(nrows):
+            for x in range(ncols):
+                if mask[y, x]:
+                    wpix[y, x] = 1.0 / (max(model[y, x], 0.0) + noise_floor)
+                else:
+                    wpix[y, x] = 0.0
+    else:
+        vmax = 0.0
+        for x in range(ncols):
+            for y in range(nrows):
+                acc = 0.0
+                for m in range(m_zeta[x, y]):
+                    acc += sL[ziy[x, y, m]] * zw[x, y, m]
+                wpix[y, x] = acc
+                if mask[y, x] and acc > vmax:
+                    vmax = acc
+        vfloor = 1e-3 * vmax
+        for y in range(nrows):
+            for x in range(ncols):
+                if mask[y, x] and vmax > 0.0:
+                    wpix[y, x] = 1.0 / max(wpix[y, x], vfloor)
+                else:
+                    wpix[y, x] = 0.0
+    _normalise_weights(wpix)
+
+
 @njit(**_KW_STRICT)
 def _select(arr, k):
     """Value at sorted position k, matching the C quickselect (no interpolation)."""
@@ -493,6 +552,8 @@ def _slitdec_core(
     maxiter,
     kappa,
     use_preset,
+    weight_mode,
+    noise_floor,
     sP,
     sL,
     model,
@@ -595,6 +656,25 @@ def _slitdec_core(
     pct99 = int(0.99 * (ncols - 1))
     kmed = (ncols - 1) // 2
 
+    # Pixel weights, see the C for the modes
+    wpix = np.zeros((nrows, ncols), dtype=np.float64)
+    use_w = False
+    if weight_mode == 1 or weight_mode == 2:
+        u2 = np.empty(nrows * ncols, dtype=np.float64)
+        n = 0
+        for y in range(nrows):
+            for x in range(ncols):
+                u = pix_unc[y, x]
+                if mask[y, x] and math.isfinite(u) and u > 0.0:
+                    wpix[y, x] = 1.0 / (u * u)
+                    u2[n] = u * u
+                    n += 1
+        if weight_mode == 1:
+            _normalise_weights(wpix)
+            use_w = True
+        elif not noise_floor >= 0.0:
+            noise_floor = _select(u2[:n], int(0.05 * (n - 1))) if n > 0 else 0.0
+
     it = 0
     while True:
         if not use_preset:
@@ -614,6 +694,8 @@ def _slitdec_core(
                 l_bj,
                 buf_w,
                 buf_k,
+                wpix,
+                use_w,
             )
             _mirror_bands(l_Aij, ny, 2 * osample)
 
@@ -649,6 +731,8 @@ def _slitdec_core(
             p_bj,
             buf_w,
             buf_k,
+            wpix,
+            use_w,
         )
         _mirror_bands(p_Aij, ncols, 2 * delta_x)
 
@@ -669,6 +753,29 @@ def _slitdec_core(
         sP_med = abs(_select(sP, kmed))
 
         _build_model(ncols, nrows, sP, sL, zx, ziy, zw, m_zeta, model)
+
+        if weight_mode == 2 or weight_mode == 3:
+            _refresh_weights(
+                ncols,
+                nrows,
+                weight_mode,
+                noise_floor,
+                model,
+                mask,
+                sL,
+                ziy,
+                zw,
+                m_zeta,
+                wpix,
+            )
+            use_w = True
+
+        # With a preset sL and no rejection one pass is exact (two with model
+        # or flux weights, the first of which only sets the weights).
+        if use_preset and kappa <= 0 and (weight_mode < 2 or it > 0):
+            sP_change = 0.0
+            it = 1 if weight_mode < 2 else 2
+            break
 
         dev = _residual_rms(ncols, nrows, delta_x, im, model, mask)
         if kappa > 0:
@@ -721,6 +828,8 @@ def slitdec(
     maxiter=20,
     kappa=10.0,
     preset_slitfunc=None,
+    weights="none",
+    noise_floor=None,
 ):
     """Slit decomposition with slit characterization (Numba backend).
 
@@ -732,6 +841,11 @@ def slitdec(
     dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
     return_code.
     """
+    weight_mode = WEIGHT_MODES.get(weights)
+    if weight_mode is None:
+        raise ValueError(
+            f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
     im = np.ascontiguousarray(im, dtype=np.float64)
     pix_unc = np.ascontiguousarray(pix_unc, dtype=np.float64)
 
@@ -807,6 +921,8 @@ def slitdec(
         int(maxiter),
         float(kappa),
         use_preset,
+        weight_mode,
+        -1.0 if noise_floor is None else float(noise_floor),
         sP,
         sL,
         model,
