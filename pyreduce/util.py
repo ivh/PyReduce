@@ -1135,122 +1135,76 @@ def top(
         return t * fff * (fmax - fmin) + fmin
 
 
-def opt_filter(y, par, par1=None, weight=None, lambda2=-1, maxiter=100):
+def opt_filter(y, par, weight=None, lambda2=-1):
     """
-    Optimal filtering of 1D and 2D arrays.
-    Uses tridiag in 1D case and sprsin and linbcg in 2D case.
+    Optimal filtering of 1D arrays.
     Written by N.Piskunov 8-May-2000
 
     Parameters
     ----------
-    f : array
-        1d or 2d array
-    xwidth : int
-        filter width (for 2d array width in x direction (1st index)
-    ywidth : int
-        (for 2d array only) filter width in y direction (2nd index) if ywidth is missing for 2d array, it set equal to xwidth
+    y : array
+        1d array, or 2d array with a single row or column
+    par : int
+        filter width
     weight : array(float)
-        an array of the same size(s) as f containing values between 0 and 1
-    lambda1: float
+        an array of the same size as y containing values between 0 and 1
+    lambda2 : float
         regularization parameter
-    maxiter : int
-        maximum number of iteration for filtering of 2d array
     """
 
     y = np.asarray(y)
 
-    if y.ndim not in [1, 2]:
-        raise ValueError("Input y must have 1 or 2 dimensions")
+    if y.ndim == 2 and 1 in y.shape:
+        y = y.ravel()
+    if y.ndim != 1:
+        raise ValueError("Input y must be 1D")
 
     if par < 1:
         par = 1
 
-    # 1D case
-    if y.ndim == 1 or (y.ndim == 2 and (y.shape[0] == 1 or y.shape[1] == 1)):
-        y = y.ravel()
-        n = y.size
+    n = y.size
 
-        if weight is None:
-            weight = np.ones(n)
-        elif np.isscalar(weight):
-            weight = np.full(n, weight)
-        else:
-            weight = weight[:n]
-
-        if lambda2 > 0:
-            # Apply regularization lambda
-            aij = np.zeros((5, n))
-            # 2nd lower subdiagonal
-            aij[0, 2:] = lambda2
-            # Lower subdiagonal
-            aij[1, 1] = -par - 2 * lambda2
-            aij[1, 2:-1] = -par - 4 * lambda2
-            aij[1, -1] = -par - 2 * lambda2
-            # Main diagonal
-            aij[2, 0] = weight[0] + par + lambda2
-            aij[2, 1] = weight[1] + 2 * par + 5 * lambda2
-            aij[2, 2:-2] = weight[2:-2] + 2 * par + 6 * lambda2
-            aij[2, -2] = weight[-2] + 2 * par + 5 * lambda2
-            aij[2, -1] = weight[-1] + par + lambda2
-            # Upper subdiagonal
-            aij[3, 0] = -par - 2 * lambda2
-            aij[3, 1:-2] = -par - 4 * lambda2
-            aij[3, -2] = -par - 2 * lambda2
-            # 2nd lower subdiagonal
-            aij[4, 0:-2] = lambda2
-            # RHS
-            b = weight * y
-
-            f = solve_banded((2, 2), aij, b)
-        else:
-            a = np.full(n, -abs(par))
-            b = np.copy(weight) + abs(par)
-            b[1:-1] += abs(par)
-            aba = np.array([a, b, a])
-
-            f = solve_banded((1, 1), aba, weight * y)
-
-        return f
+    if weight is None:
+        weight = np.ones(n)
+    elif np.isscalar(weight):
+        weight = np.full(n, weight)
     else:
-        # 2D case
-        if par1 is None:
-            par1 = par
-        if par == 0 and par1 == 0:
-            raise ValueError("xwidth and ywidth can't both be 0")
-        n = y.size
-        nx, ny = y.shape
+        weight = weight[:n]
 
-        lam_x = abs(par)
-        lam_y = abs(par1)
+    if lambda2 > 0:
+        # Apply regularization lambda
+        aij = np.zeros((5, n))
+        # 2nd lower subdiagonal
+        aij[0, 2:] = lambda2
+        # Lower subdiagonal
+        aij[1, 1] = -par - 2 * lambda2
+        aij[1, 2:-1] = -par - 4 * lambda2
+        aij[1, -1] = -par - 2 * lambda2
+        # Main diagonal
+        aij[2, 0] = weight[0] + par + lambda2
+        aij[2, 1] = weight[1] + 2 * par + 5 * lambda2
+        aij[2, 2:-2] = weight[2:-2] + 2 * par + 6 * lambda2
+        aij[2, -2] = weight[-2] + 2 * par + 5 * lambda2
+        aij[2, -1] = weight[-1] + par + lambda2
+        # Upper subdiagonal
+        aij[3, 0] = -par - 2 * lambda2
+        aij[3, 1:-2] = -par - 4 * lambda2
+        aij[3, -2] = -par - 2 * lambda2
+        # 2nd lower subdiagonal
+        aij[4, 0:-2] = lambda2
+        # RHS
+        b = weight * y
 
-        n = nx * ny
-        ndiag = 2 * nx + 1
-        aij = np.zeros((n, ndiag))
-        aij[nx, 0] = weight[0, 0] + lam_x + lam_y
-        aij[nx, 1:nx] = weight[0, 1:nx] + 2 * lam_x + lam_y
-        aij[nx, nx : n - nx] = weight[1 : ny - 1] + 2 * (lam_x + lam_y)
-        aij[nx, n - nx : n - 1] = weight[ny - 1, 0 : nx - 1] + 2 * lam_x + lam_y
-        aij[nx, n - 1] = weight[ny - 1, nx - 1] + lam_x + lam_y
+        f = solve_banded((2, 2), aij, b)
+    else:
+        a = np.full(n, -abs(par))
+        b = np.copy(weight) + abs(par)
+        b[1:-1] += abs(par)
+        aba = np.array([a, b, a])
 
-        aij[nx - 1, 1:n] = -lam_x
-        aij[nx + 1, 0 : n - 1] = -lam_x
+        f = solve_banded((1, 1), aba, weight * y)
 
-        ind = np.arrange(ny - 1) * nx + nx + nx * n
-        aij[ind - 1] = aij[ind - 1] - lam_x
-        aij[ind] = aij[ind] - lam_x
-
-        ind = np.arrange(ny - 1) * nx + nx
-        aij[nx + 1, ind - 1] = 0
-        aij[nx - 1, ind] = 0
-
-        aij[0, nx:n] = -lam_y
-        aij[ndiag - 1, 0 : n - nx] = -lam_y
-
-        rhs = f * weight
-
-        model = solve_banded((nx, nx), aij, rhs)
-        model = np.reshape(model, (ny, nx))
-        return model
+    return f
 
 
 def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric"):

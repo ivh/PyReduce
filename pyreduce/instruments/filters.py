@@ -1,7 +1,6 @@
 import logging
 import re
 from datetime import datetime
-from fnmatch import fnmatch
 
 import numpy as np
 from astropy import units as u
@@ -16,7 +15,6 @@ class Filter:
         self,
         keyword,
         dtype="U20",
-        wildcards=False,
         regex=False,
         flags=0,
         unique=True,
@@ -24,7 +22,6 @@ class Filter:
     ):
         self.keyword = keyword
         self.dtype = dtype
-        self.wildcards = wildcards
         self.regex = regex
         self.flags = flags
         self.data = []
@@ -62,8 +59,6 @@ class Filter:
             try:
                 if self.regex:
                     regex = re.compile(f"^(?:{value})$", flags=self.flags)
-                elif self.wildcards:
-                    regex = re.compile(fnmatch.translate(value), flags=self.flags)
                 else:
                     regex = re.compile(value, flags=self.flags)
 
@@ -166,7 +161,6 @@ class ChannelFilter(Filter):
         self,
         keyword,
         dtype="U20",
-        wildcards=False,
         regex=False,
         flags=0,
         unique=True,
@@ -178,7 +172,6 @@ class ChannelFilter(Filter):
         super().__init__(
             keyword,
             dtype=dtype,
-            wildcards=wildcards,
             regex=regex,
             flags=flags,
             unique=unique,

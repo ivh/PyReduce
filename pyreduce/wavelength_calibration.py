@@ -98,7 +98,7 @@ class AlignmentPlot:
         order = int(np.floor(event.ydata))
         spec = "ref" if (event.ydata - order) > 0.5 else "obs"  # if True then reference
         x = event.xdata
-        print("Order: %i, Spectrum: %s, x: %g" % (order, "ref" if spec else "obs", x))
+        print("Order: %i, Spectrum: %s, x: %g" % (order, spec, x))
 
         # on every second click
         if self.first:
