@@ -6,7 +6,7 @@ __pycache__
 cov.xml
 *.so
 *.o
-pyreduce/clib/_slitdec.c
+pyreduce/clib/_slitdec*.c
 pyreduce_astro.egg*
 .vscode
 *.py[cod]
