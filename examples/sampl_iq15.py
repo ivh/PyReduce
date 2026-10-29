@@ -255,9 +255,22 @@ def profile_fwhm(spl):
 
 
 def plot_detector_map(
-    pts, vals, shape, scatter_xy, levels, fmt, cmap, cbar_label, title, out_png
+    pts,
+    vals,
+    shape,
+    scatter_xy,
+    levels,
+    fmt,
+    cmap,
+    cbar_label,
+    title,
+    out_png,
+    vrange=None,
 ):
     """Linearly interpolated map of values given at detector positions pts.
+
+    vrange is the (vmin, vmax) of the colour scale, by default the 2-98
+    percentiles of the interpolated map.
 
     Does nothing if out_png is falsy.
     """
@@ -271,7 +284,7 @@ def plot_detector_map(
     grid = griddata(pts, vals, (GX, GY), method="linear")
 
     fig, ax = plt.subplots(figsize=(9, 8))
-    vmin, vmax = np.nanpercentile(grid, [2, 98])
+    vmin, vmax = vrange or np.nanpercentile(grid, [2, 98])
     im = ax.imshow(
         grid,
         origin="lower",
