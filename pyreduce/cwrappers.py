@@ -57,9 +57,10 @@ def slitdec(
 
     ``weights`` selects the pixel weights in both solves: ``"none"``
     (unweighted, the historic solution), ``"unc"`` (1/pix_unc^2), ``"model"``
-    (1/(model + noise_floor), refreshed each iteration) or ``"flux"`` (1/slit
-    function value). ``noise_floor`` is in the units of ``im``; None takes the
-    5th percentile of pix_unc^2. See CharSlit's CLAUDE.md for the trade-offs.
+    (1/(a*model + b) with a, b fitted to pix_unc^2, refreshed each iteration)
+    or ``"flux"`` (1/slit function value). ``noise_floor`` fixes b, in the units
+    of ``im``; None fits it, but not below the 5th percentile of pix_unc^2. See
+    CharSlit's CLAUDE.md for the trade-offs.
 
     Returns
     -------

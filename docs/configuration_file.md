@@ -167,7 +167,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | `swath_width` | Width of extraction swaths | 300 |
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
 | `extraction_weights` | Pixel weights: "none", "unc", "model" or "flux" (see below) | "none" |
-| `extraction_noise_floor` | Read-noise variance floor (ADU²) for `"model"` weights; null = 5th percentile of pixel variance | null |
+| `extraction_noise_floor` | Variance offset b (ADU²) for `"model"` weights; null = fitted, at least the 5th percentile of pixel variance | null |
 | `maxiter` | Maximum extraction iterations | 30 |
 | `n_jobs` | Files to extract in parallel (joblib semantics, -1 = all cores). Disables plots when not 1 | 1 |
 
@@ -187,7 +187,7 @@ By default the slit decomposition is unweighted least squares: each row enters t
 
 - **`"none"`** - unweighted; S/N-independent but broad LSF, ~8% variance penalty on bright data.
 - **`"unc"`** - static 1/variance from the detector gain and read noise. Because the variance is estimated from the noisy data itself, it is correlated with the noise and distorts line profiles; prefer `"model"`.
-- **`"model"`** - 1/(model + `extraction_noise_floor`), refreshed each iteration. Noise-optimal (Horne-like), but the LSF moves with S/N, ending at the unweighted one in the read-noise limit.
+- **`"model"`** - 1/(a·model + b), refreshed each iteration, with a and b fitted to the pixel variance (a robust line through binned medians; `extraction_noise_floor` fixes b). Noise-optimal (Horne-like) only as far as the pixel variance describes the real noise, and the LSF moves with S/N, ending at the unweighted one in the read- or background-noise limit.
 - **`"flux"`** - 1/slit-function value. Rows enter in proportion to their flux at any S/N: the sharp, bright-source LSF, independent of S/N, at a variance cost that grows for faint data.
 
 `"model"` sees only the trace being extracted, so light from neighbours inside the aperture looks faint to it and gets large weights; for crowded apertures `"none"` or `"flux"` are safer.

@@ -146,8 +146,8 @@ def _slitdec_charslit(
     weights : {"none", "unc", "model", "flux"}
         Pixel weights in the slit decomposition, see cwrappers.slitdec
     noise_floor : float or None
-        Read-noise variance floor for weights="model", in ADU^2; None lets
-        slitdec take the 5th percentile of pix_unc^2
+        Variance offset b for weights="model", in ADU^2; None lets slitdec fit
+        it (at least the 5th percentile of pix_unc^2)
 
     Returns
     -------
@@ -1202,8 +1202,8 @@ def extract_spectrum(
     weights : {"none", "unc", "model", "flux"}, optional
         pixel weights in the slit decomposition, see cwrappers.slitdec (default: "none")
     noise_floor : float, optional
-        read-noise variance floor in ADU^2 for weights="model" (default: None,
-        5th percentile of the pixel variance)
+        variance offset b in ADU^2 for weights="model" (default: None, fitted
+        to the pixel variance)
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional

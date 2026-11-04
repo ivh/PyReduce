@@ -704,11 +704,11 @@
                             "minimum": 0
                         },
                         "extraction_weights": {
-                            "description": "Pixel weights in the slit decomposition. 'none': unweighted, the historic solution. 'unc': 1/variance from gain and read noise. 'model': 1/(model + extraction_noise_floor), refreshed each iteration; noise-optimal, but the LSF moves with S/N. 'flux': 1/slit-function value; an S/N-independent, sharper LSF.",
+                            "description": "Pixel weights in the slit decomposition. 'none': unweighted, the historic solution. 'unc': 1/variance from gain and read noise. 'model': 1/(a*model + b) with a, b fitted to the pixel variance, refreshed each iteration; noise-optimal only as far as the pixel variance describes the real noise, and the LSF moves with S/N. 'flux': 1/slit-function value; an S/N-independent, sharper LSF.",
                             "enum": ["none", "unc", "model", "flux"]
                         },
                         "extraction_noise_floor": {
-                            "description": "Read-noise variance floor in ADU^2 for extraction_weights='model'. If null, the 5th percentile of the pixel variance.",
+                            "description": "Variance offset b in ADU^2 for extraction_weights='model' (read noise plus shot noise of any subtracted background). If null, fitted, but not below the 5th percentile of the pixel variance.",
                             "type": ["number", "null"],
                             "minimum": 0
                         }

@@ -902,6 +902,94 @@ static void normalise_weights(double *w, long n)
             w[i] *= nw / wsum;
 }
 
+static int cmp_pair(const void *p, const void *q)
+{
+    const double *a = p, *b = q;
+    if (a[0] != b[0])
+        return (a[0] > b[0]) - (a[0] < b[0]);
+    return (a[1] > b[1]) - (a[1] < b[1]);
+}
+
+static int cmp_double(const void *p, const void *q)
+{
+    const double a = *(const double *)p, b = *(const double *)q;
+    return (a > b) - (a < b);
+}
+
+/* Fit pix_unc^2 = a * model + b over the usable pixels, a >= 0, b >= b_min (b = b_min if
+   fix_b). The model is the background-subtracted object, so the variance is affine in it:
+   b carries read noise and the shot noise of any subtracted background (nodding A-B),
+   a = 1/(gain * frames combined). The line goes through the medians of model and
+   pix_unc^2 in bins of equal pixel count along the model, as unmasked hot pixels with huge
+   pix_unc dominate a plain least-squares fit. Ties sort by pix_unc^2 so that the bins are
+   reproducible in the numpy and numba ports. */
+static void variance_fit(const double *model, const double *pix_unc, const unsigned char *mask,
+                         long npix, double b_min, int fix_b, double *a, double *b)
+{
+    const long nbin_max = 32, nbin_min_pix = 32;
+    double sm = 0.e0, sv = 0.e0, smm = 0.e0, smv = 0.e0;
+    long nk = 0, nbin;
+    double *pv = malloc((size_t)(2 * npix) * sizeof(double));
+
+    *a = 0.e0;
+    *b = b_min;
+    for (long i = 0; i < npix; i++)
+    {
+        const double u = pix_unc[i];
+        if (!mask[i] || !isfinite(u) || !(u > 0.e0) || !isfinite(model[i]))
+            continue;
+        pv[2 * nk] = model[i];
+        pv[2 * nk + 1] = u * u;
+        nk++;
+    }
+    nbin = nk / nbin_min_pix;
+    if (nbin > nbin_max)
+        nbin = nbin_max;
+    if (nbin < 2)
+    {
+        free(pv);
+        return;
+    }
+    qsort(pv, (size_t)nk, 2 * sizeof(double), cmp_pair);
+
+    double *tmp = malloc((size_t)(nk / nbin + 1) * sizeof(double));
+    for (long k = 0; k < nbin; k++)
+    {
+        const long i0 = k * nk / nbin, i1 = (k + 1) * nk / nbin, nb = i1 - i0;
+        const double bm = 0.5 * (pv[2 * (i0 + (nb - 1) / 2)] + pv[2 * (i0 + nb / 2)]);
+        for (long i = i0; i < i1; i++)
+            tmp[i - i0] = pv[2 * i + 1];
+        qsort(tmp, (size_t)nb, sizeof(double), cmp_double);
+        const double bv = 0.5 * (tmp[(nb - 1) / 2] + tmp[nb / 2]);
+        sm += bm;
+        sv += bv;
+        smm += bm * bm;
+        smv += bm * bv;
+    }
+    free(tmp);
+    free(pv);
+
+    if (!fix_b)
+    {
+        const double det = nbin * smm - sm * sm;
+        if (det > 0.e0)
+        {
+            *a = (nbin * smv - sm * sv) / det;
+            *b = (sv - *a * sm) / nbin;
+        }
+        if (*a < 0.e0)
+        {
+            *a = 0.e0;
+            *b = sv / nbin;
+        }
+        if (*b >= b_min)
+            return;
+        *b = b_min;
+    }
+    if (smm > 0.e0)
+        *a = fmax((smv - *b * sm) / smm, 0.e0);
+}
+
 int slitdec(        int ncols,
                     int nrows,
                     double *im,
@@ -1130,18 +1218,19 @@ int slitdec(        int ncols,
        regularisation (lambda_sL scales with the matrix diagonal) keeps its meaning.
          weight_mode 0: unweighted (wpix NULL); reproduces the historic solution bit for bit.
          weight_mode 1: static 1/pix_unc^2.
-         weight_mode 2: 1/(max(model, 0) + noise_floor), refreshed from the model after every
-                        iteration; the first iteration is unweighted.
+         weight_mode 2: 1/(a * max(model, 0) + b), refreshed from the model after every
+                        iteration; the first iteration is unweighted. a and b are fitted to
+                        pix_unc^2 each time (variance_fit): the scale a matters next to b, as
+                        it sets where the object's shot noise takes over from the floor.
+                        noise_floor >= 0 fixes b (in the units of im); < 0 fits it, but not
+                        below the 5th percentile of pix_unc^2 over the usable pixels.
          weight_mode 3: 1/v with v the slit-function value of the pixel (model / spectrum),
                         floored at 1e-3 of its maximum, refreshed like mode 2. Rows then
                         enter sP in proportion to their flux at any S/N: the photon-limited
-                        mixture without the S/N dependence of mode 2. No units involved. The model sets the shape
-                        of the variance (photon noise, any units: a gain is a global factor and
-                        drops out), noise_floor the read-noise level in the units of im. With
-                        noise_floor < 0 it is taken as the 5th percentile of pix_unc^2 over the
-                        usable pixels; only that one number is taken from pix_unc.
+                        mixture without the S/N dependence of mode 2. No units involved.
        wpix is what the fills use; wbuf owns the memory. */
     double *wbuf = NULL, *wpix = NULL;
+    int fit_b = 0;
     const long npix = (long)nrows * ncols;
     if (weight_mode == 1)
     {
@@ -1159,7 +1248,8 @@ int slitdec(        int ncols,
     else if (weight_mode == 2)
     {
         wbuf = malloc((size_t)npix * sizeof(double));
-        if (!(noise_floor >= 0.e0))
+        fit_b = !(noise_floor >= 0.e0);
+        if (fit_b)
         {
             long n = 0;
             for (long i = 0; i < npix; i++)
@@ -1542,8 +1632,13 @@ int slitdec(        int ncols,
         /* Model-variance weights for the next iteration */
         if (weight_mode == 2)
         {
+            double va, vb;
+            variance_fit(model, pix_unc, mask, npix, noise_floor, !fit_b, &va, &vb);
             for (long i = 0; i < npix; i++)
-                wbuf[i] = mask[i] ? 1.e0 / (fmax(model[i], 0.e0) + noise_floor) : 0.e0;
+            {
+                const double v = va * fmax(model[i], 0.e0) + vb;
+                wbuf[i] = mask[i] && v > 0.e0 ? 1.e0 / v : 0.e0;
+            }
             normalise_weights(wbuf, npix);
             wpix = wbuf;
         }

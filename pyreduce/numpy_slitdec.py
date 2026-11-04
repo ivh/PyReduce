@@ -261,6 +261,48 @@ def _solve(Aup, b, u):
         return solve_banded((u, u), full, b, check_finite=False)
 
 
+def _variance_fit(m, v, b_min, fix_b):
+    """Line v = a * m + b through binned medians, as the C's variance_fit.
+
+    m and v are the usable pixels' model and pix_unc^2. Returns a >= 0 and
+    b >= b_min (b = b_min if fix_b). Sequential sums over the bins, so that
+    the result matches the C to the last bit.
+    """
+    nk = m.size
+    nbin = min(nk // 32, 32)
+    if nbin < 2:
+        return 0.0, b_min
+    idx = np.lexsort((v, m))
+    m = m[idx]
+    v = v[idx]
+    sm = sv = smm = smv = 0.0
+    for k in range(nbin):
+        i0, i1 = k * nk // nbin, (k + 1) * nk // nbin
+        nb = i1 - i0
+        bm = 0.5 * (m[i0 + (nb - 1) // 2] + m[i0 + nb // 2])
+        t = np.sort(v[i0:i1])
+        bv = 0.5 * (t[(nb - 1) // 2] + t[nb // 2])
+        sm += bm
+        sv += bv
+        smm += bm * bm
+        smv += bm * bv
+    a, b = 0.0, b_min
+    if not fix_b:
+        det = nbin * smm - sm * sm
+        if det > 0.0:
+            a = (nbin * smv - sm * sv) / det
+            b = (sv - a * sm) / nbin
+        if a < 0.0:
+            a = 0.0
+            b = sv / nbin
+        if b >= b_min:
+            return a, b
+        b = b_min
+    if smm > 0.0:
+        a = max((smv - b * sm) / smm, 0.0)
+    return a, b
+
+
 def _select(arr, k):
     """Value at sorted position k, matching the C quickselect (no interpolation)."""
     return np.partition(arr, k)[k]
@@ -411,16 +453,21 @@ def _slitdec_core(
     # See the C for the modes: 1 static 1/pix_unc^2, 2 model variance and
     # 3 slit-function value, both refreshed each iteration.
     wpix = None
+    fit_b = False
     if weight_mode in (1, 2):
         u = pix_uncT.reshape(-1)[order]
-        usable = (maskT.reshape(-1)[order] != 0) & np.isfinite(u) & (u > 0.0)
+        uok = np.isfinite(u) & (u > 0.0)
+        usable = (maskT.reshape(-1)[order] != 0) & uok
         if weight_mode == 1:
             wpix = np.zeros(npix)
             np.divide(1.0, u * u, out=wpix, where=usable)
             _normalise_weights(wpix)
-        elif not noise_floor >= 0.0:
-            u2 = u[usable] ** 2
-            noise_floor = _select(u2, int(0.05 * (u2.size - 1))) if u2.size else 0.0
+        else:
+            u2_all = u * u
+            if not noise_floor >= 0.0:
+                fit_b = True
+                u2 = u2_all[usable]
+                noise_floor = _select(u2, int(0.05 * (u2.size - 1))) if u2.size else 0.0
 
     sP_pad = np.zeros(ncols + Kx)
     sL_pad = np.zeros(ny + K)
@@ -492,9 +539,10 @@ def _slitdec_core(
             good = maskf != 0
             wpix = np.zeros(npix)
             if weight_mode == 2:
-                np.divide(
-                    1.0, np.maximum(model, 0.0) + noise_floor, out=wpix, where=good
-                )
+                ok = good & uok & np.isfinite(model)
+                va, vb = _variance_fit(model[ok], u2_all[ok], noise_floor, not fit_b)
+                den = va * np.maximum(model, 0.0) + vb
+                np.divide(1.0, den, out=wpix, where=good & (den > 0.0))
             else:
                 vmax = max(v.max(where=good, initial=0.0), 0.0)
                 if vmax > 0.0:

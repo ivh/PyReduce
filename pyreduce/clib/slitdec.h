@@ -1,4 +1,4 @@
-/* Copied from CharSlit (github.com/ivh/CharSlit), commit c878d00.
+/* Copied from CharSlit (github.com/ivh/CharSlit), commit 5e38be4.
    Plain-C slit-decomposition algorithm, compiled here via CFFI.
    Do not edit here: change CharSlit, then run tools/sync_slitdec.py.
    Only divergence: trailing whitespace is stripped.

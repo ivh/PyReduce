@@ -499,15 +499,89 @@ def _normalise_weights(w):
 
 
 @njit(**_KW)
+def _variance_fit(m, v, b_min, fix_b):
+    """Line v = a * m + b through binned medians, as the C's variance_fit."""
+    nk = m.size
+    nbin = min(nk // 32, 32)
+    if nbin < 2:
+        return 0.0, b_min
+    # lexicographic (m, v) order from two stable sorts
+    idx = np.argsort(v, kind="mergesort")
+    idx = idx[np.argsort(m[idx], kind="mergesort")]
+    ms = m[idx]
+    vs = v[idx]
+    sm = 0.0
+    sv = 0.0
+    smm = 0.0
+    smv = 0.0
+    for k in range(nbin):
+        i0 = k * nk // nbin
+        i1 = (k + 1) * nk // nbin
+        nb = i1 - i0
+        bm = 0.5 * (ms[i0 + (nb - 1) // 2] + ms[i0 + nb // 2])
+        t = np.sort(vs[i0:i1])
+        bv = 0.5 * (t[(nb - 1) // 2] + t[nb // 2])
+        sm += bm
+        sv += bv
+        smm += bm * bm
+        smv += bm * bv
+    a = 0.0
+    b = b_min
+    if not fix_b:
+        det = nbin * smm - sm * sm
+        if det > 0.0:
+            a = (nbin * smv - sm * sv) / det
+            b = (sv - a * sm) / nbin
+        if a < 0.0:
+            a = 0.0
+            b = sv / nbin
+        if b >= b_min:
+            return a, b
+        b = b_min
+    if smm > 0.0:
+        a = max((smv - b * sm) / smm, 0.0)
+    return a, b
+
+
+@njit(**_KW)
 def _refresh_weights(
-    ncols, nrows, weight_mode, noise_floor, model, mask, sL, ziy, zw, m_zeta, wpix
+    ncols,
+    nrows,
+    weight_mode,
+    noise_floor,
+    fit_b,
+    pix_unc,
+    model,
+    mask,
+    sL,
+    ziy,
+    zw,
+    m_zeta,
+    wpix,
 ):
     """Weights for the next iteration: model variance (2) or slit function (3)."""
     if weight_mode == 2:
+        mv = np.empty(nrows * ncols, dtype=np.float64)
+        vv = np.empty(nrows * ncols, dtype=np.float64)
+        n = 0
         for y in range(nrows):
             for x in range(ncols):
-                if mask[y, x]:
-                    wpix[y, x] = 1.0 / (max(model[y, x], 0.0) + noise_floor)
+                u = pix_unc[y, x]
+                if (
+                    mask[y, x]
+                    and math.isfinite(u)
+                    and u > 0.0
+                    and math.isfinite(model[y, x])
+                ):
+                    mv[n] = model[y, x]
+                    vv[n] = u * u
+                    n += 1
+        va, vb = _variance_fit(mv[:n], vv[:n], noise_floor, not fit_b)
+        for y in range(nrows):
+            for x in range(ncols):
+                d = va * max(model[y, x], 0.0) + vb
+                if mask[y, x] and d > 0.0:
+                    wpix[y, x] = 1.0 / d
                 else:
                     wpix[y, x] = 0.0
     else:
@@ -659,6 +733,7 @@ def _slitdec_core(
     # Pixel weights, see the C for the modes
     wpix = np.zeros((nrows, ncols), dtype=np.float64)
     use_w = False
+    fit_b = False
     if weight_mode == 1 or weight_mode == 2:
         u2 = np.empty(nrows * ncols, dtype=np.float64)
         n = 0
@@ -673,6 +748,7 @@ def _slitdec_core(
             _normalise_weights(wpix)
             use_w = True
         elif not noise_floor >= 0.0:
+            fit_b = True
             noise_floor = _select(u2[:n], int(0.05 * (n - 1))) if n > 0 else 0.0
 
     it = 0
@@ -760,6 +836,8 @@ def _slitdec_core(
                 nrows,
                 weight_mode,
                 noise_floor,
+                fit_b,
+                pix_unc,
                 model,
                 mask,
                 sL,
