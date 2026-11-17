@@ -1235,10 +1235,9 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
     correction : float
         radial velocity correction due to barycentre offset
     hjd : float
-        Heliocentric Julian date for middle of exposure
+        Barycentric (or heliocentric) MJD for middle of exposure
     """
 
-    # jd = 2400000.5 + jd
     jd = time.Time(jd, format="mjd")
 
     ra = coord.Longitude(ra2000, unit=u.hour)
@@ -1261,6 +1260,4 @@ def helcorr(obs_long, obs_lat, obs_alt, ra2000, dec2000, jd, system="barycentric
             "Could not parse system, values are: ('barycentric', 'heliocentric')"
         )
 
-    times = (times.utc + ltt).value - 2400000
-
-    return -correction, times
+    return -correction, (times.utc + ltt).mjd

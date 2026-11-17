@@ -731,8 +731,12 @@ class TestWavecalFinalizeTraceUpdate:
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "m_in, m_out",
-        [([0, 1, 2], [42, 43, 44]), ([90, 91, 92], [90, 91, 92])],
-        ids=["sequential_placeholder", "physical_kept"],
+        [
+            ([0, 1, 2], [42, 43, 44]),
+            ([2, 1, 0], [42, 43, 44]),
+            ([90, 91, 92], [90, 91, 92]),
+        ],
+        ids=["sequential_placeholder", "top_down_placeholder", "physical_kept"],
     )
     def test_update_traces_obase_replaces_sequential_m(
         self, mock_instrument, tmp_path, m_in, m_out

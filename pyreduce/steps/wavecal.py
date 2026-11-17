@@ -306,6 +306,12 @@ class WavelengthCalibrationInitialize(Step):
 
         results = {}
 
+        first_group = next(iter(wavecal_master.keys()))
+        _, thead = wavecal_master[first_group]
+        reference = self.instrument.get_wavecal_filename(
+            thead, self.channel, **config["instrument"]
+        )
+
         # First try to load custom linelists matching wavecal_master groups
         for group in wavecal_master.keys():
             savefile = self.savefile_for_group(group)
@@ -318,15 +324,19 @@ class WavelengthCalibrationInitialize(Step):
 
         # If we found custom linelists, use them
         if results:
+            # Linelists saved before obase was carried through lack it
+            if any(ll.obase is None for ll in results.values()):
+                try:
+                    obase = LineList.load(reference).obase
+                except FileNotFoundError:
+                    obase = None
+                for ll in results.values():
+                    if ll.obase is None:
+                        ll.obase = obase
             return results
 
         # Otherwise, fall back to instrument-provided wavecal file
         # (applies same linelist to all groups)
-        first_group = next(iter(wavecal_master.keys()))
-        _, thead = wavecal_master[first_group]
-        reference = self.instrument.get_wavecal_filename(
-            thead, self.channel, **config["instrument"]
-        )
         linelist = LineList.load(reference)
         logger.info("Wavelength calibration linelist file: %s", reference)
 
@@ -424,7 +434,10 @@ class WavelengthCalibrationFinalize(Step):
                 atlas_search_dirs=[self.instrument._inst_dir],
                 medium=self.medium,
             )
+            obase = linelist.obase
             wlen, wave, linelist = module.execute(wavecal_spec, linelist)
+            if linelist.obase is None:
+                linelist.obase = obase
             results_for_save[group] = (wave, linelist)
             results[group] = linelist
 
@@ -497,7 +510,9 @@ class WavelengthCalibrationFinalize(Step):
                 ms = [t.m for t in group_traces]
                 # trace() falls back to m = 0..n-1 without order_centers; physical
                 # order 0 never occurs, so treat that as unset and use obase.
-                sequential = ms == list(range(len(ms)))
+                sequential = sorted(m for m in ms if m is not None) == list(
+                    range(len(ms))
+                )
                 already_have_m = any(m is not None for m in ms) and not sequential
                 if already_have_m:
                     logger.debug(

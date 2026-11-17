@@ -455,3 +455,12 @@ class TestCutoutImage:
         result = util.cutout_image(img, ymin, ymax, xmin=0, xmax=3)
 
         assert result.shape == (4, 3)  # height = 5-2+1=4, width = 3-0=3
+
+
+@pytest.mark.unit
+def test_helcorr_returns_mjd():
+    """The barycentric date is an MJD within light-travel time of the input."""
+    mjd = 55288.394509
+    rv, bjd = util.helcorr(-70.4, -24.6, 2635, 14.0, -20.0, mjd)
+    assert abs(bjd - mjd) * 86400 < 600
+    assert abs(rv) < 35
