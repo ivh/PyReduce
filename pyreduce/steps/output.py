@@ -21,6 +21,24 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+def _unpack_science(science):
+    """(heads, specs, sigmas, columns) from either science step result.
+
+    ScienceExtraction.run returns (heads, list[list[Spectrum]]), its load
+    returns (heads, specs, sigmas, slitfus, columns).
+    """
+    if len(science) == 2:
+        heads, spectra_lists = science
+        specs, sigmas, columns = [], [], []
+        for spectra in spectra_lists:
+            specs.append(np.ma.masked_invalid([s.spec for s in spectra]))
+            sigmas.append(np.ma.masked_invalid([s.sig for s in spectra]))
+            columns.append(np.array([[0, len(s.spec)] for s in spectra]))
+        return heads, specs, sigmas, columns
+    heads, specs, sigmas, _, columns = science
+    return heads, specs, sigmas, columns
+
+
 class ContinuumNormalization(Step):
     """Determine the continuum to each observation"""
 
@@ -68,20 +86,7 @@ class ContinuumNormalization(Step):
         if self.trace_range is not None:
             trace_list = trace_list[self.trace_range[0] : self.trace_range[1]]
 
-        # Handle both old format (5 elements from load) and new format (2 elements from run)
-        if len(science) == 2:
-            # New Spectrum-based format from science.run()
-            heads, spectra_lists = science
-            specs = []
-            sigmas = []
-            columns = []
-            for spectra in spectra_lists:
-                specs.append(np.ma.masked_invalid([s.spec for s in spectra]))
-                sigmas.append(np.ma.masked_invalid([s.sig for s in spectra]))
-                columns.append(np.array([[0, len(s.spec)] for s in spectra]))
-        else:
-            # Old array format from science.load()
-            heads, specs, sigmas, _, columns = science
+        heads, specs, sigmas, columns = _unpack_science(science)
 
         nspec = specs[0].shape[0]
 
@@ -188,7 +193,7 @@ class ContinuumNormalization(Step):
             logger.warning(
                 "No continuum normalized data found. Using unnormalized results instead."
             )
-            heads, specs, sigmas, _, columns = science
+            heads, specs, sigmas, columns = _unpack_science(science)
             norm, blaze, *_ = norm_flat
             conts = [blaze for _ in specs]
             for head in heads:

@@ -626,7 +626,10 @@ class Pipeline:
 
         if steps == "all":
             steps = list(cls.STEP_ORDER.keys())
-            # mask is pulled in as a dependency; freq_comb needs LFC frames
+            # mask is pulled in as a dependency; freq_comb needs LFC frames;
+            # wavecal_init builds a linelist from scratch, otherwise wavecal
+            # loads the saved or shipped one
+            steps = [s for s in steps if s != "wavecal_init"]
             if not len(files.get("freq_comb_master", [])):
                 steps = [s for s in steps if not s.startswith("freq_comb")]
 

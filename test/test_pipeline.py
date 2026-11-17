@@ -493,6 +493,7 @@ class TestPipelineFromFiles:
         assert "finalize" in step_names
         # no LFC frames, so the comb steps would only fail on a missing master
         assert not any(s.startswith("freq_comb") for s in step_names)
+        assert "wavecal_init" not in step_names
 
     @pytest.mark.unit
     def test_from_files_registers_files(self, tmp_path):
