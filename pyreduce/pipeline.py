@@ -632,6 +632,12 @@ class Pipeline:
             steps = [s for s in steps if s != "wavecal_init"]
             if not len(files.get("freq_comb_master", [])):
                 steps = [s for s in steps if not s.startswith("freq_comb")]
+            # without arc frames there are no wavelengths to calibrate or
+            # normalize against; finalize still writes the spectra
+            if not len(files.get("wavecal_master", [])):
+                steps = [
+                    s for s in steps if not s.startswith("wavecal") and s != "continuum"
+                ]
 
         # Register files for steps that may be needed as dependencies
         # (even if the step itself isn't in the steps list)
@@ -657,11 +663,15 @@ class Pipeline:
             "flat": lambda: (
                 pipe.flat(files.get("flat", [])) if len(files.get("flat", [])) else pipe
             ),
-            "trace": lambda: pipe.trace(files.get("trace", files.get("flat"))),
-            "curvature": lambda: pipe.curvature(
-                files.get("curvature", files.get("flat"))
+            "trace": lambda: _if_files(
+                pipe.trace, files.get("trace", files.get("flat"))
             ),
-            "scatter": lambda: pipe.scatter(files.get("scatter", files.get("flat"))),
+            "curvature": lambda: _if_files(
+                pipe.curvature, files.get("curvature", files.get("flat"))
+            ),
+            "scatter": lambda: _if_files(
+                pipe.scatter, files.get("scatter", files.get("flat"))
+            ),
             "norm_flat": lambda: pipe.normalize_flat(),
             "wavecal_master": lambda: (
                 pipe.wavecal_master(files.get("wavecal_master", []))
@@ -684,6 +694,13 @@ class Pipeline:
             "continuum": lambda: pipe.continuum(),
             "finalize": lambda: pipe.finalize(),
         }
+
+        def _if_files(add_step, step_files):
+            # A step without input frames is not queued; anything needing it
+            # then loads its saved output or reports that none exists
+            if step_files is not None and len(step_files):
+                add_step(step_files)
+            return pipe
 
         for step in steps:
             if step in step_map:

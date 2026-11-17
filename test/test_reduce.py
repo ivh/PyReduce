@@ -732,7 +732,7 @@ def test_main(instrument, target, night, channel, input_dir, output_dir):
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_run_all(
-    instrument, target, night, channel, input_dir, output_dir, trace_range
+    instrument, target, night, channel, input_dir, output_dir, trace_range, settings
 ):
     reduce.main(
         instrument,
@@ -743,6 +743,7 @@ def test_run_all(
         input_dir=input_dir,
         output_dir=output_dir,
         trace_range=trace_range,
+        configuration=settings,  # non-interactive (manual=False)
         steps="all",
     )
 
@@ -751,7 +752,7 @@ def test_run_all(
 @pytest.mark.downloads
 @pytest.mark.slow
 def test_load_all(
-    instrument, target, night, channel, input_dir, output_dir, trace_range
+    instrument, target, night, channel, input_dir, output_dir, trace_range, settings
 ):
     reduce.main(
         instrument,
@@ -762,6 +763,7 @@ def test_load_all(
         input_dir=input_dir,
         output_dir=output_dir,
         trace_range=trace_range,
+        configuration=settings,  # non-interactive (manual=False)
         steps=["finalize"],
     )
 

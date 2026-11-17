@@ -759,7 +759,7 @@ class LaserFrequencyCombFinalize(Step):
         flat_traces = [t for group in selected.values() for t in group]
 
         # Get base wavelengths from selected traces
-        wlen = wavelengths_from_traces(flat_traces)
+        wlen = wavelengths_from_traces(flat_traces, ncol=comb.shape[1])
         if wlen is None:
             raise ValueError("No wavelength data in traces - run wavecal first")
 

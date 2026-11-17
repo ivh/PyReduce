@@ -94,7 +94,7 @@ class ContinuumNormalization(Step):
         valid = [t for t in trace_list if not t.invalid]
         if len(valid) == nspec:
             trace_list = valid
-        wave = wavelengths_from_traces(trace_list)
+        wave = wavelengths_from_traces(trace_list, ncol=specs[0].shape[1])
 
         if wave is None:
             raise ValueError(
@@ -276,7 +276,7 @@ class Finalize(Step):
         nspec = specs[0].shape[0]
         if len(valid) == nspec:
             trace_list = valid
-        wave = wavelengths_from_traces(trace_list)
+        wave = wavelengths_from_traces(trace_list, ncol=specs[0].shape[1])
         if wave is not None and len(wave) > nspec:
             wave = wave[len(wave) - nspec :]
         trace_list = trace_list[len(trace_list) - nspec :]
@@ -302,9 +302,9 @@ class Finalize(Step):
 
                 logger.debug("Heliocentric correction: %f km/s", rv_corr)
                 logger.debug("Heliocentric Julian Date: %s", str(bjd))
-            except KeyError:
+            except (KeyError, TypeError):
+                # missing keywords, or no ground location (space telescopes)
                 logger.warning("Could not calculate heliocentric correction")
-                # logger.warning("Telescope is in space?")
                 rv_corr = 0
                 bjd = head["e_jd"]
 
