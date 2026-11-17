@@ -670,7 +670,7 @@ class TestProvenanceHeaders:
 
         head = fits.Header()
         head["e_input"] = "test.fits"
-        head["e_jd"] = 2450000.0
+        head["e_jd"] = 50000.0
         head["e_cont"] = (True, "CONT is a fitted continuum, orders spliced")
         continuum = (
             [head],
@@ -695,6 +695,8 @@ class TestProvenanceHeaders:
         assert out_head["e_cont"] is True
         assert out_head["HIERARCH PR_version"]
         assert out_head["HIERARCH PR SCIENCE OVERSAMPLING"] == 8
+        # physical order number from the trace, not the row index
+        assert list(fits.getdata(fnames[0], 1)["M"]) == [90]
 
 
 # Tests that require instrument data follow below

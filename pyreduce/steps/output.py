@@ -274,6 +274,8 @@ class Finalize(Step):
         wave = wavelengths_from_traces(trace_list)
         if wave is not None and len(wave) > nspec:
             wave = wave[len(wave) - nspec :]
+        trace_list = trace_list[len(trace_list) - nspec :]
+        self._orders = [t.m for t in trace_list] if len(trace_list) == nspec else None
 
         fnames = []
         # Combine science with wavecal and continuum
@@ -366,9 +368,10 @@ class Finalize(Step):
                 sig_row[: columns[j, 0]] = np.nan
                 sig_row[columns[j, 1] :] = np.nan
 
+            orders = getattr(self, "_orders", None)
             spectra_list.append(
                 Spectrum(
-                    m=j,
+                    m=orders[j] if orders is not None else j,
                     spec=spec_row,
                     sig=sig_row,
                     wave=wave_row,
