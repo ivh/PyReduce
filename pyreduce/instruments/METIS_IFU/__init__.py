@@ -28,7 +28,6 @@ class METIS_IFU(Instrument):
         """Read data from header and add it as REDUCE keyword back to the header."""
         wavelength, detector = self.parse_channel(channel)
         header = super().add_header_info(header, wavelength)
-        self.load_info()
         return header
 
     def get_supported_channels(self):

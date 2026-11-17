@@ -725,7 +725,8 @@ class Pipeline:
         steps : tuple, list, or "all"
             Steps to run. Default "all" runs all applicable steps.
         base_dir : str, optional
-            Base directory for data. Default: $REDUCE_DATA or ~/REDUCE_DATA
+            Base directory for data. Default: $REDUCE_DATA, else reduce.base_dir
+            from the settings
         input_dir : str, optional
             Input directory relative to base_dir. Default: from config
         output_dir : str, optional
@@ -782,11 +783,10 @@ class Pipeline:
             channel=channel,
             channel_fallbacks=channel_fallbacks,
         )
-        info = inst.info
 
         # Get directories from config if not specified
         if base_dir is None:
-            base_dir = config["reduce"]["base_dir"]
+            base_dir = os.environ.get("REDUCE_DATA") or config["reduce"]["base_dir"]
         if input_dir is None:
             input_dir = config["reduce"]["input_dir"]
         if output_dir is None:
@@ -797,7 +797,7 @@ class Pipeline:
 
         # Get channels to process
         if channel is None:
-            channels = info["channels"]
+            channels = inst.get_supported_channels()
         else:
             channels = [channel] if isinstance(channel, str) else channel
 

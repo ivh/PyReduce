@@ -55,7 +55,7 @@ def cli():
     "--base-dir",
     "-b",
     default=None,
-    help="Base directory for data (default: $REDUCE_DATA or ~/REDUCE_DATA)",
+    help="Base directory for data (default: $REDUCE_DATA, else reduce.base_dir from the settings)",
 )
 @click.option(
     "--input-dir", "-i", default=None, help="Input directory relative to base"
@@ -567,7 +567,7 @@ def make_step_command(step_name):
                 night=night,
                 channels=channel,
                 steps=(step_name,),
-                base_dir=base_dir or "",
+                base_dir=base_dir,
                 input_dir=input_dir,
                 output_dir=output_dir,
                 plot=plot,

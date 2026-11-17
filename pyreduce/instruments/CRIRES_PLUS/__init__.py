@@ -33,7 +33,6 @@ class CRIRES_PLUS(Instrument):
         # alternatively you can implement all of it here, whatever works
         setting, detector = self.parse_channel(channel)
         header = super().add_header_info(header, setting)
-        self.load_info()
 
         return header
 

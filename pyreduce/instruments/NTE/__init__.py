@@ -25,16 +25,5 @@ class NTE(Instrument):
 
         return header
 
-    def get_wavecal_filename(self, header, channel, **kwargs):
-        """Get the filename of the wavelength calibration config file"""
-        info = self.info
-        specifier = int(header[info["wavecal_specifier"]])
-
-        cwd = os.path.dirname(__file__)
-        fname = f"wavecal_{channel.lower()}_{specifier}nm_2D.npz"
-        fname = os.path.join(cwd, fname)
-        return fname
-
-    def get_wavelength_range(self, header, channel):
-        wave = 7 * [7000, 20_000]
-        return wave
+    def get_wavelength_range(self, header, channel, **kwargs):
+        return 7 * [[7000, 20_000]]

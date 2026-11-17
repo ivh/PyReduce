@@ -18,7 +18,6 @@ class LICK_APF(Instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, channel)
-        self.load_info()
 
         # pos = EarthLocation.of_site("Lick Observatory")
         # header["e_obslon"] = pos.lon.to_value("deg")

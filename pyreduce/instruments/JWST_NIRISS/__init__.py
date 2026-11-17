@@ -22,12 +22,11 @@ class JWST_NIRISS(Instrument):
         # "Normal" stuff is handled by the general version, specific changes to values happen here
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, channel)
-        self.load_info()
 
         # TODO: this references some files, I dont know where they should be
         header["e_gain"] = 1.61
         header["e_readn"] = 18.32
-        header["e_dark"] = 0.0257
+        header["e_drk"] = 0.0257
 
         # total exposure time
         header["exptime"] = header.get("TFRAME", 0)
@@ -63,12 +62,12 @@ class JWST_NIRISS(Instrument):
         files = []
         os.makedirs(os.path.join(dirname, "split"), exist_ok=True)
         for i in range(1, nframes * ngroups):
-            data[i] - bias
+            frame = data[i] - bias
             bias = data[i]
             fname_this = os.path.join(dirname, "split", f"pyreduce_{i}_{fname}")
 
             header["MJD-OBS"] += header["TFRAME"] * q.s.to(q.day)
-            secondary = fits.ImageHDU(data=data, header=header2)
+            secondary = fits.ImageHDU(data=frame, header=header2)
             hdu_this = fits.HDUList([primary, secondary])
             hdu_this.writeto(fname_this, overwrite=True)
             files.append(fname_this)

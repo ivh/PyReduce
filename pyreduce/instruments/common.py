@@ -643,9 +643,10 @@ class Instrument:
         if channel is not None and self.config.kw_channel is not None:
             id_channel = self.config.id_channel
             channels = self.config.channels
-            channel_id = (
-                id_channel[channels.index(channel)] if channel in channels else channel
-            )
+            # Case-insensitive, like validate_channel
+            folded = [str(c).casefold() for c in channels or []]
+            key = str(channel).casefold()
+            channel_id = id_channel[folded.index(key)] if key in folded else channel
             for key in expectations:
                 expectations[key]["channel"] = channel_id
 
