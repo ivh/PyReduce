@@ -85,6 +85,7 @@ For instruments needing custom logic, create a Python class:
 ```python
 from pyreduce.instruments.common import Instrument
 
+
 class MyInstrument(Instrument):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -206,9 +207,9 @@ or `pipe.extract()`, or call `pipe.use_fibers()`:
 ```python
 Pipeline.from_instrument("ANDES_YJH", ..., use="A").run()
 # or on an existing pipeline
-pipe.use_fibers("A,B")               # pipeline-wide
+pipe.use_fibers("A,B")  # pipeline-wide
 pipe.use_fibers("cal", step="wavecal")  # one step only
-pipe.extract(files, use="A")         # shorthand for the science step
+pipe.extract(files, use="A")  # shorthand for the science step
 ```
 
 The selection is a group name, fiber index, list of either, or a

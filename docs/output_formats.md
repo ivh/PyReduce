@@ -84,7 +84,9 @@ spectra = Spectra.read("observation.science.fits")
 # Access individual spectra
 for s in spectra.data:
     print(f"Order {s.m}, group {s.group}, fiber {s.fiber_idx}")
-    print(f"  Wavelength range: {s.wave[~s.mask].min():.1f} - {s.wave[~s.mask].max():.1f} A")
+    print(
+        f"  Wavelength range: {s.wave[~s.mask].min():.1f} - {s.wave[~s.mask].max():.1f} A"
+    )
 
 # Get stacked arrays
 arrays = spectra.get_arrays()

@@ -174,35 +174,35 @@ imports at all. Copy the single file next to your script and it works.
 import numpy as np
 from numba_slitdec import slitdec
 
-nrows, ncols, osample = 25, 512, 8          # slit height, dispersion length
+nrows, ncols, osample = 25, 512, 8  # slit height, dispersion length
 y = np.arange(nrows)[:, None]
 x = np.arange(ncols)
 
-ycen = nrows / 2 + 0.4 * np.sin(2 * np.pi * x / ncols)   # trace, absolute rows
+ycen = nrows / 2 + 0.4 * np.sin(2 * np.pi * x / ncols)  # trace, absolute rows
 spec = 1000 * (1 + 0.3 * np.sin(2 * np.pi * x / 60))
-img = spec * np.exp(-0.5 * ((y - ycen) / 4.0) ** 2)      # fake order
+img = spec * np.exp(-0.5 * ((y - ycen) / 4.0) ** 2)  # fake order
 img += np.random.default_rng(0).normal(0, 5, img.shape)
 
-slitcurve = np.zeros((ncols, 6))            # d_x = sum_k c[k] * d_y**k
-slitcurve[:, 1] = 0.12                      # tilt;  c[0] is ignored
-slitcurve[:, 2] = 0.002                     # shear
+slitcurve = np.zeros((ncols, 6))  # d_x = sum_k c[k] * d_y**k
+slitcurve[:, 1] = 0.12  # tilt;  c[0] is ignored
+slitcurve[:, 2] = 0.002  # shear
 
 res = slitdec(
-    im=img,                                 # (nrows, ncols), dispersion along x
-    pix_unc=np.sqrt(np.abs(img)),           # accepted but unused by the algorithm
-    mask=np.ones(img.shape, np.uint8),      # 1 = good, 0 = bad  (charslit convention)
+    im=img,  # (nrows, ncols), dispersion along x
+    pix_unc=np.sqrt(np.abs(img)),  # accepted but unused by the algorithm
+    mask=np.ones(img.shape, np.uint8),  # 1 = good, 0 = bad  (charslit convention)
     ycen=ycen,
-    slitcurve=slitcurve,                    # (ncols, n) with 1 <= n <= 6
-    slitdeltas=np.zeros(nrows),             # per-row extra x-offsets; nrows or ny
+    slitcurve=slitcurve,  # (ncols, n) with 1 <= n <= 6
+    slitdeltas=np.zeros(nrows),  # per-row extra x-offsets; nrows or ny
     osample=osample,
-    lambda_sL=1.0,                          # slit-function smoothing, usually > 0
-    lambda_sP=0.0,                          # spectrum smoothing; > 0 forces delta_x >= 1
+    lambda_sL=1.0,  # slit-function smoothing, usually > 0
+    lambda_sP=0.0,  # spectrum smoothing; > 0 forces delta_x >= 1
     maxiter=20,
-    kappa=10.0,                             # sigma clip on residuals; 0 disables
+    kappa=10.0,  # sigma clip on residuals; 0 disables
 )
 
-print(res["spectrum"].shape)                # (ncols,)
-print(res["slitfunction"].shape)            # (ny,) with ny = osample*(nrows+1)+1
+print(res["spectrum"].shape)  # (ncols,)
+print(res["slitfunction"].shape)  # (ny,) with ny = osample*(nrows+1)+1
 ```
 
 Returns a dict: `spectrum` (ncols), `slitfunction` (ny), `model` (nrows, ncols),

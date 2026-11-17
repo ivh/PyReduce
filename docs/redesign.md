@@ -13,17 +13,17 @@ Now all trace data lives in a single `Trace` dataclass:
 ```python
 @dataclass
 class Trace:
-    m: int | None              # spectral order number
-    group: str | int | None    # fiber group ('A', 'B', 'cal', ...)
-    fiber_idx: int | None      # fiber index within group
+    m: int | None  # spectral order number
+    group: str | int | None  # fiber group ('A', 'B', 'cal', ...)
+    fiber_idx: int | None  # fiber index within group
 
-    pos: np.ndarray            # y(x) position polynomial
+    pos: np.ndarray  # y(x) position polynomial
     column_range: tuple[int, int]
-    height: float | None       # extraction aperture height
+    height: float | None  # extraction aperture height
 
-    slit: np.ndarray | None    # curvature coefficients (filled by curvature step)
+    slit: np.ndarray | None  # curvature coefficients (filled by curvature step)
     slitdelta: np.ndarray | None
-    wave: np.ndarray | None    # wavelength polynomial (filled by wavecal step)
+    wave: np.ndarray | None  # wavelength polynomial (filled by wavecal step)
 ```
 
 Pipeline steps update traces in-place as they run. All trace data is saved to a single `.traces.fits` file. Old `.npz` files are still readable.

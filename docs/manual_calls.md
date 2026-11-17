@@ -105,6 +105,7 @@ def step_config(name):
     cfg["plot"] = plot
     return cfg
 
+
 # Step 1: Load bad pixel mask
 mask_step = Mask(*step_args, **step_config("mask"))
 mask = mask_step.run()
@@ -132,12 +133,14 @@ scatter = None  # Optional background scatter
 norm_flat = norm_flat_step.run(flat, traces, scatter)
 
 # Step 7: Wavelength calibration (three sub-steps)
-wavecal_master_step = WavelengthCalibrationMaster(*step_args, **step_config("wavecal_master"))
-wavecal_master = wavecal_master_step.run(
-    wavecal_files, traces, mask, bias, norm_flat
+wavecal_master_step = WavelengthCalibrationMaster(
+    *step_args, **step_config("wavecal_master")
 )
+wavecal_master = wavecal_master_step.run(wavecal_files, traces, mask, bias, norm_flat)
 
-wavecal_init_step = WavelengthCalibrationInitialize(*step_args, **step_config("wavecal_init"))
+wavecal_init_step = WavelengthCalibrationInitialize(
+    *step_args, **step_config("wavecal_init")
+)
 # load() starts from the instrument's shipped linelist; run() builds one from scratch
 wavecal_init = wavecal_init_step.load(config, wavecal_master)
 
@@ -147,9 +150,7 @@ wavecal = wavecal_step.run(wavecal_master, wavecal_init, traces)
 
 # Step 8: Extract science spectra
 science_step = ScienceExtraction(*step_args, **step_config("science"))
-science = science_step.run(
-    science_files, traces, bias, norm_flat, scatter, mask
-)
+science = science_step.run(science_files, traces, bias, norm_flat, scatter, mask)
 
 # Step 9: Continuum normalization (gets wavelengths from traces)
 continuum_step = ContinuumNormalization(*step_args, **step_config("continuum"))
