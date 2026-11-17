@@ -31,6 +31,9 @@ _KW_STRICT = {"cache": True, "nogil": True}
 
 WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
 
+# As in clib/slitdec.h
+SLITDEC_EDGE = 2
+
 
 @njit(inline="always")
 def _zeta_add(zx, ziy, zw, m_zeta, z_rng, ncols, nrows, x, iy, xx, yy, w):
@@ -645,6 +648,7 @@ def _slitdec_core(
     # Maximum horizontal shift in detector pixels due to slit curvature.
     # Smoothing the spectrum needs delta_x >= 1 to have any neighbours.
     delta_x = 0 if lambda_sP == 0 else 1
+    max_shift = 0
     for x in range(ncols):
         for y in range(-y_lower_lim, nrows - y_lower_lim + 1):
             y2 = float(y * y)
@@ -660,12 +664,16 @@ def _slitdec_core(
                     + y5 * slitcurve[x, 5]
                 )
             )
-            if tmp > delta_x:
-                delta_x = int(tmp)
+            if tmp > max_shift:
+                max_shift = int(tmp)
     for iy in range(ny):
         tmp = math.ceil(abs(slitdeltas[iy]))
-        if tmp > delta_x:
-            delta_x = int(tmp)
+        if tmp > max_shift:
+            max_shift = int(tmp)
+    if max_shift > delta_x:
+        delta_x = max_shift
+    # Columns per end a caller must not use, reported in info[4]
+    margin = max_shift + SLITDEC_EDGE
 
     nx = 4 * delta_x + 1
     if nx > ncols:
@@ -673,7 +681,7 @@ def _slitdec_core(
         info[1] = sP_change
         info[2] = -2.0  # curvature too large
         info[3] = 0.0
-        info[4] = delta_x
+        info[4] = margin
         return -1
 
     mzz = 3 * (osample + 1)
@@ -877,19 +885,11 @@ def _slitdec_core(
         ncols, nrows, im, model, mask, zx, ziy, zw, m_zeta, unc, unc_norm, unc_norm_sq
     )
 
-    # Columns within delta_x of the edge have incomplete support
-    for x in range(delta_x):
-        sP[x] = 0.0
-        unc[x] = 0.0
-    for x in range(ncols - delta_x, ncols):
-        sP[x] = 0.0
-        unc[x] = 0.0
-
     info[0] = success
     info[1] = sP_change
     info[2] = status
     info[3] = it
-    info[4] = delta_x
+    info[4] = margin
     return 0
 
 
@@ -1014,6 +1014,7 @@ def slitdec(
         "model": model,
         "uncertainty": unc,
         "info": info,
+        "margin": int(info[4]),
         "mask": mask_copy,
         "return_code": int(return_code),
     }

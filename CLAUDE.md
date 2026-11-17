@@ -384,6 +384,21 @@ each change to both Python backends and re-run `test/test_numba_slitdec.py` and
 `numba_slitdec.md` and `numpy_slitdec.md` for the algorithm history and standalone
 (outside-PyReduce) use.
 
+Since CharSlit dd446cd (Nov 2026) the vendored C is N. Piskunov's slitdec_ox engine under
+the old names. `cwrappers.py` passes the new arguments at their historic defaults
+(`osample_x=1`, no `mu_x`, `t_offset=0`), which is the old solution; the oversampled modes
+are not exposed in PyReduce and the Python backends do not implement them.
+
+Swath edges: no backend zeroes the outermost columns of a swath solution any more. They
+come back as solved and can be many times the flux. `info[4]` (also `result["margin"]`)
+is the number of columns per end not to use: the largest slit-image shift, rounded up,
+plus 2 (`SLITDEC_EDGE` in `clib/slitdec.h`, mirrored in both Python backends).
+`extract_spectrum` takes it verbatim, gives those columns zero weight in the swath merge,
+ramps linearly between the margins of two overlapping swaths, and masks them at the order
+ends. So every order loses shift + 2 columns per end, 2 for an untilted slit. An external
+`charslit` without the `margin` key still reports `delta_x` there; `_slitdec_charslit`
+adds 2 in that case. Same convention in CharSlit and cr2res.
+
 Pixel weights (`extraction_weights`: `none`/`unc`/`model`/`flux`, plus
 `extraction_noise_floor`) are a reduction setting, unlike the backend, and reach slitdec
 as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.

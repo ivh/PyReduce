@@ -276,12 +276,12 @@ def test_vertical_extraction(noisy_frame, trace_objects, width, osample):
     assert s.sig.shape == (width,)
 
     valid = ~np.isnan(s.spec)
-    assert valid.sum() >= width - 2  # only the edge columns may be lost
+    assert valid.sum() >= width - 4  # only the two edge columns per end may be lost
 
     # Compare against the Poisson expectation rather than s.sig, which runs
     # ~15% below the actual scatter.
     z = (s.spec[valid] - flux[valid]) / np.sqrt(flux[valid])
-    assert abs(z.mean()) < 0.5  # ~0.1 expected for ~98 columns
+    assert abs(z.mean()) < 0.5  # ~0.1 expected for ~96 columns
     assert 0.8 < z.std() < 1.4
     assert 0.7 < np.median(s.sig[valid] / np.sqrt(flux[valid])) < 1.3
 

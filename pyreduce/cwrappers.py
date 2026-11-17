@@ -64,8 +64,10 @@ def slitdec(
 
     Returns
     -------
-    dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
-    return_code.
+    dict with keys spectrum, slitfunction, model, uncertainty, info, margin,
+    mask, return_code. The first and last ``margin`` columns of spectrum and
+    uncertainty are returned as solved but must not be used: they can be far
+    off. margin is the largest slit-image shift, rounded up, plus 2.
     """
     weight_mode = WEIGHT_MODES.get(weights)
     if weight_mode is None:
@@ -167,6 +169,20 @@ def slitdec(
         ffi_slitdec.cast("double *", model.ctypes.data),
         ffi_slitdec.cast("double *", unc.ctypes.data),
         ffi_slitdec.cast("double *", info.ctypes.data),
+        # the rest selects the historic solution (no oversampling along x)
+        ffi_slitdec.cast("int", 1),  # osample_x
+        ffi_slitdec.NULL,  # mu_x
+        ffi_slitdec.cast("int", 0),
+        ffi_slitdec.NULL,  # mu_y
+        ffi_slitdec.cast("int", 0),
+        ffi_slitdec.cast("double", 0.0),  # t_offset
+        ffi_slitdec.cast("int", -1),  # y_lower_lim: nrows / 2
+        ffi_slitdec.NULL,  # sP_fine
+        ffi_slitdec.cast("int", 0),  # unc_mode: from residuals
+        ffi_slitdec.cast("int", 1),  # out_x
+        ffi_slitdec.cast("int", 0),  # nlag
+        ffi_slitdec.NULL,  # cov
+        ffi_slitdec.NULL,  # chi2
     )
 
     return {
@@ -175,6 +191,7 @@ def slitdec(
         "model": model,
         "uncertainty": unc,
         "info": info,
+        "margin": int(info[4]),
         "mask": mask_copy,
         "return_code": int(return_code),
     }

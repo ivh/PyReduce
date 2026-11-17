@@ -38,6 +38,9 @@ _INT64_MIN = np.iinfo(np.int64).min
 
 WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
 
+# As in clib/slitdec.h
+SLITDEC_EDGE = 2
+
 # Target number of subpixel candidates held live while building the geometry.
 _CHUNK_ELEMENTS = 2_000_000
 
@@ -359,8 +362,12 @@ def _slitdec_core(
         + y4 * slitcurve[None, :, 4]
         + y5 * slitcurve[None, :, 5]
     )
-    delta_x = max(delta_x, int(np.ceil(np.abs(shift).max())))
-    delta_x = max(delta_x, int(np.ceil(np.abs(slitdeltas).max())))
+    max_shift = max(
+        int(np.ceil(np.abs(shift).max())), int(np.ceil(np.abs(slitdeltas).max()))
+    )
+    delta_x = max(delta_x, max_shift)
+    # Columns per end a caller must not use, reported in info[4]
+    margin = max_shift + SLITDEC_EDGE
 
     nx = 4 * delta_x + 1
     if nx > ncols:
@@ -368,7 +375,7 @@ def _slitdec_core(
         info[1] = sP_change
         info[2] = -2.0  # curvature too large
         info[3] = 0.0
-        info[4] = delta_x
+        info[4] = margin
         return -1
 
     # Split ycen into integer row offset and sub-pixel remainder
@@ -599,16 +606,11 @@ def _slitdec_core(
     with np.errstate(divide="ignore", invalid="ignore"):
         unc[:] = np.sqrt(acc[0, :ncols] / (norm - norm_sq / norm) * nrows)
 
-    # Columns within delta_x of the edge have incomplete support
-    if delta_x > 0:
-        sP[:delta_x] = sP[ncols - delta_x :] = 0.0
-        unc[:delta_x] = unc[ncols - delta_x :] = 0.0
-
     info[0] = success
     info[1] = sP_change
     info[2] = status
     info[3] = it
-    info[4] = delta_x
+    info[4] = margin
     return 0
 
 
@@ -735,6 +737,7 @@ def slitdec(
         "model": np.ascontiguousarray(modelT.T),
         "uncertainty": unc,
         "info": info,
+        "margin": int(info[4]),
         "mask": np.ascontiguousarray(maskT.T),
         "return_code": int(return_code),
     }

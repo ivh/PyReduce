@@ -162,7 +162,8 @@ def _slitdec_charslit(
     mask : array[nrows, ncols]
         Output mask (True = bad)
     info : array[5]
-        [success, chi2, status, niter, delta_x]
+        [success, chi2, status, niter, margin]; the first and last margin
+        columns of the swath solution must not be used
     """
     nrows, ncols = img.shape
 
@@ -232,9 +233,15 @@ def _slitdec_charslit(
     mask_out = result.get("mask", mask_c)
     mask_out = mask_out == 0
 
-    # Build info array: charslit returns info as [success, cost, status, iter, delta_x]
+    # Build info array: [success, cost, status, iter, margin]
     if isinstance(info_arr, np.ndarray) and len(info_arr) >= 5:
         info = info_arr
+        if "margin" not in result:
+            # An external charslit that still reports delta_x there and zeroes
+            # that many columns: delta_x >= the largest shift, so this covers
+            # the margin of shift + 2
+            info = info.copy()
+            info[4] += 2
     else:
         info = np.array([float(return_code == 0), 0.0, float(return_code), 0.0, 0.0])
 
@@ -1372,10 +1379,11 @@ def extract_spectrum(
                     slitdeltas=swath_slitdeltas,
                 )
 
-    # Remove points at the border of the each swath, if order has curvature
-    # as those pixels have bad information
+    # The outermost columns of each swath solution are unreliable (up to many
+    # times the flux, more so with curvature). slitdec returns them as solved
+    # and reports how many to drop.
     for i in range(nswath):
-        margin[i, :] = int(swath.info[i][4]) + 1
+        margin[i, :] = int(swath.info[i][4])
 
     # Weight for combining swaths
     weight = [np.ones(bins_end[i] - bins_start[i]) for i in range(nswath)]
@@ -1392,10 +1400,11 @@ def extract_spectrum(
         start_j = margin[j, 0]
         end_j = overlap - margin[i, 1]
 
-        # Weights for one overlap from 0 to 1, but do not include those values (whats the point?)
-        triangle = np.linspace(0, 1, overlap + 1, endpoint=False)[1:]
-        # Cut away the margins at the corners
-        triangle = triangle[margin[j, 0] : len(triangle) - margin[i, 1]]
+        # Linear from 0 to 1 over the columns both swaths can use, without the
+        # end values, so that a swath comes in with a small weight right after
+        # its margin
+        nramp = max(end_j - start_j, 0)
+        triangle = np.linspace(0, 1, nramp + 2)[1:-1]
 
         # Set values
         weight[i][start_i:end_i] = 1 - triangle
