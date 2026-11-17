@@ -347,24 +347,19 @@ class TestRunCommand:
         assert call_kwargs["trace_range"] == (3, 21)
 
     @patch("pyreduce.reduce.main")
-    def test_run_with_settings_file(self, mock_main, runner):
-        """Test run command with --settings option."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"bias": {"degree": 1}}, f)
-            settings_file = f.name
+    def test_run_with_settings_file(self, mock_main, runner, tmp_path):
+        """--settings is forwarded so it applies on top of each channel's settings."""
+        settings_file = tmp_path / "override.json"
+        settings_file.write_text(json.dumps({"bias": {"degree": 1}}))
 
-        try:
-            with patch(
-                "pyreduce.configuration.load_settings_override"
-            ) as mock_override:
-                mock_override.return_value = {}
-                result = runner.invoke(
-                    cli, ["run", "UVES", "-t", "HD132205", "--settings", settings_file]
-                )
-                assert result.exit_code == 0
-                mock_override.assert_called_once()
-        finally:
-            os.unlink(settings_file)
+        result = runner.invoke(
+            cli, ["run", "UVES", "-t", "HD132205", "--settings", str(settings_file)]
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_main.call_args[1]
+        assert call_kwargs["settings_override"] == str(settings_file)
+        # per-channel settings are resolved inside reduce.main
+        assert call_kwargs.get("configuration") is None
 
     @patch("pyreduce.reduce.main")
     def test_run_with_nonexistent_settings_file(self, mock_main, runner):
@@ -485,25 +480,15 @@ class TestIndividualStepCommands:
         assert "does not accept raw files" in result.output
 
     @patch("pyreduce.reduce.main")
-    def test_step_with_settings_file(self, mock_main, runner):
-        """Test step command with settings override."""
+    def test_step_with_settings_file(self, mock_main, runner, tmp_path):
+        """Step commands forward --settings to reduce.main."""
         mock_main.return_value = None
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"bias": {"degree": 2}}, f)
-            settings_file = f.name
+        settings_file = tmp_path / "override.json"
+        settings_file.write_text(json.dumps({"bias": {"degree": 2}}))
 
-        try:
-            with patch(
-                "pyreduce.configuration.load_settings_override"
-            ) as mock_override:
-                mock_override.return_value = {}
-                result = runner.invoke(
-                    cli, ["bias", "UVES", "--settings", settings_file]
-                )
-                assert result.exit_code == 0
-                mock_override.assert_called_once()
-        finally:
-            os.unlink(settings_file)
+        result = runner.invoke(cli, ["bias", "UVES", "--settings", str(settings_file)])
+        assert result.exit_code == 0
+        assert mock_main.call_args[1]["settings_override"] == str(settings_file)
 
     @patch("pyreduce.reduce.main")
     def test_step_with_plot_levels(self, mock_main, runner):
@@ -669,41 +654,42 @@ class TestExamplesCommand:
 class TestConfigurationLoading:
     """Test configuration loading in CLI commands."""
 
-    @patch("pyreduce.configuration.get_configuration_for_instrument")
-    @patch("pyreduce.reduce.main")
-    def test_run_loads_instrument_config(self, mock_main, mock_get_config, runner):
-        """Test run command loads instrument configuration."""
-        mock_config = {"bias": {}, "flat": {}}
-        mock_get_config.return_value = mock_config
-        mock_main.return_value = None
+    @pytest.mark.unit
+    def test_reduce_main_uses_channel_settings(self, tmp_path, monkeypatch):
+        """reduce.main picks up settings_{channel}.json for each channel."""
+        import warnings
 
-        result = runner.invoke(cli, ["run", "UVES", "-t", "HD132205"])
-        assert result.exit_code == 0
-        mock_get_config.assert_called_with("UVES")
+        from pyreduce import pipeline, reduce
+        from pyreduce.instruments.common import Instrument
 
-    @patch("pyreduce.configuration.get_configuration_for_instrument")
-    @patch("pyreduce.configuration.load_settings_override")
-    @patch("pyreduce.reduce.main")
-    def test_run_applies_settings_override(
-        self, mock_main, mock_override, mock_get_config, runner
-    ):
-        """Test run command applies settings override when provided."""
-        mock_get_config.return_value = {"bias": {}}
-        mock_override.return_value = {"bias": {"degree": 2}}
-        mock_main.return_value = None
+        monkeypatch.setattr(
+            Instrument,
+            "sort_files",
+            lambda self, *a, **k: [({"target": "t", "night": ""}, {})],
+        )
+        seen = {}
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"bias": {"degree": 2}}, f)
-            settings_file = f.name
+        class FakePipe:
+            def run(self, skip_existing=False):
+                return {}
 
-        try:
-            result = runner.invoke(
-                cli, ["run", "UVES", "-t", "HD132205", "--settings", settings_file]
+        def fake_from_files(**kwargs):
+            seen[kwargs["channel"]] = kwargs["config"]["curvature"]["curve_height"]
+            return FakePipe()
+
+        monkeypatch.setattr(pipeline.Pipeline, "from_files", fake_from_files)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            reduce.main(
+                instrument="ANDES_YJH",
+                target="t",
+                channels=["H"],
+                base_dir=str(tmp_path),
+                input_dir=".",
+                output_dir=".",
             )
-            assert result.exit_code == 0
-            mock_override.assert_called_once()
-        finally:
-            os.unlink(settings_file)
+
+        assert seen == {"H": 150}
 
 
 class TestErrorHandling:

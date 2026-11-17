@@ -127,7 +127,6 @@ def run(
     """
     import os
 
-    from .configuration import get_configuration_for_instrument, load_settings_override
     from .instruments.instrument_info import load_instrument
     from .reduce import main as reduce_main
 
@@ -161,11 +160,6 @@ def run(
     # Parse --use
     use_groups = [g.strip() for g in use.split(",")] if use else None
 
-    # Load configuration
-    config = get_configuration_for_instrument(instrument)
-    if settings:
-        config = load_settings_override(config, settings)
-
     # Run reduction
     try:
         reduce_main(
@@ -177,12 +171,12 @@ def run(
             base_dir=base_dir,
             input_dir=input_dir,
             output_dir=output_dir,
-            configuration=config,
             trace_range=trace_range,
             plot=plot,
             plot_dir=plot_dir,
             use_groups=use_groups,
             skip_existing=skip_existing,
+            settings_override=settings,
         )
     except FileNotFoundError as e:
         raise click.ClickException(str(e)) from None
@@ -447,7 +441,12 @@ def make_step_command(step_name):
             os.makedirs(output_dir_full, exist_ok=True)
 
             # Load configuration for this step
-            config = get_configuration_for_instrument(instrument)
+            config = get_configuration_for_instrument(
+                instrument,
+                channel_fallbacks=inst.get_settings_fallbacks(channel)
+                if channel
+                else None,
+            )
             if settings:
                 config = load_settings_override(config, settings)
 
@@ -562,9 +561,6 @@ def make_step_command(step_name):
             step.run(**run_kwargs)
         else:
             use_groups = [g.strip() for g in use.split(",")] if use else None
-            config = get_configuration_for_instrument(instrument)
-            if settings:
-                config = load_settings_override(config, settings)
             reduce_main(
                 instrument=instrument,
                 target=target,
@@ -574,9 +570,9 @@ def make_step_command(step_name):
                 base_dir=base_dir or "",
                 input_dir=input_dir,
                 output_dir=output_dir,
-                configuration=config,
                 plot=plot,
                 use_groups=use_groups,
+                settings_override=settings,
             )
 
     cmd.__doc__ = f"Run the '{step_name}' step."

@@ -284,8 +284,9 @@ class TestPipelineLoad:
         monkeypatch.setattr(
             pipe,
             "_run_step",
-            lambda name, files, load_only=False: calls.append((name, load_only))
-            or "loaded",
+            lambda name, files, load_only=False: (
+                calls.append((name, load_only)) or "loaded"
+            ),
         )
         pipe.run()
 

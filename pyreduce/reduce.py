@@ -27,7 +27,7 @@ from os.path import join
 import numpy as np
 
 from . import instruments, util
-from .configuration import load_config
+from .configuration import load_config, load_settings_override
 
 # Step classes live in pyreduce.steps; re-exported here for backwards compatibility
 from .steps import (
@@ -93,6 +93,7 @@ def main(
     plot=0,
     plot_dir=None,
     use_groups=None,
+    settings_override=None,
 ):
     r"""
     Main entry point for REDUCE scripts.
@@ -125,7 +126,9 @@ def main(
     output_dir : str, optional
         output directory for intermediary and final results. Can contain placeholders {instrument}, {target}, {night}, {channel}, but no wildcards. If relative will use base_dir as root (default: use settings_pyreduce.json)
     configuration : dict[str:obj], str, list[str], dict[{instrument}:dict,str], optional
-        configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: settings_{instrument.upper()}.json)
+        configuration file for the current run, contains parameters for different parts of reduce. Can be a path to a json file, or a dict with configurations for the different instruments. When a list, the order must be the same as instruments (default: the instrument's settings, per channel where settings_{channel}.json exists)
+    settings_override : str, optional
+        JSON file whose values override the loaded settings
     """
     warnings.warn(
         "pyreduce.reduce.main() is deprecated. Use Pipeline.from_instrument() instead:\n"
@@ -147,7 +150,10 @@ def main(
     # settings: default settings of PyReduce
     # config: paramters for the current reduction
     # info: constant, instrument specific parameters
+    per_channel_config = configuration is None
     config = load_config(configuration, instrument, 0)
+    if settings_override:
+        config = load_settings_override(config, settings_override)
 
     # Environment variable overrides for plot (useful for headless runs)
     if "PYREDUCE_PLOT" in os.environ:
@@ -205,6 +211,16 @@ def main(
         instrument.validate_channel(c)
 
     for t, n, c in product(target, night, channels):
+        if per_channel_config and c:
+            config = load_config(
+                None,
+                str(instrument),
+                0,
+                channel=c,
+                channel_fallbacks=instrument.get_settings_fallbacks(c),
+            )
+            if settings_override:
+                config = load_settings_override(config, settings_override)
         log_file = join(
             base_dir.format(instrument=str(instrument), channel=channels, target=t),
             f"logs/{t}.log",
