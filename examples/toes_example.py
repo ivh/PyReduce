@@ -98,7 +98,7 @@ config["science"]["oversampling"] = 8  # Subpixel scale for slit function modell
 config["science"]["swath_width"] = 400  # Extraction swath width (columns)
 config["science"]["smooth_slitfunction"] = 1.0  # Smoothing of the slit function
 config["science"]["smooth_spectrum"] = 1.0e-6  # Smoothing in spectral direction
-config["science"]["extraction_height"] = [5, 5]  # Extraction slit height (rows)
+config["science"]["extraction_height"] = 10  # Extraction slit height (rows)
 config["science"]["bias_scaling"] = "number_of_files"
 
 # Since we can't find the files ourselves (at least not without defining the criteria we are looking for)

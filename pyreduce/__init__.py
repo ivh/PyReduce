@@ -43,7 +43,7 @@ try:
     )
     del colorlog
 except ImportError:
-    console.setFormatter("%(levelname)s - %(message)s")
+    console.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
 
 logger.addHandler(console)
 

@@ -1,5 +1,5 @@
 """
-ANDES LSF comparison: extract the same combined frame 5 ways.
+ANDES LSF comparison: extract the same combined frame 4 ways.
 
 Loads pre-computed traces (from andes_tracecurve.py) and extracts
 a combined (even + odd + LFC) frame with different extraction modes

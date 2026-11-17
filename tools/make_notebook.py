@@ -5,8 +5,8 @@
 """Convert example scripts to Jupyter notebooks.
 
 Usage:
-    uv run scripts/make_notebook.py uves
-    uv run scripts/make_notebook.py harps --no-execute
+    uv run tools/make_notebook.py uves
+    uv run tools/make_notebook.py harps --no-execute
 """
 
 import os

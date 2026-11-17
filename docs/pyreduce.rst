@@ -117,6 +117,22 @@ pyreduce.rectify module
     :undoc-members:
     :show-inheritance:
 
+pyreduce.numpy_slitdec module
+-----------------------------
+
+.. automodule:: pyreduce.numpy_slitdec
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pyreduce.provenance module
+--------------------------
+
+.. automodule:: pyreduce.provenance
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pyreduce.clipnflip module
 -------------------------
 
