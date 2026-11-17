@@ -1,18 +1,10 @@
 """
 Generate PyReduce wavecal files from ANDES E2E HDF optical models.
 
-Two output modes:
-1. reference: Generate wavecal_*_HDF.npz reference files for wavecal_init step
-2. thar: Generate .thar.npz output files that can be loaded directly by wavecal step
+Generates wavecal_*_HDF.npz reference files for the wavecal_init step.
 
 Usage:
-    # Generate reference files for all channels
     uv run tools/andes_hdf_to_wavecal.py reference
-
-    # Generate .thar.npz for a specific reduction (requires trace file)
-    uv run tools/andes_hdf_to_wavecal.py thar --channel R1 \\
-        --trace-file ~/REDUCE_DATA/ANDES/reduced/psf_comp_R1/andes_riz_r1.traces.npz \\
-        --out-file ~/REDUCE_DATA/ANDES/reduced/psf_comp_R1/andes_riz_r1.thar.npz
 """
 
 import argparse
@@ -203,67 +195,6 @@ def cmd_reference(args):
         print(f"  Saved: {out_path}")
 
 
-def cmd_thar(args):
-    """Generate .thar.npz file from HDF and trace file."""
-    if args.channel not in MODELS:
-        raise ValueError(f"Unknown channel: {args.channel}")
-
-    hdf_path = args.hdf_dir / MODELS[args.channel]
-    if not hdf_path.exists():
-        raise FileNotFoundError(f"HDF file not found: {hdf_path}")
-
-    if not args.trace_file.exists():
-        raise FileNotFoundError(f"Trace file not found: {args.trace_file}")
-
-    # Load HDF data
-    data = extract_group_coefs(hdf_path, args.channel)
-    group_coefs = data["group_coefs"]
-    order_min = data["order_min"]
-    order_max = data["order_max"]
-
-    # Load trace file to get order/group assignments
-    trace_data = np.load(args.trace_file, allow_pickle=True)
-    group_names = trace_data["group_names"].tolist()
-
-    # Build trace info: which order and group each trace belongs to
-    trace_info = []  # List of (order_num, group_name)
-    for group_name in USE_GROUPS:
-        if group_name not in group_names:
-            continue
-        group_traces = trace_data[f"group_{group_name}_traces"].item()
-        for order_num in sorted(group_traces.keys()):
-            traces_in_order = group_traces[order_num]
-            ntrace = traces_in_order.shape[0] if traces_in_order.ndim == 2 else 1
-            for _ in range(ntrace):
-                trace_info.append((int(order_num), group_name))
-
-    if not trace_info:
-        raise ValueError("No traces found for wavecal groups")
-
-    print(f"  Generating wavelengths for {len(trace_info)} traces...")
-
-    # Generate wave array
-    wave = np.zeros((len(trace_info), NCOL))
-    for i, (order_num, group_name) in enumerate(trace_info):
-        coef = group_coefs[group_name]
-        wave[i] = eval_2d_polynomial(
-            coef, order_num, NCOL, DEG_ORDER, DEG_X, order_min, order_max
-        )
-
-    # Use first group's coef as the saved coef (for compatibility)
-    coef = next(iter(group_coefs.values()))
-
-    # Save in .thar.npz format
-    np.savez(
-        args.out_file,
-        wave=wave,
-        coef=coef,
-        linelist=data["cs_lines"],
-    )
-    print(f"  Saved: {args.out_file}")
-    print(f"  Wavelength range: {wave[0, 0]:.2f} - {wave[0, -1]:.2f} nm")
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Generate PyReduce wavecal files from ANDES HDF models"
@@ -293,20 +224,6 @@ def main():
         help="Channels to process (default: all)",
     )
 
-    # thar subcommand
-    thar_parser = subparsers.add_parser(
-        "thar", help="Generate .thar.npz output file from trace file"
-    )
-    thar_parser.add_argument(
-        "--channel", required=True, choices=list(MODELS.keys()), help="Channel to use"
-    )
-    thar_parser.add_argument(
-        "--trace-file", type=Path, required=True, help="Path to trace .npz file"
-    )
-    thar_parser.add_argument(
-        "--out-file", type=Path, required=True, help="Output .thar.npz file path"
-    )
-
     args = parser.parse_args()
 
     if args.command == "reference":
@@ -314,8 +231,6 @@ def main():
             script_dir = Path(__file__).parent.parent
             args.out_dir = script_dir / "pyreduce/instruments/ANDES_RIZ"
         cmd_reference(args)
-    elif args.command == "thar":
-        cmd_thar(args)
 
 
 if __name__ == "__main__":

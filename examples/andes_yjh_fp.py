@@ -69,7 +69,7 @@ results = pipe.extract([fp_file]).run()
 # results["science"] = (heads, list-per-file of list[Spectrum])
 spectra = results["science"][1][0]
 spectra = [s for s in spectra if str(s.fiber_idx) == fp_fiber]
-spectra.sort(key=lambda s: (s.m if s.m is not None else 0))
+spectra.sort(key=lambda s: s.m if s.m is not None else 0)
 print(f"  Got {len(spectra)} order spectra for fiber {fp_fiber}")
 print(f"  Orders (m): {[s.m for s in spectra]}")
 

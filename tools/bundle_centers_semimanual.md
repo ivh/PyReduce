@@ -53,8 +53,8 @@ Anchors used (index: y):
 import numpy as np, yaml
 
 idx = np.array([1, 2, 3, 36, 37, 89, 90])
-y   = np.array([3902, 3860, 3816, 2409, 2367, 201, 160])
-c = np.polyfit(idx, y, 2)               # deg-2; RMS ~0.3 px on anchors
+y = np.array([3902, 3860, 3816, 2409, 2367, 201, 160])
+c = np.polyfit(idx, y, 2)  # deg-2; RMS ~0.3 px on anchors
 
 n = np.arange(1, 91)
 centers = {int(i): round(float(v), 1) for i, v in zip(n, np.polyval(c, n))}
