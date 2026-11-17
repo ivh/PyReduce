@@ -626,7 +626,8 @@ class WavelengthCalibration:
                     width = int(self.ncol * self.shift_window) // 2
                     low, high = self.ncol // 2 - width, self.ncol // 2 + width
                     offset_x = np.argmax(correlation[low:high]) + low
-                    offset_x = int(offset_x - self.ncol / 2 + 1)
+                    # correlate(mode='same') has zero lag at ncol // 2
+                    offset_x = int(offset_x - self.ncol // 2)
 
                     select = lines["order"] == i
                     lines = self.apply_alignment_offset(lines, (0, offset_x), select)
