@@ -536,3 +536,20 @@ def test_curvature_zero(original, traces, trace_range):
     # With zero image, should produce zero curvature
     module = CurvatureModule(traces_subset, plot=False, sigma_cutoff=0)
     _ = module.execute(original)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("xwd", [1, 5])
+def test_offset_spectra_ignore_columns_outside_column_range(xwd):
+    """A trace leaving the chip outside its column_range still yields spectra."""
+    # y = 0.2 x + 20 is off-chip (nrow=100) for x > 400, but cr ends at 300
+    traces = [Trace(m=1, pos=np.array([0.2, 20.0]), column_range=(0, 300))]
+    module = CurvatureModule(traces, curve_height=20, extraction_height=xwd)
+    module.extraction_height = np.array([xwd])
+    module.curve_height = np.array([20])
+    module.column_range = np.array([[0, 300]])
+    module.trace_range = (0, 1)
+
+    spectra, _ = module._extract_offset_spectra(np.ones((100, 500)), 0)
+
+    assert not np.ma.getmaskarray(spectra[:, :300]).all()

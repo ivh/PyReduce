@@ -212,8 +212,9 @@ class Curvature:
             for i, offset in enumerate(offsets):
                 # Row position follows trace + offset
                 row = ycen_int + offset
-                # Check bounds
-                if np.any(row < 0) or np.any(row >= nrow):
+                # Only columns inside the trace's column_range must be on-chip
+                row_cr = row[cr[0] : cr[1]]
+                if np.any(row_cr < 0) or np.any(row_cr >= nrow):
                     continue
                 # Direct indexing along the curved trace
                 spectra[i, cr[0] : cr[1]] = original[
@@ -235,8 +236,7 @@ class Curvature:
             yb = ycen_int + int(offset) - half
             yt = yb + xwd - 1
 
-            # Check bounds
-            if np.any(yb < 0) or np.any(yt >= nrow):
+            if np.any(yb[cr[0] : cr[1]] < 0) or np.any(yt[cr[0] : cr[1]] >= nrow):
                 continue
 
             # Extract and collapse

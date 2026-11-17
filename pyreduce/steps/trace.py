@@ -530,10 +530,14 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             trace_objects, header = load_traces(trace_file)
 
             # Update each trace with slit data from fitted traces
-            # Match by (m, group) since traces may be a filtered subset
-            fitted = {(t.m, t.group): t for t in traces}
+            # Match by full identity since traces may be a filtered subset;
+            # (m, group) alone collides for raw fibers and MOSAIC bundles
+            def key(t):
+                return (t.m, t.bundle, t.group, t.fiber_idx)
+
+            fitted = {key(t): t for t in traces}
             for t in trace_objects:
-                match = fitted.get((t.m, t.group))
+                match = fitted.get(key(t))
                 if match is not None:
                     t.slit = match.slit
                     t.slitdelta = match.slitdelta
