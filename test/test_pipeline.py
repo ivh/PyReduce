@@ -474,9 +474,12 @@ class TestPipelineFromFiles:
         assert "flat" in step_names
 
     @pytest.mark.unit
-    def test_from_files_all_steps(self, tmp_path):
-        """from_files with steps='all' should queue all steps."""
+    @pytest.mark.parametrize("with_arcs", [True, False])
+    def test_from_files_all_steps(self, tmp_path, with_arcs):
+        """steps='all' queues what the frames support."""
         files = {"bias": ["b.fits"], "flat": ["f.fits"], "science": ["s.fits"]}
+        if with_arcs:
+            files["wavecal_master"] = ["w.fits"]
         pipe = Pipeline.from_files(
             files=files,
             output_dir=str(tmp_path),
@@ -489,11 +492,12 @@ class TestPipelineFromFiles:
         )
 
         step_names = [s[0] for s in pipe._steps]
-        assert "continuum" in step_names
         assert "finalize" in step_names
         # no LFC frames, so the comb steps would only fail on a missing master
         assert not any(s.startswith("freq_comb") for s in step_names)
         assert "wavecal_init" not in step_names
+        assert ("wavecal" in step_names) == with_arcs
+        assert ("continuum" in step_names) == with_arcs
 
     @pytest.mark.unit
     def test_from_files_registers_files(self, tmp_path):
