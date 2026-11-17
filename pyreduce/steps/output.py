@@ -188,7 +188,7 @@ class ContinuumNormalization(Step):
             logger.warning(
                 "No continuum normalized data found. Using unnormalized results instead."
             )
-            heads, specs, sigmas, columns = science
+            heads, specs, sigmas, _, columns = science
             norm, blaze, *_ = norm_flat
             conts = [blaze for _ in specs]
             for head in heads:

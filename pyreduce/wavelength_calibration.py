@@ -14,8 +14,7 @@ from numpy.polynomial.polynomial import Polynomial, polyval2d
 from scipy import signal
 from scipy.constants import speed_of_light
 from scipy.interpolate import interp1d
-from scipy.ndimage.filters import gaussian_filter1d
-from scipy.ndimage.morphology import grey_closing
+from scipy.ndimage import gaussian_filter1d, grey_closing
 from scipy.optimize import curve_fit
 from tqdm import tqdm
 
@@ -403,7 +402,7 @@ class WavelengthCalibration:
         #:int: Laser Frequency Peak width (for scipy.signal.find_peaks)
         self.lfc_peak_width = lfc_peak_width
         #:int: grey closing range for the input image
-        self.closing = 5
+        self.closing = closing
         #:int: Number of orders in the observation
         self.ntrace = None
         #:int: Number of columns in the observation
@@ -1407,9 +1406,9 @@ class WavelengthCalibration:
 
         # We get the residuals in velocity space
         # but need to remove the speed of light component, to get dimensionless parameters
+        lines = lines[lines["flag"]]
         x = lines["posm"]
         y = lines["order"]
-        ~lines["flag"]
         solution = self.evaluate_solution(x, y, wave_solution)
         rss = (solution - lines["wll"]) / lines["wll"]
 

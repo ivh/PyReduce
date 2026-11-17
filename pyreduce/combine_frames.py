@@ -12,7 +12,7 @@ import warnings
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage.filters import median_filter
+from scipy.ndimage import median_filter
 from tqdm import tqdm
 
 from . import util
@@ -731,6 +731,7 @@ def combine_polynomial(
     shape = (degree + 1, data.shape[1], data.shape[2])
     coeffs = coeffs.reshape(shape)
     # And apply the mask to each image of coefficients
+    bias = coeffs
     if mask is not None:
         bias = np.ma.masked_array(coeffs, mask=[mask for _ in range(degree + 1)])
     # We arbitralily pick the first header as the bias header

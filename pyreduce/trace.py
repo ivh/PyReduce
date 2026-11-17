@@ -25,8 +25,14 @@ def _natural_sort_key(s):
 
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 from numpy.polynomial.polynomial import Polynomial
-from scipy.ndimage import binary_closing, binary_opening, label
-from scipy.ndimage.filters import gaussian_filter1d, median_filter, uniform_filter1d
+from scipy.ndimage import (
+    binary_closing,
+    binary_opening,
+    gaussian_filter1d,
+    label,
+    median_filter,
+    uniform_filter1d,
+)
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
@@ -1330,7 +1336,7 @@ def select_traces_for_step(
             return {"all": traces}
         for idx in sorted(fiber_indices):
             idx_traces = [t for t in traces if t.fiber_idx == idx]
-            idx_traces.sort(key=lambda t: (t.m if t.m is not None else 0))
+            idx_traces.sort(key=lambda t: t.m if t.m is not None else 0)
             result[f"fiber_{idx}"] = idx_traces
         return result
 
@@ -1352,7 +1358,7 @@ def select_traces_for_step(
                 logger.warning("Group '%s' not found in trace data", name)
                 continue
             # Sort by m (order number) for consistent ordering
-            selected.sort(key=lambda t: (t.m if t.m is not None else 0))
+            selected.sort(key=lambda t: t.m if t.m is not None else 0)
             result[name] = selected
 
         if not result:

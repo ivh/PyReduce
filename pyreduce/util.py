@@ -14,7 +14,7 @@ from astropy import coordinates as coord
 from astropy import time
 from astropy import units as u
 from scipy.linalg import lstsq, solve_banded
-from scipy.ndimage.filters import median_filter
+from scipy.ndimage import median_filter
 from scipy.optimize import curve_fit, least_squares
 from scipy.special import binom
 
@@ -194,7 +194,7 @@ def vac2air(wl_vac):
     Convert vacuum wavelengths to wavelengths in air
     Author: Nikolai Piskunov
     """
-    wl_air = wl_vac
+    wl_air = np.array(wl_vac, dtype=float)
     ii = np.where(wl_vac > 2e3)
 
     sigma2 = (1e4 / wl_vac[ii]) ** 2  # Compute wavenumbers squared

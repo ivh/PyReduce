@@ -143,7 +143,7 @@ class Trace:
         -------
         np.ndarray or None
             Polynomial coefficients for y_offset = c0 + c1*y + c2*y^2 + ...
-            Shape (deg_y+1,) for scalar x, or (len(x), deg_y+1) for array x.
+            Shape (deg_y+1,) for scalar x, or (deg_y+1, len(x)) for array x.
             Returns None if no slit curvature is set.
         """
         if self.slit is None:

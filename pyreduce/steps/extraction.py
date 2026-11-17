@@ -265,9 +265,9 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
 
         # Create extraction params from settings
         params = ExtractionParams(
-            osample=self.extraction_kwargs.get("oversampling", 10),
-            lambda_sf=self.extraction_kwargs.get("smooth_slitfunction", 1.0),
-            lambda_sp=self.extraction_kwargs.get("smooth_spectrum", 0.0),
+            osample=self.extraction_kwargs.get("osample", 10),
+            lambda_sf=self.extraction_kwargs.get("lambda_sf", 1.0),
+            lambda_sp=self.extraction_kwargs.get("lambda_sp", 0.0),
             swath_width=self.extraction_kwargs.get("swath_width"),
         )
 

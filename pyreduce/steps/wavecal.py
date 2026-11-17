@@ -332,7 +332,7 @@ class WavelengthCalibrationInitialize(Step):
 
         # Apply same linelist to all groups
         for group in wavecal_master.keys():
-            results[group] = linelist
+            results[group] = LineList(linelist.data.copy(), linelist.obase)
 
         return results
 

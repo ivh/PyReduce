@@ -1911,11 +1911,8 @@ def extract(
             curvature = np.zeros((ntrace, ncol, max_y), dtype=np.float64)
             for i, t in enumerate(valid_traces):
                 if t.slit is not None:
-                    # Evaluate slit polynomial at each column
-                    for j in range(ncol):
-                        coeffs = t.slit_at_x(j)
-                        if coeffs is not None:
-                            curvature[i, j, : len(coeffs)] = coeffs
+                    coeffs = t.slit_at_x(np.arange(ncol))
+                    curvature[i, :, : len(coeffs)] = coeffs.T
 
     # Build slitdeltas array from Trace.slitdelta
     slitdeltas = None
@@ -2055,10 +2052,8 @@ def extract_normalize(
             curvature = np.zeros((ntrace, ncol, max_y), dtype=np.float64)
             for i, t in enumerate(traces):
                 if t.slit is not None:
-                    for j in range(ncol):
-                        coeffs = t.slit_at_x(j)
-                        if coeffs is not None:
-                            curvature[i, j, : len(coeffs)] = coeffs
+                    coeffs = t.slit_at_x(np.arange(ncol))
+                    curvature[i, :, : len(coeffs)] = coeffs.T
 
     # Build slitdeltas array
     slitdeltas = None

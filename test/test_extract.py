@@ -161,7 +161,7 @@ def test_fix_column_range():
     assert np.array_equal(fixed_cr[1], [25, 175])
     assert np.array_equal(fixed_cr[2], [15, 165])
     assert np.array_equal(fixed_cr[0], fixed_cr[1])
-    assert np.array_equal(fixed_cr[-1], fixed_cr[-1])
+    assert np.array_equal(fixed_cr[-1], fixed_cr[-2])
     assert fixed_orders.shape == orders.shape  # Orders unchanged in this case
 
     # Nothing should change here

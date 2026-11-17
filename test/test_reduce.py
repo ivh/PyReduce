@@ -806,7 +806,7 @@ class TestProvenanceHeaders:
         specs = [np.ones((2, 64))]
         sigmas = [np.ones((2, 64))]
         columns = [np.array([[0, 64], [0, 64]])]
-        science = (heads, specs, sigmas, columns)
+        science = (heads, specs, sigmas, [None], columns)
         norm_flat = (None, np.ones((2, 64)))
 
         result_heads, *_ = step.load(norm_flat, science)
