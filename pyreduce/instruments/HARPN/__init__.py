@@ -160,12 +160,9 @@ class HARPN(Instrument):
         # alternatively you can implement all of it here, whatever works
         header = super().add_header_info(header, channel)
 
-        try:
-            header["e_ra"] /= 15
-            header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
-
-        except:
-            pass
+        header["e_ra"] /= 15
+        if header["e_jd"] is not None:
+            header["e_jd"] += header["e_exptime"] / (2 * 24 * 3600)
 
         try:
             if (

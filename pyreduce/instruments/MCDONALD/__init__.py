@@ -68,7 +68,7 @@ class MCDONALD(Instrument):
 
         header["e_gain"] = get(gain, 1)
         header["e_readn"] = get(readnoise, 0)
-        header["e_exptim"] = get("exposure_time", 0)
+        header["e_exptime"] = get("exposure_time", 0)
 
         header["e_sky"] = get("sky", 0)
         header["e_drk"] = get("dark", 0)

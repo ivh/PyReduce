@@ -214,3 +214,27 @@ def test_validate_channel_no_channel_list_accepts_all():
     instr = instrument_info.load_instrument("HERMES")
 
     instr.validate_channel("anything")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "name, channel",
+    [("HARPS", "RED"), ("HARPN", "HARPN"), ("HARPSPOL", "RED"), ("UVES", "RED")],
+)
+def test_e_jd_is_mid_exposure_mjd(name, channel):
+    """e_jd is the MJD at mid-exposure, as util.helcorr expects."""
+    from astropy.time import Time
+
+    instr = instrument_info.load_instrument(name)
+    start = "2010-04-01T03:00:00"
+    header = fits.Header()
+    for key in ("DATE-OBS", "DATE"):
+        header[key] = start
+    header["MJD-OBS"] = Time(start).mjd
+    header["EXPTIME"] = 600.0
+    header["RA"] = 150.0
+    header["DEC"] = -20.0
+
+    out = instr.add_header_info(header, channel)
+
+    assert out["e_jd"] == pytest.approx(Time(start).mjd + 300 / 86400, abs=1e-8)

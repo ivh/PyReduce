@@ -97,23 +97,20 @@ class HARPSPOL(Instrument):
         """Read data from header and add it as REDUCE keyword back to the header."""
         header = super().add_header_info(header, channel)
 
-        try:
-            header["e_ra"] /= 15
-            header["e_jd"] += header["e_exptim"] / (7200 * 24) + 0.5
+        header["e_ra"] /= 15
+        if header["e_jd"] is not None:
+            header["e_jd"] += header["e_exptime"] / (2 * 24 * 3600)
 
-            pol_angle = header.get("eso ins ret25 pos")
+        pol_angle = header.get("eso ins ret25 pos")
+        if pol_angle is None:
+            pol_angle = header.get("eso ins ret50 pos")
             if pol_angle is None:
-                pol_angle = header.get("eso ins ret50 pos")
-                if pol_angle is None:
-                    pol_angle = "no polarimeter"
-                else:
-                    pol_angle = "lin %i" % pol_angle
+                pol_angle = "no polarimeter"
             else:
-                pol_angle = "cir %i" % pol_angle
-
-            header["e_pol"] = (pol_angle, "polarization angle")
-        except Exception:
-            pass
+                pol_angle = "lin %i" % pol_angle
+        else:
+            pol_angle = "cir %i" % pol_angle
+        header["e_pol"] = (pol_angle, "polarization angle")
 
         try:
             if (
