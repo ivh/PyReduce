@@ -472,7 +472,6 @@ def make_step_command(step_name):
                 "freq_comb",
                 "continuum",
                 "finalize",
-                "rectify",
             }
 
             if step_name in no_file_steps:

@@ -109,14 +109,6 @@ pyreduce.estimate\_background\_scatter module
     :undoc-members:
     :show-inheritance:
 
-pyreduce.rectify module
------------------------
-
-.. automodule:: pyreduce.rectify
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pyreduce.numpy_slitdec module
 -----------------------------
 

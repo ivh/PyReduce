@@ -18,7 +18,6 @@ from .calibration import (
     NormalizeFlatField,
 )
 from .extraction import (
-    RectifyImage,
     ScienceExtraction,
 )
 from .output import (
@@ -49,7 +48,6 @@ __all__ = [
     "LaserFrequencyCombMaster",
     "Mask",
     "NormalizeFlatField",
-    "RectifyImage",
     "ScienceExtraction",
     "SlitCurvatureDetermination",
     "Step",

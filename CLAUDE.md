@@ -34,7 +34,7 @@ pyreduce/
 │   ├── calibration.py   # Mask, Bias, Flat, BackgroundScatter, NormalizeFlatField
 │   ├── trace.py         # Trace, SlitCurvatureDetermination
 │   ├── wavecal.py       # WavelengthCalibration*, LaserFrequencyComb*
-│   ├── extraction.py    # ScienceExtraction, RectifyImage
+│   ├── extraction.py    # ScienceExtraction
 │   └── output.py        # ContinuumNormalization, Finalize
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction (swaths, backend selection)

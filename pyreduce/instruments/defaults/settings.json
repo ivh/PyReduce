@@ -157,12 +157,6 @@
         "plot": true,
         "plot_title": "Slit Curvature"
     },
-    "rectify": {
-        "extraction_height": null,
-        "input_files": "science",
-        "plot": true,
-        "plot_title": "Rectified Image"
-    },
     "science": {
         "extraction_method": "optimal",
         "extraction_height": null,

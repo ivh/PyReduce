@@ -395,13 +395,6 @@ class TestPipelineFluentMethods:
         step_names = [s[0] for s in pipe._steps]
         assert "finalize" in step_names
 
-    @pytest.mark.unit
-    def test_rectify_method(self, tmp_path):
-        """Test rectify() method."""
-        pipe = Pipeline("UVES", str(tmp_path)).rectify()
-        step_names = [s[0] for s in pipe._steps]
-        assert "rectify" in step_names
-
 
 class TestPipelineFromFiles:
     """Test Pipeline.from_files() class method."""
@@ -471,8 +464,10 @@ class TestPipelineFromFiles:
         )
 
         step_names = [s[0] for s in pipe._steps]
-        # Should include all steps from STEP_ORDER
-        assert len(step_names) > 5
+        assert "continuum" in step_names
+        assert "finalize" in step_names
+        # no LFC frames, so the comb steps would only fail on a missing master
+        assert not any(s.startswith("freq_comb") for s in step_names)
 
     @pytest.mark.unit
     def test_from_files_registers_files(self, tmp_path):

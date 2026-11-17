@@ -55,7 +55,6 @@ from .steps import (
     LaserFrequencyCombMaster,
     Mask,
     NormalizeFlatField,
-    RectifyImage,
     ScienceExtraction,
     SlitCurvatureDetermination,
     Trace,
@@ -89,7 +88,6 @@ class Pipeline:
         "science": ScienceExtraction,
         "continuum": ContinuumNormalization,
         "finalize": Finalize,
-        "rectify": RectifyImage,
     }
 
     STEP_ORDER = {
@@ -105,7 +103,6 @@ class Pipeline:
         "wavecal": 67,
         "freq_comb_master": 70,
         "freq_comb": 72,
-        "rectify": 75,
         "science": 80,
         "continuum": 90,
         "finalize": 100,
@@ -442,10 +439,6 @@ class Pipeline:
         """Write final output files."""
         return self._add_step("finalize")
 
-    def rectify(self) -> Pipeline:
-        """Rectify 2D image."""
-        return self._add_step("rectify")
-
     # Loading intermediate results
 
     def load(self, step: str, data=None) -> Pipeline:
@@ -628,6 +621,9 @@ class Pipeline:
 
         if steps == "all":
             steps = list(cls.STEP_ORDER.keys())
+            # mask is pulled in as a dependency; freq_comb needs LFC frames
+            if not len(files.get("freq_comb_master", [])):
+                steps = [s for s in steps if not s.startswith("freq_comb")]
 
         # Register files for steps that may be needed as dependencies
         # (even if the step itself isn't in the steps list)
@@ -672,7 +668,6 @@ class Pipeline:
                 else pipe
             ),
             "freq_comb": lambda: pipe.freq_comb(),
-            "rectify": lambda: pipe.rectify(),
             "science": lambda: (
                 pipe.extract(files.get("science", []))
                 if len(files.get("science", []))

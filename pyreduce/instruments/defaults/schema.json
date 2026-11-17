@@ -552,46 +552,6 @@
                 }
             ]
         },
-        "rectify": {
-            "allOf": [
-                {
-                    "$ref": "#/definitions/step"
-                },
-                {
-                    "type": "object",
-                    "properties": {
-                        "extraction_height": {
-                            "description": "Total extraction height in pixels (split evenly above/below trace). Values under 2 are interpreted as fractions of order spacing. If null, uses heights computed from trace spacing.",
-                            "type": [
-                                "integer",
-                                "number",
-                                "null"
-                            ],
-                            "items": {
-                                "type": [
-                                    "integer",
-                                    "number"
-                                ]
-                            }
-                        },
-                        "input_files": {
-                            "description": "Which input files to rectify. Usually 'science' for the science files, but could be any other step with input files",
-                            "type": "string",
-                            "enum": [
-                                "science",
-                                "flat",
-                                "bias",
-                                "scatter",
-                                "trace",
-                                "curvature",
-                                "wavecal",
-                                "freq_comb"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
         "science": {
             "allOf": [
                 {

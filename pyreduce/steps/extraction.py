@@ -1,18 +1,15 @@
-"""Image rectification and science extraction steps."""
+"""Science extraction step."""
 
 import logging
 
 import joblib
 import numpy as np
-from astropy.io import fits
 from tqdm import tqdm
 
 # PyReduce subpackages
 from .. import util
 from ..estimate_background_scatter import as_scatter_coeff
 from ..extract import extract
-from ..provenance import add_provenance
-from ..rectify import merge_images, rectify_image
 from ..spectra import ExtractionParams, Spectra, Spectrum
 from ..trace_model import (
     Trace as TraceData,
@@ -20,83 +17,9 @@ from ..trace_model import (
 from .base import (
     CalibrationStep,
     ExtractionStep,
-    Step,
-    wavelengths_from_traces,
 )
 
 logger = logging.getLogger(__name__)
-
-
-class RectifyImage(Step):
-    """Create a 2D image of the rectified orders"""
-
-    def __init__(self, *args, **config):
-        super().__init__(*args, **config)
-        self._dependsOn += ["files", "trace", "mask"]
-        # self._loadDependsOn += []
-
-        self.extraction_height = config["extraction_height"]
-        self.input_files = config["input_files"]
-
-    def filename(self, name):
-        if self.channel:
-            ext = f".{self.channel.lower()}.rectify.fits"
-        else:
-            ext = ".rectify.fits"
-        return util.swap_extension(name, ext, path=self.output_dir)
-
-    def run(self, files, trace: list[TraceData], mask=None):
-        selected = self._select_traces(trace, "science")
-        flat_traces = [t for group in selected.values() for t in group]
-
-        # Get wavelengths from traces (includes freq_comb improvements if run)
-        wave = wavelengths_from_traces(flat_traces)
-
-        files = files[self.input_files]
-
-        rectified = {}
-        for fname in tqdm(files, desc="Files"):
-            img, head = self.instrument.load_fits(
-                fname, self.channel, mask=mask, dtype="f8"
-            )
-
-            images, cr, xwd = rectify_image(
-                img,
-                flat_traces,
-                self.extraction_height,
-                self.trace_range,
-            )
-            wavelength, image = merge_images(images, wave, cr, xwd)
-
-            self.save(fname, image, wavelength, header=head)
-            rectified[fname] = (wavelength, image)
-
-        return rectified
-
-    def save(self, fname, image, wavelength, header=None):
-        # Change filename
-        fname = self.filename(fname)
-        # Create HDU List, one extension per order
-        primary = fits.PrimaryHDU(header=add_provenance(header))
-        secondary = fits.ImageHDU(data=image)
-        column = fits.Column(name="wavelength", array=wavelength, format="D")
-        tertiary = fits.BinTableHDU.from_columns([column])
-        hdus = fits.HDUList([primary, secondary, tertiary])
-        # Save data to file
-        hdus.writeto(fname, overwrite=True, output_verify="silentfix")
-
-    def load(self, files):
-        files = files[self.input_files]
-
-        rectified = {}
-        for orig_fname in files:
-            fname = self.filename(orig_fname)
-            with fits.open(fname, memmap=False) as hdu:
-                img = hdu[1].data
-                wave = hdu[2].data["wavelength"]
-            rectified[orig_fname] = (wave, img)
-
-        return rectified
 
 
 class ScienceExtraction(CalibrationStep, ExtractionStep):

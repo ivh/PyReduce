@@ -23,7 +23,6 @@ steps = (
     "wavecal_master",
     # "wavecal_init",
     "wavecal",
-    # "rectify",
     # "science",
     # "continuum",
     # "finalize",
