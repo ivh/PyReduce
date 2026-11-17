@@ -9,15 +9,13 @@
         "filter_y": 8
     },
     "norm_flat": {
-        "extraction_height": 6,
-        "oversampling": 10
+        "extraction_height": 6
     },
     "wavecal_master": {
         "extraction_height": 6
     },
     "science": {
         "extraction_height": 6,
-        "oversampling": 10,
         "swath_width": 600,
         "smooth_slitfunction": 2
     }

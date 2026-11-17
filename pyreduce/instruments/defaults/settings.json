@@ -99,7 +99,8 @@
         "cutoff": 0.01,
         "smoothing": 0,
         "plot": true,
-        "plot_title": "Wavelength Calibration Initial"
+        "plot_title": "Wavelength Calibration Initial",
+        "wave_delta": 20
     },
     "wavecal": {
         "manual": false,
@@ -147,7 +148,6 @@
         "collapse_function": "median",
         "curve_height": 0.5,
         "extraction_height": null,
-        "curvature_cutoff": 3,
         "peak_threshold": 10,
         "peak_width": 1,
         "window_width": 9,

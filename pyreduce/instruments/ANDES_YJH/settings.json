@@ -2,8 +2,6 @@
     "__instrument__": "ANDES_YJH",
     "__inherits__": "defaults/settings.json",
     "trace": {
-        "degree": 4,
-        "noise": 0,
         "min_cluster": 2000,
         "min_width": 0.5,
         "filter_y": 8,
@@ -20,8 +18,7 @@
         "degree": 5
     },
     "science": {
-        "extraction_method": "optimal",
-        "swath_width"   : 500,
+        "swath_width": 500,
         "oversampling": 8
     }
 }

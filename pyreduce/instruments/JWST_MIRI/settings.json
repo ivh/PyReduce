@@ -1,12 +1,9 @@
 {
     "__instrument__": "JWST_MIRI",
     "__inherits__": "defaults/settings.json",
-    "instrument": {},
     "trace": {
-        "degree": 4,
         "filter_y": 1,
         "min_cluster": 0,
-        "noise": 0,
         "border_width": 0,
         "auto_merge_threshold": 0,
         "merge_min_threshold": 0,
@@ -17,7 +14,6 @@
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0,
         "extraction_height": 30,
         "oversampling": 12,
         "swath_width": 100,
@@ -27,18 +23,13 @@
         "extraction_height": 20
     },
     "wavecal": {
-        "threshold": 100,
         "dimensionality": "1D",
-        "degree": 2,
-        "manual": false
+        "degree": 2
     },
     "freq_comb_master": {
         "extraction_height": 20
     },
     "freq_comb": {
-        "threshold": 100,
-        "dimensionality": "2D",
-        "nstep": 0,
         "degree": [
             19,
             10

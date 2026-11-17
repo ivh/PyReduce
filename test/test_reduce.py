@@ -439,7 +439,6 @@ class TestSlitCurvatureDetermination:
         """Curvature is stored in traces, load() always returns None."""
         config = {
             "plot": False,
-            "curvature_cutoff": 3,
             "extraction_height": 0.5,
             "curve_height": 0.5,
             "degree": 2,

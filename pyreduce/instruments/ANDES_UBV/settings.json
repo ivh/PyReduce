@@ -2,8 +2,6 @@
     "__instrument__": "ANDES_UBV",
     "__inherits__": "defaults/settings.json",
     "trace": {
-        "degree": 4,
-        "noise": 0,
         "min_cluster": 2000,
         "min_width": 0.8,
         "filter_y": 14,

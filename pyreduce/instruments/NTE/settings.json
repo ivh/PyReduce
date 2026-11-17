@@ -28,7 +28,6 @@
     "wavecal_init": {
         "atlas": "sky"
     },
-    "wavecal": {},
     "freq_comb_master": {
         "extraction_method": "optimal",
         "extraction_height": 0.9,
@@ -36,26 +35,20 @@
         "swath_width": 300,
         "maxiter": 20,
         "smooth_slitfunction": 0.1,
-        "smooth_spectrum": 1e-7,
+        "smooth_spectrum": 1e-07,
         "norm_scaling": "none"
     },
-    "freq_comb": {},
     "curvature": {
-        "extraction_method": "simple",
         "collapse_function": "sum",
         "curve_height": 1.0,
         "extraction_height": 1,
         "peak_threshold": 0.1,
-        "peak_width": 1,
         "window_width": 5,
         "dimensionality": "2D",
         "degree": [
             1,
             1
         ],
-        "curve_degree": 1,
-        "peak_function": "gaussian",
         "bias_scaling": "exposure_time"
-    },
-    "science": {}
+    }
 }

@@ -394,6 +394,11 @@
                             "type": "integer",
                             "minimum": 0
                         },
+                        "nstep": {
+                            "description": "Number of detector stitching steps to fit; 0 for a monolithic detector",
+                            "type": "integer",
+                            "minimum": 0
+                        },
                         "shift_window": {
                             "description": "The fraction of the columns that each order can be shifted individually to align with the reference",
                             "type": "number",
@@ -453,6 +458,11 @@
                 {
                     "type": "object",
                     "properties": {
+                        "nstep": {
+                            "description": "Number of detector stitching steps to fit; 0 for a monolithic detector",
+                            "type": "integer",
+                            "minimum": 0
+                        },
                         "lfc_peak_width": {
                             "description": "Required width of the frequency comb peaks, in the peak detection algorithm",
                             "type": [
@@ -638,6 +648,11 @@
                             "description": "Smoothing parameter for the spectrum",
                             "type": "number",
                             "minimum": 0
+                        },
+                        "maxiter": {
+                            "description": "Maximum number of slit decomposition iterations per swath",
+                            "type": "integer",
+                            "minimum": 1
                         },
                         "swath_width": {
                             "description": "Approximate width of each swath. Exact width might vary slightly",

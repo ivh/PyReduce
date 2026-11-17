@@ -28,13 +28,11 @@
         "smooth_slitfunction": 1000.0,
         "extraction_height": 1.0,
         "oversampling": 12,
-        "swath_width": 200,
         "threshold": 1000
     },
     "curvature": {
         "bias_scaling": "exposure_time",
         "dimensionality": "2D",
-        "curve_degree": 1,
         "curve_height": 0.9,
         "extraction_height": 1,
         "degree": [
@@ -43,33 +41,21 @@
         ]
     },
     "wavecal_master": {
-        "extraction_method": "simple",
         "bias_scaling": "exposure_time"
     },
     "wavecal": {
         "threshold": 200,
-        "iterations": 3,
-        "dimensionality": "2D",
         "degree": [
             7,
             8
         ],
-        "manual": false,
         "shift_window": 0
     },
     "freq_comb_master": {
         "bias_scaling": "exposure_time"
     },
-    "freq_comb": {
-        "dimensionality": "2D",
-        "degree": [
-            6,
-            6
-        ]
-    },
     "science": {
         "bias_scaling": "exposure_time",
-        "oversampling": 10,
         "extraction_height": 0.9,
         "swath_width": 400,
         "smooth_slitfunction": 2,

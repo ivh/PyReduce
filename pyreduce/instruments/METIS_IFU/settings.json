@@ -1,20 +1,15 @@
 {
     "__instrument__": "METIS_IFU",
     "__inherits__": "defaults/settings.json",
-    "bias": {
-        "degree": 0
-    },
     "flat": {
         "bias_scaling": "exposure_time"
     },
     "trace": {
-        "degree": 4,
         "degree_before_merge": "best",
         "filter_y": 20,
         "min_cluster": 100,
         "noise": 120,
         "border_width": 6,
-        "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.01,
         "bias_scaling": "exposure_time"
     },
@@ -27,40 +22,33 @@
         "smooth_slitfunction": 1000.0,
         "extraction_height": 0.28,
         "oversampling": 12,
-        "swath_width": 200,
         "threshold": 1000
     },
     "curvature": {
-        "extraction_method": "simple",
-        "dimensionality": "1D",
         "curve_degree": 2,
         "collapse_function": "mean",
         "curve_height": 1.54,
         "extraction_height": 1,
-        "curvature_cutoff": 3,
         "peak_threshold": 0.9725,
-        "peak_width": 1,
         "window_width": 1,
         "peak_function": "lorentzian",
         "bias_scaling": "exposure_time",
         "degree": 2
     },
     "wavecal_master": {
-        "extraction_method": "simple",
-        "collapse_function": "median",
         "extraction_height": 1.565,
         "bias_scaling": "exposure_time"
     },
     "wavecal": {
         "threshold": 70,
-        "iterations": 3,
-        "dimensionality": "2D",
-        "degree": [4, 4],
+        "degree": [
+            4,
+            4
+        ],
         "manual": true,
         "shift_window": 0.1
     },
     "science": {
-        "oversampling": 10,
         "extraction_height": 0.2847,
         "swath_width": 400,
         "smooth_slitfunction": 2,

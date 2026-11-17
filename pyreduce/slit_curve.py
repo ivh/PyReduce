@@ -43,7 +43,6 @@ class Curvature:
         peak_threshold=10,
         peak_width=1,
         fit_degree=2,
-        sigma_cutoff=3,
         mode="1D",
         plot=False,
         plot_title=None,
@@ -60,7 +59,6 @@ class Curvature:
         self.threshold = peak_threshold
         self.peak_width = peak_width
         self.fit_degree = fit_degree
-        self.sigma_cutoff = sigma_cutoff
         self.mode = mode
         self.plot = plot
         self.plot_title = plot_title

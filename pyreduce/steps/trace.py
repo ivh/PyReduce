@@ -438,8 +438,6 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
         super().__init__(*args, **config)
         # No additional dependencies beyond CalibrationStep and ExtractionStep
 
-        #:float: how many sigma of bad lines to cut away
-        self.sigma_cutoff = config["curvature_cutoff"]
         #:float: extraction height for peak finding spectrum
         self.extraction_height = config["extraction_height"]
         #:float: height of the 2D cutout for curvature fitting
@@ -494,7 +492,6 @@ class SlitCurvatureDetermination(CalibrationStep, ExtractionStep):
             trace_range=self.trace_range,
             fit_degree=self.fit_degree,
             curve_degree=self.curve_degree,
-            sigma_cutoff=self.sigma_cutoff,
             mode=self.curvature_mode,
             peak_threshold=self.peak_threshold,
             peak_width=self.peak_width,

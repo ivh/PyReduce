@@ -1,11 +1,7 @@
 {
     "__instrument__": "LICK_APF",
     "__inherits__": "defaults/settings.json",
-    "instrument": {},
-    "bias": {},
-    "flat": {},
     "trace": {
-        "degree": 4,
         "filter_y": 25,
         "min_cluster": 700,
         "min_width": 0.5,
@@ -20,12 +16,10 @@
         "manual": false
     },
     "scatter": {
-        "extraction_height": 0.6,
         "scatter_degree": 2
     },
     "norm_flat": {
         "smooth_slitfunction": 2,
-        "smooth_spectrum": 0,
         "extraction_height": 18,
         "oversampling": 12,
         "swath_width": 300
@@ -34,38 +28,24 @@
         "extraction_height": 0.5
     },
     "wavecal": {
-        "threshold": 100,
-        "dimensionality": "2D",
         "degree": [
             2,
             6
-        ],
-        "manual": false
+        ]
     },
     "freq_comb_master": {
         "extraction_height": 0.5
     },
-    "freq_comb": {
-        "dimensionality": "2D",
-        "degree": [
-            6,
-            6
-        ]
-    },
     "curvature": {
-        "curve_height": 0.5,
         "extraction_height": 1,
-        "dimensionality": "1D",
         "degree": 2
     },
     "science": {
-        "oversampling": 10,
         "extraction_height": 16,
         "swath_width": 800,
         "smooth_slitfunction": 6,
         "smooth_spectrum": 0
     },
-    "continuum": {},
     "finalize": {
         "filename": "{input}.fits"
     }

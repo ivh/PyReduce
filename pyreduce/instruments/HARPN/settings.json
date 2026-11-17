@@ -5,17 +5,12 @@
         "min_cluster": 2000
     },
     "wavecal_master": {
-        "extraction_height": 10,
-        "collapse_function": "median",
-        "bias_scaling": "number_of_files"
+        "extraction_height": 10
     },
     "wavecal": {
         "degree": [
             5,
             5
-        ],
-        "atlas": "thar",
-        "medium": "vac",
-        "correlate_cols": 0
+        ]
     }
 }

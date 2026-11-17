@@ -1,9 +1,6 @@
 {
     "__instrument__": "MICADO",
     "__inherits__": "defaults/settings.json",
-    "flat": {
-        "bias_scaling": "number_of_files"
-    },
     "trace": {
         "degree": 5,
         "degree_before_merge": "best",
@@ -12,13 +9,10 @@
         "min_cluster": 500,
         "noise": 100,
         "border_width": 5,
-        "auto_merge_threshold": 0.9,
         "merge_min_threshold": 0.01,
-        "manual": true,
         "min_width": 0
     },
     "scatter": {
-        "bias_scaling": "number_of_files",
         "extraction_height": 0.9,
         "border_width": 20
     },
@@ -26,18 +20,13 @@
         "smooth_slitfunction": 1000.0,
         "extraction_height": 0.28,
         "oversampling": 12,
-        "swath_width": 200,
         "threshold": 1000
     },
     "curvature": {
-        "extraction_method": "simple",
         "dimensionality": "2D",
-        "curve_degree": 1,
         "collapse_function": "mean",
         "curve_height": 700,
         "extraction_height": 233,
-        "curvature_cutoff": 10,
-        "peak_threshold": 10,
         "peak_width": 2,
         "window_width": 5,
         "peak_function": "lorentzian",
@@ -48,18 +37,12 @@
         ]
     },
     "wavecal_master": {
-        "extraction_method": "simple",
         "collapse_function": "mean",
         "extraction_height": 700,
         "bias_scaling": "exposure_time"
     },
     "wavecal": {
-        "extraction_method": "optimal",
-        "bias_scaling": "number_of_files",
         "threshold": 80,
-        "iterations": 3,
-        "dimensionality": "2D",
-        "extraction_height": 700,
         "degree": [
             5,
             5
@@ -68,7 +51,6 @@
         "shift_window": 0.1
     },
     "science": {
-        "oversampling": 10,
         "extraction_height": 0.2847,
         "swath_width": 400,
         "smooth_slitfunction": 2,

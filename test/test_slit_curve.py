@@ -458,7 +458,6 @@ def test_curvature(original, traces, trace_range, settings):
         peak_threshold=settings["peak_threshold"],
         peak_width=settings["peak_width"],
         fit_degree=settings["degree"],
-        sigma_cutoff=settings["curvature_cutoff"],
         peak_function=settings["peak_function"],
         mode="1D",
         curve_degree=2,
@@ -485,7 +484,6 @@ def test_curvature(original, traces, trace_range, settings):
         peak_threshold=settings["peak_threshold"],
         peak_width=settings["peak_width"],
         fit_degree=settings["degree"],
-        sigma_cutoff=settings["curvature_cutoff"],
         peak_function=settings["peak_function"],
         mode="2D",
         curve_degree=1,
@@ -534,7 +532,7 @@ def test_curvature_zero(original, traces, trace_range):
     original = np.zeros_like(original)
 
     # With zero image, should produce zero curvature
-    module = CurvatureModule(traces_subset, plot=False, sigma_cutoff=0)
+    module = CurvatureModule(traces_subset, plot=False)
     _ = module.execute(original)
 
 
