@@ -616,37 +616,6 @@ class TestWavecalFinalizeTraceUpdate:
         ]
 
     @pytest.mark.unit
-    def test_group_lookup_by_group_name(self, traces_with_groups):
-        """Traces are correctly grouped by group attribute."""
-        traces_by_group = {}
-        for i, t in enumerate(traces_with_groups):
-            g = str(t.group) if t.group is not None else "all"
-            if g not in traces_by_group:
-                traces_by_group[g] = []
-            traces_by_group[g].append((i, t))
-
-        assert "A" in traces_by_group
-        assert "B" in traces_by_group
-        assert len(traces_by_group["A"]) == 2
-        assert len(traces_by_group["B"]) == 2
-
-    @pytest.mark.unit
-    def test_group_lookup_by_fiber_idx(self, traces_with_fibers):
-        """Traces are correctly grouped by fiber_idx."""
-        traces_by_fiber = {}
-        for i, t in enumerate(traces_with_fibers):
-            if t.fiber_idx is not None:
-                fkey = f"fiber_{t.fiber_idx}"
-                if fkey not in traces_by_fiber:
-                    traces_by_fiber[fkey] = []
-                traces_by_fiber[fkey].append((i, t))
-
-        assert "fiber_0" in traces_by_fiber
-        assert "fiber_1" in traces_by_fiber
-        assert len(traces_by_fiber["fiber_0"]) == 2
-        assert len(traces_by_fiber["fiber_1"]) == 2
-
-    @pytest.mark.unit
     def test_wavecal_finalize_saves_to_traces_1d(
         self, mock_instrument, tmp_path, traces_with_groups
     ):
@@ -1213,8 +1182,8 @@ class TestWavecalInitIdentify:
         assert len(ll) == 0
 
     @pytest.mark.unit
-    def test_offset_voting_corrects_shift(self):
-        """A systematic shift in wave_range is corrected by offset voting."""
+    def test_cross_correlation_corrects_shift(self):
+        """A systematic shift in wave_range is corrected by the cross-correlation."""
         npix = 1000
         peak_pixels = np.array([100, 200, 300, 400, 500, 600, 700, 800, 900])
         true_waves = 5000 + 0.05 * peak_pixels

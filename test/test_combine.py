@@ -43,13 +43,6 @@ def test_running_median(buffer, size):
     assert np.array_equal(result, compare)
 
 
-def test_running_mean(buffer, size):
-    result = combine_frames.running_median(buffer, size)
-    compare = np.array([np.arange(1, 9), np.arange(2, 10), np.arange(3, 11)])
-
-    assert np.array_equal(result, compare)
-
-
 def test_calculate_probability(buffer):
     window = 1
     compare = np.array(

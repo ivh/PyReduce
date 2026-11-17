@@ -5,7 +5,6 @@ from shutil import rmtree
 
 # Stop matplotlib from crashing if interactive plotting does not work
 import matplotlib as mpl
-import numpy as np
 import pytest
 
 mpl.use("agg")
@@ -18,7 +17,6 @@ from pyreduce.reduce import (
     Mask,
     NormalizeFlatField,
     ScienceExtraction,
-    SlitCurvatureDetermination,
     Trace,
     WavelengthCalibrationFinalize,
     WavelengthCalibrationInitialize,
@@ -176,7 +174,8 @@ def night(dataset):
     """
 
     _, target = dataset
-    if target == "HD132205":
+    # dataset targets are regexes, e.g. "HD[ -]?132205"
+    if "132205" in target:
         return "2010-04-01"
     if target == "UX-Ori":
         return "2009-10-04"
@@ -393,27 +392,6 @@ def files(input_dir, instrument, target, night, channel, settings, instr):
 
 
 @pytest.fixture
-def prefix(instrument, channel):
-    """Prefix for the output files
-
-    Parameters
-    ----------
-    instrument : str
-        instrument name
-    channel : str
-        instrument channel
-
-    Returns
-    -------
-    prefix : str
-        instrument_arm
-    """
-
-    prefix = f"{instrument.lower()}_{channel.lower()}"
-    return prefix
-
-
-@pytest.fixture
 def step_args(instr, channel, target, night, output_dir, trace_range):
     return instr, channel, target, night, output_dir, trace_range
 
@@ -536,18 +514,6 @@ def traces(step_args, settings, files, mask, bias):
 
 
 @pytest.fixture
-def orders(traces):
-    """Legacy fixture: returns (orders_arr, column_range) tuple from traces.
-
-    Use 'traces' fixture directly for new code.
-    """
-    # Build arrays from Trace objects for legacy test compatibility
-    orders_arr = np.array([t.pos for t in traces])
-    column_range = np.array([t.column_range for t in traces])
-    return orders_arr, column_range
-
-
-@pytest.fixture
 def scatter(step_args, settings, files, mask, bias, traces):
     name = "scatter"
     settings = settings[name]
@@ -605,22 +571,6 @@ def normflat(step_args, settings, flat, traces, scatter):
 
 
 @pytest.fixture
-def curvature(step_args, settings, files, traces, mask):
-    name = "curvature"
-    files = files[name]
-    settings = settings[name]
-    settings["plot"] = False
-
-    step = SlitCurvatureDetermination(*step_args, **settings)
-
-    try:
-        curv = step.load()
-    except FileNotFoundError:
-        curv = step.run(files, traces, mask=mask)
-    return curv
-
-
-@pytest.fixture
 def wave_master(step_args, settings, files, traces, mask, bias, normflat):
     """Load or create wavelength calibration files
 
@@ -672,41 +622,40 @@ def wave_master(step_args, settings, files, traces, mask, bias, normflat):
 
 
 @pytest.fixture
-def wave_init(step_args, settings, wave_master):
+def wave_init(step_args, settings, wave_master, traces):
+    """Initial linelists per group, {group: LineList}, or None without a master."""
+    if wave_master[0] is None:
+        return None
     name = "wavecal_init"
     settings[name]["plot"] = False
 
     step = WavelengthCalibrationInitialize(*step_args, **settings[name])
-
+    master = {"all": wave_master}
     try:
-        linelist = step.load(settings, wave_master)
-    except:
-        linelist = None
-    return linelist
+        return step.load(settings, master)
+    except FileNotFoundError:
+        return step.run(master, traces)
 
 
 @pytest.fixture
-def wlen(step_args, settings, wave_master, wave_init):
-    """Load or create wavelength calibration files
+def wlen(step_args, settings, wave_master, wave_init, traces, spec):
+    """Wavelength of every science row, array (ntrace, ncol), or None."""
+    from pyreduce.steps.base import wavelengths_from_traces
 
-    Returns
-    -------
-    wlen : array(float) of size (norder, ncol)
-        Wavelength along the spectral orders
-    """
+    if wave_init is None:
+        return None
     name = "wavecal"
     settings[name]["plot"] = False
 
     step = WavelengthCalibrationFinalize(*step_args, **settings[name])
+    if not any(t.wave is not None for t in traces):
+        step.run({"all": wave_master}, wave_init, traces)
 
-    try:
-        wlen, wave, linelist = step.load()
-    except FileNotFoundError:
-        try:
-            wlen, wave, linelist = step.run(wave_master, wave_init)
-        except Exception:
-            wlen = None
-    return wlen
+    selected = step._select_traces(traces, "science")
+    science_traces = [t for group in selected.values() for t in group]
+    if step.trace_range is not None:
+        science_traces = science_traces[step.trace_range[0] : step.trace_range[1]]
+    return wavelengths_from_traces(science_traces, ncol=spec[0].shape[1])
 
 
 @pytest.fixture

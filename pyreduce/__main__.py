@@ -464,7 +464,6 @@ def make_step_command(step_name):
 
             # Steps that don't take raw files - --file makes no sense
             no_file_steps = {
-                "mask",
                 "norm_flat",
                 "wavecal_init",
                 "wavecal",

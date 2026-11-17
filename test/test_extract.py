@@ -212,7 +212,6 @@ def test_fix_parameters():
     ncol, nrow, nord = 100, 100, 1
 
     # Everything None, i.e. most default settings
-    # extraction_height is now full height, stored internally as half-height
     for xwd in [None, 0.4, 8, 20]:
         for cr in [None, (1, 90), [[4, 100]]]:
             xwd, cr, orders = extract.fix_parameters(xwd, cr, orders, ncol, nrow, nord)
@@ -1023,7 +1022,7 @@ class TestTraceCurvatureExtraction:
         spectra = extract.extract(
             img,
             traces,
-            extraction_height=10,  # Should be overridden by trace.height
+            extraction_height=10,  # the setting wins over trace.height
             osample=1,
         )
 

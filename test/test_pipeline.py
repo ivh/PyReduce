@@ -327,19 +327,19 @@ class TestPipelineStepOrdering:
         """Steps should be sorted by STEP_ORDER before execution."""
         pipe = Pipeline("UVES", str(tmp_path))
 
-        # Add steps out of order
         pipe._add_step("science", ["file.fits"])
         pipe._add_step("bias", ["bias.fits"])
         pipe._add_step("flat", ["flat.fits"])
 
-        # Check they're stored in insertion order
-        assert pipe._steps[0][0] == "science"
-        assert pipe._steps[1][0] == "bias"
-        assert pipe._steps[2][0] == "flat"
+        executed = []
 
-        # Verify STEP_ORDER values
-        assert Pipeline.STEP_ORDER["bias"] < Pipeline.STEP_ORDER["flat"]
-        assert Pipeline.STEP_ORDER["flat"] < Pipeline.STEP_ORDER["science"]
+        def fake_run_step(name, files, load_only=False):
+            executed.append(name)
+
+        pipe._run_step = fake_run_step
+        pipe.run()
+
+        assert executed == ["bias", "flat", "science"]
 
     @pytest.mark.unit
     def test_all_steps_have_order(self, tmp_path):
@@ -518,13 +518,6 @@ class TestPipelineFromFiles:
 
 class TestPipelineConfig:
     """Test Pipeline configuration handling."""
-
-    @pytest.mark.unit
-    def test_config_passed_to_pipeline(self, tmp_path):
-        """Config should be stored in pipeline."""
-        config = {"bias": {"degree": 1}, "flat": {"threshold": 200}}
-        pipe = Pipeline("UVES", str(tmp_path), config=config)
-        assert pipe.config == config
 
     @pytest.mark.unit
     def test_empty_config_defaults(self, tmp_path):

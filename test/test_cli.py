@@ -719,40 +719,6 @@ class TestErrorHandling:
         assert result.exit_code != 0
 
 
-class TestStepFileMode:
-    """Test --file option for step commands that support it."""
-
-    @patch("pyreduce.reduce.main")
-    def test_bias_supports_file_option(self, mock_main, runner):
-        """Test bias command accepts --file option."""
-        with tempfile.NamedTemporaryFile(suffix=".fits", delete=False) as f:
-            test_file = f.name
-
-        try:
-            result = runner.invoke(cli, ["bias", "UVES", "--file", test_file])
-            # Should either succeed or fail gracefully (depending on data availability)
-            assert result.exit_code in [
-                0,
-                1,
-                2,
-            ]  # 0=success, 1=runtime error, 2=usage error
-        finally:
-            os.unlink(test_file)
-
-    @patch("pyreduce.reduce.main")
-    def test_trace_supports_file_option(self, mock_main, runner):
-        """Test trace command accepts --file option."""
-        with tempfile.NamedTemporaryFile(suffix=".fits", delete=False) as f:
-            test_file = f.name
-
-        try:
-            result = runner.invoke(cli, ["trace", "UVES", "--file", test_file])
-            # Should either succeed or fail gracefully
-            assert result.exit_code in [0, 1, 2]
-        finally:
-            os.unlink(test_file)
-
-
 class TestCLIIntegration:
     """Integration tests for CLI."""
 
@@ -790,9 +756,16 @@ class TestCLIIntegration:
         assert list_result.exit_code == 0
         assert help_result.exit_code == 0
 
-        # All steps from list-steps should be in help
-        for step in ALL_STEPS[:5]:  # Sample check
-            assert step in list_result.output
+        commands = set(cli.commands)
+        for step in ALL_STEPS:
+            assert f"  - {step}" in list_result.output
+            assert step in commands
+
+    def test_all_steps_match_pipeline(self):
+        """Every pipeline step except mask (dependency only) is a CLI step."""
+        from pyreduce.pipeline import Pipeline
+
+        assert set(ALL_STEPS) == set(Pipeline.STEP_ORDER) - {"mask"}
 
 
 class TestExtractionBackendOption:

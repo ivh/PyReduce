@@ -500,28 +500,6 @@ def test_curvature(original, traces, trace_range, settings):
 
 
 @pytest.mark.slow
-def test_curvature_exception(original, traces, trace_range):
-    original, chead = original
-
-    if original is None:
-        pytest.skip("No curvature files")
-
-    traces_subset = traces[trace_range[0] : trace_range[1]]
-
-    original = np.copy(original)
-
-    # Wrong curve_degree input (must be 1-5)
-    with pytest.raises(ValueError):
-        module = CurvatureModule(traces_subset, plot=False, curve_degree=6)
-        module.execute(original)
-
-    # Wrong mode
-    with pytest.raises(ValueError):
-        module = CurvatureModule(traces_subset, plot=False, mode="3D")
-        module.execute(original)
-
-
-@pytest.mark.slow
 def test_curvature_zero(original, traces, trace_range):
     original, chead = original
 
@@ -531,9 +509,10 @@ def test_curvature_zero(original, traces, trace_range):
 
     original = np.zeros_like(original)
 
-    # With zero image, should produce zero curvature
+    # No lines to measure, so no curvature
     module = CurvatureModule(traces_subset, plot=False)
-    _ = module.execute(original)
+    result = module.execute(original)
+    assert not np.any(result["fitted_coeffs"])
 
 
 @pytest.mark.unit

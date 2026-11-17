@@ -61,7 +61,7 @@ def _assert_equivalent(swath, **kwargs):
     b = slitdec_numpy(**swath, **kwargs)
 
     assert b["return_code"] == a["return_code"]
-    # Same convergence path: iteration count, status and delta_x must match
+    # Same convergence path: iteration count, status and edge margin must match
     np.testing.assert_array_equal(a["info"][2:], b["info"][2:])
     np.testing.assert_array_equal(a["mask"], b["mask"])
     for key in ("spectrum", "slitfunction", "model", "uncertainty"):
