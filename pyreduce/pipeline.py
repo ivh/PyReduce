@@ -168,6 +168,7 @@ class Pipeline:
         self._steps: list[tuple[str, list | None]] = []
         self._data: dict = {}
         self._files: dict = {}
+        self._to_load: list[str] = []
 
     def _add_step(self, name: str, files: list | None = None) -> Pipeline:
         """Add a step to the pipeline."""
@@ -454,8 +455,8 @@ class Pipeline:
         if data is not None:
             self._data[step] = data
         else:
-            # Will be loaded during run()
-            self._data[step] = None  # Marker to load
+            # Loaded from disk at the start of run()
+            self._to_load.append(step)
         return self
 
     # Execution
@@ -528,7 +529,8 @@ class Pipeline:
         Parameters
         ----------
         skip_existing : bool
-            If True, skip steps whose output files already exist
+            If True, load each queued step from its saved output when that
+            exists, and run it only otherwise
 
         Returns
         -------
@@ -542,12 +544,15 @@ class Pipeline:
         # Sort steps by execution order
         sorted_steps = sorted(self._steps, key=lambda x: self.STEP_ORDER.get(x[0], 999))
 
+        for name in self._to_load:
+            self._ensure_dependency(name)
+
         for name, files in sorted_steps:
             # Check if already computed
             if name in self._data and self._data[name] is not None:
                 continue
 
-            result = self._run_step(name, files)
+            result = self._run_step(name, files, load_only=skip_existing)
             self._data[name] = result
 
         util.show_all()

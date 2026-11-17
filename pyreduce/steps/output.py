@@ -234,7 +234,7 @@ class Finalize(Step):
                     head, value, prefix=f"{prefix} {key.upper()}"
                 )
             else:
-                if key in ["plot", "$schema", "__skip_existing__"]:
+                if key in ["plot", "$schema"]:
                     # Skip values that are not relevant to the file product
                     continue
                 if value is None:

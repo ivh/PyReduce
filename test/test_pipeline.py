@@ -274,13 +274,37 @@ class TestPipelineLoad:
         assert pipe._data["bias"] is fake_bias
 
     @pytest.mark.unit
-    def test_load_without_data_marks_for_loading(self, tmp_path):
-        """Test load() without data sets marker for later loading."""
+    def test_load_without_data_loads_from_disk_on_run(self, tmp_path, monkeypatch):
+        """load(step) without data reads the step's saved output during run()."""
         pipe = Pipeline("UVES", str(tmp_path))
         pipe.load("trace")
+        assert "trace" not in pipe._data
 
-        assert "trace" in pipe._data
-        assert pipe._data["trace"] is None  # Marker for load-from-disk
+        calls = []
+        monkeypatch.setattr(
+            pipe,
+            "_run_step",
+            lambda name, files, load_only=False: calls.append((name, load_only))
+            or "loaded",
+        )
+        pipe.run()
+
+        assert calls == [("trace", True)]
+        assert pipe._data["trace"] == "loaded"
+
+    @pytest.mark.unit
+    def test_run_skip_existing_loads_queued_steps(self, tmp_path, monkeypatch):
+        """run(skip_existing=True) loads queued steps instead of recomputing."""
+        pipe = Pipeline("UVES", str(tmp_path)).bias(["b.fits"])
+        calls = []
+        monkeypatch.setattr(
+            pipe,
+            "_run_step",
+            lambda name, files, load_only=False: calls.append((name, load_only)),
+        )
+        pipe.run(skip_existing=True)
+
+        assert calls == [("bias", True)]
 
     @pytest.mark.unit
     def test_load_only_no_files_raises_clear_error(self, tmp_path):
