@@ -27,9 +27,9 @@ Example usage:
     )
 
     # For multi-fiber instruments with separate illumination files:
-    t1, cr1 = pipe.trace_raw([even_flat])
-    t2, cr2 = pipe.trace_raw([odd_flat])
-    pipe.organize(t1, cr1, t2, cr2)
+    t1 = pipe.trace_raw([even_flat])
+    t2 = pipe.trace_raw([odd_flat])
+    pipe.organize(t1, t2)
     pipe.extract([science_file]).run()
 """
 

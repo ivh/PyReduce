@@ -1,3 +1,5 @@
+Release notes for 0.9 and later are in [CHANGELOG.md](CHANGELOG.md); this file covers 0.8.
+
 ## What's New in PyReduce 0.8 ?
 
 ### Unified Trace Data Model

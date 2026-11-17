@@ -35,7 +35,7 @@ Alternatively, run the `wavecal_init` step in PyReduce if the instrument provide
 the correct initial wavelength guess via the `get_wavelength_range` function.
 
 The initial line identification detects peaks in the observed spectrum, matches them
-to atlas lines using offset voting and iterative polynomial fitting with outlier
+to atlas lines using an FFT cross-correlation for the offset and iterative polynomial fitting with outlier
 rejection. The created linelist should be saved to the location provided by
 `get_wavecal_filename` so `wavecal_init` only needs to run once.
 
@@ -89,19 +89,14 @@ and trace index (idx):
 wavelength = P(x, idx) = sum_{i,j} c_{i,j} * x^i * idx^j
 ```
 
-Currently the fit uses sequential trace indices (0, 1, 2, ...) as the order
-coordinate, assigned per group. Each trace stores its index in `_wave_idx`.
+The fit uses sequential trace indices (0, 1, 2, ...) within each group as the order
+coordinate. After the fit, `wavecal` evaluates the 2D polynomial at each trace's index
+and stores the resulting 1D polynomial in x as `Trace.wave`, so `Trace.wlen(x)` is a
+plain `np.polyval`. (Trace files from older versions may still carry a 2D `wave`, which
+`Trace.wlen` evaluates at the stored index.)
 
-When you call `Trace.wlen(x)`, it evaluates the 2D polynomial at the trace's index:
-
-```python
-# Inside Trace.wlen():
-wavelength = np.polynomial.polynomial.polyval2d(x, self._wave_idx, self.wave)
-```
-
-Physical order numbers (`trace.m`) are used for identification and matching, but the
-polynomial evaluation uses the sequential index because that is what the fit was built
-against.
+Physical order numbers (`trace.m`) are used for identification and output, not as the
+fit coordinate.
 
 ## Gas Lamp Calibration
 
@@ -117,7 +112,7 @@ The calibration process:
 5. Use the polynomial to identify additional peaks
 6. Iterate to refine the solution
 
-PyReduce uses a 2D polynomial where the order number is the second coordinate.
+PyReduce uses a 2D polynomial whose second coordinate is the trace index within the group.
 This works because wavelength derivatives between orders are similar.
 
 ## Frequency Comb / Fabry-Perot Interferometer

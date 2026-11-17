@@ -11,7 +11,7 @@ This means:
 - **Columns (x)** = wavelength/dispersion direction
 - **Rows (y)** = spatial/cross-dispersion direction
 - **Traces** are polynomial functions of x, giving y-position
-- **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
+- **`extraction_height`** is the extraction aperture size (fraction of order separation if < 2, else pixels)
 
 ## Mask Convention
 

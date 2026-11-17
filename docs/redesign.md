@@ -1,6 +1,6 @@
 # Architecture Changes (v0.7 / v0.8)
 
-This document summarizes the major changes for users coming back to PyReduce after the 0.7/0.8 series.
+This document summarizes the major changes for users coming back to PyReduce after the 0.7/0.8 series. It is a historical record of that redesign; later changes are in `CHANGELOG.md`.
 
 ---
 

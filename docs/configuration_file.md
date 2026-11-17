@@ -146,7 +146,7 @@ See `pyreduce/instruments/models.py` for the full schema.
 | `degree` | Polynomial degree for trace fitting | 4 |
 | `noise` | Absolute noise threshold for detection | 0 |
 | `noise_relative` | Relative noise threshold (fraction of image max) | 0 |
-| `min_cluster` | Minimum pixels for valid order | 500 |
+| `min_cluster` | Minimum pixels for valid order; estimated from the image if null | null |
 | `filter_y` | Median filter size in y | null |
 | `filter_x` | Median filter size in x | 0 |
 | `filter_type` | Filter type ("boxcar" or "median") | "boxcar" |
@@ -224,7 +224,7 @@ This performs single-pass extraction without iterating to find the slit function
 | `degree` | Polynomial degree [x, order] | [6, 6] |
 | `threshold` | Line detection threshold | 100 |
 | `iterations` | Refinement iterations | 3 |
-| `medium` | Refractive medium ("air" or "vacuum") | "air" |
+| `medium` | Refractive medium ("air" or "vac") | "vac" |
 | `dimensionality` | "1D" (per-trace) or "2D" (shared polynomial) | "2D" |
 | `atlas` | Line atlas name ("thar", "une", "lfc", etc.) | "thar" |
 
@@ -270,8 +270,5 @@ multi-fiber setup.
 
 ### Continuum Normalization
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `degree` | Polynomial degree for fit | 5 |
-| `sigma` | Sigma clipping threshold | 3 |
-| `iterations` | Fit iterations | 5 |
+The continuum step has no tunable parameters beyond `plot` and `plot_title`;
+the fit settings are fixed in `continuum_normalization.continuum_normalize`.

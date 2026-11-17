@@ -122,7 +122,7 @@ traces = trace_step.run(order_files, mask=mask, bias=bias)
 # Step 5: Curvature
 print("\n=== CURVATURE ===")
 curvature_step = SlitCurvatureDetermination(*step_args, **step_config("curvature"))
-curvature = curvature_step.run(curvature_files, traces, mask=mask, bias=bias)
+traces = curvature_step.run(curvature_files, traces, mask=mask, bias=bias)
 
 # Step 6: Normalize flat
 print("\n=== NORM_FLAT ===")
@@ -138,7 +138,6 @@ wavecal_master = wavecal_master_step.run(
     wavecal_files,
     traces,
     mask=mask,
-    curvature=curvature,
     bias=bias,
     norm_flat=norm_flat,
 )
@@ -148,10 +147,10 @@ wavecal_master = wavecal_master_step.run(
 wavecal_init_step = WavelengthCalibrationInitialize(
     *step_args, **step_config("wavecal_init")
 )
-wavecal_init = wavecal_init_step.run(wavecal_master)
+wavecal_init = wavecal_init_step.load(config, wavecal_master)
 
 wavecal_step = WavelengthCalibrationFinalize(*step_args, **step_config("wavecal"))
-wavecal = wavecal_step.run(wavecal_master, wavecal_init)
+wavecal = wavecal_step.run(wavecal_master, wavecal_init, traces)
 # wavecal returns {group: linelist}; wavelengths are stored in traces
 
 # Step 8: Science extraction
@@ -162,7 +161,6 @@ science = science_step.run(
     traces,
     bias=bias,
     norm_flat=norm_flat,
-    curvature=curvature,
     mask=mask,
 )
 

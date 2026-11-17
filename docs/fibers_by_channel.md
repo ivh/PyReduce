@@ -37,17 +37,16 @@ Add `channel` parameter and modify selection lookup:
 
 ```python
 def select_traces_for_step(
-    raw_traces,
-    raw_cr,
-    group_traces,
-    group_cr,
+    traces,
     fibers_config,
     step_name,
     channel=None,  # new parameter
 ):
     ...
-    if fibers_config.use is not None and step_name in fibers_config.use:
-        selection = fibers_config.use[step_name]
+    if fibers_config.use is not None:
+        selection = fibers_config.use.get(
+            step_name, fibers_config.use.get("default", "groups")
+        )
         # Handle per-channel dict
         if isinstance(selection, dict):
             selection = selection.get(channel, selection.get("default", "groups"))

@@ -83,6 +83,7 @@ previous runs if the output files exist.
 | `harpn_example.py` | HARPS-N (TNG) |
 | `xshooter_example.py` | ESO XSHOOTER |
 | `crires_plus_example.py` | ESO CRIRES+ |
+| `crires_lm.py` | ESO CRIRES+ L band flats |
 
 ### Space Telescopes
 
@@ -99,6 +100,7 @@ previous runs if the output files exist.
 | `lick_apf_example.py` | Lick APF |
 | `mcdonald_example.py` | McDonald Observatory |
 | `neid_example.py` | NEID |
+| `hermes_example.py` | Mercator HERMES |
 
 ### ELT Instruments (Simulated)
 
@@ -112,12 +114,14 @@ previous runs if the output files exist.
 | `andes_riz.py` | ELT ANDES R/IZ channels |
 | `andes_tracecurve.py` | ELT ANDES all bands (U/B/V/R/IZ/Y/J/H) |
 | `andes_yjh.py` | ELT ANDES YJH channels |
+| `andes_yjh_fp.py` | ELT ANDES H band: Fabry-Perot calibration fiber |
+| `andes_extract_single.py` | ELT ANDES V band: single-order extraction |
 
 ### Advanced Usage
 
 | Example | Description |
 |---------|-------------|
-| `mosaic_preset-slitfunc.py` | Using pre-computed slit function for single-pass extraction |
+| `uves_callfunc.py` | Calling each step class directly instead of using `Pipeline` |
 
 ### Templates
 

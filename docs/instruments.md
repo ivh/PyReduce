@@ -18,6 +18,7 @@ by creating YAML configuration files.
 - **JWST MIRI** - Mid-Infrared Instrument
 
 ### Other Observatories
+- **HERMES** - High Efficiency and Resolution Mercator Echelle Spectrograph
 - **Keck NIRSPEC** - Near-IR spectrograph
 - **Lick APF** - Automated Planet Finder
 - **McDonald** - McDonald Observatory spectrograph
@@ -39,13 +40,13 @@ by creating YAML configuration files.
 Create a YAML file defining your instrument:
 
 ```yaml
-# myinstrument.yaml
+# pyreduce/instruments/MYINSTRUMENT/config.yaml
 instrument: MyInstrument
+id_instrument: MyInstrument   # regex matched against the instrument keyword
 telescope: MyTelescope
 channels: [default]
 
 # Detector
-naxis: [2048, 2048]
 orientation: 0
 extension: 0
 gain: 1.0
@@ -65,13 +66,17 @@ kw_spec: IMAGETYP
 id_spec: object
 ```
 
-Load it directly:
+Load it by name:
 
 ```python
-from pyreduce.instruments import load_instrument
+from pyreduce.instruments.instrument_info import load_instrument
 
-inst = load_instrument("/path/to/myinstrument.yaml")
+inst = load_instrument("MYINSTRUMENT")
 ```
+
+For a quick one-off without creating a directory, use
+`pyreduce.instruments.common.create_custom_instrument(name, info=..., **overrides)`
+(see `examples/custom_instrument_example.py`).
 
 ### Method 2: Python Class
 
@@ -85,7 +90,8 @@ class MyInstrument(Instrument):
         super().__init__(*args, **kwargs)
         # Custom initialization
 
-    def add_header_info(self, header):
+    def add_header_info(self, header, channel, **kwargs):
+        header = super().add_header_info(header, channel)
         # Compute derived header values
         header["MJD_MID"] = header["MJD_OBS"] + header["EXPTIME"] / 86400 / 2
         return header
@@ -103,10 +109,11 @@ Place both files in `pyreduce/instruments/{NAME}/` directory (YAML as `config.ya
 
 | Field | Description |
 |-------|-------------|
-| `instrument` | Instrument name |
-| `telescope` | Telescope name |
-| `channels` | List of instrument channels/modes |
-| `naxis` | Detector dimensions [x, y] |
+| `instrument` | Instrument name (header keyword or literal) |
+| `id_instrument` | Pattern the instrument keyword must match |
+
+Everything else has a default in `instruments/defaults/config.yaml`; `channels`
+is needed only for multi-channel instruments.
 
 ### Detector Properties
 
@@ -130,7 +137,6 @@ These map instrument-specific header keywords to internal names:
 | `target` | Target name |
 | `exposure_time` | Exposure time |
 | `ra`, `dec` | Coordinates |
-| `jd` | Julian date |
 | `instrument_mode` | Instrument mode |
 
 ### File Classification

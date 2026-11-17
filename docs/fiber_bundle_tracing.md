@@ -89,8 +89,10 @@ The `bundle_centers.yaml` file maps bundle IDs to y-positions at detector center
 
 Each detected trace is assigned to its nearest bundle center. When merging:
 
-- **merge: center** with all fibers present: picks middle index (e.g., fiber 4 of 7)
-- **merge: center** with missing fibers: picks trace closest to bundle_center
+- **merge: center**: picks the middle index of the fibers present (fiber 4 of 7);
+  with fibers missing that is no longer the bundle's centre fiber
+- **merge: center_weight**: inverse-distance-weights every present fiber against
+  the bundle centre, so a missing centre fiber does not shift the merged y
 - **merge: average**: averages all present fibers (no extrapolation for missing)
 
 This approach handles arbitrary patterns of missing fibers without requiring the trace count to be divisible by bundle size.
@@ -101,7 +103,7 @@ For echelle instruments where fiber groups repeat across spectral orders (e.g., 
 
 ```yaml
 fibers:
-  fibers_per_order: 75              # Enables per-order organization
+  fibers_per_order: 75              # only used when no order_centers are given
   order_centers_file: order_centers.yaml  # Or inline with order_centers:
 
   groups:
@@ -118,10 +120,11 @@ fibers:
   use:
     science: [A, B]
     wavecal: [cal]
-    norm_flat: all
 ```
 
-Setting `fibers_per_order` enables per-order organization (no separate `per_order: true` needed).
+With `order_centers`, each trace gets the order number of the nearest centre and
+fibers are numbered by y within each order. Without them, `fibers_per_order`
+auto-pairs consecutive traces into orders of that many fibers.
 
 The `order_centers.yaml` file maps spectral order numbers to y-positions at detector center:
 
@@ -227,6 +230,7 @@ Tracing saves all traces to a FITS binary table (`.traces.fits`) with one row pe
 |--------|------|-------------|
 | M | int16 | Spectral order number (-1 if N/A) |
 | GROUP | 16A | Group/bundle identifier ('A', 'B', 'cal', etc.) |
+| BUNDLE | int16 | Bundle id, independent of m (-1 if N/A) |
 | FIBER_IDX | int16 | Fiber index within group (1-indexed, -1 if N/A) |
 | POS | float64[deg+1] | Position polynomial coefficients |
 | COL_RANGE | int32[2] | Valid x range [start, end) |
@@ -240,7 +244,7 @@ The `GROUP` column identifies which group/bundle each trace belongs to. The `FIB
 ### Automatic Extraction Heights
 
 The `heights` array stores per-trace extraction heights computed from trace geometry:
-- For middle traces: half the distance between neighboring traces
+- For middle traces: the distance to the nearer neighbouring trace
 - For edge traces: distance to the single neighbor
 - Measured at multiple reference columns; maximum is used
 
@@ -254,7 +258,7 @@ For groups/bundles, heights are derived from fiber spacing within each group (sp
 
 Simulated echelle spectrographs for visible wavelengths:
 - Fibers 1-31: Slit A
-- Fibers 33-35: Calibration
+- Fibers 33-34: Calibration (`range: [33, 35]`, ranges are half-open)
 - Fibers 36-66: Slit B
 - ANDES_UBV: channels U, B, V (selected by `BAND` header)
 - ANDES_RIZ: channels R, R1, R2, IZ (selected by `HDFMODEL` header, since R variants all have `BAND=R`)

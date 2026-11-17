@@ -36,16 +36,16 @@ uv run reduce run INSTRUMENT [OPTIONS]
 | `--night` | `-n` | Observation night (YYYY-MM-DD format) |
 | `--channel` | `-c` | Instrument channel/detector (e.g., RED, BLUE, middle) |
 | `--steps` | `-s` | Comma-separated steps to run (default: all) |
-| `--base-dir` | `-b` | Base data directory (default: $REDUCE_DATA or ~/REDUCE_DATA) |
+| `--base-dir` | `-b` | Base data directory (default: $REDUCE_DATA, else `reduce.base_dir` from the settings, `./`) |
 | `--input-dir` | `-i` | Input directory relative to base (default: raw) |
-| `--output-dir` | `-o` | Output directory relative to base (default: reduced) |
+| `--output-dir` | `-o` | Output directory relative to base (default: reduced/{night}) |
 | `--plot` | `-p` | Plot level: 0=none, 1=basic, 2=detailed |
 | `--plot-dir` | | Save plots to this directory as PNG files |
 | `--plot-show` | | Display mode: block, defer, or off |
 | `--trace-range` | | Trace range to process (e.g., "1,21") |
 | `--settings` | | JSON file with settings overrides |
 | `--use` | | Fiber group(s) to reduce (e.g., "upper" or "upper,lower") |
-| `--skip-existing` | | Skip steps whose output files already exist |
+| `--skip-existing` | | Load each step's saved output where it exists instead of rerunning it |
 | `--extraction` | | Slit decomposition backend: `c` (default), `charslit`, `numba`, `numpy` |
 
 **Examples:**
@@ -94,7 +94,8 @@ uv run reduce continuum INSTRUMENT [OPTIONS]
 uv run reduce finalize INSTRUMENT [OPTIONS]
 ```
 
-These accept the same options as `run` (including `-t/--target`) except `--steps`, plus:
+These accept `-t/-n/-c/-b/-i/-o/-p`, `--use` and `--extraction` like `run`
+(not `--steps`, `--plot-dir`, `--plot-show`, `--trace-range` or `--skip-existing`), plus:
 
 | Option | Short | Description |
 |--------|-------|-------------|
@@ -222,7 +223,7 @@ $REDUCE_DATA/
       {inst}_{chan}.flat.fits   # Master flat
       {inst}_{chan}.traces.fits # Traces and wavelength polynomials
       *.{chan}.science.fits     # Extracted spectra
-      *.{chan}.final.fits       # Final output
+      {inst}.{night}_{n}.final.fits  # Final output (finalize.filename)
 ```
 
 For multi-fiber instruments, group-specific files use the pattern
@@ -231,7 +232,10 @@ For multi-fiber instruments, group-specific files use the pattern
 The base directory can be set via:
 1. `--base-dir` option
 2. `REDUCE_DATA` environment variable
-3. Default: `~/REDUCE_DATA`
+3. Default: `reduce.base_dir` from the settings (`./`)
+
+`reduce download` puts sample data in `$REDUCE_DATA/INSTRUMENT/raw` (default
+`~/REDUCE_DATA`), so pass `--base-dir $REDUCE_DATA/INSTRUMENT` to reduce it.
 
 ## Exit Codes
 

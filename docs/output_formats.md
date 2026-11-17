@@ -63,7 +63,7 @@ The order number is assigned during reduction via:
 3. **Fallback**: For legacy files or MOSAIC mode, `M` may be -1 (unknown) or
    sequential from 0.
 
-The order number is used in 2D wavelength calibration polynomials. See
+The 2D wavelength fit itself runs on the trace index, not on `M`. See
 [Wavelength Calibration](wavecal_linelist.md) for details.
 
 Each row corresponds to one extracted trace/order.
@@ -83,7 +83,7 @@ spectra = Spectra.read("observation.science.fits")
 
 # Access individual spectra
 for s in spectra.data:
-    print(f"Order {s.m}, fiber {s.fiber}")
+    print(f"Order {s.m}, group {s.group}, fiber {s.fiber_idx}")
     print(f"  Wavelength range: {s.wave[~s.mask].min():.1f} - {s.wave[~s.mask].max():.1f} A")
 
 # Get stacked arrays

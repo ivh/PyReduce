@@ -90,7 +90,7 @@ settings, files = file_groups[0]
 # Extract file lists
 bias_files = files.get("bias", [])
 flat_files = files.get("flat", [])
-trace_files = files.get("orders", flat_files)
+trace_files = files.get("trace", flat_files)
 curvature_files = files.get("curvature", files.get("wavecal_master", []))
 wavecal_files = files.get("wavecal_master", [])
 science_files = files.get("science", [])
@@ -138,16 +138,17 @@ wavecal_master = wavecal_master_step.run(
 )
 
 wavecal_init_step = WavelengthCalibrationInitialize(*step_args, **step_config("wavecal_init"))
-wavecal_init = wavecal_init_step.run(wavecal_master)
+# load() starts from the instrument's shipped linelist; run() builds one from scratch
+wavecal_init = wavecal_init_step.load(config, wavecal_master)
 
 wavecal_step = WavelengthCalibrationFinalize(*step_args, **step_config("wavecal"))
-wavecal = wavecal_step.run(wavecal_master, wavecal_init)
+wavecal = wavecal_step.run(wavecal_master, wavecal_init, traces)
 # wavecal returns {group: linelist}; wavelengths are stored in traces
 
 # Step 8: Extract science spectra
 science_step = ScienceExtraction(*step_args, **step_config("science"))
 science = science_step.run(
-    science_files, bias, traces, norm_flat, scatter, mask
+    science_files, traces, bias, norm_flat, scatter, mask
 )
 
 # Step 9: Continuum normalization (gets wavelengths from traces)
@@ -172,9 +173,9 @@ Each step requires outputs from previous steps. Here's the dependency graph:
 | `SlitCurvatureDetermination` | files, trace, mask, bias (updates trace in-place) |
 | `NormalizeFlatField` | flat, trace, scatter |
 | `WavelengthCalibrationMaster` | files, trace, mask, bias, norm_flat |
-| `WavelengthCalibrationInitialize` | wavecal_master |
-| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init (stores wavelengths in traces) |
-| `ScienceExtraction` | files, bias, trace, norm_flat, scatter, mask |
+| `WavelengthCalibrationInitialize` | wavecal_master, trace (`load(config, wavecal_master)` for the shipped linelist) |
+| `WavelengthCalibrationFinalize` | wavecal_master, wavecal_init, trace (stores wavelengths in traces) |
+| `ScienceExtraction` | files, trace, bias, norm_flat, scatter, mask |
 | `ContinuumNormalization` | science, norm_flat, trace |
 | `Finalize` | continuum, trace, config |
 

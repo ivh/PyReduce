@@ -86,7 +86,7 @@ This means:
 - **Columns (x)** = wavelength/dispersion direction
 - **Rows (y)** = spatial/cross-dispersion direction
 - **Traces** are polynomial functions of x, giving y-position
-- **`extraction_height`** is the extraction aperture size (fraction of order separation, or pixels if >1.5)
+- **`extraction_height`** is the extraction aperture size (fraction of order separation if < 2, else pixels; scatter and curvature still use < 3)
 
 ## Spectral Order Numbers (Trace.m)
 
@@ -97,7 +97,7 @@ Each `Trace` has an `m` attribute representing the physical spectral (diffractio
 2. `obase` from linelist file (`wavecal_*.npz`) - assigned as `m = obase + trace_index` during wavecal
 3. Sequential fallback (legacy/MOSAIC mode)
 
-**Why it matters:** The 2D wavelength polynomial fits `wavelength = P(x, m)`. Using physical order numbers enables accurate interpolation between orders. `Trace.wlen(x)` evaluates this polynomial at the trace's order number.
+**What it is used for:** identification, matching and output. The 2D wavelength polynomial is fitted against the trace index within each group, `wavelength = P(x, idx)`; `wavecal` then stores a 1D polynomial in x per trace, which `Trace.wlen(x)` evaluates. `obase` from the linelist replaces the sequential 0..n-1 fallback.
 
 See `docs/wavecal_linelist.md` for details on wavelength calibration and order numbering.
 
@@ -411,13 +411,13 @@ ANDES (ArmazoNes high Dispersion Echelle Spectrograph) is split across three ins
 
 | Instrument | Bands | Detector | Fibers | Channel selection |
 |-----------|-------|----------|--------|-------------------|
-| ANDES_UBV | U, B, V | 9216x9232 | 66 (31+3+31) | `BAND` header |
-| ANDES_RIZ | R, R1, R2, IZ | 9216x9232 | 66 (31+3+31) | `HDFMODEL` header |
-| ANDES_YJH | Y, J, H | 4096x4096 | 75 (35+cal+35+ifu) | `BAND` header |
+| ANDES_UBV | U, B, V | 9216x9232 | 66 (A 31, cal 2, B 31) | `BAND` header |
+| ANDES_RIZ | R, R1, R2, IZ | 9216x9232 | 66 (A 31, cal 2, B 31) | `HDFMODEL` header |
+| ANDES_YJH | Y, J, H | 4096x4096 | 75 (A 35, cal 3, B 36, +ifu) | `BAND` header |
 
 ANDES_RIZ uses `HDFMODEL` (not `BAND`) for channel selection because R/R1/R2 all have `BAND=R` but differ by optical model HDF file.
 
-Fiber groups: A (slit A, 31 or 35 fibers), cal (calibration, 3-4 fibers), B (slit B, 31 or 35 fibers). YJH also has ifu and ring0-4 groups. Traces are merged (averaged) per group.
+Fiber groups (`range` is half-open): A (slit A, 31 or 35 fibers), cal (calibration, 2 or 3 fibers), B (slit B, 31 or 36 fibers). YJH also has ifu and ring0-4 groups. Traces are merged (averaged) per group.
 
 ### Fiber Numbering Direction
 
@@ -450,7 +450,7 @@ HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf`
 
 ### Curvature Settings
 
-`curve_height` should match the median A+B trace height (from trace FITS files, `HEIGHT` column for groups A and B), minus 2 pixels. `extraction_height` for curvature is set independently per channel (currently 20 for U-IZ, 10 for Y-H). Both are in per-channel settings files.
+`curve_height` should match the median A+B trace height (from trace FITS files, `HEIGHT` column for groups A and B), minus 2 pixels. `extraction_height` for curvature is set independently per channel (currently 20 for U-IZ, 15 for Y-H). Both are in per-channel settings files.
 
 ## Development
 

@@ -513,7 +513,7 @@
                             "maximum": 5
                         },
                         "curve_height": {
-                            "description": "Height of the 2D cutout for curvature fitting (per side). If a value under 1.5 is given it will be understood as the fractional difference to the next order.",
+                            "description": "Full height of the 2D cutout for curvature fitting. Values under 3 are fractions of the distance to the next order.",
                             "type": [
                                 "integer",
                                 "number",

@@ -694,7 +694,7 @@ def fix_parameters(xwd, cr, traces, nrow, ncol, ntrace, ignore_column_range=Fals
     Parameters
     ----------
     xwd : float
-        Total extraction height. Split evenly above/below trace. Values below 3 are fractions of trace spacing.
+        Total extraction height. Split evenly above/below trace. Values below 2 are fractions of trace spacing.
     cr : 2-tuple(int), array
         Column range, either one value for all traces, or the whole array
     traces : array
