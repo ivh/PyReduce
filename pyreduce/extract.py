@@ -1400,6 +1400,13 @@ def extract_spectrum(
         start_j = margin[j, 0]
         end_j = overlap - margin[i, 1]
 
+        if end_j <= start_j:
+            raise ValueError(
+                f"Swaths {i} and {j} overlap by {overlap} columns, which does not "
+                f"exceed their unusable edge margins ({margin[i, 1]} + "
+                f"{margin[j, 0]}); increase swath_width"
+            )
+
         # Linear from 0 to 1 over the columns both swaths can use, without the
         # end values, so that a swath comes in with a small weight right after
         # its margin

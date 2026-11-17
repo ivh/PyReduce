@@ -1121,3 +1121,25 @@ class TestTraceCurvatureExtraction:
         assert spectra[0].wave is not None
         assert spectra[0].wave[0] == pytest.approx(5000.0)
         assert spectra[0].wave[99] == pytest.approx(5000.0 + 0.5 * 99)
+
+
+@pytest.mark.unit
+def test_swath_overlap_narrower_than_margins_raises():
+    """Swaths too narrow for their curvature margins fail loudly, not silently."""
+    from pyreduce.trace_model import Trace
+
+    img = np.random.default_rng(0).normal(100, 1, (80, 200))
+    img += 1000 * np.exp(-0.5 * ((np.arange(80)[:, None] - 40) / 2) ** 2)
+    t = Trace(m=1, pos=np.array([0.0, 40.0]), column_range=(0, 200))
+    t.slit = np.array([[0.0], [0.3]])
+
+    with pytest.raises(ValueError, match="increase swath_width"):
+        extract.extract(
+            img,
+            [t],
+            extraction_height=21,
+            extraction_type="optimal",
+            swath_width=12,
+            osample=4,
+            plot=False,
+        )
