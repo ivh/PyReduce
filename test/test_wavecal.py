@@ -760,6 +760,51 @@ class TestWavecalFinalizeTraceUpdate:
             np.testing.assert_allclose(t.wave, wave[i])
 
     @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "m_in, m_out",
+        [([0, 1, 2], [42, 43, 44]), ([90, 91, 92], [90, 91, 92])],
+        ids=["sequential_placeholder", "physical_kept"],
+    )
+    def test_update_traces_obase_replaces_sequential_m(
+        self, mock_instrument, tmp_path, m_in, m_out
+    ):
+        """obase overrides the 0..n-1 fallback from trace(), not real order numbers."""
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import Trace
+        from pyreduce.wavelength_calibration import LineList
+
+        traces = [
+            Trace(m=m, pos=np.array([1, 0, 100 + i * 50]), column_range=(0, 100))
+            for i, m in enumerate(m_in)
+        ]
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "1D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+        wave = np.array([[0.1, 5000], [0.1, 5100], [0.1, 5200]])
+        ll = LineList.from_list(
+            [5000.0, 5100.0, 5200.0],
+            order=[0, 1, 2],
+            pos=[50, 50, 50],
+            width=[3, 3, 3],
+            height=[1.0, 1.0, 1.0],
+            flag=[True, True, True],
+        )
+        ll.obase = 42
+
+        step._update_traces(traces, {"all": (wave, ll)})
+
+        assert [t.m for t in traces] == m_out
+
+    @pytest.mark.unit
     def test_wavecal_finalize_saves_to_traces_2d(
         self, mock_instrument, tmp_path, traces_with_groups
     ):

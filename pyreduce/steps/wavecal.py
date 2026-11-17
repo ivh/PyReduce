@@ -494,7 +494,11 @@ class WavelengthCalibrationFinalize(Step):
             single_order = _is_single_order_multi_bundle(group_traces)
             obase = linelist.obase
             if obase is not None and not single_order:
-                already_have_m = any(t.m is not None for t in group_traces)
+                ms = [t.m for t in group_traces]
+                # trace() falls back to m = 0..n-1 without order_centers; physical
+                # order 0 never occurs, so treat that as unset and use obase.
+                sequential = ms == list(range(len(ms)))
+                already_have_m = any(m is not None for m in ms) and not sequential
                 if already_have_m:
                     logger.debug(
                         "Traces for group '%s' already have m values, skipping obase",
