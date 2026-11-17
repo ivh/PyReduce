@@ -237,6 +237,18 @@ class TestCalculateMeanClusterThickness:
         assert 5 < thickness < 20
 
     @pytest.mark.unit
+    def test_independent_of_cluster_count(self):
+        """Cluster 0 counts, and the mean is not divided by the cluster count."""
+        x = {i: np.repeat(np.arange(50 + 30 * i, 60 + 30 * i), 100) for i in range(40)}
+        y = {i: np.tile(np.arange(100), 10) for i in range(40)}
+
+        assert trace.calculate_mean_cluster_thickness(x, y) == pytest.approx(13.5)
+        x0 = {0: x[0]}
+        assert trace.calculate_mean_cluster_thickness(x0, {0: y[0]}) == pytest.approx(
+            13.5
+        )
+
+    @pytest.mark.unit
     def test_empty_clusters(self):
         """Test with no valid clusters."""
         x = {}

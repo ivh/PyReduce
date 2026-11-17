@@ -251,6 +251,8 @@ def _assign_order_and_fiber_inplace(
     elif bundle_centers is None:
         # No order_centers, no fibers_per_order, no bundle_centers: assign
         # sequential m and fiber_idx=1 to all traces (one fiber per order).
+        # Wavecal replaces these placeholders with obase + index when the
+        # linelist has an obase.
         traces.sort(key=lambda t: t.y_at_x(x_center))
         for i, t in enumerate(traces):
             t.m = i
@@ -496,9 +498,6 @@ def calculate_mean_cluster_thickness(x, y):
     cluster_thicknesses = []
 
     for cluster in x.keys():
-        if cluster == 0:
-            continue  # Skip the background cluster if present
-
         # Get all y-coordinates and corresponding x-coordinates for this cluster
         y_coords = y[cluster]
         x_coords = x[cluster]
@@ -519,33 +518,10 @@ def calculate_mean_cluster_thickness(x, y):
         if column_thicknesses:
             cluster_thicknesses.append(np.mean(column_thicknesses))
 
-    # Compute the final mean thickness adjusted by the number of clusters
     if cluster_thicknesses:
-        mean_cluster_thickness = (
-            1.5 * np.mean(cluster_thicknesses) / len(cluster_thicknesses)
-        )
+        mean_cluster_thickness = 1.5 * np.mean(cluster_thicknesses)
 
     return mean_cluster_thickness
-
-
-# origianl version
-# def calculate_mean_cluster_thickness(x, y):
-#     # Calculate mean cluster thickness
-#     # TODO optimize
-#     n_clusters = list(x.keys())
-#     mean_cluster_thickness = 10
-#     for cluster in n_clusters:
-#         # individual columns of this cluster
-#         columns = np.unique(y[cluster])
-#         delta = 0
-#         for col in columns:
-#             # thickness of the cluster in each column
-#             tmp = x[cluster][y[cluster] == col]
-#             delta += np.max(tmp) - np.min(tmp)
-#         mean_cluster_thickness += delta / len(columns)
-
-#     mean_cluster_thickness *= 1.5 / len(n_clusters)
-#     return mean_cluster_thickness
 
 
 def delete(i, x, y, merge):
@@ -1075,22 +1051,10 @@ def trace(
             len(n),
         )
 
-    def best_fit_degree(x, y):
-        L1 = np.sum((np.polyval(np.polyfit(y, x, 1), y) - x) ** 2)
-        L2 = np.sum((np.polyval(np.polyfit(y, x, 2), y) - x) ** 2)
-
-        # aic1 = 2 + 2 * np.log(L1) + 4 / (x.size - 2)
-        # aic2 = 4 + 2 * np.log(L2) + 12 / (x.size - 3)
-
-        if L1 < L2:
-            return 1
-        else:
-            return 2
-
     if sigma > 0:
         n_before_sigma = len(x)
-        cluster_degrees = {i: best_fit_degree(x[i], y[i]) for i in x.keys()}
-        bias = {i: np.polyfit(y[i], x[i], deg=cluster_degrees[i])[-1] for i in x.keys()}
+        # Linear fits never beat quadratic in least squares, so this was always 2
+        bias = {i: np.polyfit(y[i], x[i], deg=2)[-1] for i in x.keys()}
         n = list(x.keys())
         yt = np.concatenate([y[i] for i in n])
         xt = np.concatenate([x[i] - bias[i] for i in n])
@@ -1099,22 +1063,13 @@ def trace(
         res = np.polyval(coef, yt)
         cutoff = sigma * (res - xt).std()
 
-        # DEBUG plot
-        # uy = np.unique(yt)
-        # mask = np.abs(res - xt) > cutoff
-        # plt.plot(yt, xt, ".")
-        # plt.plot(yt[mask], xt[mask], "r.")
-        # plt.plot(uy, np.polyval(coef, uy))
-        # plt.show()
-        #
-
         m = {
             i: np.abs(np.polyval(coef, y[i]) - (x[i] - bias[i])) < cutoff
             for i in x.keys()
         }
 
         k = max(x.keys()) + 1
-        for i in range(1, k):
+        for i in range(k):
             new_img = np.zeros(im.shape, dtype=int)
             new_img[x[i][~m[i]], y[i][~m[i]]] = 1
             clusters, _ = label(new_img)
