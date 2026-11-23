@@ -12,6 +12,7 @@ by creating YAML configuration files.
 - **UVES** - UV-Visual Echelle Spectrograph
 - **XSHOOTER** - Wide-band spectrograph (UVB/VIS/NIR)
 - **CRIRES+** - Cryogenic IR Echelle Spectrograph
+- **SOXS** - Son Of X-Shooter at the NTT (VIS/NIR arms)
 
 ### Space Telescopes
 - **JWST NIRISS** - Near Infrared Imager and Slitless Spectrograph

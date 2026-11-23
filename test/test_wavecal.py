@@ -379,6 +379,28 @@ class TestWavelengthCalibrationApplyOffset:
         assert lines["xlast"][0] == 25
         assert lines["posm"][0] == 20
 
+    @pytest.mark.unit
+    def test_align_disabled_keeps_positions(self):
+        """align=False must not move a linelist that a bright unlisted line would drag off."""
+        ncol = 400
+        lines = LineList.from_list(
+            [5000, 5100, 5200],
+            [0, 0, 0],
+            [100, 200, 300],
+            [2, 2, 2],
+            [1, 1, 1],
+            [True] * 3,
+        ).data
+        x = np.arange(ncol)
+        obs = sum(np.exp(-0.5 * ((x - p) / 1.5) ** 2) for p in (100, 200, 300))
+        obs = obs + 1000 * np.exp(-0.5 * ((x - 60) / 1.5) ** 2)
+
+        for align, moved in ((False, False), (True, True)):
+            wc = WavelengthCalibration(plot=False, align=align, shift_window=0)
+            wc.ntrace, wc.ncol = 1, ncol
+            out = wc.align(obs[None, :], lines.copy())
+            assert np.any(out["posm"] != lines["posm"]) == moved
+
 
 class TestWavelengthCalibrationMakeWave:
     """Unit tests for WavelengthCalibration.make_wave."""

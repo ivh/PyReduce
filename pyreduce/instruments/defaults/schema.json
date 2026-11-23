@@ -399,6 +399,10 @@
                             "type": "integer",
                             "minimum": 0
                         },
+                        "align": {
+                            "description": "Cross-correlate the linelist with the observation before fitting. Disable when the linelist positions are already accurate",
+                            "type": "boolean"
+                        },
                         "shift_window": {
                             "description": "The fraction of the columns that each order can be shifted individually to align with the reference",
                             "type": "number",

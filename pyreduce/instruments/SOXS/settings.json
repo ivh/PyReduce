@@ -1,0 +1,54 @@
+{
+    "__instrument__": "SOXS",
+    "__inherits__": "defaults/settings.json",
+    "bias": {
+        "degree": 0
+    },
+    "trace": {
+        "degree": 4,
+        "manual": false,
+        "auto_merge_threshold": 1,
+        "merge_min_threshold": 1,
+        "plot": true
+    },
+    "scatter": {
+        "extraction_height": 0.9,
+        "scatter_degree": 4
+    },
+    "norm_flat": {
+        "extraction_method": "normalize",
+        "smooth_slitfunction": 1,
+        "oversampling": 8,
+        "swath_width": 400,
+        "threshold": 100
+    },
+    "curvature": {
+        "dimensionality": "1D",
+        "degree": 2,
+        "curve_degree": 1,
+        "extraction_method": "simple",
+        "collapse_function": "median",
+        "peak_function": "gaussian",
+        "window_width": 6,
+        "peak_threshold": 5
+    },
+    "wavecal_master": {
+        "extraction_method": "simple",
+        "collapse_function": "sum"
+    },
+    "wavecal": {
+        "atlas": null,
+        "medium": "air",
+        "iterations": 3,
+        "threshold": 3000,
+        "align": false
+    },
+    "science": {
+        "extraction_method": "optimal",
+        "oversampling": 8,
+        "swath_width": 400,
+        "smooth_slitfunction": 1,
+        "smooth_spectrum": 0,
+        "extraction_reject": 6
+    }
+}

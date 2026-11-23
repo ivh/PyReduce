@@ -1,0 +1,31 @@
+{
+    "__instrument__": "SOXS",
+    "__inherits__": "SOXS/settings.json",
+    "trace": {
+        "degree": 5,
+        "filter_y": 120,
+        "noise": 0,
+        "noise_relative": 0.2,
+        "min_cluster": 15000,
+        "border_width": 5
+    },
+    "curvature": {
+        "curve_height": 30,
+        "extraction_height": 1,
+        "curve_degree": 2
+    },
+    "norm_flat": {
+        "extraction_height": 34
+    },
+    "wavecal_master": {
+        "extraction_height": 6
+    },
+    "wavecal": {
+        "dimensionality": "1D",
+        "degree": 4,
+        "threshold": 5000
+    },
+    "science": {
+        "extraction_height": 34
+    }
+}

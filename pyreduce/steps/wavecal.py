@@ -370,6 +370,8 @@ class WavelengthCalibrationFinalize(Step):
         self.correlate_cols = config["correlate_cols"]
         #:float: fraction of columns, to allow individual orders to shift
         self.shift_window = config["shift_window"]
+        #:bool: whether to cross-correlate the linelist with the observation first
+        self.align = config.get("align", True)
         #:str: name of the line atlas
         self.atlas_name = config["atlas"]
         #:str: medium of the detector, vac or air
@@ -430,6 +432,7 @@ class WavelengthCalibrationFinalize(Step):
                 nstep=self.nstep,
                 correlate_cols=self.correlate_cols,
                 shift_window=self.shift_window,
+                align=self.align,
                 atlas_name=self.atlas_name,
                 atlas_search_dirs=[self.instrument._inst_dir],
                 medium=self.medium,

@@ -354,6 +354,7 @@ class WavelengthCalibration:
         nstep=0,
         correlate_cols=0,
         shift_window=0.01,
+        align=True,
         manual=False,
         polarim=False,
         lfc_peak_width=3,
@@ -386,6 +387,10 @@ class WavelengthCalibration:
         self.correlate_cols = correlate_cols
         #:float: Fraction if the number of columns to use in the alignment of individual orders. Set to 0 to disable
         self.shift_window = shift_window
+        #:bool: Whether to cross-correlate the linelist with the observation before fitting.
+        #: Disable when the linelist positions are already accurate and the arc has strong
+        #: lines missing from it, which can pull the correlation off by a large shift.
+        self.align_lines = align
         #:bool: Whether to manually align the reference instead of using cross correlation
         self.manual = manual
         #:bool: Whether to use polarimetric orders instead of the usual ones. I.e. Each pair of two orders represents the same data. Not Supported yet
@@ -579,8 +584,9 @@ class WavelengthCalibration:
             offset in order and column
         """
         obs = np.ma.filled(obs, 0)
+        offset = [0, 0]
 
-        if not self.manual:
+        if not self.manual and self.align_lines:
             # make image from lines
             img = self.create_image_from_lines(lines)
 

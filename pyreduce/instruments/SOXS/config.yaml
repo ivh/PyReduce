@@ -1,0 +1,67 @@
+# SOXS (Son Of X-Shooter) at the ESO NTT, La Silla
+# Two arms behind a dichroic, one detector each:
+#   VIS: e2v CCD44-82, 4 quasi-orders (1-4, 350-850 nm), dispersion along rows
+#        raw 858x4096, 50 px prescan on the left; rotated so dispersion runs along x
+#        and the order number decreases upwards (4, 3, 2, 1)
+#   NIR: 2k x 2k IR array, cross-dispersed echelle orders 10-24 (0.8-2.0 um)
+#        4 px reference border; flipped upside down so the red orders are at the top
+# Per-arm detector regions, gain and read noise are set in SOXS.add_header_info.
+
+__instrument__: SOXS
+instrument: INSTRUME
+id_instrument: SOXS
+telescope: TELESCOP
+
+date: DATE-OBS
+date_format: fits
+
+channels: [VIS, NIR]
+kw_channel: "ESO SEQ ARM"
+id_channel: ["^VIS$", "^NIR$"]
+extension: 0
+# VIS: 90 deg counter-clockwise; NIR: transpose + 90 deg = flip along y
+orientation: [3, 7]
+
+naxis_x: NAXIS1
+naxis_y: NAXIS2
+
+dark: 0
+sky: 0
+exposure_time: EXPTIME
+
+ra: RA
+dec: DEC
+jd: MJD-OBS
+longitude: "HIERARCH ESO TEL GEOLON"
+latitude: "HIERARCH ESO TEL GEOLAT"
+altitude: "HIERARCH ESO TEL GEOELEV"
+target: "HIERARCH ESO OBS TARG NAME"
+object: OBJECT
+instrument_mode: "HIERARCH ESO SEQ ARM"
+observation_type: "HIERARCH ESO DPR TYPE"
+observation_category: "HIERARCH ESO DPR CATG"
+
+# File classification. DPR TECH separates slit flats (ECHELLE,SLIT) from the
+# pinhole flats and the pinhole arcs (ECHELLE,PINHOLE). The NIR arm has no bias,
+# its darks are matched as "bias" (as for CRIRES+).
+kw_bias: "HIERARCH ESO DPR TYPE"
+kw_flat: "HIERARCH ESO DPR TECH"
+kw_orders: "HIERARCH ESO DPR TECH"
+kw_scatter: "HIERARCH ESO DPR TECH"
+kw_curvature: "HIERARCH ESO DPR TECH"
+kw_wave: "HIERARCH ESO DPR TECH"
+kw_comb: null
+kw_spec: "HIERARCH ESO DPR CATG"
+
+id_bias: "^(BIAS|DARK)$"
+id_flat: "^ECHELLE,SLIT$"
+id_orders: "^ECHELLE,SLIT$"
+id_scatter: "^ECHELLE,SLIT$"
+id_curvature: "^ECHELLE,MULTI-PINHOLE$"
+id_wave: "^ECHELLE,PINHOLE$"
+id_comb: null
+id_spec: "^SCIENCE$"
+
+# Traces get their physical order number from the y position at the centre column
+fibers:
+  order_centers_file: order_centers_{channel}.yaml
