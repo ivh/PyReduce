@@ -752,18 +752,24 @@ class TestWavecalFinalizeTraceUpdate:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "m_in, m_out",
+        "m_in, blue_first, m_out",
         [
-            ([0, 1, 2], [42, 43, 44]),
-            ([2, 1, 0], [42, 43, 44]),
-            ([90, 91, 92], [90, 91, 92]),
+            ([0, 1, 2], False, [100, 101, 102]),
+            ([2, 1, 0], False, [100, 101, 102]),
+            ([2, 1, 0], True, [102, 101, 100]),
+            ([90, 91, 92], False, [90, 91, 92]),
         ],
-        ids=["sequential_placeholder", "top_down_placeholder", "physical_kept"],
+        ids=[
+            "sequential_placeholder",
+            "top_down_placeholder",
+            "blue_first_like_harps",
+            "physical_kept",
+        ],
     )
     def test_update_traces_obase_replaces_sequential_m(
-        self, mock_instrument, tmp_path, m_in, m_out
+        self, mock_instrument, tmp_path, caplog, m_in, blue_first, m_out
     ):
-        """obase overrides the 0..n-1 fallback from trace(), not real order numbers."""
+        """obase replaces the 0..n-1 fallback, numbering towards the blue end."""
         from pyreduce.configuration import load_config
         from pyreduce.reduce import WavelengthCalibrationFinalize
         from pyreduce.trace_model import Trace
@@ -784,20 +790,66 @@ class TestWavecalFinalizeTraceUpdate:
             None,
             **config["wavecal"],
         )
-        wave = np.array([[0.1, 5000], [0.1, 5100], [0.1, 5200]])
+        # grating equation: m * lambda = const at fixed x
+        orders = np.array([102, 101, 100] if blue_first else [100, 101, 102])
+        center = 600_000.0 / orders
+        wave = np.array([[0.01, c - 0.5] for c in center])
         ll = LineList.from_list(
-            [5000.0, 5100.0, 5200.0],
+            list(center),
             order=[0, 1, 2],
             pos=[50, 50, 50],
             width=[3, 3, 3],
             height=[1.0, 1.0, 1.0],
             flag=[True, True, True],
         )
-        ll.obase = 42
+        ll.obase = 100
 
         step._update_traces(traces, {"all": (wave, ll)})
 
         assert [t.m for t in traces] == m_out
+        assert "look inconsistent" not in caplog.text
+
+    @pytest.mark.unit
+    def test_update_traces_warns_on_wrong_obase(
+        self, mock_instrument, tmp_path, caplog
+    ):
+        from pyreduce.configuration import load_config
+        from pyreduce.reduce import WavelengthCalibrationFinalize
+        from pyreduce.trace_model import Trace
+        from pyreduce.wavelength_calibration import LineList
+
+        n = 20
+        traces = [
+            Trace(m=i, pos=np.array([1, 0, 100 + i * 50]), column_range=(0, 100))
+            for i in range(n)
+        ]
+        config = load_config(None, "UVES")
+        config["wavecal"]["dimensionality"] = "1D"
+        step = WavelengthCalibrationFinalize(
+            mock_instrument,
+            "RED",
+            "test",
+            "2024-01-01",
+            str(tmp_path),
+            None,
+            **config["wavecal"],
+        )
+        center = 600_000.0 / (100 + np.arange(n))
+        wave = np.array([[0.01, c - 0.5] for c in center])
+        ll = LineList.from_list(
+            list(center),
+            order=list(range(n)),
+            pos=[50] * n,
+            width=[3] * n,
+            height=[1.0] * n,
+            flag=[True] * n,
+        )
+        ll.obase = 80
+
+        step._update_traces(traces, {"all": (wave, ll)})
+
+        assert [t.m for t in traces] == list(range(80, 80 + n))
+        assert "look inconsistent" in caplog.text
 
     @pytest.mark.unit
     def test_wavecal_finalize_saves_to_traces_2d(

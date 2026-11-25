@@ -33,6 +33,46 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+def _assign_orders_from_obase(traces, obase, group):
+    """Set t.m = obase .. obase+n-1, increasing towards shorter wavelengths.
+
+    obase is the lowest order number. Whether that sits at the start or the
+    end of the trace list depends on detector orientation (UVES, HARPN: start;
+    HARPS: end), so the direction is taken from the wavelength solution.
+    """
+    n = len(traces)
+    # m * lambda is constant only at a common x; skip traces not covering it
+    x_ref = np.median([np.mean(t.column_range) for t in traces])
+    wl = np.array(
+        [
+            t.wlen(np.array([x_ref]))[0]
+            if t.wave is not None and t.column_range[0] <= x_ref < t.column_range[1]
+            else np.nan
+            for t in traces
+        ]
+    )
+    ok = np.isfinite(wl)
+    idx = np.arange(n)
+    increasing = ok.sum() >= 2 and np.polyfit(idx[ok], wl[ok], 1)[0] > 0
+    ms = obase + (n - 1 - idx if increasing else idx)
+    for t, m in zip(traces, ms, strict=True):
+        t.m = int(m)
+
+    # m * lambda at fixed x is constant to ~1e-5; a reversed direction or an
+    # obase off by several orders spreads it by >1e-3. Off-by-one may pass.
+    if ok.sum() >= 3:
+        mwl = ms[ok] * wl[ok]
+        spread = np.std(mwl) / np.mean(mwl)
+        if spread > 1e-3:
+            logger.warning(
+                "Order numbers for group '%s' look inconsistent: m*lambda varies "
+                "by %.2g (obase=%d); check the linelist obase",
+                group,
+                spread,
+                obase,
+            )
+
+
 class WavelengthCalibrationMaster(CalibrationStep, ExtractionStep):
     """Create wavelength calibration master image"""
 
@@ -504,6 +544,18 @@ class WavelengthCalibrationFinalize(Step):
                 logger.warning("No traces found for group '%s'", group)
                 continue
 
+            # Store wavelength polynomial in each trace.
+            if self.dimensionality == "1D":
+                for idx_in_group, t in enumerate(group_traces):
+                    if idx_in_group < len(wave):
+                        t.wave = wave[idx_in_group]
+            else:
+                # Evaluate 2D poly P(x, order_idx) at each trace's 0-based
+                # index to get a 1D poly in x (np.polyfit convention).
+                for idx_in_group, t in enumerate(group_traces):
+                    poly_1d = np.polynomial.polynomial.polyval(idx_in_group, wave.T)
+                    t.wave = poly_1d[::-1]
+
             # Update trace.m from obase if not already set.
             # Skip when traces are bundles of a single-order spectrograph --
             # there t.bundle is the meaningful spatial id and m must stay None.
@@ -523,25 +575,12 @@ class WavelengthCalibrationFinalize(Step):
                         group,
                     )
                 else:
-                    for idx_in_group, t in enumerate(group_traces):
-                        t.m = obase + idx_in_group
+                    _assign_orders_from_obase(group_traces, obase, group)
                     logger.info(
                         "Updated trace order numbers for group '%s' with obase=%d",
                         group,
                         obase,
                     )
-
-            # Store wavelength polynomial in each trace.
-            if self.dimensionality == "1D":
-                for idx_in_group, t in enumerate(group_traces):
-                    if idx_in_group < len(wave):
-                        t.wave = wave[idx_in_group]
-            else:
-                # Evaluate 2D poly P(x, order_idx) at each trace's 0-based
-                # index to get a 1D poly in x (np.polyfit convention).
-                for idx_in_group, t in enumerate(group_traces):
-                    poly_1d = np.polynomial.polynomial.polyval(idx_in_group, wave.T)
-                    t.wave = poly_1d[::-1]
 
     def save(self, results: dict, trace: list):
         """Save linelists and updated traces to disk.

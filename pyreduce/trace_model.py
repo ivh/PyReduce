@@ -206,7 +206,7 @@ def _validate_traces(traces: list[Trace], context: str = "") -> None:
     Checks:
     1. (m, bundle, group) is unique for grouped traces (group is not None)
     2. (m, bundle, fiber_idx) is unique for individual fiber traces
-    3. Traces are ordered by y-position (ascending)
+    3. Traces are ordered monotonically by y-position (either direction)
 
     Parameters
     ----------
@@ -265,23 +265,23 @@ def _validate_traces(traces: list[Trace], context: str = "") -> None:
                 )
             seen_fiber.add(key)
 
-    # Check y-position ordering (evaluate at midpoint of column range)
-    # Only applies to ungrouped traces - grouped traces are organized by (m, group)
+    # Check y-position ordering (evaluate at midpoint of column range).
+    # Only applies to ungrouped traces - grouped traces are organized by (m, group).
+    # Either direction is fine: without order_centers the list is top-down.
     has_groups = any(t.group is not None for t in traces)
-    if not has_groups:
-        ref_x = (traces[0].column_range[0] + traces[0].column_range[1]) // 2
-        y_positions = [t.y_at_x(ref_x) for t in traces]
-        for i in range(1, len(y_positions)):
-            if y_positions[i] < y_positions[i - 1]:
-                logger.warning(
-                    "Traces not ordered by y-position at x=%d: trace %d (y=%.1f) < trace %d (y=%.1f)%s",
-                    ref_x,
-                    i,
-                    y_positions[i],
-                    i - 1,
-                    y_positions[i - 1],
-                    context,
-                )
+    if not has_groups and len(traces) > 1:
+        ref_x = int(np.median([np.mean(t.column_range) for t in traces]))
+        covering = [t for t in traces if t.column_range[0] <= ref_x < t.column_range[1]]
+        dy = np.diff([t.y_at_x(ref_x) for t in covering])
+        if len(dy) and not (np.all(dy > 0) or np.all(dy < 0)):
+            i = int(np.argmax(np.sign(dy) != np.sign(dy[0])))
+            logger.warning(
+                "Traces not monotonic in y at x=%d: step %d->%d reverses direction%s",
+                ref_x,
+                i,
+                i + 1,
+                context,
+            )
 
 
 def save_traces(
