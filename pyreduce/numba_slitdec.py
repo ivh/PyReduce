@@ -27,6 +27,8 @@ _INT32_MIN = -2147483648
 # vectorization without reassociating any accumulation. bandsol is left
 # strict: it is unpivoted Gaussian elimination and numerically delicate.
 _KW = {"cache": True, "nogil": True, "fastmath": True}
+# Also for whatever compares against the raw image: fastmath assumes no NaN, so
+# a masked NaN pixel (no data) would pass the kappa test and come back.
 _KW_STRICT = {"cache": True, "nogil": True}
 
 WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
@@ -436,7 +438,7 @@ def _build_model(ncols, nrows, sP, sL, zx, ziy, zw, m_zeta, model):
             model[y, x] = acc
 
 
-@njit(**_KW)
+@njit(**_KW_STRICT)
 def _residual_rms(ncols, nrows, delta_x, im, model, mask):
     tmp = 0.0
     isum = 0
@@ -449,7 +451,7 @@ def _residual_rms(ncols, nrows, delta_x, im, model, mask):
     return math.sqrt(tmp / isum)
 
 
-@njit(**_KW)
+@njit(**_KW_STRICT)
 def _reject_outliers(ncols, nrows, delta_x, im, model, mask, cutoff):
     for y in range(nrows):
         for x in range(delta_x, ncols - delta_x):

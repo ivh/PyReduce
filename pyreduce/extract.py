@@ -168,10 +168,10 @@ def _slitdec_charslit(
     nrows, ncols = img.shape
 
     # Get data and mask
-    mask_in = np.ma.getmaskarray(img)
+    # Pixels without data stay NaN: slitdec's kappa clipping re-decides every
+    # pixel, and a zero would come back wherever the model is faint.
     data = np.ma.getdata(img).astype(np.float64)
-    data[~np.isfinite(data)] = 0
-    mask_in = mask_in | ~np.isfinite(data)
+    mask_in = np.ma.getmaskarray(img) | ~np.isfinite(data)
 
     # Pixel uncertainties in ADU. Only the weighted modes read them, so
     # weights="none" is unaffected by how they are built.

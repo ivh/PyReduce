@@ -424,11 +424,16 @@ def _slitdec_core(
     # several times as much.
     order_x, uk_p, starts_p = _group(k0_x)
     order_p = rank[order_x]
-    imv_p = imT.reshape(-1)[order_x]
+    # The fills multiply masked pixels by zero instead of skipping them, so a
+    # NaN there (a pixel without data) must not reach them. The kappa test
+    # keeps the raw image: NaN never passes it, so such pixels stay out.
+    imT_f = np.where(np.isfinite(imT), imT, 0.0)
+    imv_p = imT_f.reshape(-1)[order_x]
 
     k0_iy = k0_iy[order]
     k0_x = k0_x[order]
-    imv = imT.reshape(-1)[order]
+    imv = imT_f.reshape(-1)[order]
+    del imT_f
 
     # T[m, j, p]: total zeta weight reaching pixel p from slit position
     # k0_iy[p] + m and source column k0_x[p] + j. Both merge windows are

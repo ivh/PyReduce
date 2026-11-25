@@ -338,6 +338,71 @@ def test_curved_equal_vertical_extraction(noisy_frame, orders, width):
     np.testing.assert_allclose(slitf_curved, slitf_vert, rtol=1e-10, atol=1e-12)
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
+@pytest.mark.parametrize("weights", ["none", "unc", "model"])
+@pytest.mark.parametrize("curved", [False, True], ids=["flat", "curved"])
+def test_masked_nan_pixels_stay_out(backend, weights, curved):
+    """A masked NaN pixel has no data: kappa clipping must never re-admit it and
+    it must not reach the solution (numpy multiplies masked pixels by zero,
+    numba's fastmath assumes no NaN)."""
+    mod = pytest.importorskip(f"pyreduce.{backend}")
+    nrows, ncols = 21, 120
+    rng = np.random.default_rng(0)
+    y = np.arange(nrows)[:, None]
+    im = 1000 * np.exp(-0.5 * ((y + 0.5 - 10.8) / 2.5) ** 2) * np.ones(ncols)
+    im = im + rng.normal(0, 3, im.shape)
+    bad = np.zeros(im.shape, bool)
+    bad[0, ::2] = bad[-1, 1::2] = True
+    bad[10, 50] = True
+    im[bad] = np.nan
+    pix_unc = np.sqrt(np.abs(im) + 9)
+    slitcurve = np.zeros((ncols, 6))
+    if curved:
+        slitcurve[:, 1] = 0.1
+    result = mod.slitdec(
+        im,
+        pix_unc,
+        np.where(bad, 0, 1).astype(np.uint8),
+        np.full(ncols, 10.8),
+        slitcurve,
+        np.zeros(nrows),
+        osample=6,
+        lambda_sL=1.0,
+        kappa=6.0,
+        **({} if weights == "none" else {"weights": weights}),
+    )
+    assert not np.any(result["mask"][bad] != 0), "NaN pixel re-admitted"
+    assert np.all(np.isfinite(result["spectrum"]))
+    assert np.all(np.isfinite(result["uncertainty"]))
+
+
+@pytest.mark.unit
+def test_unmasked_nan_pixels_are_masked():
+    """NaN pixels missing from the input mask are masked, not zero-filled."""
+    nrows, ncols = 21, 120
+    y = np.arange(nrows)[:, None]
+    img = np.repeat(1000 * np.exp(-0.5 * ((y + 0.5 - 10.8) / 2.5) ** 2), ncols, 1)
+    img[0, 40:60] = np.nan
+    result = extract._slitdec_charslit(
+        np.ma.masked_array(img),
+        np.full(ncols, 10.8),
+        np.zeros((ncols, 6)),
+        np.zeros(nrows),
+        0,
+        1.0,
+        6,
+        (10, 10),
+        20,
+        1.0,
+        6,
+        None,
+    )
+    out_mask = result[4]
+    assert np.all(out_mask[0, 40:60])
+    assert np.all(np.isfinite(result[0]))
+
+
 @pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
 @pytest.mark.parametrize("osample", [1, 3, 4, 5, 10])
 @pytest.mark.parametrize("curved", [False, True], ids=["flat", "curved"])
