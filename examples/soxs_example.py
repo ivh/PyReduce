@@ -201,6 +201,25 @@ def object_offsets(image, traces, half=25):
     return np.array(offsets)
 
 
+def shift_trace(trace, dy, ncol):
+    """Copy of trace moved dy rows along the slit, with its wavelength solution.
+
+    The wavelength solution belongs to the slit centre. Along the tilted slit,
+    column x at offset dy sees the wavelength of column x - c1*dy - c2*dy**2 on
+    the centre (NIR: c1 up to 0.24, so the A and B images are ~3 px apart).
+    """
+    t = deepcopy(trace)
+    t.pos = np.array(t.pos, dtype=float)
+    t.pos[-1] += dy
+    if t.wave is not None and t.slit is not None and t.wave.ndim == 1:
+        x = np.arange(ncol, dtype=float)
+        c = t.slit_at_x(x)
+        dx = sum(c[i] * dy**i for i in range(1, len(c)))
+        wave = trace.wlen(x - dx)
+        t.wave = np.polyfit(x, wave, len(t.wave) + 1)
+    return t
+
+
 if "nod" in steps:
     from pyreduce.instruments.instrument_info import load_instrument
 
@@ -245,12 +264,10 @@ if "nod" in steps:
 
                 image, _ = inst.load_fits(out, arm)
                 dy = object_offsets(image, traces)
-                shifted = []
-                for t, d in zip(traces, dy, strict=True):
-                    t = deepcopy(t)
-                    t.pos = np.array(t.pos, dtype=float)
-                    t.pos[-1] += d
-                    shifted.append(t)
+                shifted = [
+                    shift_trace(t, d, image.shape[1])
+                    for t, d in zip(traces, dy, strict=True)
+                ]
                 pipe._data["trace"] = shifted
                 pipe._steps = []
                 pipe.extract([out])

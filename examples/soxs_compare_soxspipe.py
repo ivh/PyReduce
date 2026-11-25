@@ -547,15 +547,15 @@ def plot_sky(arm):
 
 
 # --- 4. extracted spectra ---
-def pyreduce_orders(arm, files):
-    """Blaze-divided sum of PyReduce science spectra: {m: (wl_nm, flux, sigma)}."""
+def pyreduce_frames(arm, files):
+    """Blaze-divided PyReduce science spectra, one {m: (wl_nm, flux, sigma)} per file."""
     traces = traces_of(arm)
     blaze = np.load(join(red_dir(arm), f"soxs_{arm.lower()}.flat_norm.npz"))["blaze"]
     blaze = {
         t.m: np.where(blaze[i] > 0.05 * np.nanmax(blaze[i]), blaze[i], np.nan)
         for i, t in enumerate(traces)
     }
-    out = {}
+    out = []
     for f in files:
         spectra = Spectra.read(
             f,
@@ -564,13 +564,37 @@ def pyreduce_orders(arm, files):
             barycentric_correction=False,
             radial_velocity_correction=False,
         )
-        for sp in spectra.data:
-            flux, var = sp.spec / blaze[sp.m], (sp.sig / blaze[sp.m]) ** 2
-            if sp.m in out:
-                out[sp.m] = (out[sp.m][0], out[sp.m][1] + flux, out[sp.m][2] + var)
-            else:
-                out[sp.m] = (sp.wave / 10, flux, var)
-    return {m: (w, f, np.sqrt(v)) for m, (w, f, v) in out.items()}
+        out.append(
+            {
+                sp.m: (sp.wave / 10, sp.spec / blaze[sp.m], sp.sig / blaze[sp.m])
+                for sp in spectra.data
+            }
+        )
+    return out
+
+
+def pyreduce_orders(arm, files, align=True):
+    """Blaze-divided sum of PyReduce science spectra: {m: (wl_nm, flux, sigma)}.
+
+    The nod A and B images sit at different slit positions, so under the tilted
+    slit their wavelength solutions differ by up to ~3 px. align=True interpolates
+    every file onto the mean wavelengths before summing (for line positions and
+    shapes); align=False sums pixel by pixel, which keeps the pixel noise
+    uncorrelated but smears the lines (for noise measurements only).
+    """
+    frames = pyreduce_frames(arm, files)
+    out = {}
+    for m in frames[0]:
+        wl = np.mean([fr[m][0] for fr in frames], axis=0)
+        flux, var = 0, 0
+        for w, f, s in (fr[m] for fr in frames):
+            if align:
+                o = np.argsort(w)
+                f = np.interp(wl, w[o], f[o], left=np.nan, right=np.nan)
+                s = np.interp(wl, w[o], s[o], left=np.nan, right=np.nan)
+            flux, var = flux + f, var + s**2
+        out[m] = (wl, flux, np.sqrt(var))
+    return out
 
 
 def snr_per_nm(flux, sigma, wl):
@@ -729,7 +753,8 @@ def nod_pair_noise(arm):
         first, second = [files[0], files[1]], [files[2], files[3]]
     else:
         first, second = [files[0]], [files[1]]  # A and B of the same 5" pair
-    p1, p2 = pyreduce_orders(arm, first), pyreduce_orders(arm, second)
+    p1 = pyreduce_orders(arm, first, align=False)
+    p2 = pyreduce_orders(arm, second, align=False)
     out = []
     for m in sorted(p1):
         _, f1, e1 = p1[m]
