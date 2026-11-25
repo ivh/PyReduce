@@ -386,8 +386,11 @@ each change to both Python backends and re-run `test/test_numba_slitdec.py` and
 
 Since CharSlit dd446cd (Nov 2026) the vendored C is N. Piskunov's slitdec_ox engine under
 the old names. `cwrappers.py` passes the new arguments at their historic defaults
-(`osample_x=1`, no `mu_x`, `t_offset=0`), which is the old solution; the oversampled modes
-are not exposed in PyReduce and the Python backends do not implement them.
+(`osample_x=1`, no `mu_x`); the oversampled modes are not exposed in PyReduce and the
+Python backends do not implement them. Since CharSlit 864d7d5 all backends evaluate the
+slit tilt at the y-subpixel centre, not its lower edge as the historic slitdec.c and
+cr2res do: tilted lines move by -c1/(2*osample) px relative to older PyReduce versions
+(a few mpx), untilted swaths are unchanged.
 
 Swath edges: no backend zeroes the outermost columns of a swath solution any more. They
 come back as solved and can be many times the flux. `info[4]` (also `result["margin"]`)

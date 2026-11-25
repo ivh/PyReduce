@@ -169,13 +169,12 @@ def slitdec(
         ffi_slitdec.cast("double *", model.ctypes.data),
         ffi_slitdec.cast("double *", unc.ctypes.data),
         ffi_slitdec.cast("double *", info.ctypes.data),
-        # the rest selects the historic solution (no oversampling along x)
+        # no oversampling along x
         ffi_slitdec.cast("int", 1),  # osample_x
         ffi_slitdec.NULL,  # mu_x
         ffi_slitdec.cast("int", 0),
         ffi_slitdec.NULL,  # mu_y
         ffi_slitdec.cast("int", 0),
-        ffi_slitdec.cast("double", 0.0),  # t_offset
         ffi_slitdec.cast("int", -1),  # y_lower_lim: nrows / 2
         ffi_slitdec.NULL,  # sP_fine
         ffi_slitdec.cast("int", 0),  # unc_mode: from residuals

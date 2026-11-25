@@ -106,7 +106,8 @@ def _geometry(
         wgt[:, 0, osample] = d2[x0:x1]
         wgt = np.broadcast_to(wgt, (nc, nrows, nk))
 
-        t = dy - ycen[x0:x1, None, None]
+        # subpixel centre, as slitdec.c since CharSlit 864d7d5
+        t = dy - ycen[x0:x1, None, None] + 0.5 * step
         delta = t * slitcurve[x0:x1, 5, None, None]
         for c in range(4, 0, -1):
             delta += slitcurve[x0:x1, c, None, None]

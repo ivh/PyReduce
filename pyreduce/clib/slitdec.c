@@ -3,7 +3,8 @@
 
    N. Piskunov's slitdec_ox (github.com/nikolai-piskunov/slitdec_ox), derived from
    CharSlit slitdec.c c878d00 and taken back as slitdec.c in November 2026. With
-   osample_x = 1, no mu_x and t_offset = 0 it reproduces that slitdec() bit for bit.
+   osample_x = 1 and no mu_x it reproduces that slitdec() up to the tilt reference
+   point (see zeta_tensors_ox); on untilted swaths bit for bit.
    What osample_x > 1 and the new arguments add:
    - The spectrum is solved on a fine grid of osample_x bins per detector column
      (sP_fine, ncols * osample_x values, a piecewise-constant density in the same
@@ -486,13 +487,6 @@ static void normalise_weights(double *w, long n)
             w[i] *= nw / wsum;
 }
 
-/* t_offset: where along a y-subpixel the curvature is evaluated, in units of the
-   subpixel height. slitdec.c uses t = (subpixel lower edge) - ycen, i.e. half
-   a subpixel below the subpixel centre; with a tilt c1 this shifts every line
-   by c1 / (2 * osample) pixels (measured: 3.7 mpx for c1 = 8/136, osample 8,
-   scaling exactly with 1/osample). 0.5 evaluates it at the subpixel centre and
-   removes the shift; 0.0 reproduces slitdec.c bit for bit. */
-
 static inline void zeta_add(zeta_ref_ox *zeta, int *m_zeta, zeta_rng_ox *z_rng,
                             int ncols, int nrows, int mzz, int *ndrop,
                             int x, int iy, int xx, int yy, double w)
@@ -532,7 +526,7 @@ static inline void zeta_add(zeta_ref_ox *zeta, int *m_zeta, zeta_rng_ox *z_rng,
 static int zeta_tensors_ox(
     int ncols, int nrows, int ny, double *ycen, int *ycen_offset,
     int y_lower_lim, int osample, int osample_x,
-    double *slitcurve, double *slitdeltas, double t_offset,
+    double *slitcurve, double *slitdeltas,
     zeta_ref_ox *zeta, int *m_zeta, zeta_rng_ox *z_rng, int mzz, int *ndrop)
 {
     int x, xx, y, yy, iy, iy1, iy2, p, r;
@@ -586,7 +580,9 @@ static int zeta_tensors_ox(
                 else
                     w = step;
                 dy += step;
-                double t = dy - ycen[x] + t_offset * step;
+                /* Subpixel centre. The historic slitdec.c (and cr2res) used the lower
+                   edge, which shifts every line by c1 / (2 * osample) px. */
+                double t = dy - ycen[x] + 0.5 * step;
                 delta = t * (slitcurve[curve_index(x, 1)] +
                         t * (slitcurve[curve_index(x, 2)] +
                         t * (slitcurve[curve_index(x, 3)] +
@@ -1166,7 +1162,6 @@ int slitdec(        int ncols,
                     int nk_x,
                     const double *mu_y,
                     int nk_y,
-                    double t_offset,
                     int y_lower_lim,
                     double *sP_fine,
                     int unc_mode,
@@ -1197,7 +1192,6 @@ int slitdec(        int ncols,
                    (returned in info[9] as -mu1_y, since its damping is infinite).
        lambda_sP : slitdec's unscaled penalty on first differences, applied
                    between adjacent fine bins (0: off; prefer mu_x)
-       t_offset  : see zeta_tensors_ox
        unc_mode  : 0: unc from the data - model residuals (slitdec). 1: pixel variances
                    propagated through the last sP solve (propagate_unc), sL taken as
                    known; the variances are pix_unc^2, or the fitted a * model + b with
@@ -1321,7 +1315,7 @@ int slitdec(        int ncols,
                 yc[x] = ycen[x] - yo[x];
             }
             zeta_tensors_ox(ncols, nrows, ny, yc, yo, y_lower_lim, osample, ox,
-                            slitcurve, slitdeltas, t_offset, NULL, m_zeta, z_rng, INT_MAX, &ndrop);
+                            slitcurve, slitdeltas, NULL, m_zeta, z_rng, INT_MAX, &ndrop);
             for (long i = 0; i < (long)ncols * nrows; i++)
                 if (m_zeta[i] > mzz)
                     mzz = m_zeta[i];
@@ -1392,7 +1386,7 @@ int slitdec(        int ncols,
         flat_setup(ncols, osample, ycen, k0col, d1col);
     else
         zeta_tensors_ox(ncols, nrows, ny, ycen, ycen_offset, y_lower_lim, osample, ox,
-                        slitcurve, slitdeltas, t_offset, zeta, m_zeta, z_rng, mzz, &ndrop);
+                        slitcurve, slitdeltas, zeta, m_zeta, z_rng, mzz, &ndrop);
 
     /* sP band: widest fine-bin span of one pixel, at least the penalty order */
     {

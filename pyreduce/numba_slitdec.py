@@ -114,7 +114,7 @@ def _zeta_tensors(
                 else:
                     w = step
                 dy += step
-                t = dy - yc
+                t = dy - yc + 0.5 * step  # subpixel centre, as slitdec.c
                 delta = (
                     t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * c5)))) + slitdeltas[iy]
                 )
