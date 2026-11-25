@@ -686,6 +686,11 @@
                             "description": "Pixel weights in the slit decomposition. 'none': unweighted, the historic solution. 'unc': 1/variance from gain and read noise. 'model': 1/(a*model + b) with a, b fitted to the pixel variance, refreshed each iteration; noise-optimal only as far as the pixel variance describes the real noise, and the LSF moves with S/N. 'flux': 1/slit-function value; an S/N-independent, sharper LSF.",
                             "enum": ["none", "unc", "model", "flux"]
                         },
+                        "extraction_uncertainty": {
+                            "description": "Spectrum uncertainty of the optimal extraction: 'propagated' carries the pixel variances (photon and read noise from gain and readnoise, or the fitted variance model of extraction_weights='model') through the spectrum solve; 'scaled' multiplies that by the square root of the reduced chi^2 of the residuals; 'residual' is the historic heuristic from the data - model residuals, which is not calibrated: too small where the model fits the data exactly, too large where model misfit dominates.",
+                            "type": "string",
+                            "enum": ["residual", "propagated", "scaled"]
+                        },
                         "extraction_noise_floor": {
                             "description": "Variance offset b in ADU^2 for extraction_weights='model' (read noise plus shot noise of any subtracted background). If null, fitted, but not below the 5th percentile of the pixel variance.",
                             "type": ["number", "null"],

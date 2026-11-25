@@ -312,6 +312,103 @@ def _select(arr, k):
     return np.partition(arr, k)[k]
 
 
+UNCERTAINTY_MODES = {"residual": 0, "propagated": 1, "scaled": 2}
+
+
+def propagate_uncertainty(
+    imT,
+    pix_uncT,
+    maskT,
+    modelT,
+    ycen,
+    slitcurve,
+    slitdeltas,
+    osample,
+    sL,
+    wT,
+    weight_mode,
+    noise_floor,
+    fit_b,
+    lambda_sP,
+    margin,
+):
+    """Spectrum uncertainty from the pixel variances, as the C's unc_mode 1
+    (``uncertainty="propagated"``).
+
+    The spectrum is linear in the image for the final slit function, weights
+    and mask: sP = N^-1 A^T W d, with A[p, x] the model weight of column x in
+    pixel p. Its covariance is N^-1 M N^-1, M = A^T W V W A, V the pixel
+    variances (pix_unc^2, or the fitted a * model + b for model weights).
+    Returns (unc, chi2), chi2 the reduced chi^2 of the residuals against V,
+    or None if N is not positive definite. Shared by the numpy and numba
+    backends; images in the transposed (ncols, nrows) layout.
+
+    The C solves banded and stops each column's substitution once it has
+    decayed below 1e-10 of its peak; the dense solve here agrees to ~1e-10.
+    """
+    from scipy.linalg import cho_factor, cho_solve
+    from scipy.sparse import coo_matrix, diags
+
+    ncols, nrows = imT.shape
+    npix = ncols * nrows
+    ycen = np.asarray(ycen, dtype=np.float64)
+    ycen_offset = ycen.astype(np.int64)
+    pix, src_x, src_iy, zw = _geometry(
+        ncols,
+        nrows,
+        ycen - ycen_offset,
+        ycen_offset,
+        nrows // 2,
+        osample,
+        slitcurve,
+        slitdeltas,
+    )
+    A = coo_matrix((zw * sL[src_iy], (pix, src_x)), shape=(npix, ncols)).tocsr()
+
+    good = maskT.reshape(-1) != 0
+    u = pix_uncT.reshape(-1)
+    uok = np.isfinite(u) & (u > 0.0)
+    model = modelT.reshape(-1)
+    if weight_mode == 2:
+        ok = good & uok & np.isfinite(model)
+        va, vb = _variance_fit(model[ok], u[ok] ** 2, noise_floor, not fit_b)
+        v = va * np.maximum(model, 0.0) + vb
+    else:
+        v = np.where(uok, u * u, 0.0)
+    v = np.where(good & (v > 0.0), v, 0.0)
+    w = np.ones(npix) if wT is None else wT.reshape(-1)
+    wm = np.where(good, w, 0.0)
+
+    N = (A.T @ diags(wm) @ A).toarray()
+    M = (A.T @ diags(wm * wm * v) @ A).toarray()
+    if lambda_sP > 0.0:
+        i = np.arange(ncols)
+        N[i, i] += np.where((i == 0) | (i == ncols - 1), lambda_sP, 2.0 * lambda_sP)
+        N[i[:-1], i[1:]] -= lambda_sP
+        N[i[1:], i[:-1]] -= lambda_sP
+    d = np.diag(N)
+    max_diag = d.max()
+    if max_diag > 0.0:
+        np.fill_diagonal(N, np.maximum(d, max_diag * 1.0e-10))
+
+    try:
+        cf = cho_factor(N, lower=False, check_finite=False)
+    except np.linalg.LinAlgError:
+        return None
+    Ninv = cho_solve(cf, np.eye(ncols), check_finite=False)
+    unc = np.sqrt(np.maximum(np.einsum("ij,jk,ki->i", Ninv, M, Ninv), 0.0))
+
+    # Reduced chi^2 over the columns whose solution is trusted
+    delta_x = max(0 if lambda_sP == 0 else 1, margin - SLITDEC_EDGE)
+    core = np.zeros((ncols, nrows), dtype=bool)
+    core[delta_x : ncols - delta_x] = True
+    use = core.reshape(-1) & (v > 0.0)
+    res = imT.reshape(-1)[use] - model[use]
+    nc2 = np.count_nonzero(use) - ((ncols - 2 * delta_x) + nrows)
+    chi2 = np.sum(res * res / v[use]) / nc2 if nc2 > 0 else np.nan
+    return unc, chi2
+
+
 def _slitdec_core(
     ncols,
     nrows,
@@ -334,8 +431,13 @@ def _slitdec_core(
     modelT,
     unc,
     info,
+    state=None,
 ):
     """Iterate sL/sP to convergence.
+
+    ``state``, if a dict, receives what the uncertainty propagation needs:
+    the final pixel weights (transposed layout, None if unweighted), the
+    noise floor and whether it was fitted.
 
     Images are transposed (ncols, nrows) here so that the flat pixel index
     runs along the slit first, as the C's zeta layout does, and are then
@@ -617,6 +719,13 @@ def _slitdec_core(
     info[2] = status
     info[3] = it
     info[4] = margin
+    if state is not None:
+        wT = None
+        if wpix is not None:
+            wT = np.empty(npix)
+            wT[order] = wpix
+            wT = wT.reshape(ncols, nrows)
+        state.update(wT=wT, noise_floor=noise_floor, fit_b=fit_b)
     return 0
 
 
@@ -635,6 +744,7 @@ def slitdec(
     preset_slitfunc=None,
     weights="none",
     noise_floor=None,
+    uncertainty="propagated",
 ):
     """Slit decomposition with slit characterization (NumPy backend).
 
@@ -643,13 +753,18 @@ def slitdec(
 
     Returns
     -------
-    dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
-    return_code.
+    dict with keys spectrum, slitfunction, model, uncertainty, chi2, info,
+    mask, return_code.
     """
     weight_mode = WEIGHT_MODES.get(weights)
     if weight_mode is None:
         raise ValueError(
             f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
+    unc_mode = UNCERTAINTY_MODES.get(uncertainty)
+    if unc_mode is None:
+        raise ValueError(
+            f"uncertainty must be one of {list(UNCERTAINTY_MODES)}, got {uncertainty!r}"
         )
     im = np.ascontiguousarray(im, dtype=np.float64)
     pix_unc = np.ascontiguousarray(pix_unc, dtype=np.float64)
@@ -712,6 +827,8 @@ def slitdec(
     modelT = np.zeros((ncols, nrows), dtype=np.float64)
     unc = np.zeros(ncols, dtype=np.float64)
     info = np.zeros(5, dtype=np.float64)
+    pix_uncT = np.ascontiguousarray(pix_unc.T)
+    state = {}
 
     return_code = _slitdec_core(
         ncols,
@@ -729,19 +846,46 @@ def slitdec(
         use_preset,
         weight_mode,
         -1.0 if noise_floor is None else float(noise_floor),
-        np.ascontiguousarray(pix_unc.T),
+        pix_uncT,
         sP,
         sL,
         modelT,
         unc,
         info,
+        state,
     )
+
+    chi2 = np.nan
+    if unc_mode > 0 and return_code == 0:
+        res = propagate_uncertainty(
+            imT,
+            pix_uncT,
+            maskT,
+            modelT,
+            ycen,
+            slitcurve_padded,
+            slitdeltas_ny,
+            osample,
+            sL,
+            state["wT"],
+            weight_mode,
+            state["noise_floor"],
+            state["fit_b"],
+            float(lambda_sP),
+            int(info[4]),
+        )
+        if res is not None:
+            prop, chi2 = res
+            unc[:] = (
+                prop * np.sqrt(chi2) if unc_mode == 2 and np.isfinite(chi2) else prop
+            )
 
     return {
         "spectrum": sP,
         "slitfunction": sL,
         "model": np.ascontiguousarray(modelT.T),
         "uncertainty": unc,
+        "chi2": chi2,
         "info": info,
         "margin": int(info[4]),
         "mask": np.ascontiguousarray(maskT.T),

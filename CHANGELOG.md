@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Spectrum uncertainties are now propagated from the pixel variances.** New setting `extraction_uncertainty` (`science`, `norm_flat`): `"propagated"` (default) carries the pixel variances (photon plus read noise, or the fitted variance model of `"model"` weights) through the final spectrum solve; `"scaled"` multiplies that by √(reduced χ²); `"residual"` is the previous estimate from the data - model residuals. The residual heuristic was not calibrated: about 0.7x the true scatter on a frame the model fits exactly, 1.6-1.9x the photon limit on SOXS NIR nod frames where model misfit dominates. The propagated value matches the scatter over noise realisations to within 10% and the photon limit on SOXS NIR data to 0.9-1.0x. The extra read-noise term `extract_spectrum` added per column is now applied only to `"residual"`. Exposes the C's `unc_mode`; the numpy backend computes the same in `propagate_uncertainty` (shared with numba), matching the C to ~1e-14. Every backend returns the reduced `chi2`
+
 ## [0.10] - 2026-10-23
 
 ### Added

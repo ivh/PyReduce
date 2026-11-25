@@ -414,8 +414,15 @@ model is faint; a masked pixel holding a value may come back on purpose.
 Pixel weights (`extraction_weights`: `none`/`unc`/`model`/`flux`, plus
 `extraction_noise_floor`) are a reduction setting, unlike the backend, and reach slitdec
 as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.
-`extract.py` builds `pix_unc` in ADU from gain and read noise; only the weighted modes
-read it. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
+`extract.py` builds `pix_unc` in ADU from gain and read noise; the weighted modes and the
+uncertainty read it. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
+
+The spectrum uncertainty (`extraction_uncertainty`, backend argument `uncertainty`, as in
+charslit) defaults to `"propagated"`: the C's `unc_mode` 1, the pixel variances carried
+through the final sP solve. `"scaled"` multiplies by √(reduced χ²), `"residual"` is the
+historic estimate. The numpy backend computes the propagation after its solve in
+`numpy_slitdec.propagate_uncertainty` (dense, from the final sL, weights and mask), which
+the numba backend reuses; both match the C to ~1e-14. Every backend returns `chi2`.
 
 ## ANDES Instruments
 

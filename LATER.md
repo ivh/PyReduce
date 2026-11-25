@@ -3,8 +3,8 @@
 Deferred side-quests from the 2026-10-23 slitdec subpixel-boundary fix.
 Numbers are from a sigma=2 px Gaussian, flat trace, Poisson noise, 10 seeds.
 
-- **slitdec `sig` runs ~15% low.** Reported uncertainty is 0.81-0.91 x sqrt(F)
-  while the actual scatter is 1.04-1.10 x sqrt(F), at 1e2-1e6 counts, os=4 and 10.
+- ~~**slitdec `sig` runs ~15% low.**~~ That was the residual estimate; the default
+  is now `extraction_uncertainty: "propagated"` (2026-11-25), calibrated to 10%.
 - **os=1 flux bias.** Constant +0.57% at every flux level for a trace at a
   half pixel; `sig` then grows with flux (9x sqrt(F) at 1e6). Likely the
   one-subpixel slit function not representing a half-pixel-offset profile,
@@ -21,11 +21,18 @@ Numbers are from a sigma=2 px Gaussian, flat trace, Poisson noise, 10 seeds.
 Deferred from the 2026-11-23 SOXS instrument setup (examples/soxs_example.py,
 examples/soxs_compare_soxspipe.py, public commissioning data):
 
-- **slitdec `sig` too large on SOXS NIR A-B frames.** Scatter between the two
-  independent nod pairs is 0.6-0.8 x the reported uncertainty in every order.
-  The VIS 5" A vs B test gives 1.1-1.6 x, but that one also carries flat-field
-  structure from different detector positions. Check gain/RON handling of the
-  NDIT-averaged NIR frames vs the slitdec noise model.
+- ~~**slitdec `sig` too large on SOXS NIR A-B frames.**~~ The residual estimate
+  (1.6-1.9x the photon limit); "propagated" gives 0.9-1.0x (2026-11-25).
+- **Per-pixel noise 1.15-1.35x the photon limit on SOXS NIR nod** (all weights),
+  1.0-1.2x once binned to >= 0.4 nm, with ~10-15% excess power near Nyquist:
+  neighbouring spectral pixels anticorrelated under the tilted slit with
+  `smooth_spectrum = 0`. Try a small `smooth_spectrum` together with an LSF
+  check; the C's covariance output (`nlag`) would quantify it.
+- **`pix_unc` is rebuilt from the image being extracted**, so an A-B difference
+  misses the subtracted frame's read noise and background. A variance-image
+  input to `extract()` would fix it.
+- **`extraction_weights: "flux"` fails on A-B frames** (6-13x the photon
+  limit on SOXS NIR): 1/slit function blows up in the near-empty wings.
 - **SOXS wavelength zero point.** Arc-only solution is off by -15 to -28 km/s
   (VIS, ~1 px) and ~-5 km/s (NIR) on sky lines; soxspipe tunes per order to sky
   lines. A sky-line shift step (or per-order offset from the science frame) would fix it.

@@ -69,6 +69,12 @@ def _assert_equivalent(swath, **kwargs):
         # no information and would fail any relative tolerance.
         scale = np.max(np.abs(a[key]))
         assert np.max(np.abs(a[key] - b[key])) <= RTOL * scale, key
+    # The propagated uncertainty is a dense solve here and a banded one,
+    # truncated at 1e-10 of each column's peak, in the C
+    if np.isfinite(a["chi2"]):
+        assert b["chi2"] == pytest.approx(a["chi2"], rel=RTOL)
+    else:
+        assert not np.isfinite(b["chi2"])
 
 
 @pytest.mark.parametrize(
@@ -199,3 +205,25 @@ def test_input_validation_matches_wrapper():
         slitdec_numpy(**{**swath, "slitdeltas": np.zeros(3)})
     with pytest.raises(ValueError):
         slitdec_numpy(**swath, preset_slitfunc=np.ones(3))
+
+
+@pytest.mark.parametrize("uncertainty", ["residual", "propagated", "scaled"])
+@pytest.mark.parametrize("weights", ["none", "unc", "model", "flux"])
+@pytest.mark.parametrize(
+    "swath,kwargs",
+    [
+        ({"ncols": 200, "nrows": 15, "osample": 4, "curved": False}, {}),
+        ({"ncols": 300, "nrows": 21, "osample": 6, "hotpix": 40}, {}),
+        ({"ncols": 200, "nrows": 15, "osample": 4}, {"lambda_sP": 0.5}),
+    ],
+    ids=["flat", "curved-hotpix", "smoothed"],
+)
+def test_matches_c_backend_uncertainty(uncertainty, weights, swath, kwargs):
+    _assert_equivalent(
+        _make_swath(**swath), weights=weights, uncertainty=uncertainty, **kwargs
+    )
+
+
+def test_uncertainty_mode_validated():
+    with pytest.raises(ValueError, match="uncertainty"):
+        slitdec_numpy(**_make_swath(50, 9, 4), uncertainty="bogus")

@@ -73,6 +73,7 @@
         "extraction_reject": 6,
         "extraction_weights": "none",
         "extraction_noise_floor": null,
+        "extraction_uncertainty": "propagated",
         "plot": true,
         "plot_title": "Normalized Flat"
     },
@@ -169,6 +170,7 @@
         "extraction_reject": 6,
         "extraction_weights": "none",
         "extraction_noise_floor": null,
+        "extraction_uncertainty": "propagated",
         "bias_scaling": "number_of_files",
         "norm_scaling": "divide",
         "n_jobs": 1,

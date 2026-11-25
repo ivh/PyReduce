@@ -24,6 +24,7 @@ c_int = ctypes.c_int
 c_mask = ctypes.c_ubyte
 
 WEIGHT_MODES = {"none": 0, "unc": 1, "model": 2, "flux": 3}
+UNCERTAINTY_MODES = {"residual": 0, "propagated": 1, "scaled": 2}
 
 
 def slitdec(
@@ -41,6 +42,7 @@ def slitdec(
     preset_slitfunc=None,
     weights="none",
     noise_floor=None,
+    uncertainty="propagated",
 ):
     """Slit decomposition with slit characterization (charslit algorithm).
 
@@ -62,17 +64,34 @@ def slitdec(
     of ``im``; None fits it, but not below the 5th percentile of pix_unc^2. See
     CharSlit's CLAUDE.md for the trade-offs.
 
+    ``uncertainty`` selects the spectrum uncertainty, as in charslit:
+    ``"residual"`` the historic heuristic from the data - model residuals per
+    column (not calibrated: about 0.7x the true scatter on a frame the model
+    fits exactly, and too large where model misfit dominates the residuals),
+    ``"propagated"`` (default) the pixel variances carried through the final
+    spectrum solve (pix_unc^2, or the fitted a * model + b with model
+    weights), ``"scaled"`` the same times the reduced chi^2 of the residuals
+    against those variances.
+
     Returns
     -------
-    dict with keys spectrum, slitfunction, model, uncertainty, info, margin,
-    mask, return_code. The first and last ``margin`` columns of spectrum and
-    uncertainty are returned as solved but must not be used: they can be far
-    off. margin is the largest slit-image shift, rounded up, plus 2.
+    dict with keys spectrum, slitfunction, model, uncertainty, chi2, info,
+    margin, mask, return_code. chi2 is the reduced chi^2 of "propagated" and
+    "scaled" (NaN for "residual", or if the propagation failed, in which case
+    the uncertainty stays the residual estimate). The first and last ``margin`` columns of
+    spectrum and uncertainty are returned as solved but must not be used:
+    they can be far off. margin is the largest slit-image shift, rounded up,
+    plus 2.
     """
     weight_mode = WEIGHT_MODES.get(weights)
     if weight_mode is None:
         raise ValueError(
             f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
+    unc_mode = UNCERTAINTY_MODES.get(uncertainty)
+    if unc_mode is None:
+        raise ValueError(
+            f"uncertainty must be one of {list(UNCERTAINTY_MODES)}, got {uncertainty!r}"
         )
     requirements = ["C", "A", "W", "O"]
 
@@ -146,6 +165,7 @@ def slitdec(
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)
     info = np.zeros(5, dtype=c_double)
+    chi2 = np.full(1, np.nan, dtype=c_double)
 
     return_code = slitdeclib.slitdec(
         ffi_slitdec.cast("int", ncols),
@@ -177,11 +197,11 @@ def slitdec(
         ffi_slitdec.cast("int", 0),
         ffi_slitdec.cast("int", -1),  # y_lower_lim: nrows / 2
         ffi_slitdec.NULL,  # sP_fine
-        ffi_slitdec.cast("int", 0),  # unc_mode: from residuals
+        ffi_slitdec.cast("int", int(unc_mode)),
         ffi_slitdec.cast("int", 1),  # out_x
         ffi_slitdec.cast("int", 0),  # nlag
         ffi_slitdec.NULL,  # cov
-        ffi_slitdec.NULL,  # chi2
+        ffi_slitdec.cast("double *", chi2.ctypes.data),
     )
 
     return {
@@ -189,6 +209,7 @@ def slitdec(
         "slitfunction": sL,
         "model": model,
         "uncertainty": unc,
+        "chi2": float(chi2[0]),
         "info": info,
         "margin": int(info[4]),
         "mask": mask_copy,

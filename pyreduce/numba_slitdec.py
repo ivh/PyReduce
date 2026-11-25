@@ -20,6 +20,8 @@ import math
 import numpy as np
 from numba import njit
 
+from .numpy_slitdec import UNCERTAINTY_MODES, propagate_uncertainty
+
 _INT32_MAX = 2147483647
 _INT32_MIN = -2147483648
 
@@ -638,6 +640,8 @@ def _slitdec_core(
     model,
     unc,
     info,
+    wpix_out,
+    wstate,
 ):
     sP_stop = 5e-5  # 99th percentile spectrum change relative to median
     sP_change = math.inf
@@ -892,6 +896,11 @@ def _slitdec_core(
     info[2] = status
     info[3] = it
     info[4] = margin
+    # For the uncertainty propagation: final weights, noise floor, fitted?
+    wpix_out[:, :] = wpix
+    wstate[0] = 1.0 if use_w else 0.0
+    wstate[1] = noise_floor
+    wstate[2] = 1.0 if fit_b else 0.0
     return 0
 
 
@@ -910,21 +919,29 @@ def slitdec(
     preset_slitfunc=None,
     weights="none",
     noise_floor=None,
+    uncertainty="propagated",
 ):
     """Slit decomposition with slit characterization (Numba backend).
 
     Drop-in replacement for :func:`pyreduce.cwrappers.slitdec`: same signature,
-    same returned dict, same mask convention (0 = bad, 1 = good).
+    same returned dict, same mask convention (0 = bad, 1 = good). The
+    "propagated" and "scaled" uncertainties use the numpy backend's
+    propagation, which needs no Numba.
 
     Returns
     -------
-    dict with keys spectrum, slitfunction, model, uncertainty, info, mask,
-    return_code.
+    dict with keys spectrum, slitfunction, model, uncertainty, chi2, info,
+    mask, return_code.
     """
     weight_mode = WEIGHT_MODES.get(weights)
     if weight_mode is None:
         raise ValueError(
             f"weights must be one of {list(WEIGHT_MODES)}, got {weights!r}"
+        )
+    unc_mode = UNCERTAINTY_MODES.get(uncertainty)
+    if unc_mode is None:
+        raise ValueError(
+            f"uncertainty must be one of {list(UNCERTAINTY_MODES)}, got {uncertainty!r}"
         )
     im = np.ascontiguousarray(im, dtype=np.float64)
     pix_unc = np.ascontiguousarray(pix_unc, dtype=np.float64)
@@ -985,6 +1002,8 @@ def slitdec(
     model = np.zeros((nrows, ncols), dtype=np.float64)
     unc = np.zeros(ncols, dtype=np.float64)
     info = np.zeros(5, dtype=np.float64)
+    wpix = np.zeros((nrows, ncols), dtype=np.float64)
+    wstate = np.zeros(3, dtype=np.float64)
 
     return_code = _slitdec_core(
         ncols,
@@ -1008,13 +1027,41 @@ def slitdec(
         model,
         unc,
         info,
+        wpix,
+        wstate,
     )
+
+    chi2 = np.nan
+    if unc_mode > 0 and return_code == 0:
+        res = propagate_uncertainty(
+            np.ascontiguousarray(im.T),
+            np.ascontiguousarray(pix_unc.T),
+            np.ascontiguousarray(mask_copy.T),
+            np.ascontiguousarray(model.T),
+            ycen,
+            slitcurve_padded,
+            slitdeltas_ny,
+            osample,
+            sL,
+            np.ascontiguousarray(wpix.T) if wstate[0] else None,
+            weight_mode,
+            wstate[1],
+            bool(wstate[2]),
+            float(lambda_sP),
+            int(info[4]),
+        )
+        if res is not None:
+            prop, chi2 = res
+            unc[:] = (
+                prop * np.sqrt(chi2) if unc_mode == 2 and np.isfinite(chi2) else prop
+            )
 
     return {
         "spectrum": sP,
         "slitfunction": sL,
         "model": model,
         "uncertainty": unc,
+        "chi2": chi2,
         "info": info,
         "margin": int(info[4]),
         "mask": mask_copy,

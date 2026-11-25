@@ -168,6 +168,7 @@ Use either `noise` (absolute threshold) or `noise_relative` (e.g., 0.01 for 1% o
 | `extraction_reject` | Sigma threshold for outlier rejection | 6 |
 | `extraction_weights` | Pixel weights: "none", "unc", "model" or "flux" (see below) | "none" |
 | `extraction_noise_floor` | Variance offset b (ADU²) for `"model"` weights; null = fitted, at least the 5th percentile of pixel variance | null |
+| `extraction_uncertainty` | Spectrum uncertainty: "propagated", "scaled" or "residual" (see below) | "propagated" |
 | `maxiter` | Maximum extraction iterations | 30 |
 | `n_jobs` | Files to extract in parallel (joblib semantics, -1 = all cores). Disables plots when not 1 | 1 |
 
@@ -191,6 +192,16 @@ By default the slit decomposition is unweighted least squares: each row enters t
 - **`"flux"`** - 1/slit-function value. Rows enter in proportion to their flux at any S/N: the sharp, bright-source LSF, independent of S/N, at a variance cost that grows for faint data.
 
 `"model"` sees only the trace being extracted, so light from neighbours inside the aperture looks faint to it and gets large weights; for crowded apertures `"none"` or `"flux"` are safer.
+
+#### extraction_uncertainty
+
+How the uncertainty of the extracted spectrum is computed:
+
+- **`"propagated"`** (default) - the pixel variances carried through the final spectrum solve: covariance N⁻¹MN⁻¹ with N the normal matrix (weights, tilt, mask, penalty) and M the same fill with weight² × pixel variance. The pixel variance is photon noise from the data plus read noise (gain and read noise from the header), or the fitted a·model + b with `"model"` weights. The slit function is taken as known. Calibrated against the scatter over noise realisations on synthetic frames, and against the photon limit on SOXS NIR data (0.9-1.0x). Neighbouring spectral pixels are slightly anticorrelated under a tilted slit, which this per-pixel value does not include: the per-pixel scatter can exceed it by up to ~1.4x while the noise of binned spectra matches.
+- **`"scaled"`** - the same times √(reduced χ²) of the residuals against those variances, for pixel variances of unknown scale. Model misfit (sky-line residuals, profile changes along a swath) also enters χ², so this inflates the error on real data.
+- **`"residual"`** - the historic heuristic from the data - model residuals per column. Not calibrated: about 0.7x the true scatter on a frame the model fits exactly, and too large where model misfit dominates the residuals (1.6-1.9x the photon limit on SOXS NIR nod frames).
+
+The pixel variance is rebuilt from the image being extracted, so for a difference image (A−B nodding) it misses the read noise and background of the subtracted frame.
 
 #### Using a Pre-computed Slit Function
 

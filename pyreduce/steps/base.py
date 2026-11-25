@@ -252,6 +252,7 @@ class ExtractionStep(Step):
                 "reject_threshold": config.get("extraction_reject", 6),
                 "weights": config.get("extraction_weights", "none"),
                 "noise_floor": config.get("extraction_noise_floor"),
+                "uncertainty": config.get("extraction_uncertainty", "propagated"),
             }
         else:
             raise ValueError(

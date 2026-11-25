@@ -111,6 +111,7 @@ def _slitdec_charslit(
     readnoise=0,
     weights="none",
     noise_floor=None,
+    uncertainty="propagated",
 ):
     """Call charslit.slitdec and convert results to the expected format.
 
@@ -148,6 +149,8 @@ def _slitdec_charslit(
     noise_floor : float or None
         Variance offset b for weights="model", in ADU^2; None lets slitdec fit
         it (at least the 5th percentile of pix_unc^2)
+    uncertainty : {"residual", "propagated", "scaled"}
+        Spectrum uncertainty, see cwrappers.slitdec
 
     Returns
     -------
@@ -220,6 +223,8 @@ def _slitdec_charslit(
             if weights != "none"
             else {}
         ),
+        # always passed: the backends default to "propagated", charslit to "residual"
+        uncertainty=uncertainty,
     )
 
     sp = result["spectrum"]
@@ -1144,6 +1149,7 @@ def extract_spectrum(
     preset_slitfunc=None,
     weights="none",
     noise_floor=None,
+    uncertainty="propagated",
     surplus_row=False,
     **kwargs,
 ):
@@ -1212,6 +1218,8 @@ def extract_spectrum(
     noise_floor : float, optional
         variance offset b in ADU^2 for weights="model" (default: None, fitted
         to the pixel variance)
+    uncertainty : {"residual", "propagated", "scaled"}, optional
+        spectrum uncertainty, see cwrappers.slitdec (default: "propagated")
     surplus_row : bool, optional
         yrange holds one row more than the extraction height (even heights).
         In each column the edge row farther from the trace is set to NaN, so
@@ -1351,6 +1359,7 @@ def extract_spectrum(
                 readnoise=readnoise,
                 weights=weights,
                 noise_floor=noise_floor,
+                uncertainty=uncertainty,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -1457,7 +1466,9 @@ def extract_spectrum(
             im_ordr[index] += norm_model[i] * weight[i]
 
     slitf[:] = np.mean(swath.slitf, axis=0)
-    sunc[:] = np.sqrt(sunc**2 + (readnoise / gain) ** 2)
+    if uncertainty == "residual":
+        # The propagated variances already carry the read noise of every pixel
+        sunc[:] = np.sqrt(sunc**2 + (readnoise / gain) ** 2)
     return spec, slitf, mask, sunc
 
 
