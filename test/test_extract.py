@@ -1207,3 +1207,73 @@ def test_swath_overlap_narrower_than_margins_raises():
             osample=4,
             plot=False,
         )
+
+
+def _tilted_line_frame(c1, y0, nrow=60, ncol=240, x0=120.3, ss=6):
+    """Gaussian slit x Gaussian emission line on a continuum, the line tilted by
+    c1 px per row, integrated over each pixel; pixel centres at integers."""
+    sub = (np.arange(ss) + 0.5) / ss - 0.5
+    yy = (np.arange(nrow)[:, None] + sub).ravel()
+    xx = (np.arange(ncol)[:, None] + sub).ravel()
+    Y, X = np.meshgrid(yy, xx, indexing="ij")
+    t = Y - y0
+    img = np.exp(-0.5 * (t / 3.0) ** 2) * (
+        0.05 + np.exp(-0.5 * ((X - x0 - c1 * t) / 1.2) ** 2)
+    )
+    return 1e4 * img.reshape(nrow, ss, ncol, ss).mean(axis=(1, 3))
+
+
+def _line_centroid(spec, x0=120, w=6):
+    x = np.arange(x0 - w, x0 + w + 1)
+    s = spec[x] - 0.05 * np.nanmedian(spec)
+    return np.sum(x * s) / np.sum(s)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("c1", [0.3, -0.3])
+@pytest.mark.parametrize("y0", [30.2, 30.7])
+def test_even_height_keeps_tilted_line_position(c1, y0):
+    """Even and odd heights must put a tilted line at the same x. Slitdec used
+    to get the trace half a row too high for even heights, which shifted lines
+    by ~c1/2 px (0.11-0.14 px here)."""
+    img = _tilted_line_frame(c1, y0)
+    ncol = img.shape[1]
+    curvature = np.zeros((1, ncol, 6))
+    curvature[0, :, 1] = c1
+    pos = []
+    for height in (20, 21):
+        spec, _, _ = extract.optimal_extraction(
+            img,
+            np.array([[0.0, y0]]),
+            np.array([height]),
+            np.array([[0, ncol]]),
+            curvature=curvature,
+            osample=8,
+            lambda_sf=0.1,
+            swath_width=80,
+        )
+        pos.append(_line_centroid(np.ma.filled(spec[0], np.nan)))
+    assert abs(pos[0] - pos[1]) < 0.02
+
+
+@pytest.mark.unit
+def test_even_height_surplus_row_stays_out_of_normalized_flat():
+    nrow, ncol = 60, 240
+    img = _tilted_line_frame(0.0, 30.4, nrow, ncol)
+    im_norm = np.zeros_like(img)
+    im_ordr = np.zeros_like(img)
+    extract.optimal_extraction(
+        img,
+        np.array([[0.004, 30.0]]),
+        np.array([20]),
+        np.array([[0, ncol]]),
+        osample=8,
+        swath_width=80,
+        normalize=True,
+        im_norm=im_norm,
+        im_ordr=im_ordr,
+    )
+    assert np.all(np.isfinite(im_norm))
+    assert np.all(np.isfinite(im_ordr))
+    # exactly height rows per column carry the normalized flat
+    assert np.all(np.count_nonzero(im_ordr[:, 10:-10], axis=0) == 20)

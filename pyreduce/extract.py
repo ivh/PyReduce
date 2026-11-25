@@ -1144,6 +1144,7 @@ def extract_spectrum(
     preset_slitfunc=None,
     weights="none",
     noise_floor=None,
+    surplus_row=False,
     **kwargs,
 ):
     """
@@ -1211,6 +1212,10 @@ def extract_spectrum(
     noise_floor : float, optional
         variance offset b in ADU^2 for weights="model" (default: None, fitted
         to the pixel variance)
+    surplus_row : bool, optional
+        yrange holds one row more than the extraction height (even heights).
+        In each column the edge row farther from the trace is set to NaN, so
+        the rows used stay centred on it (default: False)
     plot : bool, optional
         wether to plot the progress, plotting will slow down the procedure significantly (default: False)
     ord_num : int, optional
@@ -1280,6 +1285,16 @@ def extract_spectrum(
             # trace center = ylow + fractional_part(ycen)
             swath_ycen_abs = ycen[ibeg:iend]
             swath_ycen = ylow + (swath_ycen_abs - np.floor(swath_ycen_abs))
+
+            if surplus_row:
+                # NaN, not a mask: slitdec may re-admit masked pixels that
+                # hold a value, never one without
+                surplus = np.zeros(swath_img.shape, bool)
+                above_middle = swath_ycen >= swath_img.shape[0] / 2
+                surplus[0, above_middle] = True
+                surplus[-1, ~above_middle] = True
+                swath_img = swath_img.astype(np.float64)
+                swath_img[surplus] = np.nan
 
             # Corrections
             # TODO: what is it even supposed to do?
@@ -1351,6 +1366,9 @@ def extract_spectrum(
                     out=norm_img[ihalf],
                 )
                 norm_model[ihalf] = swath.model[ihalf]
+                if surplus_row:
+                    norm_img[ihalf][surplus] = 0
+                    norm_model[ihalf] = np.where(surplus, 0, norm_model[ihalf])
 
             if (
                 plot >= 2
@@ -1556,7 +1574,7 @@ def optimal_extraction(
     ix = np.arange(ncol)
     if plot >= 2 and util.is_interactive_plot_mode():  # pragma: no cover
         ncol_swath = kwargs.get("swath_width", img.shape[1] // 400)
-        nrow_swath = np.max(extraction_height)
+        nrow_swath = int(np.max(extraction_height + (extraction_height % 2 == 0)))
         nslitf_swath = (nrow_swath + 2) * kwargs.get("osample", 1) + 1
         progress = ProgressPlot(nrow_swath, ncol_swath, nslitf_swath, title=plot_title)
     else:
@@ -1567,11 +1585,15 @@ def optimal_extraction(
 
         # Define a fixed height area containing one trace
         ycen = np.polyval(traces[i], ix)
-        yrange = get_y_scale(ycen, column_range[i], extraction_height[i], nrow)
-        # Shift ycen so floor() rounds to nearest integer, centering the trace
-        # in the extraction window (sub-pixel offset near 0 instead of biased to +1)
+        # An even height cannot be centred on the trace with a fixed number of
+        # rows below it, which is what slitdec takes. So cut one row more and
+        # blank the surplus edge row per column in extract_spectrum.
+        height = int(extraction_height[i])
+        surplus_row = height % 2 == 0
+        yrange = get_y_scale(ycen, column_range[i], height + surplus_row, nrow)
+        # Trace polynomials give pixel centres, slitdec takes row i as [i, i+1)
         cr = column_range[i]
-        ycen[cr[0] : cr[1]] += 0.5 if extraction_height[i] % 2 == 1 else 1
+        ycen[cr[0] : cr[1]] += 0.5
 
         osample = kwargs.get("osample", 1)
         slitfunction[i] = np.zeros(osample * (sum(yrange) + 2) + 1)
@@ -1600,6 +1622,7 @@ def optimal_extraction(
             plot=plot,
             plot_title=plot_title,
             preset_slitfunc=order_slitfunc,
+            surplus_row=surplus_row,
             **kwargs,
         )
 

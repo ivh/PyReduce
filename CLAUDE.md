@@ -402,6 +402,15 @@ ends. So every order loses shift + 2 columns per end, 2 for an untilted slit. An
 `charslit` without the `margin` key still reports `delta_x` there; `_slitdec_charslit`
 adds 2 in that case. Same convention in CharSlit and cr2res.
 
+Swath rows: slitdec takes a fixed number of rows below the trace (`nrows / 2`) and the
+true trace position (`ycen + 0.5`, since it treats row i as [i, i+1)). An even
+`extraction_height` cannot be centred that way, so `optimal_extraction` cuts h+1 rows and
+`extract_spectrum` sets the edge row farther from the trace to NaN in each column: h rows
+used, centred to ±0.5, slit function one row longer. Before, even heights passed the trace
+half a row too high, shifting tilted lines by ~c1/2 px. Bad pixels reach slitdec as NaN,
+never zero: its kappa clipping re-decides every pixel and a zero would come back where the
+model is faint; a masked pixel holding a value may come back on purpose.
+
 Pixel weights (`extraction_weights`: `none`/`unc`/`model`/`flux`, plus
 `extraction_noise_floor`) are a reduction setting, unlike the backend, and reach slitdec
 as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.
