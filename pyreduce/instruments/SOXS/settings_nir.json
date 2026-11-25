@@ -26,6 +26,7 @@
         "threshold": 5000
     },
     "science": {
-        "extraction_height": 34
+        "extraction_height": 34,
+        "smooth_spectrum": 0.01
     }
 }
