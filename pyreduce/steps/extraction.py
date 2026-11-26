@@ -4,6 +4,7 @@ import logging
 
 import joblib
 import numpy as np
+from astropy.io import fits
 from tqdm import tqdm
 
 # PyReduce subpackages
@@ -153,6 +154,8 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         # measured on this calibrated frame rather than inherited from the flat.
         scatter_coeff = as_scatter_coeff(scatter, im, all_traces, context=fname)
 
+        var = self._load_variance(fname, norm_flat)
+
         # Extract science spectrum - returns list[Spectrum]
         spectra = extract(
             im,
@@ -163,6 +166,7 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
             readnoise=head["e_readn"],
             dark=head["e_drk"],
             scatter=scatter_coeff,
+            var=var,
             plot=self.plot,
             plot_title=self.plot_title,
             **extraction_kwargs,
@@ -171,6 +175,31 @@ class ScienceExtraction(CalibrationStep, ExtractionStep):
         # Save spectrum to disk
         self.save(fname, head, spectra)
         return head, spectra
+
+    def _load_variance(self, fname, norm_flat):
+        """Pixel variances from an optional "VAR" image extension of the input.
+
+        The extension holds the variance of the data in ADU^2, in the raw
+        layout. It is loaded like the data and divided by the square of the
+        normalized flat. Without it the extraction builds the variances from
+        the image, which is wrong for an A-B difference.
+
+        Returns
+        -------
+        var : array of shape (nrow, ncol), or None
+        """
+        with fits.open(fname) as hdul:
+            if "VAR" not in hdul:
+                return None
+        var, _ = self.instrument.load_fits(
+            fname, self.channel, extension="VAR", dtype=np.float64
+        )
+        var = np.ma.getdata(var)
+        norm = norm_flat[0] if norm_flat is not None else None
+        if norm is not None and self.norm_scaling == "divide":
+            var = var / np.ma.getdata(norm) ** 2
+        logger.info("Pixel variances from the VAR extension of %s", fname)
+        return var
 
     def save(self, fname, head, spectra: list[Spectrum]):
         """Save extracted spectra using Spectra format.

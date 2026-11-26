@@ -112,6 +112,7 @@ def _slitdec_charslit(
     weights="none",
     noise_floor=None,
     uncertainty="propagated",
+    var=None,
 ):
     """Call charslit.slitdec and convert results to the expected format.
 
@@ -151,6 +152,9 @@ def _slitdec_charslit(
         it (at least the 5th percentile of pix_unc^2)
     uncertainty : {"residual", "propagated", "scaled"}
         Spectrum uncertainty, see cwrappers.slitdec
+    var : array[nrows, ncols] or None
+        Pixel variances in ADU^2; pixels where it is not finite and positive,
+        and all pixels if None, get max(data, 0)/gain + (readnoise/gain)^2
 
     Returns
     -------
@@ -176,10 +180,15 @@ def _slitdec_charslit(
     data = np.ma.getdata(img).astype(np.float64)
     mask_in = np.ma.getmaskarray(img) | ~np.isfinite(data)
 
-    # Pixel uncertainties in ADU. Only the weighted modes read them, so
-    # weights="none" is unaffected by how they are built.
-    var = np.maximum(data, 0) / gain + (readnoise / gain) ** 2
-    pix_unc = np.sqrt(np.maximum(var, 1 / gain**2))
+    # Pixel uncertainties in ADU, read by the weighted modes and by the
+    # "propagated"/"scaled" spectrum uncertainties. Built from the data unless
+    # a variance image is given: an A-B difference or a background-subtracted
+    # frame no longer holds the background and the second read noise.
+    pix_var = np.maximum(data, 0) / gain + (readnoise / gain) ** 2
+    if var is not None:
+        v = np.asarray(np.ma.getdata(var), dtype=np.float64)
+        pix_var = np.where(np.isfinite(v) & (v > 0), v, pix_var)
+    pix_unc = np.sqrt(np.maximum(pix_var, 1 / gain**2))
 
     # Convert mask: numpy (True=bad) -> charslit (0=bad, 1=good)
     mask_c = np.where(mask_in, 0, 1).astype(np.uint8)
@@ -1151,6 +1160,7 @@ def extract_spectrum(
     noise_floor=None,
     uncertainty="propagated",
     surplus_row=False,
+    var=None,
     **kwargs,
 ):
     """
@@ -1220,6 +1230,11 @@ def extract_spectrum(
         to the pixel variance)
     uncertainty : {"residual", "propagated", "scaled"}, optional
         spectrum uncertainty, see cwrappers.slitdec (default: "propagated")
+    var : array[nrow, ncol], optional
+        pixel variances of img in ADU^2, e.g. (A + B)/gain + 2 (readnoise/gain)^2
+        for an A-B difference. They set the propagated uncertainties (and the
+        weighted modes). Default None: built from img itself, which misses any
+        subtracted background or frame.
     surplus_row : bool, optional
         yrange holds one row more than the extraction height (even heights).
         In each column the edge row farther from the trace is set to NaN, so
@@ -1288,6 +1303,7 @@ def extract_spectrum(
             # Cut out swath from image
             index = make_index(ycen_int - ylow, ycen_int + yhigh, ibeg, iend)
             swath_img = img[index]
+            swath_var = var[index] if var is not None else None
             # Convert ycen to swath-relative coordinates
             # The swath is cut from ycen_int - ylow, so within the swath:
             # trace center = ylow + fractional_part(ycen)
@@ -1360,6 +1376,7 @@ def extract_spectrum(
                 weights=weights,
                 noise_floor=noise_floor,
                 uncertainty=uncertainty,
+                var=swath_var,
             )
             t.set_postfix(chi=f"{swath[ihalf][5][1]:1.2f}")
 
@@ -1899,7 +1916,9 @@ def extract(
     extraction_type : {"optimal", "simple"}, optional
         Extraction algorithm. (default: "optimal")
     **kwargs
-        Additional parameters for extraction functions (osample, lambda_sf, etc.)
+        Additional parameters for extraction functions (osample, lambda_sf, etc.),
+        including var, the pixel variances of img in ADU^2 for the optimal
+        extraction (see extract_spectrum)
 
     Returns
     -------

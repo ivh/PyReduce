@@ -414,8 +414,10 @@ model is faint; a masked pixel holding a value may come back on purpose.
 Pixel weights (`extraction_weights`: `none`/`unc`/`model`/`flux`, plus
 `extraction_noise_floor`) are a reduction setting, unlike the backend, and reach slitdec
 as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.
-`extract.py` builds `pix_unc` in ADU from gain and read noise; the weighted modes and the
-uncertainty read it. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
+`extract.py` builds `pix_unc` in ADU from gain and read noise, unless a variance image
+`var` (ADU²) is passed through `extract()`/`extract_spectrum()`; the science step loads it
+from an optional `VAR` extension of the input file. The weighted modes and the
+uncertainty read it, so for A−B frames the default (built from the difference) is too small. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
 
 The spectrum uncertainty (`extraction_uncertainty`, backend argument `uncertainty`, as in
 charslit) defaults to `"propagated"`: the C's `unc_mode` 1, the pixel variances carried

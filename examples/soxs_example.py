@@ -252,15 +252,30 @@ if "nod" in steps:
         for fa, fb in zip(a_frames, b_frames, strict=False):
             for fpos, fneg in ((fa, fb), (fb, fa)):
                 with fits.open(fpos) as hp, fits.open(fneg) as hn:
-                    diff = hp[0].data.astype(np.float32) - hn[0].data.astype(np.float32)
+                    a = hp[0].data.astype(np.float32)
+                    b = hn[0].data.astype(np.float32)
                     head = hp[0].header.copy()
+                diff = a - b
+                # The difference no longer holds the sky, so its pixel variances
+                # come from both frames: (A + B)/gain + 2 RN^2/gain^2 in ADU^2,
+                # read by the science step from the VAR extension
+                rh = inst.load_fits(fpos, arm, header_only=True)
+                gain, rn = rh["e_gain"], rh["e_readn"]
+                var = (np.maximum(a, 0) + np.maximum(b, 0)) / gain + 2 * (
+                    rn / gain
+                ) ** 2
                 out = join(
                     output_dir,
                     basename(fpos).replace(
                         ".fits", f"_minus_{basename(fneg)[5:28]}_nod.fits"
                     ),
                 )
-                fits.writeto(out, diff, head, overwrite=True)
+                fits.HDUList(
+                    [
+                        fits.PrimaryHDU(diff, head),
+                        fits.ImageHDU(var.astype(np.float32), name="VAR"),
+                    ]
+                ).writeto(out, overwrite=True)
 
                 image, _ = inst.load_fits(out, arm)
                 dy = object_offsets(image, traces)

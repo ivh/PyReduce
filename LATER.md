@@ -28,9 +28,11 @@ examples/soxs_compare_soxspipe.py, public commissioning data):
   neighbouring spectral pixels anticorrelated under the tilted slit with
   `smooth_spectrum = 0`. Try a small `smooth_spectrum` together with an LSF
   check; the C's covariance output (`nlag`) would quantify it.
-- **`pix_unc` is rebuilt from the image being extracted**, so an A-B difference
-  misses the subtracted frame's read noise and background. A variance-image
-  input to `extract()` would fix it.
+- ~~**`pix_unc` is rebuilt from the image being extracted**, so an A-B difference
+  misses the subtracted frame's read noise and background.~~ Optional `var`
+  input / `VAR` extension (2026-11-26); SOXS NIR nod 1.27x -> 1.00x of the
+  pair-to-pair scatter. Still open: without `var`, the scattered-light
+  background subtracted in the science step is missing from the variances too.
 - **`extraction_weights: "flux"` fails on A-B frames** (6-13x the photon
   limit on SOXS NIR): 1/slit function blows up in the near-empty wings.
 - **SOXS wavelength zero point.** Arc-only solution is off by -15 to -28 km/s

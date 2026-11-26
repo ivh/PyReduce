@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Optional pixel-variance input to the extraction.** `extract()` / `extract_spectrum()` take `var`, the pixel variances of the image in ADU²; the science step reads them from a `VAR` image extension of the input file (raw layout, divided by the normalized flat squared). Without it the variances are built from the extracted image as before, which for an A-B difference misses the sky and the second frame's read noise: on the SOXS NIR nod frames the propagated uncertainties came out 1.27x too small (up to 2x per order) against the scatter between two nod pairs, 1.00x (0.86-1.11) with the variances of both frames. `examples/soxs_example.py` writes the `VAR` extension for its A-B frames
+
 ### Changed
 - **Spectrum uncertainties are now propagated from the pixel variances.** New setting `extraction_uncertainty` (`science`, `norm_flat`): `"propagated"` (default) carries the pixel variances (photon plus read noise, or the fitted variance model of `"model"` weights) through the final spectrum solve; `"scaled"` multiplies that by √(reduced χ²); `"residual"` is the previous estimate from the data - model residuals. The residual heuristic was not calibrated: about 0.7x the true scatter on a frame the model fits exactly, 1.6-1.9x the photon limit on SOXS NIR nod frames where model misfit dominates. The propagated value matches the scatter over noise realisations to within 10% and the photon limit on SOXS NIR data to 0.9-1.0x. The extra read-noise term `extract_spectrum` added per column is now applied only to `"residual"`. Exposes the C's `unc_mode`; the numpy backend computes the same in `propagate_uncertainty` (shared with numba), matching the C to ~1e-14. Every backend returns the reduced `chi2`
 
