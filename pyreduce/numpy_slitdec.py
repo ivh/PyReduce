@@ -397,6 +397,9 @@ def propagate_uncertainty(
         return None
     Ninv = cho_solve(cf, np.eye(ncols), check_finite=False)
     unc = np.sqrt(np.maximum(np.einsum("ij,jk,ki->i", Ninv, M, Ninv), 0.0))
+    # No unmasked pixel draws on the column: no measurement, so no error
+    # either, rather than the leakage through the penalty (as the C)
+    unc[np.diag(M) == 0.0] = np.nan
 
     # Reduced chi^2 over the columns whose solution is trusted
     delta_x = max(0 if lambda_sP == 0 else 1, margin - SLITDEC_EDGE)

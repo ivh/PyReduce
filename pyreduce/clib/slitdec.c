@@ -1196,6 +1196,7 @@ int slitdec(        int ncols,
                    propagated through the last sP solve (propagate_unc), sL taken as
                    known; the variances are pix_unc^2, or the fitted a * model + b with
                    weight_mode 2. 2: as 1, scaled by the reduced chi^2 of the residuals.
+                   Columns no unmasked pixel contributes to get NaN in unc and cov.
        out_x, nlag, cov : with unc_mode > 0 and cov != NULL, covariances on the grid of
                    out_x bins per column (out_x divides osample_x) for lags 0..nlag,
                    cov[(ncols*out_x) x (nlag+1)]
@@ -1785,6 +1786,21 @@ int slitdec(        int ncols,
                 if (cov != NULL)
                     for (size_t i = 0; i < (size_t)ncols * out_x * (nlag + 1); i++)
                         cov[i] *= c2;
+            }
+            /* No unmasked pixel draws on the column: no measurement, so no
+               error either, rather than the 0 the propagation gives */
+            for (x = 0; x < ncols; x++)
+            {
+                int q, empty = 1;
+                for (q = 0; q < ox && empty; q++)
+                    if (Mb[paij_index(x * ox + q, bx)] != 0.e0)
+                        empty = 0;
+                if (!empty)
+                    continue;
+                unc[x] = NAN;
+                if (cov != NULL)
+                    for (q = 0; q < out_x * (nlag + 1); q++)
+                        cov[(size_t)x * out_x * (nlag + 1) + q] = NAN;
             }
         }
         else if (cov != NULL)

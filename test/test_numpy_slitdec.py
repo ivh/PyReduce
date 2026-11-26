@@ -65,10 +65,13 @@ def _assert_equivalent(swath, **kwargs):
     np.testing.assert_array_equal(a["info"][2:], b["info"][2:])
     np.testing.assert_array_equal(a["mask"], b["mask"])
     for key in ("spectrum", "slitfunction", "model", "uncertainty"):
+        # NaN (the uncertainty of a column without data) in the same places
+        nan = np.isnan(a[key])
+        np.testing.assert_array_equal(nan, np.isnan(b[key]), err_msg=key)
         # Compare against the peak, not element-wise: near-zero elements carry
         # no information and would fail any relative tolerance.
-        scale = np.max(np.abs(a[key]))
-        assert np.max(np.abs(a[key] - b[key])) <= RTOL * scale, key
+        scale = np.max(np.abs(a[key][~nan]))
+        assert np.max(np.abs(a[key][~nan] - b[key][~nan])) <= RTOL * scale, key
     # The propagated uncertainty is a dense solve here and a banded one,
     # truncated at 1e-10 of each column's peak, in the C
     if np.isfinite(a["chi2"]):
@@ -222,6 +225,19 @@ def test_matches_c_backend_uncertainty(uncertainty, weights, swath, kwargs):
     _assert_equivalent(
         _make_swath(**swath), weights=weights, uncertainty=uncertainty, **kwargs
     )
+
+
+@pytest.mark.parametrize("uncertainty", ["propagated", "scaled"])
+def test_column_without_data_is_nan(uncertainty):
+    """No data (NaN, masked) wider than the tilt, so no pixel draws on the
+    middle columns. Masked values alone would come back through kappa clipping."""
+    swath = _make_swath(200, 15, 4)
+    swath["mask"][:, 90:111] = 0
+    swath["im"][:, 90:111] = np.nan
+    _assert_equivalent(swath, uncertainty=uncertainty)
+    unc = slitdec_numpy(**swath, uncertainty=uncertainty)["uncertainty"]
+    assert np.isnan(unc[100])
+    assert np.isfinite(unc[20:80]).all()
 
 
 def test_uncertainty_mode_validated():
