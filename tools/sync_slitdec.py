@@ -5,7 +5,7 @@
 Copies both files into pyreduce/clib/, stamps the header with CharSlit's
 commit, strips trailing whitespace (our pre-commit hook would do it anyway),
 and prints the slitdec() signature diff. It does not touch cwrappers.py or
-the numpy/numba ports: those need porting by hand, see CLAUDE.md.
+the numpy port: that needs porting by hand, see CLAUDE.md.
 """
 
 import difflib
@@ -58,8 +58,8 @@ def main(repo):
         print("\nslitdec() signature changed -- update the call in cwrappers.py:")
         print("\n".join(difflib.unified_diff(old_sig, new_sig, lineterm="", n=1)))
     print(
-        "\nNext: uv run reduce-build, port the change to numpy_slitdec.py and "
-        "numba_slitdec.py,\nthen run test_numpy_slitdec.py and test_numba_slitdec.py."
+        "\nNext: uv run reduce-build, port the change to numpy_slitdec.py,\n"
+        "then run test_numpy_slitdec.py."
     )
 
 

@@ -43,7 +43,6 @@ PYREDUCE_EXTRACTION=numpy uv run reduce run UVES -t HD132205
 ```
 
 It is ~2x slower than the C extension and produces bit-identical output files.
-`PYREDUCE_EXTRACTION=numba` is ~1.5-1.8x with `uv sync --extra numba` installed.
 See [Extraction Backends](https://pyreduce-astro.readthedocs.io/en/latest/howto.html#extraction-backends).
 
 ## Quick Start

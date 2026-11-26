@@ -1,10 +1,10 @@
 """
 Pure NumPy/SciPy port of the slitdec extraction algorithm.
 
-Same algorithm as ``clib/slitdec.c`` and ``numba_slitdec.py``: pixel-centric
+Same algorithm as ``clib/slitdec.c``: pixel-centric
 SLE fills, dense merge windows keyed on the per-pixel zeta ranges, zeta only
 (no xi tensor). Here the pixel loops are replaced by dense array algebra, so
-the module needs neither a C compiler nor Numba -- only numpy and scipy.
+the module needs no C compiler -- only numpy and scipy.
 
 Set ``PYREDUCE_EXTRACTION=numpy`` to select it as the extraction backend.
 
@@ -340,8 +340,8 @@ def propagate_uncertainty(
     pixel p. Its covariance is N^-1 M N^-1, M = A^T W V W A, V the pixel
     variances (pix_unc^2, or the fitted a * model + b for model weights).
     Returns (unc, chi2), chi2 the reduced chi^2 of the residuals against V,
-    or None if N is not positive definite. Shared by the numpy and numba
-    backends; images in the transposed (ncols, nrows) layout.
+    or None if N is not positive definite. Images in the transposed
+    (ncols, nrows) layout.
 
     The C solves banded and stops each column's substitution once it has
     decayed below 1e-10 of its peak; the dense solve here agrees to ~1e-10.

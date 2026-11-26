@@ -30,7 +30,7 @@ ALL_STEPS = (
 
 # Kept in sync with extract.EXTRACTION_BACKENDS by test_cli; spelled out here so
 # --help does not have to import the extraction machinery
-EXTRACTION_BACKENDS = ("c", "charslit", "numba", "numpy")
+EXTRACTION_BACKENDS = ("c", "charslit", "numpy")
 
 
 @click.group()

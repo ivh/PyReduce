@@ -1,9 +1,8 @@
 # A numpy-only slitdec: port and results
 
-Follow-up to `numba_slitdec.md`, which ported `clib/slitdec.c` to Numba and left the
-numpy/scipy variant as an open experiment. Motivation for doing it: colleagues want
-PyReduce extraction inside a new ESO pipeline whose dependency policy may exclude
-numba. Target was to stay within 5x of the C.
+A port of `clib/slitdec.c` to numpy/scipy only. Motivation for doing it: colleagues
+want PyReduce extraction inside a new ESO pipeline with a restrictive dependency
+policy. Target was to stay within 5x of the C.
 
 
 > **Re-measured 2026-07-30:** the ratios below were taken against the C as it
@@ -19,9 +18,6 @@ No extra to install: numpy and scipy are already core PyReduce dependencies.
 - **Reference**: `pyreduce/clib/slitdec.c`, wrapped by `cwrappers.slitdec`.
 - **This port**: `pyreduce/numpy_slitdec.py`, selected with `PYREDUCE_EXTRACTION=numpy`,
   tested by `test/test_numpy_slitdec.py` (9 cases diffed against the C oracle).
-- **Numba port**: `pyreduce/numba_slitdec.py`, `PYREDUCE_EXTRACTION=numba`. The
-  structural template for this one.
-- `numba_old` branch holds the superseded pre-slitdec numba code. Do not consult it.
 
 ## Design
 
@@ -128,7 +124,6 @@ reported iteration count (`maxiter=m` does *not* run `m` iterations, so fitting 
 | | per iteration | once per call | total |
 |---|---|---|---|
 | `slitdec` (C, CFFI) | 23.0 ms | **37.1 ms** | 130 ms (1.0x) |
-| `numba_slitdec` | 25.0 ms (1.09x) | 71.2 ms (1.9x) | 173 ms (**1.34x**) |
 | `numpy_slitdec` (first version) | 25.8 ms (1.12x) | 118.1 ms (3.2x) | 223 ms (1.72x) |
 | `numpy_slitdec` (now) | **19.6 ms (0.85x)** | 103.3 ms (2.8x) | 182 ms (**1.40x**) |
 
@@ -142,16 +137,16 @@ arithmetic and gathers.
 Across swath shapes (`iter` = iterations to convergence, so short runs weight setup
 more heavily):
 
-| Swath | osample | iter | C | numba | numpy (before) | numpy (now) |
-|---|---|---|---|---|---|---|
-| 128x10 | 6 | 3 | 0.4 ms | — | 3.73x | 3.32x |
-| 400x10 | 6 | 3 | 1.0 ms | — | 2.71x | 2.21x |
-| 400x20 | 6 | 3 | 1.9 ms | — | 2.53x | 2.08x |
-| 400x40 | 6 | 3 | 3.7 ms | 1.41x | 2.39x | **1.97x** |
-| 400x100 | 6 | 5 | 11.7 ms | 1.33x | 2.07x | **1.66x** |
-| 1000x25 | 10 | 3 | 8.4 ms | 1.44x | 2.30x | 1.99x |
-| 2048x40 | 6 | 3 | 20.6 ms | 1.33x | 2.25x | 1.86x |
-| 2048x176 | 6 | 4 | 131.3 ms | 1.34x | 1.70x | **1.36x** |
+| Swath | osample | iter | C | numpy (before) | numpy (now) |
+|---|---|---|---|---|---|
+| 128x10 | 6 | 3 | 0.4 ms | 3.73x | 3.32x |
+| 400x10 | 6 | 3 | 1.0 ms | 2.71x | 2.21x |
+| 400x20 | 6 | 3 | 1.9 ms | 2.53x | 2.08x |
+| 400x40 | 6 | 3 | 3.7 ms | 2.39x | **1.97x** |
+| 400x100 | 6 | 5 | 11.7 ms | 2.07x | **1.66x** |
+| 1000x25 | 10 | 3 | 8.4 ms | 2.30x | 1.99x |
+| 2048x40 | 6 | 3 | 20.6 ms | 2.25x | 1.86x |
+| 2048x176 | 6 | 4 | 131.3 ms | 1.70x | **1.36x** |
 
 Small swaths remain the worst case: with ~50 numpy calls per iteration, per-call
 overhead stops being negligible, and setup is a larger share of a short call. At
@@ -183,7 +178,7 @@ and is the wall; short of restructuring the algorithm it stays where it is.
 
 ## Correctness
 
-Worst relative deviation vs the C oracle: **2.3e-14** (numba: 1.3e-14). Identical
+Worst relative deviation vs the C oracle: **2.3e-14**. Identical
 masks, identical iteration counts, identical `delta_x` and status codes. Verified on
 straight and curved geometry, `lambda_sP > 0`, `kappa = 0`, preset slit function, the
 `nx > ncols` bail-out, tilt up to 1.3, negative tilt, and nonzero `slitdeltas`, over 31
@@ -191,7 +186,7 @@ shape/option combinations including a sloped `ycen` that makes `ycen_offset` var
 across the swath — the case the derived `k0_iy` has to get right.
 
 The geometry was checked separately and harder: the COO tensor is **bit-exact**
-against the numba transliteration of `zeta_tensors` — same entry set, zero weight
+against a line-by-line transliteration of the C's `zeta_tensors` — same entry set, zero weight
 deviation — which is what pins down the `dy` accumulation and the collapsed branches.
 
 Full unit suite (742 tests) passes with `PYREDUCE_EXTRACTION=numpy`.
@@ -274,7 +269,7 @@ print(res["slitfunction"].shape)  # (ny,) with ny = osample*(nrows+1)+1
 Returns a dict: `spectrum` (ncols), `slitfunction` (ny), `model` (nrows, ncols),
 `uncertainty` (ncols), `mask` (updated copy), `info`, `return_code`.
 
-Things that bite (identical to the numba backend — same signature, same conventions):
+Things that bite (same signature and conventions as the C backend):
 
 - **Orientation.** Dispersion must run along x (columns = wavelength, rows = slit).
   PyReduce's `clipnflip()` does this rotation upstream; standalone, do it yourself.

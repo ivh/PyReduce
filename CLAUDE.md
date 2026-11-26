@@ -39,7 +39,6 @@ pyreduce/
 ├── configuration.py     # Config loading (settings JSON)
 ├── extract.py           # Optimal extraction (swaths, backend selection)
 ├── numpy_slitdec.py     # Pure-NumPy slitdec backend
-├── numba_slitdec.py     # Pure-Python numba slitdec backend (optional extra)
 ├── slit_curve.py        # Slit curvature fitting
 ├── trace_model.py       # Trace dataclass (geometry, curvature, wavelength)
 ├── spectra.py           # Spectrum/Spectra classes for I/O
@@ -307,7 +306,7 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
-- `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `charslit`, `numba`, `numpy` (CLI: `--extraction`)
+- `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `charslit`, `numpy` (CLI: `--extraction`)
 - `PYREDUCE_USE_DELTAS` - Apply per-row slitdelta corrections, any backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
@@ -318,24 +317,21 @@ All backends support curvature polynomials up to degree 5 and per-row slitdelta 
 
 `extract._get_backend()` selects the slit-decomposition implementation from the
 `PYREDUCE_EXTRACTION` environment variable (registry: `extract.EXTRACTION_BACKENDS`,
-default `c`; an unknown name raises). All four expose the same `slitdec(...)`
+default `c`; an unknown name raises). All three expose the same `slitdec(...)`
 signature and result dict:
 
 | Backend | Module | `PYREDUCE_EXTRACTION` | vs C |
 |---------|--------|-------------|------|
 | CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | `c` (default) | 1.0x |
 | External charslit | `charslit` package | `charslit` | 1.0-1.2x |
-| Numba | `numba_slitdec` | `numba` | 1.5-1.8x |
 | NumPy/SciPy | `numpy_slitdec` | `numpy` | 1.8-2.1x |
 
-Ratios are warm `slitdec` calls (JIT excluded), measured 2026-07-30 on
-32x400/os10, 151x500/os8 and 200x500/os10 swaths — the C at 4.3, 24.1 and 39.0 ms.
-They are *slower* than the ratios in `numba_slitdec.md` / `numpy_slitdec.md`, which
-predate the post-0.9b2 C speedup; re-measure after touching `slitdec.c`. End-to-end a
-whole science step lands anywhere from 1.1x (ANDES H, tall slits) to 3.4x (UVES,
-where a ~1 s run cannot amortize import and JIT-cache load).
+Ratios are warm `slitdec` calls, measured 2026-07-30 on 32x400/os10, 151x500/os8 and
+200x500/os10 swaths — the C at 4.3, 24.1 and 39.0 ms. They are *slower* than the
+ratios in `numpy_slitdec.md`, which predate the post-0.9b2 C speedup; re-measure after
+touching `slitdec.c`.
 
-Both pure-Python backends implement the same algorithm as the current
+The numpy backend implements the same algorithm as the current
 `clib/slitdec.c` (pixel-centric SLE fills, dense merge windows from the per-pixel
 zeta ranges, zeta only — no xi tensor) and agree with it to ~1e-14 relative on
 synthetic swaths, with identical masks and iteration counts. On real frames the
@@ -346,20 +342,16 @@ the float32 FITS, on both instruments, because float32 rounds at 6e-8. Note
 `charslit` is bit-identical to the vendored C on flat-slit data but diverges at
 ~2.5e-13 once curvature is on: same source, different compiler and flags.
 
-They exist so PyReduce can extract without a compiled C extension:
+It exists so PyReduce can extract without a compiled C extension.
+`numpy_slitdec.py` collapses the geometry into one dense per-pixel weight tensor
+`T[m, j, p]`, so both merge windows become `np.einsum` contractions and only the
+setup ever touches the individual zeta entries; the normal-equation fills are
+`np.add.reduceat` run sums over pixels grouped by window base, and `bandsol` is
+`scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
+core dependencies. Most of the remaining gap is one-off setup, dominated by building
+the zeta candidate lists, so it closes as swaths get bigger.
 
-- `numba_slitdec.py` is a line-by-line transliteration; it needs the optional
-  `numba` extra (`uv sync --extra numba`), which pins numpy down a minor version.
-- `numpy_slitdec.py` collapses the geometry into one dense per-pixel weight tensor
-  `T[m, j, p]`, so both merge windows become `np.einsum` contractions and only the
-  setup ever touches the individual zeta entries; the normal-equation fills are
-  `np.add.reduceat` run sums over pixels grouped by window base, and `bandsol` is
-  `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
-  core dependencies — and no JIT warmup. Most of the remaining gap is one-off setup,
-  dominated by building the zeta candidate lists, so it closes as swaths get bigger.
-  Written for pipelines whose dependency policy excludes numba.
-
-`PYREDUCE_USE_CHARSLIT` (plus the short-lived `PYREDUCE_USE_NUMBA`/`PYREDUCE_USE_NUMPY`)
+`PYREDUCE_USE_CHARSLIT` (plus the short-lived `PYREDUCE_USE_NUMPY`)
 was replaced by `PYREDUCE_EXTRACTION` with no alias; the old names are read nowhere.
 If one turns up in a script, `PYREDUCE_USE_CHARSLIT=1` becomes `PYREDUCE_EXTRACTION=charslit`.
 
@@ -379,9 +371,8 @@ through the settings cascade and not recorded in output headers.
 commit, then `uv run python tools/sync_slitdec.py ../CharSlit.git`, which copies both,
 stamps the header with the CharSlit commit and prints any `slitdec()` signature change
 (the positional call in `cwrappers.py` must follow it). The C stays the reference: port
-each change to both Python backends and re-run `test/test_numba_slitdec.py` and
-`test/test_numpy_slitdec.py`, which diff each backend against the C directly. See
-`numba_slitdec.md` and `numpy_slitdec.md` for the algorithm history and standalone
+each change to the numpy backend and re-run `test/test_numpy_slitdec.py`, which diffs it
+against the C directly. See `numpy_slitdec.md` for the algorithm history and standalone
 (outside-PyReduce) use.
 
 Since CharSlit dd446cd (Nov 2026) the vendored C is N. Piskunov's slitdec_ox engine under
@@ -423,8 +414,8 @@ The spectrum uncertainty (`extraction_uncertainty`, backend argument `uncertaint
 charslit) defaults to `"propagated"`: the C's `unc_mode` 1, the pixel variances carried
 through the final sP solve. `"scaled"` multiplies by √(reduced χ²), `"residual"` is the
 historic estimate. The numpy backend computes the propagation after its solve in
-`numpy_slitdec.propagate_uncertainty` (dense, from the final sL, weights and mask), which
-the numba backend reuses; both match the C to ~1e-14. Every backend returns `chi2`.
+`numpy_slitdec.propagate_uncertainty` (dense, from the final sL, weights and mask),
+matching the C to ~1e-14. Every backend returns `chi2`.
 
 ## ANDES Instruments
 
@@ -481,7 +472,6 @@ HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf`
 ```bash
 uv sync                              # Install dependencies
 uv sync --extra charslit             # Include charslit backend (from GitHub)
-uv sync --extra numba                # Include pure-Python numba backend
 uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions
@@ -529,7 +519,7 @@ If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run 
 | `pyreduce/instruments/common.py` | Base Instrument class |
 | `pyreduce/instruments/models.py` | Pydantic config models |
 | `pyreduce/clib/slitdec.{c,h}` | C slit decomposition, vendored from CharSlit |
-| `pyreduce/numpy_slitdec.py`, `numba_slitdec.py` | Pure-Python slitdec ports, tested against the C |
+| `pyreduce/numpy_slitdec.py` | Pure-Python slitdec port, tested against the C |
 | `tools/sync_slitdec.py` | Re-vendor `slitdec.{c,h}` from CharSlit |
 | `hatch_build.py` | CFFI extension build hook |
 

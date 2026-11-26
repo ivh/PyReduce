@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Removed
+- The numba extraction backend (`PYREDUCE_EXTRACTION=numba`, the `numba` extra): not worth maintaining next to the numpy port, which needs no extra dependency
+
 ### Added
 - **Optional pixel-variance input to the extraction.** `extract()` / `extract_spectrum()` take `var`, the pixel variances of the image in ADU²; the science step reads them from a `VAR` image extension of the input file (raw layout, divided by the normalized flat squared). Without it the variances are built from the extracted image as before, which for an A-B difference misses the sky and the second frame's read noise: on the SOXS NIR nod frames the propagated uncertainties came out 1.27x too small (up to 2x per order) against the scatter between two nod pairs, 1.00x (0.86-1.11) with the variances of both frames. `examples/soxs_example.py` writes the `VAR` extension for its A-B frames
 

@@ -339,13 +339,12 @@ def test_curved_equal_vertical_extraction(noisy_frame, orders, width):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
+@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec"])
 @pytest.mark.parametrize("weights", ["none", "unc", "model"])
 @pytest.mark.parametrize("curved", [False, True], ids=["flat", "curved"])
 def test_masked_nan_pixels_stay_out(backend, weights, curved):
     """A masked NaN pixel has no data: kappa clipping must never re-admit it and
-    it must not reach the solution (numpy multiplies masked pixels by zero,
-    numba's fastmath assumes no NaN)."""
+    it must not reach the solution (numpy multiplies masked pixels by zero)."""
     mod = pytest.importorskip(f"pyreduce.{backend}")
     nrows, ncols = 21, 120
     rng = np.random.default_rng(0)
@@ -403,7 +402,7 @@ def test_unmasked_nan_pixels_are_masked():
     assert np.all(np.isfinite(result[0]))
 
 
-@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
+@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec"])
 @pytest.mark.parametrize("osample", [1, 3, 4, 5, 10])
 @pytest.mark.parametrize("curved", [False, True], ids=["flat", "curved"])
 def test_ycen_on_subpixel_boundary(backend, osample, curved):

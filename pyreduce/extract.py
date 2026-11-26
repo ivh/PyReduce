@@ -27,7 +27,7 @@ from .util import make_index
 
 logger = logging.getLogger(__name__)
 
-# PYREDUCE_EXTRACTION selects the slit decomposition implementation. All four
+# PYREDUCE_EXTRACTION selects the slit decomposition implementation. All three
 # expose the same slitdec() signature and result dict; "c" is the reference the
 # others are tested against. "charslit" imports the external package, for trying
 # out upstream development before copying it into clib.
@@ -48,24 +48,16 @@ def _load_charslit():
     return charslit
 
 
-def _load_numba():
-    from . import numba_slitdec
-
-    return numba_slitdec
-
-
 def _load_numpy():
     from . import numpy_slitdec
 
     return numpy_slitdec
 
 
-# Loaders are lazy: charslit and numba are optional dependencies, and importing
-# numba costs real startup time even when unused.
+# Loaders are lazy: charslit is an optional dependency.
 EXTRACTION_BACKENDS = {
     "c": _load_c,
     "charslit": _load_charslit,
-    "numba": _load_numba,
     "numpy": _load_numpy,
 }
 
@@ -80,7 +72,7 @@ def _get_backend():
     """Return the slitdec backend module named by PYREDUCE_EXTRACTION.
 
     One of ``c`` (default, the vendored CFFI extension), ``charslit`` (the
-    external package), ``numba`` or ``numpy`` (the pure-Python ports). Read at
+    external package) or ``numpy`` (the pure-Python port). Read at
     call time so changes within a process take effect.
     """
     name = os.environ.get("PYREDUCE_EXTRACTION", DEFAULT_EXTRACTION).strip().lower()

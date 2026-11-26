@@ -2,8 +2,7 @@
 
 Plumbing: settings -> step kwargs -> extract -> backend. Results: the two
 effects the modes exist for, on synthetic frames where they are predictable.
-Backend equivalence for the weighted modes lives in test_numpy_slitdec.py and
-test_numba_slitdec.py.
+Backend equivalence for the weighted modes lives in test_numpy_slitdec.py.
 """
 
 import numpy as np
@@ -118,7 +117,7 @@ def test_extract_unweighted_omits_weight_kwargs(recorder):
         assert "noise_floor" not in kwargs
 
 
-@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec", "numba_slitdec"])
+@pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec"])
 def test_unknown_weights_raise(backend):
     mod = pytest.importorskip(f"pyreduce.{backend}")
     im = np.ones((5, 10))
