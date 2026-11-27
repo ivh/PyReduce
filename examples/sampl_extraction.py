@@ -1,13 +1,13 @@
 """
 Does the 1D extraction change the measured sampling? Repeats the LFC
 FWHM / empirical-LSF test of sampl_iq15.py and sampl_vis.py with PyReduce's
-slit-decomposition extraction (extract_spectrum, charslit backend) and each
-of charslit's pixel weightings, against the plain box sum along the trace.
+slit-decomposition extraction (extract_spectrum, slitdec backend) and each
+of slitdec's pixel weightings, against the plain box sum along the trace.
 
-Needs charslit with the weights= option (CharSlit commit 328e699 or later):
+Needs the slitdec package:
 
-    uv build --wheel -o <dir> ~/CharSlit.git
-    uv run --with h5py --with <dir>/charslit-*.whl python examples/sampl_extraction.py
+    uv sync --extra slitdec
+    uv run --with h5py python examples/sampl_extraction.py
 """
 
 import functools
@@ -15,9 +15,9 @@ import multiprocessing
 import os
 import types
 
-import charslit
 import matplotlib.pyplot as plt
 import numpy as np
+import slitdec
 from sampl_iq15 import DATA_DIR, HDF_DIR, LFC_DIR, PLOT, extract_order, process_band
 from sampl_vis import FIBER, MODELS, hdf_file, lfc_file, params
 
@@ -42,12 +42,11 @@ FRAMES = [
 ]
 
 
-def use_charslit_weights(weights):
-    # PyReduce's charslit wrapper does not pass weights= through, so swap in a
-    # backend whose slitdec has it bound.
-    os.environ["PYREDUCE_EXTRACTION"] = "charslit"
-    pr_extract._backend_cache["charslit"] = types.SimpleNamespace(
-        slitdec=functools.partial(charslit.slitdec, weights=weights)
+def use_slitdec_weights(weights):
+    # Swap in an external slitdec backend with weights= bound.
+    os.environ["PYREDUCE_EXTRACTION"] = "slitdec"
+    pr_extract._backend_cache["slitdec"] = types.SimpleNamespace(
+        slitdec=functools.partial(slitdec.slitdec, weights=weights)
     )
 
 
@@ -96,7 +95,7 @@ def run(task):
     if method == "box":
         extract = extract_order
     else:
-        use_charslit_weights(method)
+        use_slitdec_weights(method)
         extract = slitdec_extract
     cells = process_band(
         f"{band} [{method}]",

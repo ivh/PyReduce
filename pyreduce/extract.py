@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 # PYREDUCE_EXTRACTION selects the slit decomposition implementation. All three
 # expose the same slitdec() signature and result dict; "c" is the reference the
-# others are tested against. "charslit" imports the external package, for trying
-# out upstream development before copying it into clib.
+# others are tested against. "slitdec" imports the external package
+# (github.com/ivh/SlitDec), for trying upstream development before it is vendored.
 DEFAULT_EXTRACTION = "c"
 
 
@@ -42,10 +42,10 @@ def _load_c():
     return cwrappers
 
 
-def _load_charslit():
-    import charslit
+def _load_slitdec():
+    import slitdec
 
-    return charslit
+    return slitdec
 
 
 def _load_numpy():
@@ -54,10 +54,10 @@ def _load_numpy():
     return numpy_slitdec
 
 
-# Loaders are lazy: charslit is an optional dependency.
+# Loaders are lazy: the slitdec package is an optional dependency.
 EXTRACTION_BACKENDS = {
     "c": _load_c,
-    "charslit": _load_charslit,
+    "slitdec": _load_slitdec,
     "numpy": _load_numpy,
 }
 
@@ -71,7 +71,7 @@ def _use_deltas():
 def _get_backend():
     """Return the slitdec backend module named by PYREDUCE_EXTRACTION.
 
-    One of ``c`` (default, the vendored CFFI extension), ``charslit`` (the
+    One of ``c`` (default, the vendored CFFI extension), ``slitdec`` (the
     external package) or ``numpy`` (the pure-Python port). Read at
     call time so changes within a process take effect.
     """
@@ -87,7 +87,7 @@ def _get_backend():
     return _backend_cache[name]
 
 
-def _slitdec_charslit(
+def _slitdec_swath(
     img,
     ycen,
     slitcurve,
@@ -106,7 +106,7 @@ def _slitdec_charslit(
     uncertainty="propagated",
     var=None,
 ):
-    """Call charslit.slitdec and convert results to the expected format.
+    """Call the selected backend's slitdec and convert results to the expected format.
 
     Parameters
     ----------
@@ -131,7 +131,7 @@ def _slitdec_charslit(
     gain : float
         Detector gain
     reject_threshold : float
-        Outlier rejection threshold in sigma units (passed as kappa to charslit)
+        Outlier rejection threshold in sigma units (passed as kappa)
     preset_slitfunc : array or None
         Preset slit function (length ny or nrows). If given, the slit-function
         solve is skipped and only the spectrum is fit against it.
@@ -182,7 +182,7 @@ def _slitdec_charslit(
         pix_var = np.where(np.isfinite(v) & (v > 0), v, pix_var)
     pix_unc = np.sqrt(np.maximum(pix_var, 1 / gain**2))
 
-    # Convert mask: numpy (True=bad) -> charslit (0=bad, 1=good)
+    # Convert mask: numpy (True=bad) -> slitdec (0=bad, 1=good)
     mask_c = np.where(mask_in, 0, 1).astype(np.uint8)
 
     # Ensure contiguous arrays
@@ -190,10 +190,10 @@ def _slitdec_charslit(
     pix_unc = np.ascontiguousarray(pix_unc)
     mask_c = np.ascontiguousarray(mask_c)
 
-    # charslit expects full ycen and does the integer/fractional split internally
+    # slitdec expects full ycen and does the integer/fractional split internally
     ycen_c = np.ascontiguousarray(ycen.astype(np.float64))
 
-    # charslit expects slitcurve of shape (ncols, 6) - coeffs c0..c5
+    # slitdec expects slitcurve of shape (ncols, 6) - coeffs c0..c5
     slitcurve_c = np.ascontiguousarray(slitcurve.astype(np.float64))
 
     if slitdeltas is None:
@@ -218,13 +218,9 @@ def _slitdec_charslit(
         maxiter=maxiter,
         kappa=float(reject_threshold),
         preset_slitfunc=preset_slitfunc,
-        # only passed when used, so an external charslit predating weights works
-        **(
-            {"weights": weights, "noise_floor": noise_floor}
-            if weights != "none"
-            else {}
-        ),
-        # always passed: the backends default to "propagated", charslit to "residual"
+        weights=weights,
+        noise_floor=noise_floor,
+        # PyReduce's backends default to "propagated", the slitdec package to "residual"
         uncertainty=uncertainty,
     )
 
@@ -235,19 +231,13 @@ def _slitdec_charslit(
     return_code = result.get("return_code", 0)
     info_arr = result.get("info", np.zeros(5))
 
-    # Convert mask back: charslit -> numpy (True=bad)
+    # Convert mask back: slitdec -> numpy (True=bad)
     mask_out = result.get("mask", mask_c)
     mask_out = mask_out == 0
 
     # Build info array: [success, cost, status, iter, margin]
     if isinstance(info_arr, np.ndarray) and len(info_arr) >= 5:
         info = info_arr
-        if "margin" not in result:
-            # An external charslit that still reports delta_x there and zeroes
-            # that many columns: delta_x >= the largest shift, so this covers
-            # the margin of shift + 2
-            info = info.copy()
-            info[4] += 2
     else:
         info = np.array([float(return_code == 0), 0.0, float(return_code), 0.0, 0.0])
 
@@ -255,7 +245,7 @@ def _slitdec_charslit(
 
 
 def _ensure_slitcurve(curvature, ncols, n_coeffs=6):
-    """Ensure curvature is in the right format for charslit.
+    """Ensure curvature is in the right format for slitdec.
 
     Parameters
     ----------
@@ -264,7 +254,7 @@ def _ensure_slitcurve(curvature, ncols, n_coeffs=6):
     ncols : int
         Number of columns (for validation/creation if None).
     n_coeffs : int
-        Number of coefficients (default 6 for charslit).
+        Number of coefficients (default 6: c0..c5).
 
     Returns
     -------
@@ -1346,16 +1336,16 @@ def extract_spectrum(
             else:
                 swath_slitdeltas = None
 
-            charslit_slitdeltas = (
+            backend_slitdeltas = (
                 swath_slitdeltas
                 if swath_slitdeltas is not None
                 else np.zeros(swath_nrows, dtype=np.float64)
             )
-            swath[ihalf] = _slitdec_charslit(
+            swath[ihalf] = _slitdec_swath(
                 swath_img,
                 swath_ycen_abs,
                 slitcurve,
-                charslit_slitdeltas,
+                backend_slitdeltas,
                 lambda_sp=lambda_sp,
                 lambda_sf=lambda_sf,
                 osample=osample,

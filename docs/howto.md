@@ -111,7 +111,7 @@ Pipeline.from_instrument("UVES", ..., configuration=config).run()
 | `PYREDUCE_PLOT_DIR` | Save plots to directory as PNG files |
 | `PYREDUCE_PLOT_SHOW` | Display mode: `block` (default), `defer`, or `off` |
 | `PYREDUCE_PLOT_ANIMATION_SPEED` | Frame delay in seconds for extraction animation (default: 0.3) |
-| `PYREDUCE_EXTRACTION` | Extraction backend: `c` (default), `charslit`, `numpy` (or `--extraction`) |
+| `PYREDUCE_EXTRACTION` | Extraction backend: `c` (default), `slitdec`, `numpy` (or `--extraction`) |
 | `PYREDUCE_USE_DELTAS` | Enable slitdelta correction, any backend (default: 1) |
 
 ## Extraction Backends
@@ -123,7 +123,7 @@ selected with `PYREDUCE_EXTRACTION` or the `--extraction` CLI option:
 |-------|-----------|-------|-------|
 | `c` (default) | the compiled CFFI extension, and the reference the others are tested against | 1.0x | a C compiler at install time |
 | `numpy` | pure numpy/scipy port | ~1.8-2.1x | nothing extra |
-| `charslit` | the external `charslit` package | ~1.0-1.2x | `uv sync --extra charslit` |
+| `slitdec` | the external `slitdec` package (github.com/ivh/SlitDec) | ~1.0-1.2x | `uv sync --extra slitdec` |
 
 The numpy backend exists so PyReduce can extract on a platform with no prebuilt
 wheel or no working compiler — see

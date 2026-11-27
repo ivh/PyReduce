@@ -46,7 +46,7 @@ uv run reduce run INSTRUMENT [OPTIONS]
 | `--settings` | | JSON file with settings overrides |
 | `--use` | | Fiber group(s) to reduce (e.g., "upper" or "upper,lower") |
 | `--skip-existing` | | Load each step's saved output where it exists instead of rerunning it |
-| `--extraction` | | Slit decomposition backend: `c` (default), `charslit`, `numpy` |
+| `--extraction` | | Slit decomposition backend: `c` (default), `slitdec`, `numpy` |
 
 **Examples:**
 
@@ -101,7 +101,7 @@ These accept `-t/-n/-c/-b/-i/-o/-p`, `--use` and `--extraction` like `run`
 |--------|-------|-------------|
 | `--file` | `-f` | Specific input file (bypasses file discovery) |
 | `--settings` | | JSON file with settings overrides |
-| `--extraction` | | Slit decomposition backend: `c` (default), `charslit`, `numpy` |
+| `--extraction` | | Slit decomposition backend: `c` (default), `slitdec`, `numpy` |
 
 **Example with --file:**
 

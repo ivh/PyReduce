@@ -251,7 +251,7 @@ slitcurve[:, 2] = 0.002  # shear
 res = slitdec(
     im=img,  # (nrows, ncols), dispersion along x
     pix_unc=np.sqrt(np.abs(img)),  # accepted but unused by the algorithm
-    mask=np.ones(img.shape, np.uint8),  # 1 = good, 0 = bad  (charslit convention)
+    mask=np.ones(img.shape, np.uint8),  # 1 = good, 0 = bad  (slitdec convention)
     ycen=ycen,  # absolute row position, not an offset
     slitcurve=slitcurve,  # (ncols, n) with 1 <= n <= 6
     slitdeltas=np.zeros(nrows),  # per-row extra x-offsets; nrows or ny
@@ -275,7 +275,7 @@ Things that bite (same signature and conventions as the C backend):
   PyReduce's `clipnflip()` does this rotation upstream; standalone, do it yourself.
 - **`ycen` is absolute** row position within the swath, not an offset. It is split
   internally into an integer row shift and a sub-pixel remainder.
-- **Mask polarity is charslit's**: 1 = good. The opposite of numpy masked arrays.
+- **Mask polarity is slitdec's**: 1 = good. The opposite of numpy masked arrays.
 - **`slitcurve[:, 0]` is ignored** — the polynomial starts at the linear term.
 - **`pix_unc` is accepted and never used.** The C carries a "Should pix_unc contribute
   here?" comment; uncertainties come from data - model. Passing zeros changes nothing.

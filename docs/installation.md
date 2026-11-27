@@ -54,7 +54,7 @@ uv run reduce-build               # Build C extensions
 uv run reduce-clean               # Remove compiled extensions
 ```
 
-This is needed after re-vendoring the C slit decomposition with `uv run python tools/sync_slitdec.py ../CharSlit.git`; `pyreduce/clib/slitdec.{c,h}` are not edited here.
+This is needed after re-vendoring the C slit decomposition with `uv run python tools/sync_slitdec.py ../SlitDec.git`; `pyreduce/clib/slitdec.{c,h}` are not edited here.
 
 ## Platform Notes
 

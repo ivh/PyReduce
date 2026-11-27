@@ -42,7 +42,7 @@ np.savetxt("ycen.txt", swath_ycen)
 ncols = iend - ibeg
 slitcurve = np.zeros((ncols, 6))  # no curvature
 slitdeltas = np.zeros(swath_img.shape[0])
-data = extract._slitdec_charslit(
+data = extract._slitdec_swath(
     swath_img,
     swath_ycen,
     slitcurve,

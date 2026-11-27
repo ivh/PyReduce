@@ -10,7 +10,7 @@ Numbers are from a sigma=2 px Gaussian, flat trace, Poisson noise, 10 seeds.
   one-subpixel slit function not representing a half-pixel-offset profile,
   but unconfirmed. os=4 shows +2e-4 at 1e6, os=10 none.
 - **Jump when ycen crosses an integer.** `ycen_offset` steps and the slit grid
-  re-anchors by one row against the swath edge: 3e-4 (CharSlit fixedslope) to
+  re-anchors by one row against the swath edge: 3e-4 (SlitDec fixedslope) to
   18% (Hsim) between ycen = n - 1e-11 and n + 1e-11. Present before and after
   the d1 fix.
 - **Rejection threshold is `kappa * RMS(raw residuals)`**, not per-pixel

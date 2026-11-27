@@ -69,12 +69,12 @@ pyreduce/
 │       ├── wavecal_*.npz   # Pre-computed wavelength solutions
 │       └── mask_*.fits.gz  # Bad pixel masks
 │
-└── clib/                # C slit decomposition, vendored from CharSlit
+└── clib/                # C slit decomposition, vendored from SlitDec
     ├── slitdec.c, slitdec.h  # do not edit here, see tools/sync_slitdec.py
     └── build_extract.py      # CFFI build (reduce-build / reduce-clean)
 
 tools/
-└── sync_slitdec.py      # Re-vendor clib/slitdec.{c,h} from a CharSlit checkout
+└── sync_slitdec.py      # Re-vendor clib/slitdec.{c,h} from a SlitDec checkout
 ```
 
 ## Image Coordinate Convention
@@ -306,12 +306,12 @@ uv run reduce list-steps
 - `PYREDUCE_PLOT_DIR` - Save plots to directory as PNG files
 - `PYREDUCE_PLOT_SHOW` - Display mode: `block` (default), `defer`, or `off`
 - `PYREDUCE_PLOT_ANIMATION_SPEED` - Frame delay in seconds for extraction animation (default: 0.3)
-- `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `charslit`, `numpy` (CLI: `--extraction`)
+- `PYREDUCE_EXTRACTION` - Extraction backend: `c` (default), `slitdec`, `numpy` (CLI: `--extraction`)
 - `PYREDUCE_USE_DELTAS` - Apply per-row slitdelta corrections, any backend (default: 1)
 
 Plot modes: `block` shows each plot interactively; `defer` accumulates all plots and shows at end (useful with webagg backend); `off` disables display. Save and display are independent.
 
-All backends support curvature polynomials up to degree 5 and per-row slitdelta corrections (`PYREDUCE_USE_DELTAS`, on by default, is backend-independent). Only `PYREDUCE_EXTRACTION=charslit` needs the optional `charslit` dependency.
+All backends support curvature polynomials up to degree 5 and per-row slitdelta corrections (`PYREDUCE_USE_DELTAS`, on by default, is backend-independent). Only `PYREDUCE_EXTRACTION=slitdec` needs the optional `slitdec` dependency (the SlitDec Python package).
 
 ## Extraction Backends
 
@@ -323,7 +323,7 @@ signature and result dict:
 | Backend | Module | `PYREDUCE_EXTRACTION` | vs C |
 |---------|--------|-------------|------|
 | CFFI (default, reference) | `cwrappers` → `clib/slitdec.c` | `c` (default) | 1.0x |
-| External charslit | `charslit` package | `charslit` | 1.0-1.2x |
+| External slitdec | `slitdec` package | `slitdec` | 1.0-1.2x |
 | NumPy/SciPy | `numpy_slitdec` | `numpy` | 1.8-2.1x |
 
 Ratios are warm `slitdec` calls, measured 2026-07-30 on 32x400/os10, 151x500/os8 and
@@ -339,7 +339,7 @@ float64 spread grows with conditioning: ~6e-14 worst pixel on UVES middle, ~4e-1
 on ANDES H with degree-5 curvature and slitdeltas. **The written products are
 bit-identical regardless** — flux, uncertainty and wavelength all match exactly in
 the float32 FITS, on both instruments, because float32 rounds at 6e-8. Note
-`charslit` is bit-identical to the vendored C on flat-slit data but diverges at
+the `slitdec` package is bit-identical to the vendored C on flat-slit data but diverges at
 ~2.5e-13 once curvature is on: same source, different compiler and flags.
 
 It exists so PyReduce can extract without a compiled C extension.
@@ -350,10 +350,6 @@ setup ever touches the individual zeta entries; the normal-equation fills are
 `scipy.linalg.solveh_banded`. No extra to install — numpy and scipy are already
 core dependencies. Most of the remaining gap is one-off setup, dominated by building
 the zeta candidate lists, so it closes as swaths get bigger.
-
-`PYREDUCE_USE_CHARSLIT` (plus the short-lived `PYREDUCE_USE_NUMPY`)
-was replaced by `PYREDUCE_EXTRACTION` with no alias; the old names are read nowhere.
-If one turns up in a script, `PYREDUCE_USE_CHARSLIT=1` becomes `PYREDUCE_EXTRACTION=charslit`.
 
 `_load_c` imports `cwrappers` (and through it the compiled `clib._slitdec`) only
 when the C backend is actually selected, so `import pyreduce.extract` works in an
@@ -367,18 +363,18 @@ and the per-step commands just sets `PYREDUCE_EXTRACTION` before the pipeline is
 built, the same way `--plot-show` works. The backend is deliberately not threaded
 through the settings cascade and not recorded in output headers.
 
-`clib/slitdec.{c,h}` are vendored from CharSlit and not edited here: change CharSlit,
-commit, then `uv run python tools/sync_slitdec.py ../CharSlit.git`, which copies both,
-stamps the header with the CharSlit commit and prints any `slitdec()` signature change
+`clib/slitdec.{c,h}` are vendored from SlitDec (github.com/ivh/SlitDec) and not edited here: change SlitDec,
+commit, then `uv run python tools/sync_slitdec.py ../SlitDec.git`, which copies both,
+stamps the header with the SlitDec commit and prints any `slitdec()` signature change
 (the positional call in `cwrappers.py` must follow it). The C stays the reference: port
 each change to the numpy backend and re-run `test/test_numpy_slitdec.py`, which diffs it
 against the C directly. See `numpy_slitdec.md` for the algorithm history and standalone
 (outside-PyReduce) use.
 
-Since CharSlit dd446cd (Nov 2026) the vendored C is N. Piskunov's slitdec_ox engine under
+Since SlitDec dd446cd (Nov 2026) the vendored C is N. Piskunov's slitdec_ox engine under
 the old names. `cwrappers.py` passes the new arguments at their historic defaults
 (`osample_x=1`, no `mu_x`); the oversampled modes are not exposed in PyReduce and the
-Python backends do not implement them. Since CharSlit 864d7d5 all backends evaluate the
+Python backends do not implement them. Since SlitDec 864d7d5 all backends evaluate the
 slit tilt at the y-subpixel centre, not its lower edge as the historic slitdec.c and
 cr2res do: tilted lines move by -c1/(2*osample) px relative to older PyReduce versions
 (a few mpx), untilted swaths are unchanged.
@@ -389,9 +385,8 @@ is the number of columns per end not to use: the largest slit-image shift, round
 plus 2 (`SLITDEC_EDGE` in `clib/slitdec.h`, mirrored in both Python backends).
 `extract_spectrum` takes it verbatim, gives those columns zero weight in the swath merge,
 ramps linearly between the margins of two overlapping swaths, and masks them at the order
-ends. So every order loses shift + 2 columns per end, 2 for an untilted slit. An external
-`charslit` without the `margin` key still reports `delta_x` there; `_slitdec_charslit`
-adds 2 in that case. Same convention in CharSlit and cr2res.
+ends. So every order loses shift + 2 columns per end, 2 for an untilted slit. Same
+convention in SlitDec and cr2res.
 
 Swath rows: slitdec takes a fixed number of rows below the trace (`nrows / 2`) and the
 true trace position (`ycen + 0.5`, since it treats row i as [i, i+1)). An even
@@ -408,10 +403,10 @@ as `weights`/`noise_floor`. `"none"` is bit-identical to the historic solution.
 `extract.py` builds `pix_unc` in ADU from gain and read noise, unless a variance image
 `var` (ADU²) is passed through `extract()`/`extract_spectrum()`; the science step loads it
 from an optional `VAR` extension of the input file. The weighted modes and the
-uncertainty read it, so for A−B frames the default (built from the difference) is too small. Trade-offs per mode are in `docs/configuration_file.md` and CharSlit's CLAUDE.md.
+uncertainty read it, so for A−B frames the default (built from the difference) is too small. Trade-offs per mode are in `docs/configuration_file.md` and SlitDec's CLAUDE.md.
 
 The spectrum uncertainty (`extraction_uncertainty`, backend argument `uncertainty`, as in
-charslit) defaults to `"propagated"`: the C's `unc_mode` 1, the pixel variances carried
+the slitdec package) defaults to `"propagated"`: the C's `unc_mode` 1, the pixel variances carried
 through the final sP solve. `"scaled"` multiplies by √(reduced χ²), `"residual"` is the
 historic estimate. The numpy backend computes the propagation after its solve in
 `numpy_slitdec.propagate_uncertainty` (dense, from the final sL, weights and mask),
@@ -471,11 +466,11 @@ HDF files are in `/Users/tom/ANDES/E2E/src/HDF/`. Key models: `ANDES_123_R3.hdf`
 
 ```bash
 uv sync                              # Install dependencies
-uv sync --extra charslit             # Include charslit backend (from GitHub)
-uv pip install -e ../CharSlit.git    # Overlay local editable charslit for dev
+uv sync --extra slitdec              # Include slitdec backend (from GitHub)
+uv pip install -e ../SlitDec.git     # Overlay local editable slitdec for dev
 uv run reduce-build                  # Compile C extensions
 uv run reduce-clean                  # Remove compiled extensions
-uv run python tools/sync_slitdec.py ../CharSlit.git  # Re-vendor slitdec from CharSlit
+uv run python tools/sync_slitdec.py ../SlitDec.git  # Re-vendor slitdec from SlitDec
 uv run pre-commit install            # Setup hooks (once)
 uv run pytest -m unit                # Fast unit tests
 uv run pytest --instrument=UVES      # Test single instrument
@@ -518,9 +513,9 @@ If `uv` picks a pre-release Python (e.g. `3.14rc2`), your `uv` is outdated. Run 
 | `pyreduce/trace.py` | Order detection and tracing |
 | `pyreduce/instruments/common.py` | Base Instrument class |
 | `pyreduce/instruments/models.py` | Pydantic config models |
-| `pyreduce/clib/slitdec.{c,h}` | C slit decomposition, vendored from CharSlit |
+| `pyreduce/clib/slitdec.{c,h}` | C slit decomposition, vendored from SlitDec |
 | `pyreduce/numpy_slitdec.py` | Pure-Python slitdec port, tested against the C |
-| `tools/sync_slitdec.py` | Re-vendor `slitdec.{c,h}` from CharSlit |
+| `tools/sync_slitdec.py` | Re-vendor `slitdec.{c,h}` from SlitDec |
 | `hatch_build.py` | CFFI extension build hook |
 
 ## Release Process

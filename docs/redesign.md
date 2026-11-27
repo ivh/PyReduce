@@ -122,8 +122,8 @@ See [configuration_file.md](configuration_file.md) for details.
 
 Three extraction backends are available, all with the same `slitdec()` interface:
 
-- **CFFI** (`PYREDUCE_EXTRACTION=c`, the default and the reference) — `clib/slitdec.c`, the slit function decomposition copied from charslit. Curvature up to degree 5 and per-row slitdelta corrections.
-- **Charslit** (optional) — the external `charslit` package, for trying upstream development before copying it over. Install with `uv sync --extra charslit` and enable with `PYREDUCE_EXTRACTION=charslit`.
+- **CFFI** (`PYREDUCE_EXTRACTION=c`, the default and the reference) — `clib/slitdec.c`, the slit function decomposition vendored from SlitDec. Curvature up to degree 5 and per-row slitdelta corrections.
+- **slitdec** (optional) — the external `slitdec` package (github.com/ivh/SlitDec), for trying upstream development before it is vendored. Install with `uv sync --extra slitdec` and enable with `PYREDUCE_EXTRACTION=slitdec`.
 - **NumPy** — `numpy_slitdec.py`, the same algorithm expressed as scatter/gather over the zeta tensor plus `scipy.linalg.solveh_banded`, at ~1.8-2.1x the runtime. Needs nothing beyond the core dependencies and no compiler at install time; enable with `PYREDUCE_EXTRACTION=numpy`.
 
 ---

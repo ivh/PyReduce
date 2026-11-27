@@ -1,8 +1,8 @@
-/* Copied from CharSlit (github.com/ivh/CharSlit), commit 4177405.
+/* Copied from SlitDec (github.com/ivh/SlitDec), commit 005404f.
    Plain-C slit-decomposition algorithm, compiled here via CFFI.
-   Do not edit here: change CharSlit, then run tools/sync_slitdec.py.
+   Do not edit here: change SlitDec, then run tools/sync_slitdec.py.
    Only divergence: trailing whitespace is stripped.
-   PYREDUCE_EXTRACTION=charslit runs the external charslit package instead. */
+   PYREDUCE_EXTRACTION=slitdec runs the external slitdec package instead. */
 
 /* Slit decomposition, optionally with the spectrum oversampled along x (see slitdec.c). */
 

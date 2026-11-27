@@ -45,10 +45,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-charslit = ["charslit>=0.1.0"]
+slitdec = ["slitdec>=0.1.0"]
 
 [tool.uv.sources]
-charslit = { git = "https://github.com/ivh/CharSlit" }
+slitdec = { git = "https://github.com/ivh/SlitDec" }
 
 [dependency-groups]
 dev = [

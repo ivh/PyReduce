@@ -1,4 +1,4 @@
-# slitdec.c is vendored from CharSlit, which ships LF; keep it that way so
+# slitdec.c is vendored from SlitDec, which ships LF; keep it that way so
 # re-copies produce content-only diffs
 *.c text eol=lf
 *.h text eol=lf

@@ -106,17 +106,6 @@ def test_extract_passes_weights_and_pix_unc(recorder):
         np.testing.assert_allclose(pix_unc, np.sqrt(np.maximum(var, 1 / gain**2)))
 
 
-def test_extract_unweighted_omits_weight_kwargs(recorder):
-    """An external charslit predating weights must still work with the default."""
-    img = np.random.default_rng(0).poisson(_profile()[:, None] * 1e4).astype(float)
-    img = np.repeat(img[:, :1], NCOLS, axis=1)
-    extract.extract(img, _traces(), extraction_height=16)
-    assert recorder.calls
-    for _, _, kwargs in recorder.calls:
-        assert "weights" not in kwargs
-        assert "noise_floor" not in kwargs
-
-
 @pytest.mark.parametrize("backend", ["cwrappers", "numpy_slitdec"])
 def test_unknown_weights_raise(backend):
     mod = pytest.importorskip(f"pyreduce.{backend}")

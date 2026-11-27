@@ -41,7 +41,7 @@ class CustomBuildHook(BuildHookInterface):
             # Import the CFFI FFI builder
             from cffi import FFI
 
-            # Build slit decomposition (slitdec.c, copied from charslit)
+            # Build slit decomposition (slitdec.c, vendored from SlitDec)
             print("\n[1/1] Building slit decomposition extension...")
             ffibuilder_slitdec = FFI()
 

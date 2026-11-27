@@ -2,7 +2,7 @@
    function along y ("slitdec_ox").
 
    N. Piskunov's slitdec_ox (github.com/nikolai-piskunov/slitdec_ox), derived from
-   CharSlit slitdec.c c878d00 and taken back as slitdec.c in November 2026. With
+   slitdec.c c878d00 and taken back as slitdec.c in November 2026. With
    osample_x = 1 and no mu_x it reproduces that slitdec() up to the tilt reference
    point (see zeta_tensors_ox); on untilted swaths bit for bit.
    What osample_x > 1 and the new arguments add:

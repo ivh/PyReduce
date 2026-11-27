@@ -7,8 +7,8 @@ to compare line shapes.
 
 Modes:
   1. standard     - merged slitA/B traces, CFFI backend
-  2. charslit     - merged slitA/B, charslit backend, no deltas
-  3. charslit+d   - merged slitA/B, charslit backend, with deltas
+  2. slitdec      - merged slitA/B, slitdec backend, no deltas
+  3. slitdec+d    - merged slitA/B, slitdec backend, with deltas
   4. fibers       - individual fiber traces (no curvature), CFFI backend
 
 Data layout (same as andes_tracecurve.py):
@@ -58,8 +58,8 @@ MID_ORDER = {
 MODES = [
     ("fibers", {}),
     ("standard", {}),
-    ("charslit", {"PYREDUCE_EXTRACTION": "charslit", "PYREDUCE_USE_DELTAS": "0"}),
-    ("charslit+d", {"PYREDUCE_EXTRACTION": "charslit", "PYREDUCE_USE_DELTAS": "1"}),
+    ("slitdec", {"PYREDUCE_EXTRACTION": "slitdec", "PYREDUCE_USE_DELTAS": "0"}),
+    ("slitdec+d", {"PYREDUCE_EXTRACTION": "slitdec", "PYREDUCE_USE_DELTAS": "1"}),
 ]
 
 parser = argparse.ArgumentParser(description="ANDES LSF comparison")

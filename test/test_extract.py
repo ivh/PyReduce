@@ -383,7 +383,7 @@ def test_unmasked_nan_pixels_are_masked():
     y = np.arange(nrows)[:, None]
     img = np.repeat(1000 * np.exp(-0.5 * ((y + 0.5 - 10.8) / 2.5) ** 2), ncols, 1)
     img[0, 40:60] = np.nan
-    result = extract._slitdec_charslit(
+    result = extract._slitdec_swath(
         np.ma.masked_array(img),
         np.full(ncols, 10.8),
         np.zeros((ncols, 6)),

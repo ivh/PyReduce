@@ -2,10 +2,10 @@
 Wrapper for the slit-decomposition C function.
 
 This module provides access to the slitdec extraction algorithm in the
-CFFI-compiled C library (clib/slitdec.c, copied from charslit) and sanitizes
+CFFI-compiled C library (clib/slitdec.c, vendored from SlitDec) and sanitizes
 the input parameters.
 
-Mask convention here is charslit's: 0 = bad pixel, 1 = good pixel. No
+Mask convention here is slitdec's: 0 = bad pixel, 1 = good pixel. No
 conversion is done; callers pass and receive masks in that convention.
 """
 
@@ -44,13 +44,13 @@ def slitdec(
     noise_floor=None,
     uncertainty="propagated",
 ):
-    """Slit decomposition with slit characterization (charslit algorithm).
+    """Slit decomposition with slit characterization (SlitDec algorithm).
 
-    Plain-C port of charslit's ``slitdec``, compiled via CFFI. The signature and
-    returned dict match the nanobind ``charslit.slitdec`` so this is a drop-in
+    The vendored C ``slitdec`` of SlitDec, compiled via CFFI. The signature and
+    returned dict match the nanobind ``slitdec.slitdec`` of the slitdec package so this is a drop-in
     replacement for the external package.
 
-    Mask convention here is charslit's (0 = bad, 1 = good); no conversion is done.
+    Mask convention here is slitdec's (0 = bad, 1 = good); no conversion is done.
 
     When ``preset_slitfunc`` is given (length ``ny`` used directly, or ``nrows``
     interpolated up), the slit-function solve is skipped and only the spectrum is
@@ -62,9 +62,9 @@ def slitdec(
     (1/(a*model + b) with a, b fitted to pix_unc^2, refreshed each iteration)
     or ``"flux"`` (1/slit function value). ``noise_floor`` fixes b, in the units
     of ``im``; None fits it, but not below the 5th percentile of pix_unc^2. See
-    CharSlit's CLAUDE.md for the trade-offs.
+    SlitDec's CLAUDE.md for the trade-offs.
 
-    ``uncertainty`` selects the spectrum uncertainty, as in charslit:
+    ``uncertainty`` selects the spectrum uncertainty, as in the slitdec package:
     ``"residual"`` the historic heuristic from the data - model residuals per
     column (not calibrated: about 0.7x the true scatter on a frame the model
     fits exactly, and too large where model misfit dominates the residuals),
@@ -115,7 +115,7 @@ def slitdec(
     ny = osample * (nrows + 1) + 1
 
     # slitdeltas may be given per-row (nrows) or per-subpixel (ny). Per-row is
-    # linearly interpolated up to ny, matching the charslit wrapper.
+    # linearly interpolated up to ny, matching the slitdec package.
     slitdeltas = np.asarray(slitdeltas, dtype=c_double).ravel()
     if slitdeltas.size == nrows:
         pos = np.arange(ny) * (nrows - 1.0) / (ny - 1.0)
@@ -160,7 +160,7 @@ def slitdec(
     else:
         sL = np.full(ny, 1.0 / osample, dtype=c_double)
 
-    # Output arrays, with the same starting guesses as the charslit wrapper.
+    # Output arrays, with the same starting guesses as the slitdec package.
     sP = np.ones(ncols, dtype=c_double)
     model = np.zeros((nrows, ncols), dtype=c_double)
     unc = np.zeros(ncols, dtype=c_double)

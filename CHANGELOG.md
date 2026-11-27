@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **Breaking**: CharSlit is now SlitDec (github.com/ivh/SlitDec) and its Python package is `slitdec`. The external backend is `PYREDUCE_EXTRACTION=slitdec` / `--extraction slitdec`, the optional extra `slitdec`; `charslit` is no longer accepted. The compatibility paths for charslit versions without `weights=` or the `margin` key are gone. Vendored slitdec from SlitDec 005404f (comment only)
+
 ### Removed
 - The numba extraction backend (`PYREDUCE_EXTRACTION=numba`, the `numba` extra): not worth maintaining next to the numpy port, which needs no extra dependency
 
@@ -9,7 +12,7 @@
 - **Optional pixel-variance input to the extraction.** `extract()` / `extract_spectrum()` take `var`, the pixel variances of the image in ADU²; the science step reads them from a `VAR` image extension of the input file (raw layout, divided by the normalized flat squared). Without it the variances are built from the extracted image as before, which for an A-B difference misses the sky and the second frame's read noise: on the SOXS NIR nod frames the propagated uncertainties came out 1.27x too small (up to 2x per order) against the scatter between two nod pairs, 1.00x (0.86-1.11) with the variances of both frames. `examples/soxs_example.py` writes the `VAR` extension for its A-B frames
 
 ### Changed
-- Vendored slitdec from CharSlit 093dbd3: with `"propagated"`/`"scaled"`, a column no unmasked pixel contributes to now gets a NaN uncertainty instead of the near-zero leakage through the penalty. Ported to the numpy backend
+- Vendored slitdec from SlitDec 093dbd3: with `"propagated"`/`"scaled"`, a column no unmasked pixel contributes to now gets a NaN uncertainty instead of the near-zero leakage through the penalty. Ported to the numpy backend
 - **Spectrum uncertainties are now propagated from the pixel variances.** New setting `extraction_uncertainty` (`science`, `norm_flat`): `"propagated"` (default) carries the pixel variances (photon plus read noise, or the fitted variance model of `"model"` weights) through the final spectrum solve; `"scaled"` multiplies that by √(reduced χ²); `"residual"` is the previous estimate from the data - model residuals. The residual heuristic was not calibrated: about 0.7x the true scatter on a frame the model fits exactly, 1.6-1.9x the photon limit on SOXS NIR nod frames where model misfit dominates. The propagated value matches the scatter over noise realisations to within 10% and the photon limit on SOXS NIR data to 0.9-1.0x. The extra read-noise term `extract_spectrum` added per column is now applied only to `"residual"`. Exposes the C's `unc_mode`; the numpy backend computes the same in `propagate_uncertainty` (shared with numba), matching the C to ~1e-14. Every backend returns the reduced `chi2`
 
 ## [0.10] - 2026-10-23

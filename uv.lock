@@ -357,17 +357,6 @@ wheels = [
 ]
 
 [[package]]
-name = "charslit"
-version = "0.1.0"
-source = { git = "https://github.com/ivh/CharSlit#cddccf207d280848502f3b9e457349e9460ace87" }
-dependencies = [
-    { name = "astropy" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "scipy" },
-]
-
-[[package]]
 name = "click"
 version = "8.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1884,8 +1873,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-charslit = [
-    { name = "charslit" },
+slitdec = [
+    { name = "slitdec" },
 ]
 
 [package.dev-dependencies]
@@ -1911,7 +1900,6 @@ ipynb = [
 requires-dist = [
     { name = "astropy", specifier = ">=5.3.0" },
     { name = "cffi", specifier = ">=1.17.1" },
-    { name = "charslit", marker = "extra == 'charslit'", git = "https://github.com/ivh/CharSlit" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "colorlog", specifier = ">=6.8.0" },
     { name = "joblib", specifier = ">=1.3.0" },
@@ -1923,10 +1911,11 @@ requires-dist = [
     { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "scipy", specifier = ">=1.11.0" },
+    { name = "slitdec", marker = "extra == 'slitdec'", git = "https://github.com/ivh/SlitDec" },
     { name = "spectres", specifier = ">=2.2.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
 ]
-provides-extras = ["charslit"]
+provides-extras = ["slitdec"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2349,6 +2338,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz", hash = "sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc", size = 1230289, upload-time = "2026-10-20T19:01:37.742Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl", hash = "sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2", size = 876263, upload-time = "2026-10-20T19:01:35.678Z" },
+]
+
+[[package]]
+name = "slitdec"
+version = "0.1.0"
+source = { git = "https://github.com/ivh/SlitDec#005404f6c341845f7ef2b5264653fd1fcd9247fd" }
+dependencies = [
+    { name = "astropy" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
 ]
 
 [[package]]

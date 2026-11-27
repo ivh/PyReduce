@@ -42,7 +42,7 @@ def build():
     os.chdir(CWD)
 
     try:
-        # Slit decomposition (slitdec.c, copied from charslit)
+        # Slit decomposition (slitdec.c, vendored from SlitDec)
         ffibuilder_slitdec = FFI()
         with open("slitdec.h") as f:
             ffibuilder_slitdec.cdef(f.read())

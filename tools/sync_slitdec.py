@@ -1,8 +1,8 @@
-"""Re-vendor slitdec.{c,h} from a local CharSlit checkout.
+"""Re-vendor slitdec.{c,h} from a local SlitDec checkout.
 
-    uv run python tools/sync_slitdec.py ../CharSlit.git
+    uv run python tools/sync_slitdec.py ../SlitDec.git
 
-Copies both files into pyreduce/clib/, stamps the header with CharSlit's
+Copies both files into pyreduce/clib/, stamps the header with SlitDec's
 commit, strips trailing whitespace (our pre-commit hook would do it anyway),
 and prints the slitdec() signature diff. It does not touch cwrappers.py or
 the numpy port: that needs porting by hand, see CLAUDE.md.
@@ -15,14 +15,14 @@ import sys
 from pathlib import Path
 
 CLIB = Path(__file__).resolve().parent.parent / "pyreduce" / "clib"
-NOTE = """/* Copied from CharSlit (github.com/ivh/CharSlit), commit {commit}.
+NOTE = """/* Copied from SlitDec (github.com/ivh/SlitDec), commit {commit}.
    Plain-C slit-decomposition algorithm, compiled here via CFFI.
-   Do not edit here: change CharSlit, then run tools/sync_slitdec.py.
+   Do not edit here: change SlitDec, then run tools/sync_slitdec.py.
    Only divergence: trailing whitespace is stripped.
-   PYREDUCE_EXTRACTION=charslit runs the external charslit package instead. */
+   PYREDUCE_EXTRACTION=slitdec runs the external slitdec package instead. */
 
 """
-NOTE_RE = re.compile(r"\A/\* Copied from CharSlit.*?\*/\n\n", re.S)
+NOTE_RE = re.compile(r"\A/\* Copied from SlitDec.*?\*/\n\n", re.S)
 
 
 def git(repo, *args):
@@ -53,7 +53,7 @@ def main(repo):
         (CLIB / name).write_text(text)
     new_sig = signature((CLIB / "slitdec.h").read_text())
 
-    print(f"Vendored slitdec.{{c,h}} from CharSlit {commit}")
+    print(f"Vendored slitdec.{{c,h}} from SlitDec {commit}")
     if old_sig != new_sig:
         print("\nslitdec() signature changed -- update the call in cwrappers.py:")
         print("\n".join(difflib.unified_diff(old_sig, new_sig, lineterm="", n=1)))
