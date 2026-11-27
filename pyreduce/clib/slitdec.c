@@ -704,7 +704,7 @@ static int cmp_pair(const void *p, const void *q)
    a = 1/(gain * frames combined). The line goes through the medians of model and
    pix_unc^2 in bins of equal pixel count along the model, as unmasked hot pixels with huge
    pix_unc dominate a plain least-squares fit. Ties sort by pix_unc^2 so that the bins are
-   reproducible in the numpy and numba ports. */
+   reproducible in PyReduce's numpy port. */
 static void variance_fit(const double *model, const double *pix_unc, const unsigned char *mask,
                          long npix, double b_min, int fix_b, double *a, double *b)
 {
